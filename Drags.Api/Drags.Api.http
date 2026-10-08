@@ -1,6 +1,9 @@
-@Drags.Api_HostAddress = http://localhost:5062
+@Drags.Api_HostAddress = http://localhost:5000
 
-GET {{Drags.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+GET {{Drags.Api_HostAddress}}/api/v1/drugs?search=&page=1&pageSize=20
+
+###
+
+GET {{Drags.Api_HostAddress}}/api/v1/drug-groups?search=&page=1&pageSize=20
 
 ###

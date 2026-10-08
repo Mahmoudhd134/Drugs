@@ -16,45 +16,7 @@ namespace Drags.Api.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
 
-            modelBuilder.Entity("Drags.Api.Models.Combo", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Combos");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.ComboDrag", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ComboId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("DragId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ComboId");
-
-                    b.HasIndex("DragId");
-
-                    b.ToTable("ComboDrags");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.Drag", b =>
+            modelBuilder.Entity("Drags.Api.Models.Drug", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -65,41 +27,81 @@ namespace Drags.Api.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(128)
+                        .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Drags");
+                    b.ToTable("Drugs");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.ComboDrag", b =>
+            modelBuilder.Entity("Drags.Api.Models.DrugGroup", b =>
                 {
-                    b.HasOne("Drags.Api.Models.Combo", "Combo")
-                        .WithMany("ComboDrags")
-                        .HasForeignKey("ComboId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DrugGroups");
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.DrugGroupItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DrugGroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DrugId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DrugGroupId");
+
+                    b.HasIndex("DrugId");
+
+                    b.ToTable("DrugGroupItems");
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.DrugGroupItem", b =>
+                {
+                    b.HasOne("Drags.Api.Models.DrugGroup", "DrugGroup")
+                        .WithMany("Items")
+                        .HasForeignKey("DrugGroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Drags.Api.Models.Drag", "Drag")
-                        .WithMany("ComboDrags")
-                        .HasForeignKey("DragId")
+                    b.HasOne("Drags.Api.Models.Drug", "Drug")
+                        .WithMany("GroupItems")
+                        .HasForeignKey("DrugId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Combo");
+                    b.Navigation("Drug");
 
-                    b.Navigation("Drag");
+                    b.Navigation("DrugGroup");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Combo", b =>
+            modelBuilder.Entity("Drags.Api.Models.Drug", b =>
                 {
-                    b.Navigation("ComboDrags");
+                    b.Navigation("GroupItems");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Drag", b =>
+            modelBuilder.Entity("Drags.Api.Models.DrugGroup", b =>
                 {
-                    b.Navigation("ComboDrags");
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

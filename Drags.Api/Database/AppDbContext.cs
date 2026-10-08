@@ -5,24 +5,28 @@ namespace Drags.Api.Database;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<Drag> Drags { get; set; }
-    public DbSet<Combo> Combos { get; set; }
-    public DbSet<ComboDrag> ComboDrags { get; set; }
+    public const int NameMaxLength = 256;
+
+    public DbSet<Drug> Drugs { get; set; }
+    public DbSet<DrugGroup> DrugGroups { get; set; }
+    public DbSet<DrugGroupItem> DrugGroupItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Drag>(builder =>
+        modelBuilder.Entity<Drug>(builder =>
         {
-            builder.HasKey(x => x.Id);
-
-            builder.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            builder.Property(x => x.Name).HasMaxLength(NameMaxLength).IsRequired();
         });
 
-
-        modelBuilder.Entity<ComboDrag>(buidler =>
+        modelBuilder.Entity<DrugGroup>(builder =>
         {
-            buidler.HasOne(x => x.Combo).WithMany(x => x.ComboDrags);
-            buidler.HasOne(x => x.Drag).WithMany(x => x.ComboDrags);
+            builder.Property(x => x.Name).HasMaxLength(NameMaxLength).IsRequired();
+        });
+
+        modelBuilder.Entity<DrugGroupItem>(builder =>
+        {
+            builder.HasOne(x => x.DrugGroup).WithMany(x => x.Items).HasForeignKey(x => x.DrugGroupId);
+            builder.HasOne(x => x.Drug).WithMany(x => x.GroupItems).HasForeignKey(x => x.DrugId);
         });
 
         base.OnModelCreating(modelBuilder);

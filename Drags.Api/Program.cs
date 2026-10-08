@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -22,6 +23,10 @@ builder.Services.AddSingleton(serviceProvider => serviceProvider.GetRequiredServ
 
 var app = builder.Build();
 
+var appSettings = app.Services.GetRequiredService<AppSettings>();
+
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -31,8 +36,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
-
-var appSettings = app.Services.GetRequiredService<AppSettings>();
 
 app.UseCors(cors => cors
     .WithOrigins(appSettings.AllowedOrigins.ToArray())
@@ -47,12 +50,12 @@ await context.Database.MigrateAsync();
 
 if (app.Environment.IsDevelopment())
 {
-    if (context.Drags.Any() == false)
+    if (context.Drugs.Any() == false)
     {
-        context.Drags.AddRange(Enumerable.Range(1, 10000).Select(x => new Drag()
+        context.Drugs.AddRange(Enumerable.Range(1, 10000).Select(x => new Drug
         {
-            Name = $"this is drag number {x}",
-            Description = $"this is the description of drag number {x}"
+            Name = $"Drug number {x}",
+            Description = $"Description of drug number {x}"
         }));
         await context.SaveChangesAsync();
     }
