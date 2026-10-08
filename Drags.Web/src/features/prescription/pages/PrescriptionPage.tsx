@@ -3,17 +3,19 @@ import {Button, Grid} from "@mui/material";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {PageHeader} from "../../../components/common/PageHeader.tsx";
-import {copyText} from "../../../utils/clipboard.ts";
+import {copyRichText} from "../../../utils/clipboard.ts";
+import {useLanguage} from "../../../hooks/useLanguage.ts";
 import {CatalogPanel} from "../components/CatalogPanel.tsx";
 import {SelectionPanel} from "../components/SelectionPanel.tsx";
 import {EditorDialog} from "../components/EditorDialog.tsx";
 import {usePrescriptionSelection} from "../usePrescriptionSelection.ts";
-import {drugsToPlainText} from "../prescriptionText.ts";
+import {drugsToHtml, drugsToPlainText, htmlForPaste} from "../prescriptionText.ts";
 import type {DrugGroup} from "../../drugGroups/types.ts";
 import type {Drug} from "../../drugs/types.ts";
 
 export const PrescriptionPage = () => {
     const {t} = useTranslation();
+    const {dir} = useLanguage();
     const selection = usePrescriptionSelection();
     const [editorOpen, setEditorOpen] = useState(false);
 
@@ -50,7 +52,7 @@ export const PrescriptionPage = () => {
     };
 
     const quickCopy = async () => {
-        if (await copyText(drugsToPlainText(selection.drugs))) toast.success(t("common.copied"));
+        if (await copyRichText(htmlForPaste(drugsToHtml(selection.drugs, dir)), drugsToPlainText(selection.drugs))) toast.success(t("common.copied"));
         else toast.error(t("errors.copyFailed"));
     };
 

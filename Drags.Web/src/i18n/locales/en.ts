@@ -51,7 +51,7 @@ const en = {
         emptyTitle: "Nothing selected yet",
         emptyDescription: "Search for a group or a drug and click it to add it here.",
         editAndCopy: "Edit & copy",
-        quickCopy: "Copy as text",
+        quickCopy: "Copy",
         clearAll: "Clear all",
         cleared: "List cleared",
         alreadyAdded: "“{{name}}” is already in the list",

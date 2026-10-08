@@ -6,8 +6,8 @@ import "react-quill/dist/quill.snow.css";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {useLanguage} from "../../../hooks/useLanguage.ts";
-import {copyText} from "../../../utils/clipboard.ts";
-import {drugsToHtml, htmlToPlainText} from "../prescriptionText.ts";
+import {copyRichText} from "../../../utils/clipboard.ts";
+import {drugsToHtml, htmlForPaste, htmlToPlainText} from "../prescriptionText.ts";
 import type {Drug} from "../../drugs/types.ts";
 
 const QUILL_MODULES = {
@@ -25,7 +25,7 @@ const EditorContent = ({drugs, onClose}: { drugs: Drug[]; onClose: () => void })
     const [html, setHtml] = useState(() => drugsToHtml(drugs, dir));
 
     const handleCopy = async () => {
-        if (await copyText(htmlToPlainText(html))) toast.success(t("common.copied"));
+        if (await copyRichText(htmlForPaste(html), htmlToPlainText(html))) toast.success(t("common.copied"));
         else toast.error(t("errors.copyFailed"));
     };
 

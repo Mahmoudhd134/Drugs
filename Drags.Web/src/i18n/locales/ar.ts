@@ -52,7 +52,7 @@ const ar: Translations = {
         emptyTitle: "لم يتم اختيار شيء بعد",
         emptyDescription: "ابحث عن مجموعة أو دواء واضغط عليه لإضافته هنا.",
         editAndCopy: "تعديل ونسخ",
-        quickCopy: "نسخ كنص",
+        quickCopy: "نسخ",
         clearAll: "مسح الكل",
         cleared: "تم مسح القائمة",
         alreadyAdded: "«{{name}}» موجود بالفعل في القائمة",

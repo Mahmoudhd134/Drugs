@@ -43,3 +43,33 @@ export const htmlToPlainText = (html: string) => {
 
     return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
+
+const ALIGN_CLASSES = ["center", "right", "justify"];
+
+/**
+ * Editor HTML made self-contained for pasting into Word and similar apps:
+ * Quill's alignment/direction/indent classes become inline styles, and
+ * paragraph margins are removed so spacing matches the editor.
+ */
+export const htmlForPaste = (html: string) => {
+    const body = new DOMParser().parseFromString(html, "text/html").body;
+
+    body.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, ol, ul").forEach(el => {
+        const styles: string[] = [];
+        const rtl = el.classList.contains("ql-direction-rtl");
+        if (rtl) el.setAttribute("dir", "rtl");
+
+        const align = ALIGN_CLASSES.find(a => el.classList.contains(`ql-align-${a}`));
+        if (align) styles.push(`text-align:${align}`);
+
+        const indent = Array.from(el.classList).find(c => c.startsWith("ql-indent-"));
+        if (indent) styles.push(`margin-${rtl ? "right" : "left"}:${Number(indent.slice(10)) * 3}em`);
+
+        if (el.tagName === "P") styles.push("margin-top:0", "margin-bottom:0");
+
+        if (styles.length) el.setAttribute("style", styles.join(";"));
+        el.removeAttribute("class");
+    });
+
+    return body.innerHTML;
+};
