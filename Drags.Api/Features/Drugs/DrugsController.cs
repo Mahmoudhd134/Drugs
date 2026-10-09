@@ -71,6 +71,16 @@ public class DrugsController(AppDbContext context) : BaseApiController
         return drug.ToDto();
     }
 
+    /// <summary>Names of the groups that contain this drug (shown before deleting it).</summary>
+    [HttpGet("{id:int}/groups")]
+    public async Task<List<string>> GetGroups(int id) =>
+        await context.DrugGroupItems.AsNoTracking()
+            .Where(i => i.DrugId == id)
+            .Select(i => i.DrugGroup.Name)
+            .Distinct()
+            .OrderBy(name => name)
+            .ToListAsync();
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

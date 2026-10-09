@@ -27,7 +27,7 @@ import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
-import {useDeleteDrug, useDrugs} from "../api.ts";
+import {fetchDrugGroupNames, useDeleteDrug, useDrugs} from "../api.ts";
 import {DrugFormDialog} from "../components/DrugFormDialog.tsx";
 import {DrugText} from "../components/DrugText.tsx";
 import type {Drug} from "../types.ts";
@@ -53,9 +53,14 @@ export const DrugsPage = () => {
     const openEdit = (drug: Drug) => setDialog({open: true, drug});
 
     const handleDelete = async (drug: Drug) => {
+        // Name the groups that will lose this drug; if the lookup fails, still allow deleting
+        const groupNames = await fetchDrugGroupNames(drug.id).catch(() => [] as string[]);
         const confirmed = await confirm({
             title: t("drugs.deleteTitle"),
-            message: t("drugs.deleteMessage", {name: drug.name}),
+            message: [
+                t("drugs.deleteMessage", {name: drug.name}),
+                groupNames.length ? t("drugs.usedInGroups", {names: groupNames.join("، ")}) : null,
+            ].filter(Boolean).join("\n"),
             destructive: true,
         });
         if (!confirmed) return;

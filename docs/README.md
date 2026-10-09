@@ -37,5 +37,5 @@ docs/
 |---|---|---|
 | Structured dosing | [tech](features/dosing/tech.md) | [business](features/dosing/business.md) |
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |
-| Drug groups | [tech](features/drug-groups/tech.md) | [business](features/drug-groups/business.md) |
+| Drug groups (protocols) | [tech](features/drug-groups/tech.md) | [business](features/drug-groups/business.md) |
 | Prescription builder | [tech](features/prescription/tech.md) | [business](features/prescription/business.md) |

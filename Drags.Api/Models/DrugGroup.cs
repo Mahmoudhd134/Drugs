@@ -13,6 +13,8 @@ public class DrugGroupItem
     public int DrugGroupId { get; set; }
     public int DrugId { get; set; }
     public int Order { get; set; }
+    /// <summary>Group-specific dosing; empty fields fall back to the drug's default dosing.</summary>
+    public Dosing Dosing { get; set; }
 
     public DrugGroup DrugGroup { get; set; }
     public Drug Drug { get; set; }

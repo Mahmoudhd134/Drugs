@@ -42,11 +42,11 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     [HttpPost]
     public async Task<ActionResult<DrugGroupDto>> Create([FromBody] SaveDrugGroupRequest request)
     {
-        var drugIds = (request.DrugIds ?? []).Distinct().ToList();
-        if (await Validate(request.Name, drugIds) is { } error)
+        var items = request.Items.Normalize();
+        if (await Validate(request.Name, items) is { } error)
             return ApiError(error);
 
-        var group = new DrugGroup { Name = request.Name.Trim(), Items = BuildItems(drugIds) };
+        var group = new DrugGroup { Name = request.Name.Trim(), Items = BuildItems(items) };
         context.DrugGroups.Add(group);
         await context.SaveChangesAsync();
 
@@ -56,8 +56,8 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     [HttpPut("{id:int}")]
     public async Task<ActionResult<DrugGroupDto>> Update(int id, [FromBody] SaveDrugGroupRequest request)
     {
-        var drugIds = (request.DrugIds ?? []).Distinct().ToList();
-        if (await Validate(request.Name, drugIds) is { } error)
+        var items = request.Items.Normalize();
+        if (await Validate(request.Name, items) is { } error)
             return ApiError(error);
 
         var group = await context.DrugGroups.Include(g => g.Items).FirstOrDefaultAsync(g => g.Id == id);
@@ -66,7 +66,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
 
         group.Name = request.Name.Trim();
         context.DrugGroupItems.RemoveRange(group.Items);
-        group.Items = BuildItems(drugIds);
+        group.Items = BuildItems(items);
 
         await context.SaveChangesAsync();
         return await LoadDto(id);
@@ -90,18 +90,31 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     private async Task<DrugGroupDto> LoadDto(int id) =>
         (await IncludeDrugs(context.DrugGroups.AsNoTracking()).FirstAsync(g => g.Id == id)).ToDto();
 
-    private async Task<string> Validate(string name, List<int> drugIds)
+    private async Task<string> Validate(string name, List<SaveDrugGroupItem> items)
     {
         if (ErrorCodes.ValidateName(name) is { } error)
             return error;
 
-        if (drugIds.Count == 0)
+        if (items.Count == 0)
             return ErrorCodes.DrugsRequired;
 
+        if (items.Any(x => DosingRules.Validate(x.Dosing, allowAskEye: true) is not null))
+            return ErrorCodes.InvalidDosing;
+
+        // The same drug may appear more than once only with different eyes
+        if (items.Select(x => (x.DrugId, x.Dosing?.Eye)).Distinct().Count() != items.Count)
+            return ErrorCodes.DuplicateGroupItem;
+
+        var drugIds = items.Select(x => x.DrugId).Distinct().ToList();
         var existing = await context.Drugs.CountAsync(d => drugIds.Contains(d.Id));
         return existing == drugIds.Count ? null : ErrorCodes.DrugNotFound;
     }
 
-    private static List<DrugGroupItem> BuildItems(List<int> drugIds) =>
-        drugIds.Select((drugId, index) => new DrugGroupItem { DrugId = drugId, Order = index }).ToList();
+    private static List<DrugGroupItem> BuildItems(List<SaveDrugGroupItem> items) =>
+        items.Select((item, index) => new DrugGroupItem
+        {
+            DrugId = item.DrugId,
+            Order = index,
+            Dosing = item.Dosing
+        }).ToList();
 }

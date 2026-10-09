@@ -28,4 +28,8 @@ public static class DosingCodes
     public static readonly string[] Frequencies = ["daily", "everyHours", "bedtime", "asNeeded", "custom"];
     public static readonly string[] DurationUnits = ["days", "weeks", "months", "continuous", "untilNextVisit"];
     public static readonly string[] Eyes = ["right", "left", "both", "none"];
+
+    /// <summary>Group lines only: the eye is chosen when the group is added to a prescription.</summary>
+    public const string AskEye = "ask";
+    public static readonly string[] GroupEyes = [.. Eyes, AskEye];
 }

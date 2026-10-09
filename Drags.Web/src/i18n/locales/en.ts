@@ -43,6 +43,7 @@ const en = {
         drugNotFound: "One of the drugs no longer exists.",
         copyFailed: "Couldn't copy. Select the text and copy it manually.",
         invalidDosing: "Some dosing values are missing or invalid.",
+        duplicateGroupItem: "A drug is in the group twice for the same eye.",
     },
     prescription: {
         title: "Prescription",
@@ -66,6 +67,17 @@ const en = {
         lineNote: "Note for this prescription",
         addOtherEye: "Add for the other eye",
         eyeTaken: "“{{name}}” is already in the list for that eye",
+        chooseEyeTitle: "Which eye?",
+        chooseEyeMessage: "Some drugs in “{{name}}” are for the eye you choose now.",
+        conflictTitle: "Already in the prescription",
+        conflictMessage: "“{{name}}” is already in the list with a different dosing.",
+        conflictCurrent: "Current",
+        conflictIncoming: "From the group",
+        keepCurrent: "Keep current",
+        useGroup: "Use the group's",
+        applyToRemaining: "Apply to the remaining conflicts: {{count}}",
+        groupReplaced: "Replaced with the group's dosing: {{count}}",
+        groupKept: "Kept the current dosing: {{count}}",
     },
     drugs: {
         title: "Drugs",
@@ -87,6 +99,7 @@ const en = {
         deleteMessage: "“{{name}}” will be deleted and removed from every group. This can't be undone.",
         rowsPerPage: "Rows per page",
         displayedRows: "{{from}}–{{to}} of {{count}}",
+        usedInGroups: "It is used in these groups: {{names}}",
     },
     dosing: {
         title: "Default dosing",
@@ -102,6 +115,11 @@ const en = {
         eye: "Eye",
         preview: "Prescription text",
         noDosing: "No dosing set",
+        inherit: "Drug default",
+        inheritHint: "Empty fields use the drug's default dosing.",
+        resetToDefault: "Use drug default",
+        askEye: "Ask when adding",
+        askEyeHint: "Eye is chosen when the group is added",
         none: "—",
         units: {
             drop: "Drop",
@@ -160,6 +178,9 @@ const en = {
         discardTitle: "Discard changes?",
         discardMessage: "Your unsaved changes to this group will be lost.",
         discard: "Discard",
+        itemDosing: "Dosing in this group",
+        customDosing: "Group dosing",
+        alreadyInGroupForEye: "“{{name}}” is already in this group for that eye",
     },
 };
 

@@ -25,10 +25,25 @@ import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useLanguage} from "../../../hooks/useLanguage.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
-import {SelectedDrugsList} from "../../drugs/components/SelectedDrugsList.tsx";
+import {DosingLineList} from "../../dosing/components/DosingLineList.tsx";
+import {DosingText} from "../../dosing/components/DosingText.tsx";
+import {ASK_EYE, eyeKey, isDosingEmpty, otherEye, type Dosing} from "../../dosing/types.ts";
+import {GroupItemDialog} from "../components/GroupItemDialog.tsx";
+import {
+    effectiveDosing,
+    type EditorItem,
+    itemIdentity,
+    itemsSignature,
+    newItemKey,
+    toEditorItems,
+    toSaveItems,
+} from "../editorItem.ts";
 import type {Drug} from "../../drugs/types.ts";
 import {useDeleteDrugGroup, useDrugGroup, useSaveDrugGroup} from "../api.ts";
 import type {DrugGroup} from "../types.ts";
+
+// Long chip labels wrap onto a second line instead of being cut off on narrow screens
+const wrappingChip = {maxWidth: "100%", height: "auto", "& .MuiChip-label": {whiteSpace: "normal", py: 0.25}};
 
 export const DrugGroupEditorPage = () => {
     const {t} = useTranslation();
@@ -61,13 +76,14 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
     const {confirm, dialog: confirmDialog} = useConfirm();
 
     const [name, setName] = useState(initial?.name ?? "");
-    const [drugs, setDrugs] = useState<Drug[]>(initial?.drugs ?? []);
+    const initialItems = useMemo(() => toEditorItems(initial?.items), [initial]);
+    const initialSignature = useMemo(() => itemsSignature(initialItems), [initialItems]);
+    const [items, setItems] = useState<EditorItem[]>(initialItems);
+    const [editingItem, setEditingItem] = useState<EditorItem | null>(null);
     const [showNameRequired, setShowNameRequired] = useState(false);
 
-    const selectedIds = useMemo(() => new Set(drugs.map(d => d.id)), [drugs]);
-    const isDirty =
-        name.trim() !== (initial?.name ?? "") ||
-        drugs.map(d => d.id).join() !== (initial?.drugs ?? []).map(d => d.id).join();
+    const selectedIds = useMemo(() => new Set(items.map(i => i.drug.id)), [items]);
+    const isDirty = name.trim() !== (initial?.name ?? "") || itemsSignature(items) !== initialSignature;
 
     // Warn before closing the tab with unsaved changes
     useEffect(() => {
@@ -79,12 +95,39 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
 
     const nameError = showNameRequired && !name.trim();
 
+    /** A new line uses the drug's default dosing (empty override). */
     const addDrug = (drug: Drug) => {
-        if (selectedIds.has(drug.id)) {
-            toast(t("groups.alreadyInGroup", {name: drug.name}));
+        const item: EditorItem = {key: newItemKey(), drug, dosing: {}};
+        if (items.some(i => itemIdentity(i) === itemIdentity(item))) {
+            toast(t("groups.alreadyInGroupForEye", {name: drug.name}));
             return;
         }
-        setDrugs(current => [...current, drug]);
+        setItems(current => [...current, item]);
+    };
+
+    /** Returns false (no change) when the new eye clashes with another line of the same drug. */
+    const updateItem = (key: string, dosing: Dosing) => {
+        const item = items.find(i => i.key === key);
+        if (!item) return false;
+        const identity = itemIdentity({drug: item.drug, dosing});
+        if (items.some(i => i.key !== key && itemIdentity(i) === identity)) return false;
+        setItems(current => current.map(i => (i.key === key ? {...i, dosing} : i)));
+        return true;
+    };
+
+    const canAddOtherEye = (item: EditorItem) => {
+        const eye = otherEye(effectiveDosing(item).eye);
+        return eye !== null && !items.some(i => i.drug.id === item.drug.id && eyeKey(effectiveDosing(i)) === eye);
+    };
+
+    const addOtherEye = (item: EditorItem) => {
+        const eye = otherEye(effectiveDosing(item).eye);
+        if (!eye || !canAddOtherEye(item)) return;
+        const copy: EditorItem = {...item, key: newItemKey(), dosing: {...item.dosing, eye}};
+        setItems(current => {
+            const index = current.findIndex(i => i.key === item.key);
+            return [...current.slice(0, index + 1), copy, ...current.slice(index + 1)];
+        });
     };
 
     const leave = async () => {
@@ -105,7 +148,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
             setShowNameRequired(true);
             return;
         }
-        if (drugs.length === 0) {
+        if (items.length === 0) {
             toast.error(t("errors.drugsRequired"));
             return;
         }
@@ -114,7 +157,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
             await save.mutateAsync({
                 id: groupId,
                 name: name.trim(),
-                drugIds: drugs.map(d => d.id),
+                items: toSaveItems(items),
             });
             toast.success(groupId === null ? t("groups.created") : t("groups.updated"));
             navigate("/groups");
@@ -188,9 +231,9 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                         <Paper variant="outlined" sx={{p: 2.5}}>
                             <Stack direction="row" sx={{alignItems: "center", gap: 1, mb: 2}}>
                                 <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("groups.drugsInGroup")}</Typography>
-                                <Chip size="small" label={drugs.length}/>
+                                <Chip size="small" label={items.length}/>
                             </Stack>
-                            {drugs.length === 0 ? (
+                            {items.length === 0 ? (
                                 <EmptyState
                                     compact
                                     icon={<MedicationIcon/>}
@@ -198,10 +241,37 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                     description={t("groups.noDrugsDescription")}
                                 />
                             ) : (
-                                <SelectedDrugsList
-                                    drugs={drugs}
-                                    onReorder={setDrugs}
-                                    onRemove={(drug) => setDrugs(current => current.filter(d => d.id !== drug.id))}
+                                <DosingLineList
+                                    lines={items}
+                                    onReorder={setItems}
+                                    onEdit={setEditingItem}
+                                    onRemove={(item) => setItems(current => current.filter(i => i.key !== item.key))}
+                                    canAddOtherEye={canAddOtherEye}
+                                    onAddOtherEye={addOtherEye}
+                                    renderDetails={(item) => {
+                                        const effective = effectiveDosing(item);
+                                        return (
+                                            <>
+                                                {isDosingEmpty(effective) ? (
+                                                    item.drug.description && (
+                                                        <Typography variant="body2" color="text.secondary" sx={{whiteSpace: "pre-line"}}>
+                                                            {item.drug.description}
+                                                        </Typography>
+                                                    )
+                                                ) : (
+                                                    <DosingText dosing={effective}/>
+                                                )}
+                                                <Stack direction="row" sx={{gap: 0.5, flexWrap: "wrap", mt: 0.5}}>
+                                                    {!isDosingEmpty(item.dosing) && (
+                                                        <Chip size="small" variant="outlined" color="primary" label={t("groups.customDosing")} sx={wrappingChip}/>
+                                                    )}
+                                                    {effective.eye === ASK_EYE && (
+                                                        <Chip size="small" variant="outlined" color="secondary" label={t("dosing.askEyeHint")} sx={wrappingChip}/>
+                                                    )}
+                                                </Stack>
+                                            </>
+                                        );
+                                    }}
                                 />
                             )}
                         </Paper>
@@ -216,6 +286,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                     </Paper>
                 </Grid>
             </Grid>
+            <GroupItemDialog item={editingItem} onClose={() => setEditingItem(null)} onSave={updateItem}/>
             {confirmDialog}
         </>
     );

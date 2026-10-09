@@ -2,6 +2,7 @@ import type {Dispatch, SetStateAction} from "react";
 import {Box, Grid, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {
+    ASK_EYE,
     DOSE_UNITS,
     DURATION_UNITS,
     durationNeedsValue,
@@ -10,11 +11,12 @@ import {
     type Dosing,
     type DoseUnit,
     type DurationUnit,
-    type Eye,
+    type DosingEye,
     FREQUENCIES,
     type Frequency,
     frequencyNeedsValue,
     MAX_FREQUENCY_TEXT_LENGTH,
+    mergeDosing,
 } from "../types.ts";
 import {dosingToText} from "../dosingText.ts";
 
@@ -24,16 +26,31 @@ type Props = {
     onChange: Dispatch<SetStateAction<Dosing>>;
     /** Highlight invalid fields (e.g. after a save attempt) */
     showErrors?: boolean;
+    /**
+     * Inherit mode (group lines): the value is an override of this base dosing. Empty fields
+     * show as "Drug default" and the preview shows the merged result.
+     */
+    inheritFrom?: Dosing | null;
+    /** Offer the "ask when adding" eye (group lines only) */
+    allowAskEye?: boolean;
 };
 
 const toNumber = (text: string) => (text.trim() === "" ? null : Number(text));
 
 /** Dose, frequency, duration and eye inputs with a live preview of the Arabic prescription text. */
-export const DosingFields = ({value, onChange, showErrors}: Props) => {
+export const DosingFields = ({value, onChange, showErrors, inheritFrom, allowAskEye}: Props) => {
     const {t} = useTranslation();
     const errors = showErrors ? dosingErrors(value) : [];
     const set = (patch: Partial<Dosing>) => onChange(current => ({...current, ...patch}));
-    const preview = dosingToText(value);
+    const inheritMode = inheritFrom !== undefined;
+    const effective = inheritMode ? mergeDosing(inheritFrom, value) : value;
+    const preview = dosingToText(effective);
+    const emptyLabel = inheritMode ? t("dosing.inherit") : t("dosing.none");
+    const eyes: DosingEye[] = allowAskEye ? [...EYES, ASK_EYE] : [...EYES];
+    // In inherit mode an empty select shows "Drug default" instead of looking blank
+    const inheritSelectProps = inheritMode
+        ? {select: {displayEmpty: true}, inputLabel: {shrink: true}}
+        : undefined;
 
     return (
         <Box>
@@ -47,12 +64,14 @@ export const DosingFields = ({value, onChange, showErrors}: Props) => {
                         value={value.doseAmount ?? ""}
                         onChange={(e) => set({doseAmount: toNumber(e.target.value)})}
                         error={errors.includes("doseAmount")}
-                        slotProps={{htmlInput: {min: 0, step: 0.5}}}
+                        placeholder={inheritMode ? t("dosing.inherit") : undefined}
+                        slotProps={{htmlInput: {min: 0, step: 0.5}, inputLabel: inheritMode ? {shrink: true} : undefined}}
                     />
                 </Grid>
                 <Grid size={{xs: 7, sm: 8}}>
                     <TextField
                         select
+                        slotProps={inheritSelectProps}
                         label={t("dosing.unit")}
                         size="small"
                         fullWidth
@@ -60,7 +79,7 @@ export const DosingFields = ({value, onChange, showErrors}: Props) => {
                         onChange={(e) => set({doseUnit: (e.target.value || null) as DoseUnit | null})}
                         error={errors.includes("doseUnit")}
                     >
-                        <MenuItem value="">{t("dosing.none")}</MenuItem>
+                        <MenuItem value="">{emptyLabel}</MenuItem>
                         {DOSE_UNITS.map(u => <MenuItem key={u} value={u}>{t(`dosing.units.${u}`)}</MenuItem>)}
                     </TextField>
                 </Grid>
@@ -68,13 +87,14 @@ export const DosingFields = ({value, onChange, showErrors}: Props) => {
                 <Grid size={{xs: frequencyNeedsValue(value.frequency) ? 7 : 12, sm: frequencyNeedsValue(value.frequency) ? 8 : 12}}>
                     <TextField
                         select
+                        slotProps={inheritSelectProps}
                         label={t("dosing.frequency")}
                         size="small"
                         fullWidth
                         value={value.frequency ?? ""}
                         onChange={(e) => set({frequency: (e.target.value || null) as Frequency | null})}
                     >
-                        <MenuItem value="">{t("dosing.none")}</MenuItem>
+                        <MenuItem value="">{emptyLabel}</MenuItem>
                         {FREQUENCIES.map(f => <MenuItem key={f} value={f}>{t(`dosing.frequencies.${f}`)}</MenuItem>)}
                     </TextField>
                 </Grid>
@@ -109,13 +129,14 @@ export const DosingFields = ({value, onChange, showErrors}: Props) => {
                 <Grid size={{xs: durationNeedsValue(value.durationUnit) ? 7 : 12, sm: durationNeedsValue(value.durationUnit) ? 8 : 12}}>
                     <TextField
                         select
+                        slotProps={inheritSelectProps}
                         label={t("dosing.durationUnit")}
                         size="small"
                         fullWidth
                         value={value.durationUnit ?? ""}
                         onChange={(e) => set({durationUnit: (e.target.value || null) as DurationUnit | null})}
                     >
-                        <MenuItem value="">{t("dosing.none")}</MenuItem>
+                        <MenuItem value="">{emptyLabel}</MenuItem>
                         {DURATION_UNITS.map(u => <MenuItem key={u} value={u}>{t(`dosing.durations.${u}`)}</MenuItem>)}
                     </TextField>
                 </Grid>
@@ -144,10 +165,14 @@ export const DosingFields = ({value, onChange, showErrors}: Props) => {
                         color="primary"
                         value={value.eye ?? null}
                         // Clicking the selected eye again clears it
-                        onChange={(_, eye: Eye | null) => set({eye})}
+                        onChange={(_, eye: DosingEye | null) => set({eye})}
                         sx={{flexWrap: "wrap"}}
                     >
-                        {EYES.map(e => <ToggleButton key={e} value={e} sx={{px: 2}}>{t(`dosing.eyes.${e}`)}</ToggleButton>)}
+                        {eyes.map(e => (
+                            <ToggleButton key={e} value={e} sx={{px: 2}}>
+                                {e === ASK_EYE ? t("dosing.askEye") : t(`dosing.eyes.${e}`)}
+                            </ToggleButton>
+                        ))}
                     </ToggleButtonGroup>
                 </Grid>
             </Grid>
@@ -157,6 +182,9 @@ export const DosingFields = ({value, onChange, showErrors}: Props) => {
                 <Typography dir="rtl" lang="ar" sx={{fontWeight: 500}} color={preview ? "text.primary" : "text.disabled"}>
                     {preview || t("dosing.noDosing")}
                 </Typography>
+                {effective.eye === ASK_EYE && (
+                    <Typography variant="caption" color="secondary.main">{t("dosing.askEyeHint")}</Typography>
+                )}
             </Box>
         </Box>
     );

@@ -70,7 +70,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   **start with** the term first.
 - Validation errors return **400** with a machine-readable code. The frontend translates codes.
   Codes live in `Shared/ErrorCodes.cs`: `nameRequired`, `nameTooLong`, `drugsRequired`, `drugNotFound`,
-  `invalidDosing`.
+  `invalidDosing`, `duplicateGroupItem`.
   Add new codes there **and** under `errors.*` in both locale files.
 - `Nullable` is disabled in the csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
 
@@ -87,10 +87,11 @@ Drugs                       DrugGroups
         └────── DrugGroupItems ─────┘
                 - Id (PK)
                 - Order (int, 0-based position in the group)
+                - Dosing_* (owned Dosing, nullable: group override; eye may be "ask")
 ```
 
 - Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
-- A drug appears at most once per group (the API de-duplicates `drugIds`).
+- A drug appears at most once per group **per eye** (`duplicateGroupItem`).
 - `Dosing` is an EF **owned type** (`Models/Dosing.cs`), reusable on any entity via
   `OwnsOne(..., AppDbContext.ConfigureDosing)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
 
@@ -102,11 +103,12 @@ Drugs                       DrugGroups
 | GET | `/drugs/{id}` | One drug |
 | POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |
 | PUT | `/drugs/{id}` | Update `{ name, description, defaultDosing }` → drug |
+| GET | `/drugs/{id}/groups` | Names of groups using the drug |
 | DELETE | `/drugs/{id}` | Delete → 204 |
-| GET | `/drug-groups?search=&page=1&pageSize=20` | Paged groups (each with its drugs in order), ordered by name |
-| GET | `/drug-groups/{id}` | One group with drugs |
-| POST | `/drug-groups` | Create `{ name, drugIds: [] }` → 201 + group |
-| PUT | `/drug-groups/{id}` | Replace name and drug list/order → group |
+| GET | `/drug-groups?search=&page=1&pageSize=20` | Paged groups (each with its items: drug + override, in order), ordered by name |
+| GET | `/drug-groups/{id}` | One group with its items |
+| POST | `/drug-groups` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + group |
+| PUT | `/drug-groups/{id}` | Replace name and items (order + overrides) → group |
 | DELETE | `/drug-groups/{id}` | Delete → 204 |
 
 Swagger UI is available in Development at `/swagger`.
@@ -122,7 +124,7 @@ Swagger UI is available in Development at `/swagger`.
   data (create new tables → `INSERT … SELECT` keeping ids → drop old), never drop-and-recreate.
   Test `database update` up, down to the previous migration, and up again on a copy of a real DB.
 - History: `Initial` → `AddCombos` → `RenameToDrugs` (renamed `Drags/Combos/ComboDrags` to
-  `Drugs/DrugGroups/DrugGroupItems`, data preserved) → `AddDrugDefaultDosing` (nullable columns).
+  `Drugs/DrugGroups/DrugGroupItems`, data preserved) → `AddDrugDefaultDosing` → `AddGroupItemDosing` (nullable columns).
 
 ## Frontend
 

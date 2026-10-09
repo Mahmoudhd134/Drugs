@@ -15,6 +15,10 @@ export const drugKeys = {
 const fetchDrugs = async (search: string, page: number, pageSize: number) =>
     (await api.get<PagedResult<Drug>>("/drugs", {params: {search, page, pageSize}})).data;
 
+/** Names of the groups that contain the drug. */
+export const fetchDrugGroupNames = async (id: number) =>
+    (await api.get<string[]>(`/drugs/${id}/groups`)).data;
+
 /** One page of drugs, for tables. */
 export const useDrugs = (search: string, page: number, pageSize: number) =>
     useQuery({

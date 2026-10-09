@@ -3,10 +3,10 @@
 ## Summary
 A reusable **Dosing** value (dose + unit, frequency, duration, eye) that turns into one Arabic
 prescription sentence. Today it is used as a drug's **default dosing** and on each **prescription
-line**. The same shape is meant for group lines (Feature 2) and saved prescriptions (Phase 2).
+line**, and as a **group line override** (Feature 2). Saved prescriptions (Phase 2) can reuse it.
 
 Dosing flows down three levels, each pre-filling the next:
-drug default → (group override, Feature 2) → prescription line (edited per patient).
+drug default → group override (empty parts inherit) → prescription line (edited per patient).
 
 ## Data model
 `Models/Dosing.cs`: an EF **owned type**, stored as columns on the owner's table, prefixed with the
@@ -21,11 +21,12 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 | FrequencyText | string(200) | required for `custom` |
 | DurationValue | int? | 1–365, for `days`/`weeks`/`months` |
 | DurationUnit | string(20) | `days`, `weeks`, `months`, `continuous`, `untilNextVisit` |
-| Eye | string(10) | `right`, `left`, `both`, `none` (null = not set) |
+| Eye | string(10) | `right`, `left`, `both`, `none` (null = not set); group lines also `ask` |
 
 - Codes live in `DosingCodes`; the frontend mirrors them in `features/dosing/types.ts`. **Keep both in sync.**
 - `Drug.DefaultDosing` (nullable). An all-null dosing is stored as null.
-- Migration `AddDrugDefaultDosing`: 8 nullable columns on `Drugs`; no data changes.
+- Migrations: `AddDrugDefaultDosing` (8 nullable columns on `Drugs`) and `AddGroupItemDosing`
+  (8 nullable columns on `DrugGroupItems`); no data changes.
 - EF logs a startup warning that `Dosing` is an "optional dependent without a required property".
   That is expected: an all-null dosing reads back as `null`.
 
@@ -33,7 +34,8 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 - `Shared/DosingRules.cs`
   - `Normalize`: trims, drops fields that don't apply (value for non-numeric frequency/duration,
     text for non-custom), returns null when empty.
-  - `Validate`: returns `ErrorCodes.InvalidDosing` (`"invalidDosing"`) or null.
+  - `Validate(dosing, allowAskEye)`: returns `ErrorCodes.InvalidDosing` (`"invalidDosing"`) or null.
+    `allowAskEye` accepts the `ask` eye (`DosingCodes.GroupEyes`); only group lines pass `true`.
 - Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `SaveDrugRequest.Validate()`
   checks the name, then the normalized dosing.
 - Configuration helper `AppDbContext.ConfigureDosing` sets column lengths for any owned Dosing;
@@ -42,7 +44,9 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 ## Frontend (`src/features/dosing/`)
 - `types.ts`: code lists, `Dosing` type, and helpers that match the API rules:
   `normalizeDosing`, `isDosingEmpty`, `dosingErrors` (list of invalid fields), `eyeKey`
-  (`eye ?? "none"`), `otherEye` (right ↔ left).
+  (`eye ?? "none"`), `otherEye` (right ↔ left), `mergeDosing(base, override)` (each empty part of
+  the override is taken from the base: dose, frequency, duration, eye), `sameDosing` (compare
+  normalized values), `ASK_EYE`.
 - `dosingText.ts` → `dosingToText(dosing)`: builds the sentence **always in Arabic**, using
   `i18n.getFixedT("ar")`. Order: dose → eye → frequency → duration; missing parts are skipped.
   `0.5` uses the "half" wording (نصف قرص). Example: «نقطتين في العين اليسرى 6 مرات يوميًا لمدة أسبوعين».
@@ -50,6 +54,11 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
   period + duration, eye toggle) with a live preview. `onChange` is a **state setter**
   (`Dispatch<SetStateAction<Dosing>>`) so quick successive edits merge into the latest value.
   `showErrors` highlights fields from `dosingErrors`. Rows put the dropdown first, then the number.
+  **Inherit mode** (`inheritFrom={drugDefault}`): empty selects display "Drug default" and the
+  preview shows the merged result. `allowAskEye` adds the "Ask when adding" eye.
+- `components/DosingLineList.tsx`: shared numbered, drag-to-reorder list of `{ key, drug }` lines
+  with ✎ / ⊕ (other eye) / ✕ actions and a `renderDetails` slot. Used by prescription lines and
+  group lines.
 - `components/DosingText.tsx`: renders the sentence (`dir="rtl"`, aligned with the interface direction).
 
 ### i18n

@@ -34,8 +34,11 @@ public static class DosingRules
         return isEmpty ? null : result;
     }
 
-    /// <summary>Validates a normalized dosing. Returns <see cref="ErrorCodes.InvalidDosing"/> or null.</summary>
-    public static string Validate(Dosing dosing)
+    /// <summary>
+    /// Validates a normalized dosing. Returns <see cref="ErrorCodes.InvalidDosing"/> or null.
+    /// <paramref name="allowAskEye"/> permits the "ask" eye, which only group lines may use.
+    /// </summary>
+    public static string Validate(Dosing dosing, bool allowAskEye = false)
     {
         if (dosing is null)
             return null;
@@ -44,7 +47,7 @@ public static class DosingRules
             In(dosing.DoseUnit, DosingCodes.DoseUnits)
             && In(dosing.Frequency, DosingCodes.Frequencies)
             && In(dosing.DurationUnit, DosingCodes.DurationUnits)
-            && In(dosing.Eye, DosingCodes.Eyes)
+            && In(dosing.Eye, allowAskEye ? DosingCodes.GroupEyes : DosingCodes.Eyes)
             // An amount needs a unit
             && (dosing.DoseAmount is null || (dosing.DoseUnit is not null && dosing.DoseAmount is > 0 and <= 1000))
             && dosing.Frequency switch

@@ -132,18 +132,18 @@ export const DrugGroupsPage = () => {
                                                 {group.name}
                                             </Typography>
                                             <Chip size="small" color="primary" variant="outlined"
-                                                  label={t("groups.drugCount", {count: group.drugs.length})}/>
+                                                  label={t("groups.drugCount", {count: group.items.length})}/>
                                         </Stack>
                                         <Box component="ol" sx={{m: 0, ps: 2.5, color: "text.secondary"}}>
-                                            {group.drugs.slice(0, PREVIEW_DRUGS).map(drug => (
-                                                <Typography component="li" variant="body2" key={drug.id} noWrap>
+                                            {group.items.slice(0, PREVIEW_DRUGS).map(({drug}, index) => (
+                                                <Typography component="li" variant="body2" key={index} noWrap>
                                                     {drug.name}
                                                 </Typography>
                                             ))}
                                         </Box>
-                                        {group.drugs.length > PREVIEW_DRUGS && (
+                                        {group.items.length > PREVIEW_DRUGS && (
                                             <Typography variant="caption" color="text.secondary">
-                                                {t("groups.more", {count: group.drugs.length - PREVIEW_DRUGS})}
+                                                {t("groups.more", {count: group.items.length - PREVIEW_DRUGS})}
                                             </Typography>
                                         )}
                                     </CardContent>

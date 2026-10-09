@@ -35,14 +35,14 @@ export const GroupPicker = ({onSelect, autoFocus, maxHeight}: Props) => {
                     <Box sx={{flex: 1, minWidth: 0}}>
                         <Stack direction="row" sx={{gap: 1, alignItems: "center", flexWrap: "wrap"}}>
                             <Typography sx={{fontWeight: 600}}>{group.name}</Typography>
-                            <Chip size="small" label={t("groups.drugCount", {count: group.drugs.length})}/>
+                            <Chip size="small" label={t("groups.drugCount", {count: group.items.length})}/>
                         </Stack>
                         <Typography
                             variant="body2"
                             color="text.secondary"
                             sx={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden"}}
                         >
-                            {group.drugs.map(d => d.name).join(" · ")}
+                            {group.items.map(i => i.drug.name).join(" · ")}
                         </Typography>
                     </Box>
                     <AddIcon color="action" fontSize="small" sx={{mt: 0.5}}/>

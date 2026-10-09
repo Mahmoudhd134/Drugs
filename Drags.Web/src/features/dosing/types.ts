@@ -3,11 +3,14 @@ export const DOSE_UNITS = ["drop", "tablet", "capsule", "ml", "application"] as 
 export const FREQUENCIES = ["daily", "everyHours", "bedtime", "asNeeded", "custom"] as const;
 export const DURATION_UNITS = ["days", "weeks", "months", "continuous", "untilNextVisit"] as const;
 export const EYES = ["right", "left", "both", "none"] as const;
+/** Group lines only: the eye is chosen when the group is added to a prescription. */
+export const ASK_EYE = "ask";
 
 export type DoseUnit = (typeof DOSE_UNITS)[number];
 export type Frequency = (typeof FREQUENCIES)[number];
 export type DurationUnit = (typeof DURATION_UNITS)[number];
 export type Eye = (typeof EYES)[number];
+export type DosingEye = Eye | typeof ASK_EYE;
 
 /** How a drug is taken. Every field is optional. */
 export interface Dosing {
@@ -20,7 +23,7 @@ export interface Dosing {
     frequencyText?: string | null;
     durationValue?: number | null;
     durationUnit?: DurationUnit | null;
-    eye?: Eye | null;
+    eye?: DosingEye | null;
 }
 
 export const MAX_FREQUENCY_TEXT_LENGTH = 200;
@@ -63,8 +66,33 @@ export const dosingErrors = (d: Dosing): DosingField[] => {
     return errors;
 };
 
-/** A drug can appear once per eye in a prescription; this is the eye part of that key. */
-export const eyeKey = (d: Dosing | null | undefined): Eye => d?.eye ?? "none";
+/** A drug can appear once per eye in a prescription or group; this is the eye part of that key. */
+export const eyeKey = (d: Dosing | null | undefined): DosingEye => d?.eye ?? "none";
 
-export const otherEye = (eye: Eye | null | undefined): Eye | null =>
+export const otherEye = (eye: DosingEye | null | undefined): Eye | null =>
     eye === "right" ? "left" : eye === "left" ? "right" : null;
+
+/**
+ * Layers an override on top of a base dosing. Each part is inherited as a whole when the
+ * override leaves it empty: dose (amount + unit), frequency (+ value/text), duration (+ value), eye.
+ */
+export const mergeDosing = (base: Dosing | null | undefined, override: Dosing | null | undefined): Dosing => {
+    const b = normalizeDosing(base);
+    const o = normalizeDosing(override);
+    const dose = o.doseUnit || o.doseAmount != null ? o : b;
+    const frequency = o.frequency ? o : b;
+    const duration = o.durationUnit ? o : b;
+    return normalizeDosing({
+        doseAmount: dose.doseAmount,
+        doseUnit: dose.doseUnit,
+        frequency: frequency.frequency,
+        frequencyValue: frequency.frequencyValue,
+        frequencyText: frequency.frequencyText,
+        durationValue: duration.durationValue,
+        durationUnit: duration.durationUnit,
+        eye: o.eye ?? b.eye,
+    });
+};
+
+export const sameDosing = (a: Dosing | null | undefined, b: Dosing | null | undefined) =>
+    JSON.stringify(normalizeDosing(a)) === JSON.stringify(normalizeDosing(b));

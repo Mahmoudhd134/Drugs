@@ -29,6 +29,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             builder.HasOne(x => x.DrugGroup).WithMany(x => x.Items).HasForeignKey(x => x.DrugGroupId);
             builder.HasOne(x => x.Drug).WithMany(x => x.GroupItems).HasForeignKey(x => x.DrugId);
+            builder.OwnsOne(x => x.Dosing, ConfigureDosing);
         });
 
         base.OnModelCreating(modelBuilder);

@@ -136,6 +136,50 @@ namespace Drags.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.OwnsOne("Drags.Api.Models.Dosing", "Dosing", b1 =>
+                        {
+                            b1.Property<int>("DrugGroupItemId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<decimal?>("DoseAmount")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("DoseUnit")
+                                .HasMaxLength(20)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("DurationUnit")
+                                .HasMaxLength(20)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int?>("DurationValue")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<string>("Eye")
+                                .HasMaxLength(10)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Frequency")
+                                .HasMaxLength(20)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("FrequencyText")
+                                .HasMaxLength(200)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int?>("FrequencyValue")
+                                .HasColumnType("INTEGER");
+
+                            b1.HasKey("DrugGroupItemId");
+
+                            b1.ToTable("DrugGroupItems");
+
+                            b1.WithOwner()
+                                .HasForeignKey("DrugGroupItemId");
+                        });
+
+                    b.Navigation("Dosing");
+
                     b.Navigation("Drug");
 
                     b.Navigation("DrugGroup");

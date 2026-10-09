@@ -34,7 +34,7 @@ export const useConfirm = () => {
             <DialogTitle>{pending?.title}</DialogTitle>
             {pending?.message && (
                 <DialogContent>
-                    <DialogContentText>{pending.message}</DialogContentText>
+                    <DialogContentText sx={{whiteSpace: "pre-line"}}>{pending.message}</DialogContentText>
                 </DialogContent>
             )}
             <DialogActions sx={{px: 3, pb: 2}}>

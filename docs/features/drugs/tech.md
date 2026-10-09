@@ -25,6 +25,7 @@ removes it from all groups).
 | GET | `/drugs/{id}` | | `DrugDto` | 404 |
 | POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` | 400 `nameRequired`, `nameTooLong`, `invalidDosing` |
 | PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | 400 (as above), 404 |
+| GET | `/drugs/{id}/groups` | | `string[]` group names using the drug | |
 | DELETE | `/drugs/{id}` | | 204 | 404 |
 
 `DrugDto = { id, name, description, defaultDosing }` (`defaultDosing` is null when not set).
@@ -52,12 +53,13 @@ removes it from all groups).
 - **Reusable components** (used by other features):
   - `DrugPicker`: `SearchableList` over `useDrugPicker` (infinite, 30/page). Optional
     `selectedIds` shows an "Added" chip. Clears search after selecting.
-  - `SelectedDrugsList`: numbered `SortableList` of drugs with a remove button.
   - `DrugText`: name (bold), optional dosing sentence (`showDosing`), description (`pre-line`,
     optional line clamp). The table and the picker show the dosing sentence.
 - **`api.ts`**: `drugKeys` (`all`, `list`, `picker`); hooks `useDrugs`, `useDrugPicker`,
   `useSaveDrug` (POST/PUT by `id === null`), `useDeleteDrug`. Both mutations invalidate
   `drugKeys.all` **and** `drugGroupKeys.all` (groups embed drug data).
+- Delete confirmation first calls `fetchDrugGroupNames` and lists the groups that will lose the
+  drug (`drugs.usedInGroups`); if the lookup fails the dialog still opens.
 - i18n namespace: `drugs.*` (+ `dosing.*`, `errors.nameRequired`, `errors.nameTooLong`, `errors.invalidDosing`).
 
 ## Edge cases & limitations

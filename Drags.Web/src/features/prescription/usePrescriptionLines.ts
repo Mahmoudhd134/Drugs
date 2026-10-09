@@ -10,11 +10,15 @@ const LEGACY_STORAGE_KEY = "prescription.selection";
 // crypto.randomUUID needs HTTPS, and the app is opened over plain http on the clinic LAN
 const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-const lineFromDrug = (drug: Drug): PrescriptionLine =>
-    ({key: newKey(), drug, dosing: {...(drug.defaultDosing ?? {})}, note: ""});
+/** A new line for the drug with the given dosing (the drug's default when omitted). */
+export const newLine = (drug: Drug, dosing: Dosing = drug.defaultDosing ?? {}): PrescriptionLine =>
+    ({key: newKey(), drug, dosing: {...dosing}, note: ""});
+
+const lineFromDrug = (drug: Drug) => newLine(drug);
 
 /** A drug can appear once per eye. */
-const identity = (drugId: number, dosing: Dosing) => `${drugId}:${eyeKey(dosing)}`;
+export const lineIdentity = (drugId: number, dosing: Dosing) => `${drugId}:${eyeKey(dosing)}`;
+const identity = lineIdentity;
 
 const load = (): PrescriptionLine[] => {
     try {
@@ -95,6 +99,19 @@ export const usePrescriptionLines = () => {
         });
     }, [canAddOtherEye]);
 
+    /** The line of this drug for the dosing's eye, if any. */
+    const findLine = useCallback((drugId: number, dosing: Dosing) =>
+        lines.find(l => identity(l.drug.id, l.dosing) === identity(drugId, dosing)), [lines]);
+
+    /** Appends prepared lines as they are (callers check for clashes). */
+    const addLines = useCallback((toAdd: PrescriptionLine[]) => {
+        if (toAdd.length) setLines(current => [...current, ...toAdd]);
+    }, []);
+
+    /** Replaces a line's dosing, keeping its position and note. */
+    const setLineDosing = useCallback((key: string, dosing: Dosing) =>
+        setLines(current => current.map(l => (l.key === key ? {...l, dosing} : l))), []);
+
     const removeLine = useCallback((key: string) => setLines(current => current.filter(l => l.key !== key)), []);
 
     /** Clears the prescription and returns a function that restores it. */
@@ -104,5 +121,8 @@ export const usePrescriptionLines = () => {
         return () => setLines(previous);
     }, [lines]);
 
-    return {lines, drugIds, addDrugs, updateLine, canAddOtherEye, addOtherEye, removeLine, reorder: setLines, clear};
+    return {
+        lines, drugIds, addDrugs, findLine, addLines, setLineDosing, updateLine,
+        canAddOtherEye, addOtherEye, removeLine, reorder: setLines, clear,
+    };
 };

@@ -19,7 +19,8 @@ export const dosingToText = (dosing: Dosing | null | undefined): string => {
             : t(`rxText.dose.${d.doseUnit}`, {count: d.doseAmount ?? 1}));
     }
 
-    if (d.eye) parts.push(t(`rxText.eye.${d.eye}`));
+    // "ask" is resolved before a group reaches a prescription, so it has no wording
+    if (d.eye && d.eye !== "ask") parts.push(t(`rxText.eye.${d.eye}`));
 
     if (d.frequency === "custom") parts.push(d.frequencyText ?? "");
     else if (frequencyNeedsValue(d.frequency) && d.frequencyValue != null) parts.push(t(`rxText.frequency.${d.frequency}`, {count: d.frequencyValue}));

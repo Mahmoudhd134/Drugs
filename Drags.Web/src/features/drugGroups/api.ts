@@ -1,7 +1,7 @@
 import {keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {api} from "../../api/client.ts";
 import {hasNextPage, type PagedResult} from "../../api/types.ts";
-import type {DrugGroup} from "./types.ts";
+import type {DrugGroup, SaveDrugGroupItem} from "./types.ts";
 
 const PICKER_PAGE_SIZE = 30;
 
@@ -41,7 +41,7 @@ export const useDrugGroup = (id: number | null) =>
         staleTime: 0,
     });
 
-type SaveDrugGroup = { id: number | null; name: string; drugIds: number[] };
+type SaveDrugGroup = { id: number | null; name: string; items: SaveDrugGroupItem[] };
 
 export const useSaveDrugGroup = () => {
     const queryClient = useQueryClient();

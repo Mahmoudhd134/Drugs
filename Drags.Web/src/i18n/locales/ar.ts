@@ -43,6 +43,7 @@ const ar: Translations = {
         drugNotFound: "أحد الأدوية لم يعد موجودًا.",
         copyFailed: "تعذّر النسخ. حدّد النص وانسخه يدويًا.",
         invalidDosing: "بعض بيانات الجرعة ناقصة أو غير صحيحة.",
+        duplicateGroupItem: "يوجد دواء مكرر في المجموعة لنفس العين.",
     },
     prescription: {
         title: "الروشتة",
@@ -66,6 +67,17 @@ const ar: Translations = {
         lineNote: "ملاحظة لهذه الروشتة",
         addOtherEye: "إضافة للعين الأخرى",
         eyeTaken: "«{{name}}» موجود بالفعل في القائمة لنفس العين",
+        chooseEyeTitle: "أي عين؟",
+        chooseEyeMessage: "بعض أدوية «{{name}}» تُعطى للعين التي تختارها الآن.",
+        conflictTitle: "موجود بالفعل في الروشتة",
+        conflictMessage: "«{{name}}» موجود بالفعل في القائمة بجرعة مختلفة.",
+        conflictCurrent: "الحالي",
+        conflictIncoming: "من المجموعة",
+        keepCurrent: "الإبقاء على الحالي",
+        useGroup: "استخدام جرعة المجموعة",
+        applyToRemaining: "تطبيق على باقي التعارضات: {{count}}",
+        groupReplaced: "تم الاستبدال بجرعة المجموعة: {{count}}",
+        groupKept: "تم الإبقاء على الجرعة الحالية: {{count}}",
     },
     drugs: {
         title: "الأدوية",
@@ -87,6 +99,7 @@ const ar: Translations = {
         deleteMessage: "سيتم حذف «{{name}}» وإزالته من كل المجموعات. لا يمكن التراجع عن ذلك.",
         rowsPerPage: "عدد الصفوف",
         displayedRows: "{{from}}–{{to}} من {{count}}",
+        usedInGroups: "يُستخدم في هذه المجموعات: {{names}}",
     },
     dosing: {
         title: "الجرعة الافتراضية",
@@ -102,6 +115,11 @@ const ar: Translations = {
         eye: "العين",
         preview: "نص الروشتة",
         noDosing: "لا توجد جرعة محددة",
+        inherit: "افتراضي الدواء",
+        inheritHint: "الحقول الفارغة تأخذ الجرعة الافتراضية للدواء.",
+        resetToDefault: "استخدام جرعة الدواء الافتراضية",
+        askEye: "تُحدد عند الإضافة",
+        askEyeHint: "العين تُحدد عند إضافة المجموعة",
         none: "—",
         units: {
             drop: "نقطة",
@@ -159,6 +177,9 @@ const ar: Translations = {
         discardTitle: "تجاهل التغييرات؟",
         discardMessage: "ستفقد التغييرات غير المحفوظة على هذه المجموعة.",
         discard: "تجاهل",
+        itemDosing: "الجرعة في هذه المجموعة",
+        customDosing: "جرعة خاصة بالمجموعة",
+        alreadyInGroupForEye: "«{{name}}» موجود بالفعل في هذه المجموعة لنفس العين",
     },
 };
 
