@@ -1,21 +1,36 @@
-import type {Drug} from "../drugs/types.ts";
-import type {Direction} from "../../i18n/languages.ts";
+import {dosingToText} from "../dosing/dosingText.ts";
+import {isDosingEmpty} from "../dosing/types.ts";
+import type {PrescriptionLine} from "./types.ts";
 
 const escapeHtml = (text: string) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** Plain text: name and description on separate lines, a blank line between drugs. */
-export const drugsToPlainText = (drugs: Drug[]) =>
-    drugs.map(d => [d.name, d.description?.trim()].filter(Boolean).join("\n")).join("\n\n");
+/**
+ * The text under a line's drug name: the dosing sentence (or, when no dosing is set, the drug's
+ * description, as before structured dosing) followed by the line's note.
+ */
+const detailsOf = (line: PrescriptionLine) =>
+    [
+        isDosingEmpty(line.dosing) ? line.drug.description?.trim() : dosingToText(line.dosing),
+        line.note.trim(),
+    ].filter(Boolean) as string[];
 
-/** Initial editor (Quill) content for the drugs, laid out like {@link drugsToPlainText}. */
-export const drugsToHtml = (drugs: Drug[], dir: Direction) => {
-    // Quill's own classes for right-to-left paragraphs
-    const attrs = dir === "rtl" ? ' class="ql-direction-rtl ql-align-right"' : "";
-    return drugs
-        .map(d => {
-            const parts = [`<strong>${escapeHtml(d.name)}</strong>`];
-            if (d.description?.trim()) parts.push(escapeHtml(d.description.trim()).replace(/\n/g, "<br>"));
+/** Plain text: drug name, then its details, one per line; a blank line between drugs. */
+export const linesToPlainText = (lines: PrescriptionLine[]) =>
+    lines.map(l => [l.drug.name, ...detailsOf(l)].join("\n")).join("\n\n");
+
+/**
+ * Initial editor (Quill) content, laid out like {@link linesToPlainText}.
+ * Prescriptions are Arabic, so paragraphs are always right-to-left (Quill's own classes).
+ */
+export const linesToHtml = (lines: PrescriptionLine[]) => {
+    const attrs = ' class="ql-direction-rtl ql-align-right"';
+    return lines
+        .map(l => {
+            const parts = [
+                `<strong>${escapeHtml(l.drug.name)}</strong>`,
+                ...detailsOf(l).map(d => escapeHtml(d).replace(/\n/g, "<br>")),
+            ];
             return `<p${attrs}>${parts.join("<br>")}</p>`;
         })
         .join(`<p${attrs}><br></p>`);

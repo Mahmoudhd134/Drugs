@@ -75,6 +75,53 @@ namespace Drags.Api.Migrations
                     b.ToTable("DrugGroupItems");
                 });
 
+            modelBuilder.Entity("Drags.Api.Models.Drug", b =>
+                {
+                    b.OwnsOne("Drags.Api.Models.Dosing", "DefaultDosing", b1 =>
+                        {
+                            b1.Property<int>("DrugId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<decimal?>("DoseAmount")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("DoseUnit")
+                                .HasMaxLength(20)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("DurationUnit")
+                                .HasMaxLength(20)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int?>("DurationValue")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<string>("Eye")
+                                .HasMaxLength(10)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Frequency")
+                                .HasMaxLength(20)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("FrequencyText")
+                                .HasMaxLength(200)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int?>("FrequencyValue")
+                                .HasColumnType("INTEGER");
+
+                            b1.HasKey("DrugId");
+
+                            b1.ToTable("Drugs");
+
+                            b1.WithOwner()
+                                .HasForeignKey("DrugId");
+                        });
+
+                    b.Navigation("DefaultDosing");
+                });
+
             modelBuilder.Entity("Drags.Api.Models.DrugGroupItem", b =>
                 {
                     b.HasOne("Drags.Api.Models.DrugGroup", "DrugGroup")

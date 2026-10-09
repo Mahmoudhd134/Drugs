@@ -1,4 +1,5 @@
 import type {Translations} from "./en.ts";
+import rxTextAr from "./rxTextAr.ts";
 
 // Typed against the English file so a missing key is a compile error.
 const ar: Translations = {
@@ -41,6 +42,7 @@ const ar: Translations = {
         drugsRequired: "أضف دواءً واحدًا على الأقل.",
         drugNotFound: "أحد الأدوية لم يعد موجودًا.",
         copyFailed: "تعذّر النسخ. حدّد النص وانسخه يدويًا.",
+        invalidDosing: "بعض بيانات الجرعة ناقصة أو غير صحيحة.",
     },
     prescription: {
         title: "الروشتة",
@@ -60,6 +62,10 @@ const ar: Translations = {
         groupSkipped: "موجود مسبقًا في القائمة: {{count}}",
         editorTitle: "تعديل قبل النسخ",
         editorHint: "التعديلات هنا للنسخ فقط ولا يتم حفظها.",
+        editLine: "تعديل الجرعة",
+        lineNote: "ملاحظة لهذه الروشتة",
+        addOtherEye: "إضافة للعين الأخرى",
+        eyeTaken: "«{{name}}» موجود بالفعل في القائمة لنفس العين",
     },
     drugs: {
         title: "الأدوية",
@@ -82,6 +88,50 @@ const ar: Translations = {
         rowsPerPage: "عدد الصفوف",
         displayedRows: "{{from}}–{{to}} من {{count}}",
     },
+    dosing: {
+        title: "الجرعة الافتراضية",
+        hint: "تُستخدم عند إضافة الدواء إلى الروشتة. كل الحقول اختيارية.",
+        amount: "الجرعة",
+        unit: "الوحدة",
+        frequency: "عدد المرات",
+        timesPerDay: "العدد",
+        hours: "الساعات",
+        customFrequency: "نص عدد المرات",
+        durationValue: "المدة",
+        durationUnit: "الفترة",
+        eye: "العين",
+        preview: "نص الروشتة",
+        noDosing: "لا توجد جرعة محددة",
+        none: "—",
+        units: {
+            drop: "نقطة",
+            tablet: "قرص",
+            capsule: "كبسولة",
+            ml: "مل",
+            application: "دهان (مرهم)",
+        },
+        frequencies: {
+            daily: "مرات في اليوم",
+            everyHours: "كل عدد ساعات",
+            bedtime: "قبل النوم",
+            asNeeded: "عند اللزوم",
+            custom: "نص مخصص",
+        },
+        durations: {
+            days: "أيام",
+            weeks: "أسابيع",
+            months: "أشهر",
+            continuous: "بصفة مستمرة",
+            untilNextVisit: "حتى الزيارة القادمة",
+        },
+        eyes: {
+            right: "اليمنى",
+            left: "اليسرى",
+            both: "العينين",
+            none: "بدون عين",
+        },
+    },
+    rxText: rxTextAr,
     groups: {
         title: "المجموعات",
         subtitle: "إجمالي المجموعات: {{count}}",

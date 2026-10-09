@@ -21,7 +21,8 @@ their own pages and added to a prescription in one click.
 | PUT | `/drug-groups/{id}` | `{ name, drugIds }` | `DrugGroupDto` | 400 (as above), 404 |
 | DELETE | `/drug-groups/{id}` | | 204 | 404 |
 
-`DrugGroupDto = { id, name, drugs: DrugDto[] }`, drugs sorted by `Order`.
+`DrugGroupDto = { id, name, drugs: DrugDto[] }`, drugs sorted by `Order`. Each drug includes its
+`defaultDosing`; adding a group to a prescription uses those defaults (group-specific doses are Feature 2).
 
 ## Backend
 - `drugIds` are de-duplicated (first occurrence wins) and their list position becomes `Order`.

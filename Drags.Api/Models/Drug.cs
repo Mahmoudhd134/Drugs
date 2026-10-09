@@ -5,5 +5,7 @@ public class Drug
     public int Id { get; set; }
     public string Name { get; set; }
     public string Description { get; set; }
+    /// <summary>Dosing used when the drug is added to a prescription (null = none).</summary>
+    public Dosing DefaultDosing { get; set; }
     public List<DrugGroupItem> GroupItems { get; set; } = [];
 }

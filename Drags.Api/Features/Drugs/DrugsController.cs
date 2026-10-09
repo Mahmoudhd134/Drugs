@@ -30,10 +30,9 @@ public class DrugsController(AppDbContext context) : BaseApiController
             .ThenBy(d => d.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(d => new DrugDto(d.Id, d.Name, d.Description))
             .ToListAsync();
 
-        return new PagedResult<DrugDto>(drugs, totalCount, page, pageSize);
+        return new PagedResult<DrugDto>(drugs.Select(d => d.ToDto()).ToList(), totalCount, page, pageSize);
     }
 
     [HttpGet("{id:int}")]
@@ -46,7 +45,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     [HttpPost]
     public async Task<ActionResult<DrugDto>> Create([FromBody] SaveDrugRequest request)
     {
-        if (ErrorCodes.ValidateName(request.Name) is { } error)
+        if (request.Validate() is { } error)
             return ApiError(error);
 
         var drug = new Drug();
@@ -60,7 +59,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     [HttpPut("{id:int}")]
     public async Task<ActionResult<DrugDto>> Update(int id, [FromBody] SaveDrugRequest request)
     {
-        if (ErrorCodes.ValidateName(request.Name) is { } error)
+        if (request.Validate() is { } error)
             return ApiError(error);
 
         var drug = await context.Drugs.FindAsync(id);

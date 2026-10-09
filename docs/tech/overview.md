@@ -69,7 +69,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - Search is case-insensitive `Contains` on the name (`ToLower`). Drug search ranks names that
   **start with** the term first.
 - Validation errors return **400** with a machine-readable code. The frontend translates codes.
-  Codes live in `Shared/ErrorCodes.cs`: `nameRequired`, `nameTooLong`, `drugsRequired`, `drugNotFound`.
+  Codes live in `Shared/ErrorCodes.cs`: `nameRequired`, `nameTooLong`, `drugsRequired`, `drugNotFound`,
+  `invalidDosing`.
   Add new codes there **and** under `errors.*` in both locale files.
 - `Nullable` is disabled in the csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
 
@@ -80,6 +81,7 @@ Drugs                       DrugGroups
 - Id (PK)                   - Id (PK)
 - Name (≤256, required)     - Name (≤256, required)
 - Description (nullable)
+- DefaultDosing_* (owned Dosing, nullable: dose, frequency, duration, eye)
         ▲                           ▲
         │ DrugId (cascade)          │ DrugGroupId (cascade)
         └────── DrugGroupItems ─────┘
@@ -89,6 +91,8 @@ Drugs                       DrugGroups
 
 - Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
 - A drug appears at most once per group (the API de-duplicates `drugIds`).
+- `Dosing` is an EF **owned type** (`Models/Dosing.cs`), reusable on any entity via
+  `OwnsOne(..., AppDbContext.ConfigureDosing)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
 
 ### API (`/api/v1`)
 
@@ -96,8 +100,8 @@ Drugs                       DrugGroups
 |---|---|---|
 | GET | `/drugs?search=&page=1&pageSize=20` | Paged drugs, ordered by name (prefix matches first when searching) |
 | GET | `/drugs/{id}` | One drug |
-| POST | `/drugs` | Create `{ name, description }` → 201 + drug |
-| PUT | `/drugs/{id}` | Update `{ name, description }` → drug |
+| POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |
+| PUT | `/drugs/{id}` | Update `{ name, description, defaultDosing }` → drug |
 | DELETE | `/drugs/{id}` | Delete → 204 |
 | GET | `/drug-groups?search=&page=1&pageSize=20` | Paged groups (each with its drugs in order), ordered by name |
 | GET | `/drug-groups/{id}` | One group with drugs |
@@ -118,7 +122,7 @@ Swagger UI is available in Development at `/swagger`.
   data (create new tables → `INSERT … SELECT` keeping ids → drop old), never drop-and-recreate.
   Test `database update` up, down to the previous migration, and up again on a copy of a real DB.
 - History: `Initial` → `AddCombos` → `RenameToDrugs` (renamed `Drags/Combos/ComboDrags` to
-  `Drugs/DrugGroups/DrugGroupItems`, data preserved).
+  `Drugs/DrugGroups/DrugGroupItems`, data preserved) → `AddDrugDefaultDosing` (nullable columns).
 
 ## Frontend
 
@@ -147,7 +151,10 @@ Swagger UI is available in Development at `/swagger`.
 - Languages are declared once in `src/i18n/languages.ts` (`code`, `label`, `dir`). Default `en`.
 - Strings: `src/i18n/locales/en.ts` is the source; `ar.ts` is typed `Translations` (= `typeof en`),
   so **a missing Arabic key fails the build**. Always add keys to both files.
-- Counts are written as `"Label: {{count}}"`, not plural forms, to stay correct in Arabic.
+- UI counts are written as `"Label: {{count}}"`, not plural forms, to stay correct in Arabic.
+- **Prescription output is Arabic in every UI language.** Its wording lives in
+  `locales/rxTextAr.ts`, plugged into both locales as `rxText`, and is rendered with
+  `i18n.getFixedT("ar")` using Arabic plural suffixes (`_zero/_one/_two/_few/_many/_other`).
 - The chosen language persists in `localStorage["language"]`; `<html lang/dir>` follows it.
 - `useLanguage()` returns `{ language, dir, setLanguage }`.
 - RTL: use MUI logical spacing in `sx` (`ms`, `me`, `ps`, `pe`) instead of left/right.
@@ -182,7 +189,8 @@ Swagger UI is available in Development at `/swagger`.
 | Key | Content |
 |---|---|
 | `language` | UI language code |
-| `prescription.selection` | Current prescription drugs (JSON array of drugs) |
+| `prescription.lines` | Current prescription lines (drug snapshot + dosing + note) |
+| `prescription.selection` | Legacy (pre-dosing) list of drugs; migrated to `prescription.lines` on load, then removed |
 
 ### Code conventions
 
@@ -222,8 +230,9 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - SQLite single file inside the site folder: no automated backups; redeploys must not overwrite it.
 - Name ordering uses SQLite's binary collation (uppercase before lowercase; Latin before Arabic).
   `ToLower` search is case-insensitive for ASCII only (Arabic has no case, so it is unaffected).
-- The prescription selection stores drug text in the browser; later edits to a drug are not
-  reflected in an already-selected list, and deleted drugs stay in it until removed.
+- Prescription lines store a drug snapshot in the browser; later edits to a drug are not
+  reflected in an already-built prescription, and deleted drugs stay in it until removed.
+- Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
 - No automated tests.
 
 ## Adding a feature: checklist

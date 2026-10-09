@@ -5,8 +5,10 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    Divider,
     Stack,
     TextField,
+    Typography,
     useMediaQuery,
 } from "@mui/material";
 import {useTheme} from "@mui/material/styles";
@@ -15,6 +17,8 @@ import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {useSaveDrug} from "../api.ts";
 import type {Drug} from "../types.ts";
+import {DosingFields} from "../../dosing/components/DosingFields.tsx";
+import {dosingErrors, isDosingEmpty, normalizeDosing, type Dosing} from "../../dosing/types.ts";
 
 type Props = {
     open: boolean;
@@ -41,12 +45,18 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
     const save = useSaveDrug();
     const [name, setName] = useState(drug?.name ?? "");
     const [description, setDescription] = useState(drug?.description ?? "");
+    const [dosing, setDosing] = useState<Dosing>(drug?.defaultDosing ?? {});
     const [showNameRequired, setShowNameRequired] = useState(false);
+    const [showDosingErrors, setShowDosingErrors] = useState(false);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         if (!name.trim()) {
             setShowNameRequired(true);
+            return;
+        }
+        if (dosingErrors(dosing).length) {
+            setShowDosingErrors(true);
             return;
         }
 
@@ -55,6 +65,7 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
                 id: drug?.id ?? null,
                 name: name.trim(),
                 description: description.trim() || null,
+                defaultDosing: isDosingEmpty(dosing) ? null : normalizeDosing(dosing),
             });
             toast.success(drug === null ? t("drugs.created") : t("drugs.updated"));
             onClose();
@@ -87,9 +98,15 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
                         onChange={(e) => setDescription(e.target.value)}
                         slotProps={{htmlInput: {dir: "auto"}}}
                         multiline
-                        minRows={4}
+                        minRows={3}
                         fullWidth
                     />
+                    <Divider/>
+                    <div>
+                        <Typography variant="subtitle2" sx={{fontWeight: 700}}>{t("dosing.title")}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{mb: 1.5}}>{t("dosing.hint")}</Typography>
+                        <DosingFields value={dosing} onChange={setDosing} showErrors={showDosingErrors}/>
+                    </div>
                 </Stack>
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>

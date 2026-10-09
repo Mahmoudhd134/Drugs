@@ -39,7 +39,7 @@ export const DrugPicker = ({onSelect, selectedIds, autoFocus, maxHeight}: Props)
                 return (
                     <Stack direction="row" sx={{gap: 1.5, width: "100%", alignItems: "flex-start"}}>
                         <Box sx={{flex: 1, minWidth: 0}}>
-                            <DrugText drug={drug} descriptionLines={2}/>
+                            <DrugText drug={drug} descriptionLines={2} showDosing/>
                         </Box>
                         {added
                             ? <Chip size="small" color="success" variant="outlined" icon={<CheckIcon/>} label={t("common.added")}/>

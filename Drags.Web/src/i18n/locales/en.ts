@@ -1,3 +1,5 @@
+import rxTextAr from "./rxTextAr.ts";
+
 // Counts are shown as "label: n" rather than with plural forms,
 // which keeps phrasing correct in languages with complex plurals (e.g. Arabic).
 const en = {
@@ -40,6 +42,7 @@ const en = {
         drugsRequired: "Add at least one drug.",
         drugNotFound: "One of the drugs no longer exists.",
         copyFailed: "Couldn't copy. Select the text and copy it manually.",
+        invalidDosing: "Some dosing values are missing or invalid.",
     },
     prescription: {
         title: "Prescription",
@@ -59,6 +62,10 @@ const en = {
         groupSkipped: "Already in the list: {{count}}",
         editorTitle: "Edit before copying",
         editorHint: "Changes here are only used for copying and are not saved.",
+        editLine: "Edit dosing",
+        lineNote: "Note for this prescription",
+        addOtherEye: "Add for the other eye",
+        eyeTaken: "“{{name}}” is already in the list for that eye",
     },
     drugs: {
         title: "Drugs",
@@ -81,6 +88,51 @@ const en = {
         rowsPerPage: "Rows per page",
         displayedRows: "{{from}}–{{to}} of {{count}}",
     },
+    dosing: {
+        title: "Default dosing",
+        hint: "Used when the drug is added to a prescription. All fields are optional.",
+        amount: "Dose",
+        unit: "Unit",
+        frequency: "Frequency",
+        timesPerDay: "Times",
+        hours: "Hours",
+        customFrequency: "Frequency text",
+        durationValue: "Duration",
+        durationUnit: "Period",
+        eye: "Eye",
+        preview: "Prescription text",
+        noDosing: "No dosing set",
+        none: "—",
+        units: {
+            drop: "Drop",
+            tablet: "Tablet",
+            capsule: "Capsule",
+            ml: "ml",
+            application: "Application (ointment)",
+        },
+        frequencies: {
+            daily: "Times a day",
+            everyHours: "Every N hours",
+            bedtime: "At bedtime",
+            asNeeded: "As needed",
+            custom: "Custom",
+        },
+        durations: {
+            days: "Days",
+            weeks: "Weeks",
+            months: "Months",
+            continuous: "Continuous",
+            untilNextVisit: "Until next visit",
+        },
+        eyes: {
+            right: "Right",
+            left: "Left",
+            both: "Both",
+            none: "No eye",
+        },
+    },
+    // Prescription output text: Arabic in every locale (see rxTextAr.ts)
+    rxText: rxTextAr,
     groups: {
         title: "Groups",
         subtitle: "Total groups: {{count}}",

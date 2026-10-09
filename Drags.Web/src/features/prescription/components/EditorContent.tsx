@@ -5,10 +5,9 @@ import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
-import {useLanguage} from "../../../hooks/useLanguage.ts";
 import {copyRichText} from "../../../utils/clipboard.ts";
-import {drugsToHtml, htmlForPaste, htmlToPlainText} from "../prescriptionText.ts";
-import type {Drug} from "../../drugs/types.ts";
+import {htmlForPaste, htmlToPlainText, linesToHtml} from "../prescriptionText.ts";
+import type {PrescriptionLine} from "../types.ts";
 
 const QUILL_MODULES = {
     toolbar: [
@@ -19,10 +18,9 @@ const QUILL_MODULES = {
     ],
 };
 
-const EditorContent = ({drugs, onClose}: { drugs: Drug[]; onClose: () => void }) => {
+const EditorContent = ({lines, onClose}: { lines: PrescriptionLine[]; onClose: () => void }) => {
     const {t} = useTranslation();
-    const {dir} = useLanguage();
-    const [html, setHtml] = useState(() => drugsToHtml(drugs, dir));
+    const [html, setHtml] = useState(() => linesToHtml(lines));
 
     const handleCopy = async () => {
         if (await copyRichText(htmlForPaste(html), htmlToPlainText(html))) toast.success(t("common.copied"));

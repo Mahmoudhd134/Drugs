@@ -1,66 +1,83 @@
 # Prescription builder: technical
 
 ## Summary
-The home page (`/`). Staff add groups or single drugs to a selection, reorder it, then copy it
-(plain text + HTML for Word), optionally after editing in a rich-text editor. **Frontend only**:
-nothing is saved on the server; the selection lives in `localStorage`.
+The home page (`/`). Staff add groups or single drugs as **prescription lines**, adjust each
+line's dosing for the patient, reorder, then copy (plain text + HTML for Word), optionally after
+editing in a rich-text editor. **Frontend only**: nothing is saved on the server; the lines live in
+`localStorage`.
 
 ## Data model / API
 None of its own. Reads drugs and groups through the existing endpoints (`GET /drugs`,
 `GET /drug-groups`) via `DrugPicker` and `GroupPicker`.
 
+`PrescriptionLine` (`features/prescription/types.ts`):
+
+| Field | Meaning |
+|---|---|
+| `key` | unique line id (`Date.now` + random; `crypto.randomUUID` is unavailable on plain http) |
+| `drug` | snapshot of the drug when added (`id`, `name`, `description`, `defaultDosing`) |
+| `dosing` | starts as a copy of `drug.defaultDosing`, edited per patient (see [dosing](../dosing/tech.md)) |
+| `note` | free text for this patient |
+
+**Rule:** a drug appears at most **once per eye** (identity = `drugId + (eye ?? "none")`).
+
 ## Frontend (`src/features/prescription/`)
 
-### State: `usePrescriptionSelection.ts`
-- `drugs: Drug[]` persisted to `localStorage["prescription.selection"]` (JSON) on every change;
-  storage errors are ignored.
-- `add(drugs)`: appends only drugs not already selected (and de-duplicates the input); returns
-  `{ added, skipped }` for the toast.
-- `remove(drug)`, `reorder(drugs)`, `clear()`: `clear` returns a `restore` function for undo.
-- `selectedIds: Set<number>` for "Added" markers.
+### State: `usePrescriptionLines.ts`
+- Persisted to `localStorage["prescription.lines"]` on every change; storage errors are ignored.
+- **Legacy migration:** if only the old key `prescription.selection` (array of drugs) exists, each
+  drug becomes a line with its default dosing. The new key is written **before** the old key is
+  removed, because React may call the state initializer twice.
+- `addDrugs(drugs)`: one line per drug with its default dosing; skips drug+eye pairs already
+  present (also within the batch). Returns `{ added, skipped }`.
+- `updateLine(key, {dosing, note})`: returns `false` (no change) if the new eye clashes with another
+  line of the same drug.
+- `canAddOtherEye(line)` / `addOtherEye(line)`: for right/left lines whose opposite eye is free,
+  inserts a copy for the other eye right after the line.
+- `removeLine(key)`, `reorder(lines)`, `clear()` (returns a `restore` function for undo).
+- `drugIds: Set<number>` for "Added" markers in the drug picker.
 
 ### Page & components
-- `pages/PrescriptionPage.tsx`: two columns (catalog md=5, selection md=7; stacked on mobile).
-  - Adding a group → toast `prescription.groupAdded` (+ `groupSkipped` when some were already
-    selected). Adding an already-selected drug → toast `prescription.alreadyAdded`.
-  - Clear all → toast with an **Undo** button (6 s).
-  - **Copy** button → `copyRichText(htmlForPaste(drugsToHtml(drugs, dir)), drugsToPlainText(drugs))`.
-- `components/CatalogPanel.tsx`: tabs **Groups** (default) / **Drugs**; both pickers stay mounted
-  so each keeps its search. `GroupPicker` autofocuses.
-- `components/SelectionPanel.tsx`: count chip, Clear all, `SelectedDrugsList` (drag to reorder,
-  remove), empty state, buttons **Copy** and **Edit & copy**.
-- `components/EditorDialog.tsx` + `EditorContent.tsx`: the Quill editor is **lazy-loaded**
-  (`React.lazy`) the first time the dialog opens. The dialog unmounts its content on close, so the
-  editor is rebuilt from the current selection on every open. Toolbar: bold/italic/underline,
-  ordered/bullet list, direction RTL, align, clean. Edits are not saved.
+- `pages/PrescriptionPage.tsx`: two columns (catalog md=5, lines md=7; stacked on mobile).
+  - Adding a group → toast `prescription.groupAdded` (+ `groupSkipped`). Adding a drug whose
+    drug+eye is already present → toast `prescription.alreadyAdded`.
+  - Clear all → toast with **Undo** (6 s).
+  - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
+- `components/CatalogPanel.tsx`: tabs **Groups** (default) / **Drugs**; both pickers stay mounted.
+- `components/SelectionPanel.tsx`: count chip, Clear all, `PrescriptionLineList`, empty state,
+  **Copy** and **Edit & copy** buttons.
+- `components/PrescriptionLineList.tsx`: `SortableList` rows: number, drug name, Arabic dosing
+  sentence (or the drug description when the line has no dosing), note; actions ✎ edit,
+  ⊕ add for the other eye (only when possible), ✕ remove. Clicking the row text also edits.
+- `components/LineEditDialog.tsx`: `DosingFields` + note; blocks save on invalid fields; shows
+  `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens.
+- `components/EditorDialog.tsx` + `EditorContent.tsx`: lazy-loaded Quill editor, rebuilt from the
+  current lines on every open. Edits are not saved.
 
 ### Text formats (`prescriptionText.ts`)
-- `drugsToPlainText`: `name\ndescription`, blank line between drugs.
-- `drugsToHtml(drugs, dir)`: one `<p>` per drug: `<strong>name</strong><br>description`
-  (HTML-escaped, newlines → `<br>`), separated by empty paragraphs. When the UI is RTL each
-  paragraph gets Quill's `ql-direction-rtl ql-align-right` classes.
-- `htmlToPlainText(html)`: DOM-based conversion of editor HTML; keeps line breaks, numbers ordered
-  lists (`1.`), bullets unordered lists (`•`), collapses 3+ newlines to 2.
-- `htmlForPaste(html)`: makes HTML self-contained for Word: Quill classes →
-  inline styles (`text-align`, `dir="rtl"`, indent → `margin-left/right: N*3em`) and paragraph
-  margins set to 0 so spacing matches the editor.
+- A line renders as: drug name, then its details: the dosing sentence (`dosingToText`) **or**, if
+  the line has no dosing, the drug description; then the note.
+- `linesToPlainText`: name and details on separate lines, a blank line between drugs.
+- `linesToHtml`: one `<p>` per line (`<strong>name</strong><br>details…`), separated by empty
+  paragraphs. Paragraphs **always** get Quill's RTL classes because prescriptions are Arabic.
+- `htmlToPlainText(html)` and `htmlForPaste(html)`: unchanged (editor HTML → plain text; Quill
+  classes → inline styles for Word).
 
 ### Clipboard (`src/utils/clipboard.ts`)
-- `copyRichText(html, text)`: in a secure context uses `navigator.clipboard.write` with
-  `text/html` + `text/plain`; otherwise (plain-http LAN) falls back to a `copy` event listener +
-  `document.execCommand("copy")` that sets both formats. Returns `false` on failure → toast
-  `errors.copyFailed`.
-- `copyText(text)`: plain-text equivalent (currently unused by the UI).
+- `copyRichText(html, text)`: async Clipboard API in secure contexts; on plain http a `copy` event
+  + `execCommand("copy")` fallback that sets both formats. Failure → toast `errors.copyFailed`.
 
 ## Edge cases & limitations
-- The stored selection keeps a **snapshot** of drug text; edits/deletes of drugs afterwards are not
-  reflected until the drug is removed and re-added.
-- Selection is per browser (not per user or patient) and is not saved as a history.
-- Windows 11 Notepad ignores the HTML clipboard format, so it receives plain text only. Word keeps
-  formatting.
-- The execCommand fallback requires a real user click (it runs synchronously in the click handler
-  on non-secure origins).
+- Lines keep a **snapshot** of the drug; later edits/deletes of the drug are not reflected until
+  the line is removed and re-added.
+- Adding a group gives each drug its **default** dosing. Group-specific doses, "choose eye when
+  adding" and the collision dialog are Feature 2.
+- Selection is per browser (not per user or patient) and is not saved as history.
+- Windows 11 Notepad ignores the HTML clipboard format (plain text only); Word keeps formatting.
+- The execCommand fallback requires a real user click.
 
 ## Testing notes
-Verified in the browser: group overlap de-duplication toast, RTL editor paragraphs, copied HTML
-and plain text captured from both the secure path and the simulated plain-http fallback.
+Browser (real clicks, :5173, Arabic + English, desktop + 375px): add group (description fallback),
+add drugs with Enter, ⊕ other eye insertion and button hiding, line edit with note, eye clash
+error, editor content (RTL, bold names, sentences, note), legacy storage migration, copied
+plain text/HTML.

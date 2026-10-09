@@ -1,25 +1,25 @@
 import {lazy, Suspense} from "react";
 import {Box, CircularProgress, Dialog, useMediaQuery} from "@mui/material";
 import {useTheme} from "@mui/material/styles";
-import type {Drug} from "../../drugs/types.ts";
+import type {PrescriptionLine} from "../types.ts";
 
 // The rich-text editor is large, so it's only downloaded when first opened
 const EditorContent = lazy(() => import("./EditorContent.tsx"));
 
 type Props = {
     open: boolean;
-    drugs: Drug[];
+    lines: PrescriptionLine[];
     onClose: () => void;
 };
 
-export const EditorDialog = ({open, drugs, onClose}: Props) => {
+export const EditorDialog = ({open, lines, onClose}: Props) => {
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             {/* The dialog unmounts this after closing, so it's rebuilt from the current selection on each open */}
             <Suspense fallback={<Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress/></Box>}>
-                <EditorContent drugs={drugs} onClose={onClose}/>
+                <EditorContent lines={lines} onClose={onClose}/>
             </Suspense>
         </Dialog>
     );

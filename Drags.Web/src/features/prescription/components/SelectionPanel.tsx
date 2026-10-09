@@ -5,27 +5,31 @@ import ClearAllIcon from "@mui/icons-material/ClearAll";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import {useTranslation} from "react-i18next";
 import {EmptyState} from "../../../components/common/EmptyState.tsx";
-import {SelectedDrugsList} from "../../drugs/components/SelectedDrugsList.tsx";
-import type {Drug} from "../../drugs/types.ts";
+import {PrescriptionLineList} from "./PrescriptionLineList.tsx";
+import type {PrescriptionLine} from "../types.ts";
 
 type Props = {
-    drugs: Drug[];
-    onReorder: (drugs: Drug[]) => void;
-    onRemove: (drug: Drug) => void;
+    lines: PrescriptionLine[];
+    onReorder: (lines: PrescriptionLine[]) => void;
+    onEditLine: (line: PrescriptionLine) => void;
+    onRemove: (line: PrescriptionLine) => void;
+    canAddOtherEye: (line: PrescriptionLine) => boolean;
+    onAddOtherEye: (line: PrescriptionLine) => void;
     onClear: () => void;
     onEdit: () => void;
     onQuickCopy: () => void;
 };
 
-export const SelectionPanel = ({drugs, onReorder, onRemove, onClear, onEdit, onQuickCopy}: Props) => {
+export const SelectionPanel = (props: Props) => {
+    const {lines, onReorder, onEditLine, onRemove, canAddOtherEye, onAddOtherEye, onClear, onEdit, onQuickCopy} = props;
     const {t} = useTranslation();
-    const isEmpty = drugs.length === 0;
+    const isEmpty = lines.length === 0;
 
     return (
         <Paper variant="outlined" sx={{p: 2.5}}>
             <Stack direction="row" sx={{alignItems: "center", gap: 1, mb: 2}}>
                 <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("prescription.selected")}</Typography>
-                <Chip size="small" color={isEmpty ? "default" : "primary"} label={drugs.length}/>
+                <Chip size="small" color={isEmpty ? "default" : "primary"} label={lines.length}/>
                 <Stack sx={{flex: 1}}/>
                 <Button size="small" color="inherit" startIcon={<ClearAllIcon/>} onClick={onClear} disabled={isEmpty}>
                     {t("prescription.clearAll")}
@@ -39,7 +43,14 @@ export const SelectionPanel = ({drugs, onReorder, onRemove, onClear, onEdit, onQ
                     description={t("prescription.emptyDescription")}
                 />
             ) : (
-                <SelectedDrugsList drugs={drugs} onReorder={onReorder} onRemove={onRemove}/>
+                <PrescriptionLineList
+                    lines={lines}
+                    onReorder={onReorder}
+                    onEdit={onEditLine}
+                    onRemove={onRemove}
+                    canAddOtherEye={canAddOtherEye}
+                    onAddOtherEye={onAddOtherEye}
+                />
             )}
 
             <Divider sx={{my: 2}}/>

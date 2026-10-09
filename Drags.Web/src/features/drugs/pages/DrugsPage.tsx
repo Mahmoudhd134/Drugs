@@ -129,7 +129,7 @@ export const DrugsPage = () => {
                                             sx={{cursor: "pointer", "& td": {py: 1.25}}}
                                         >
                                             <TableCell>
-                                                <DrugText drug={drug} descriptionLines={2}/>
+                                                <DrugText drug={drug} descriptionLines={2} showDosing/>
                                             </TableCell>
                                             <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                                                 <Tooltip title={t("common.edit")}>

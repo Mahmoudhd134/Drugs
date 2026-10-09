@@ -10,6 +10,7 @@ public static class ErrorCodes
     public const string NameTooLong = "nameTooLong";
     public const string DrugsRequired = "drugsRequired";
     public const string DrugNotFound = "drugNotFound";
+    public const string InvalidDosing = "invalidDosing";
 
     /// <summary>Returns an error code for an invalid name, or null when valid.</summary>
     public static string ValidateName(string name) =>
