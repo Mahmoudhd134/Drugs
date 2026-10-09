@@ -22,11 +22,12 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 | DurationValue | int? | 1–365, for `days`/`weeks`/`months` |
 | DurationUnit | string(20) | `days`, `weeks`, `months`, `continuous`, `untilNextVisit` |
 | Eye | string(10) | `right`, `left`, `both`, `none` (null = not set); group lines also `ask` |
+| TaperSteps | JSON text | optional tapering schedule (2–10 steps); replaces Frequency/Duration. See [tapering](../tapering/tech.md) |
 
 - Codes live in `DosingCodes`; the frontend mirrors them in `features/dosing/types.ts`. **Keep both in sync.**
 - `Drug.DefaultDosing` (nullable). An all-null dosing is stored as null.
 - Migrations: `AddDrugDefaultDosing` (8 nullable columns on `Drugs`) and `AddGroupItemDosing`
-  (8 nullable columns on `DrugGroupItems`); no data changes.
+  (8 nullable columns on `DrugGroupItems`), `AddTaperSteps` (1 nullable JSON column on each); no data changes.
 - EF logs a startup warning that `Dosing` is an "optional dependent without a required property".
   That is expected: an all-null dosing reads back as `null`.
 
@@ -45,8 +46,8 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 - `types.ts`: code lists, `Dosing` type, and helpers that match the API rules:
   `normalizeDosing`, `isDosingEmpty`, `dosingErrors` (list of invalid fields), `eyeKey`
   (`eye ?? "none"`), `otherEye` (right ↔ left), `mergeDosing(base, override)` (each empty part of
-  the override is taken from the base: dose, frequency, duration, eye), `sameDosing` (compare
-  normalized values), `ASK_EYE`.
+  the override is taken from the base: dose, frequency, duration, eye; a tapering schedule counts
+  as frequency + duration together), `sameDosing` (compare normalized values), `ASK_EYE`.
 - `dosingText.ts` → `dosingToText(dosing)`: builds the sentence **always in Arabic**, using
   `i18n.getFixedT("ar")`. Order: dose → eye → frequency → duration; missing parts are skipped.
   `0.5` uses the "half" wording (نصف قرص). Example: «نقطتين في العين اليسرى 6 مرات يوميًا لمدة أسبوعين».

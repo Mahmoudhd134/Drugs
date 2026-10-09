@@ -81,7 +81,7 @@ Drugs                       DrugGroups
 - Id (PK)                   - Id (PK)
 - Name (≤256, required)     - Name (≤256, required)
 - Description (nullable)
-- DefaultDosing_* (owned Dosing, nullable: dose, frequency, duration, eye)
+- DefaultDosing_* (owned Dosing, nullable: dose, frequency, duration, eye, TaperSteps JSON)
         ▲                           ▲
         │ DrugId (cascade)          │ DrugGroupId (cascade)
         └────── DrugGroupItems ─────┘
@@ -89,6 +89,9 @@ Drugs                       DrugGroups
                 - Order (int, 0-based position in the group)
                 - Dosing_* (owned Dosing, nullable: group override; eye may be "ask")
 ```
+
+- `TaperSteps` is an optional tapering schedule stored as one JSON text column
+  ([tapering tech](../features/tapering/tech.md)).
 
 - Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
 - A drug appears at most once per group **per eye** (`duplicateGroupItem`).
@@ -124,7 +127,7 @@ Swagger UI is available in Development at `/swagger`.
   data (create new tables → `INSERT … SELECT` keeping ids → drop old), never drop-and-recreate.
   Test `database update` up, down to the previous migration, and up again on a copy of a real DB.
 - History: `Initial` → `AddCombos` → `RenameToDrugs` (renamed `Drags/Combos/ComboDrags` to
-  `Drugs/DrugGroups/DrugGroupItems`, data preserved) → `AddDrugDefaultDosing` → `AddGroupItemDosing` (nullable columns).
+  `Drugs/DrugGroups/DrugGroupItems`, data preserved) → `AddDrugDefaultDosing` → `AddGroupItemDosing` → `AddTaperSteps` (nullable columns).
 
 ## Frontend
 
@@ -185,6 +188,7 @@ Swagger UI is available in Development at `/swagger`.
 | `SortableList` | dnd-kit vertical list; drag handle per row; mouse, touch and keyboard reordering |
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))` |
+| `InfoTip` | Small ⓘ icon with a tooltip (opens on tap too) to explain a field or option |
 
 ### Browser storage
 
@@ -201,6 +205,10 @@ Swagger UI is available in Development at `/swagger`.
 - UI built with MUI components + `sx`. Tailwind is installed but not used by current code.
 - Components are named exports; pages are lazy-imported in `App.tsx`.
 - Heavy, rarely used code (the Quill editor) is lazy-loaded.
+- Every icon-only button has a `Tooltip` (and `aria-label`); explain non-obvious fields or options
+  with a short `Tooltip` or `InfoTip` (strings in both locales).
+- Business switches that the clinic may change live in one config file per feature
+  (e.g. `features/dosing/taperConfig.ts`), mirrored by the backend limits.
 - Writing `\u` escapes through some AI edit tools produces literal characters; check
   `prescriptionText.ts`-style files for literal non-breaking spaces (ESLint `no-irregular-whitespace`).
 

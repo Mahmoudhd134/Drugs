@@ -20,6 +20,26 @@ public class Dosing
     public string DurationUnit { get; set; }
 
     public string Eye { get; set; }
+
+    /// <summary>
+    /// Optional tapering schedule (2+ steps). When set, it replaces Frequency/Duration above.
+    /// Stored as one JSON column. See <see cref="Shared.DosingRules"/> for the step limits.
+    /// </summary>
+    public List<TaperStep> TaperSteps { get; set; }
+}
+
+/// <summary>
+/// One step of a tapering schedule, e.g. "1 drop 4 times a day for 1 week". The unit and eye stay on
+/// the <see cref="Dosing"/>.
+/// </summary>
+public class TaperStep
+{
+    /// <summary>Optional dose for this step (in the dosing's unit); null = the dosing's dose.</summary>
+    public decimal? DoseAmount { get; set; }
+    public string Frequency { get; set; }
+    public int? FrequencyValue { get; set; }
+    public int? DurationValue { get; set; }
+    public string DurationUnit { get; set; }
 }
 
 public static class DosingCodes

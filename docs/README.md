@@ -17,6 +17,7 @@ docs/
     │   ├── tech.md
     │   └── business.md
     ├── dosing/                ← structured dosing (shared by drugs, groups, prescriptions)
+    ├── tapering/              ← tapering schedules (steps inside a dosing)
     ├── drugs/                 ← drug catalog
     ├── drug-groups/           ← groups / treatment templates
     └── prescription/          ← building and copying a prescription
@@ -36,6 +37,7 @@ docs/
 | Feature | Tech | Business |
 |---|---|---|
 | Structured dosing | [tech](features/dosing/tech.md) | [business](features/dosing/business.md) |
+| Tapering schedules | [tech](features/tapering/tech.md) | [business](features/tapering/business.md) |
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |
 | Drug groups (protocols) | [tech](features/drug-groups/tech.md) | [business](features/drug-groups/business.md) |
 | Prescription builder | [tech](features/prescription/tech.md) | [business](features/prescription/business.md) |

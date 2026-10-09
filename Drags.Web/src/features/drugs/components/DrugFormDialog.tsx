@@ -32,7 +32,7 @@ export const DrugFormDialog = ({open, drug, onClose}: Props) => {
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             <DialogTitle>{drug === null ? t("drugs.new") : t("drugs.edit")}</DialogTitle>
             {/* The dialog unmounts this after closing, so it starts from the given drug on each open */}
             <DrugForm drug={drug} onClose={onClose}/>

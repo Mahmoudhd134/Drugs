@@ -1,5 +1,5 @@
 import type {KeyboardEventHandler, Ref} from "react";
-import {IconButton, InputAdornment, TextField} from "@mui/material";
+import {IconButton, InputAdornment, TextField, Tooltip} from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import {useTranslation} from "react-i18next";
@@ -38,9 +38,11 @@ export const SearchField = ({value, onChange, placeholder, autoFocus, inputRef, 
                     ),
                     endAdornment: value ? (
                         <InputAdornment position="end">
-                            <IconButton size="small" onClick={() => onChange("")} aria-label={t("common.clear")}>
-                                <CloseIcon fontSize="small"/>
-                            </IconButton>
+                            <Tooltip title={t("common.clear")}>
+                                <IconButton size="small" onClick={() => onChange("")} aria-label={t("common.clear")}>
+                                    <CloseIcon fontSize="small"/>
+                                </IconButton>
+                            </Tooltip>
                         </InputAdornment>
                     ) : undefined,
                 },

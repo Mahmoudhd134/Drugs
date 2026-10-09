@@ -87,6 +87,11 @@ const rxTextAr = {
         continuous: "بصفة مستمرة",
         untilNextVisit: "حتى الزيارة القادمة",
     },
+    /** Tapering schedule: steps are joined with "then"; a fixed-length last step ends with "stop" */
+    taper: {
+        then: "، ثم ",
+        stop: "يتوقف",
+    },
 };
 
 export default rxTextAr;

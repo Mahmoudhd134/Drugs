@@ -1,4 +1,4 @@
-import {Button, Chip, Divider, Paper, Stack, Typography} from "@mui/material";
+import {Button, Chip, Divider, Paper, Stack, Tooltip, Typography} from "@mui/material";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ClearAllIcon from "@mui/icons-material/ClearAll";
@@ -31,9 +31,13 @@ export const SelectionPanel = (props: Props) => {
                 <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("prescription.selected")}</Typography>
                 <Chip size="small" color={isEmpty ? "default" : "primary"} label={lines.length}/>
                 <Stack sx={{flex: 1}}/>
-                <Button size="small" color="inherit" startIcon={<ClearAllIcon/>} onClick={onClear} disabled={isEmpty}>
-                    {t("prescription.clearAll")}
-                </Button>
+                <Tooltip title={isEmpty ? "" : t("prescription.clearAllInfo")}>
+                    <span>
+                        <Button size="small" color="inherit" startIcon={<ClearAllIcon/>} onClick={onClear} disabled={isEmpty}>
+                            {t("prescription.clearAll")}
+                        </Button>
+                    </span>
+                </Tooltip>
             </Stack>
 
             {isEmpty ? (
@@ -55,12 +59,20 @@ export const SelectionPanel = (props: Props) => {
 
             <Divider sx={{my: 2}}/>
             <Stack direction={{xs: "column", sm: "row"}} sx={{gap: 1, justifyContent: "flex-end"}}>
-                <Button variant="outlined" startIcon={<ContentCopyIcon/>} onClick={onQuickCopy} disabled={isEmpty}>
-                    {t("prescription.quickCopy")}
-                </Button>
-                <Button variant="contained" startIcon={<EditNoteIcon/>} onClick={onEdit} disabled={isEmpty}>
-                    {t("prescription.editAndCopy")}
-                </Button>
+                <Tooltip title={isEmpty ? "" : t("prescription.quickCopyInfo")}>
+                    <span>
+                        <Button variant="outlined" fullWidth startIcon={<ContentCopyIcon/>} onClick={onQuickCopy} disabled={isEmpty}>
+                            {t("prescription.quickCopy")}
+                        </Button>
+                    </span>
+                </Tooltip>
+                <Tooltip title={isEmpty ? "" : t("prescription.editAndCopyInfo")}>
+                    <span>
+                        <Button variant="contained" fullWidth startIcon={<EditNoteIcon/>} onClick={onEdit} disabled={isEmpty}>
+                            {t("prescription.editAndCopy")}
+                        </Button>
+                    </span>
+                </Tooltip>
             </Stack>
         </Paper>
     );

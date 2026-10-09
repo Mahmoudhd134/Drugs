@@ -263,10 +263,14 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                                 )}
                                                 <Stack direction="row" sx={{gap: 0.5, flexWrap: "wrap", mt: 0.5}}>
                                                     {!isDosingEmpty(item.dosing) && (
-                                                        <Chip size="small" variant="outlined" color="primary" label={t("groups.customDosing")} sx={wrappingChip}/>
+                                                        <Tooltip title={t("groups.customDosingInfo")}>
+                                                            <Chip size="small" variant="outlined" color="primary" label={t("groups.customDosing")} sx={wrappingChip}/>
+                                                        </Tooltip>
                                                     )}
                                                     {effective.eye === ASK_EYE && (
-                                                        <Chip size="small" variant="outlined" color="secondary" label={t("dosing.askEyeHint")} sx={wrappingChip}/>
+                                                        <Tooltip title={t("dosing.askEyeInfo")}>
+                                                            <Chip size="small" variant="outlined" color="secondary" label={t("dosing.askEyeHint")} sx={wrappingChip}/>
+                                                        </Tooltip>
                                                     )}
                                                 </Stack>
                                             </>

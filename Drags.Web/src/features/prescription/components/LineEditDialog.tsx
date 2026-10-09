@@ -29,7 +29,7 @@ export const LineEditDialog = ({line, onClose, onSave}: Props) => {
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
 
     return (
-        <Dialog open={!!line} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
+        <Dialog open={!!line} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             {/* Keyed so the form restarts from each line's values */}
             {line && <LineForm key={line.key} line={line} onClose={onClose} onSave={onSave}/>}
         </Dialog>

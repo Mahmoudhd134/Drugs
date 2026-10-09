@@ -111,6 +111,9 @@ namespace Drags.Api.Migrations
                             b1.Property<int?>("FrequencyValue")
                                 .HasColumnType("INTEGER");
 
+                            b1.Property<string>("TaperSteps")
+                                .HasColumnType("TEXT");
+
                             b1.HasKey("DrugId");
 
                             b1.ToTable("Drugs");
@@ -169,6 +172,9 @@ namespace Drags.Api.Migrations
 
                             b1.Property<int?>("FrequencyValue")
                                 .HasColumnType("INTEGER");
+
+                            b1.Property<string>("TaperSteps")
+                                .HasColumnType("TEXT");
 
                             b1.HasKey("DrugGroupItemId");
 

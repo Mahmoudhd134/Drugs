@@ -11,6 +11,7 @@ import {
     ListItemIcon,
     ListItemText,
     Toolbar,
+    Tooltip,
     Typography,
 } from "@mui/material";
 import {alpha} from "@mui/material/styles";
@@ -73,14 +74,16 @@ export const AppLayout = () => {
                 sx={{zIndex: (theme) => theme.zIndex.drawer + 1, borderBottom: 1, borderColor: "divider"}}
             >
                 <Toolbar>
-                    <IconButton
-                        edge="start"
-                        onClick={() => setMobileOpen(true)}
-                        aria-label={t("nav.openMenu")}
-                        sx={{me: 1, display: {md: "none"}}}
-                    >
-                        <MenuIcon/>
-                    </IconButton>
+                    <Tooltip title={t("nav.openMenu")}>
+                        <IconButton
+                            edge="start"
+                            onClick={() => setMobileOpen(true)}
+                            aria-label={t("nav.openMenu")}
+                            sx={{me: 1, display: {md: "none"}}}
+                        >
+                            <MenuIcon/>
+                        </IconButton>
+                    </Tooltip>
                     <Box component="img" src="/drug.png" alt="" sx={{width: 28, height: 28, me: 1.5}}/>
                     <Typography variant="h6" noWrap sx={{flexGrow: 1, color: "primary.main"}}>
                         {t("app.name")}

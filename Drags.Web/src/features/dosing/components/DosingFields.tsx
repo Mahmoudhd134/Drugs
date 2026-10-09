@@ -1,6 +1,19 @@
 import type {Dispatch, SetStateAction} from "react";
-import {Box, Grid, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
+import {
+    Box,
+    FormControlLabel,
+    Grid,
+    MenuItem,
+    Stack,
+    Switch,
+    TextField,
+    ToggleButton,
+    ToggleButtonGroup,
+    Tooltip,
+    Typography,
+} from "@mui/material";
 import {useTranslation} from "react-i18next";
+import {InfoTip} from "../../../components/common/InfoTip.tsx";
 import {
     ASK_EYE,
     DOSE_UNITS,
@@ -17,8 +30,12 @@ import {
     frequencyNeedsValue,
     MAX_FREQUENCY_TEXT_LENGTH,
     mergeDosing,
+    normalizeDosing,
+    type TaperStep,
 } from "../types.ts";
 import {dosingToText} from "../dosingText.ts";
+import {startSchedule} from "../taper.ts";
+import {TaperStepsEditor} from "./TaperStepsEditor.tsx";
 
 type Props = {
     value: Dosing;
@@ -52,21 +69,50 @@ export const DosingFields = ({value, onChange, showErrors, inheritFrom, allowAsk
         ? {select: {displayEmpty: true}, inputLabel: {shrink: true}}
         : undefined;
 
+    const tapering = !!value.taperSteps;
+    const inheritsTaper = inheritMode && !tapering && !value.frequency && !value.durationUnit
+        && !!normalizeDosing(inheritFrom).taperSteps;
+
+    // On: the steps start from the current (or inherited) schedule. Off: the first step is kept.
+    const toggleTaper = (on: boolean) => onChange(current => {
+        if (on) {
+            const from = inheritMode ? mergeDosing(inheritFrom, current) : normalizeDosing(current);
+            return {
+                ...current,
+                frequency: null, frequencyValue: null, frequencyText: null, durationValue: null, durationUnit: null,
+                taperSteps: from.taperSteps ? from.taperSteps.map(s => ({...s})) : startSchedule(from),
+            };
+        }
+        const first: TaperStep = current.taperSteps?.[0] ?? {};
+        return {
+            ...current,
+            taperSteps: null,
+            frequency: first.frequency ?? null,
+            frequencyValue: first.frequencyValue ?? null,
+            durationValue: first.durationValue ?? null,
+            durationUnit: first.durationUnit ?? null,
+        };
+    });
+    const setSteps = (update: (steps: TaperStep[]) => TaperStep[]) =>
+        onChange(current => ({...current, taperSteps: update(current.taperSteps ?? [])}));
+
     return (
         <Box>
             <Grid container spacing={1.5}>
                 <Grid size={{xs: 5, sm: 4}}>
-                    <TextField
-                        label={t("dosing.amount")}
-                        type="number"
-                        size="small"
-                        fullWidth
-                        value={value.doseAmount ?? ""}
-                        onChange={(e) => set({doseAmount: toNumber(e.target.value)})}
-                        error={errors.includes("doseAmount")}
-                        placeholder={inheritMode ? t("dosing.inherit") : undefined}
-                        slotProps={{htmlInput: {min: 0, step: 0.5}, inputLabel: inheritMode ? {shrink: true} : undefined}}
-                    />
+                    <Tooltip title={t("dosing.amountInfo")} placement="top" enterDelay={600}>
+                        <TextField
+                            label={t("dosing.amount")}
+                            type="number"
+                            size="small"
+                            fullWidth
+                            value={value.doseAmount ?? ""}
+                            onChange={(e) => set({doseAmount: toNumber(e.target.value)})}
+                            error={errors.includes("doseAmount")}
+                            placeholder={inheritMode ? t("dosing.inherit") : undefined}
+                            slotProps={{htmlInput: {min: 0, step: 0.5}, inputLabel: inheritMode ? {shrink: true} : undefined}}
+                        />
+                    </Tooltip>
                 </Grid>
                 <Grid size={{xs: 7, sm: 8}}>
                     <TextField
@@ -84,76 +130,103 @@ export const DosingFields = ({value, onChange, showErrors, inheritFrom, allowAsk
                     </TextField>
                 </Grid>
 
-                <Grid size={{xs: frequencyNeedsValue(value.frequency) ? 7 : 12, sm: frequencyNeedsValue(value.frequency) ? 8 : 12}}>
-                    <TextField
-                        select
-                        slotProps={inheritSelectProps}
-                        label={t("dosing.frequency")}
-                        size="small"
-                        fullWidth
-                        value={value.frequency ?? ""}
-                        onChange={(e) => set({frequency: (e.target.value || null) as Frequency | null})}
-                    >
-                        <MenuItem value="">{emptyLabel}</MenuItem>
-                        {FREQUENCIES.map(f => <MenuItem key={f} value={f}>{t(`dosing.frequencies.${f}`)}</MenuItem>)}
-                    </TextField>
-                </Grid>
-                {frequencyNeedsValue(value.frequency) && (
-                    <Grid size={{xs: 5, sm: 4}}>
-                        <TextField
-                            label={value.frequency === "daily" ? t("dosing.timesPerDay") : t("dosing.hours")}
-                            type="number"
-                            size="small"
-                            fullWidth
-                            value={value.frequencyValue ?? ""}
-                            onChange={(e) => set({frequencyValue: toNumber(e.target.value)})}
-                            error={errors.includes("frequencyValue")}
-                            slotProps={{htmlInput: {min: 1, step: 1}}}
+                <Grid size={12}>
+                    <Stack direction="row" sx={{alignItems: "center"}}>
+                        <FormControlLabel
+                            control={<Switch checked={tapering} onChange={(e) => toggleTaper(e.target.checked)}/>}
+                            label={t("dosing.taper.label")}
+                            sx={{me: 0}}
                         />
-                    </Grid>
-                )}
-                {value.frequency === "custom" && (
+                        <InfoTip title={t("dosing.taper.info")}/>
+                    </Stack>
+                    {inheritsTaper && (
+                        <Typography variant="caption" color="text.secondary" component="div">{t("dosing.taper.inherited")}</Typography>
+                    )}
+                </Grid>
+                {tapering ? (
                     <Grid size={12}>
-                        <TextField
-                            label={t("dosing.customFrequency")}
-                            size="small"
-                            fullWidth
-                            value={value.frequencyText ?? ""}
-                            onChange={(e) => set({frequencyText: e.target.value})}
-                            error={errors.includes("frequencyText")}
-                            slotProps={{htmlInput: {dir: "auto", maxLength: MAX_FREQUENCY_TEXT_LENGTH}}}
+                        <TaperStepsEditor
+                            steps={value.taperSteps ?? []}
+                            onChange={setSteps}
+                            errors={errors}
+                            doseUnit={effective.doseUnit}
+                            lineDose={effective.doseAmount}
                         />
                     </Grid>
-                )}
-
-                <Grid size={{xs: durationNeedsValue(value.durationUnit) ? 7 : 12, sm: durationNeedsValue(value.durationUnit) ? 8 : 12}}>
-                    <TextField
-                        select
-                        slotProps={inheritSelectProps}
-                        label={t("dosing.durationUnit")}
-                        size="small"
-                        fullWidth
-                        value={value.durationUnit ?? ""}
-                        onChange={(e) => set({durationUnit: (e.target.value || null) as DurationUnit | null})}
-                    >
-                        <MenuItem value="">{emptyLabel}</MenuItem>
-                        {DURATION_UNITS.map(u => <MenuItem key={u} value={u}>{t(`dosing.durations.${u}`)}</MenuItem>)}
-                    </TextField>
-                </Grid>
-
-                {durationNeedsValue(value.durationUnit) && (
-                    <Grid size={{xs: 5, sm: 4}}>
+                ) : (
+                    <>
+                    <Grid size={{xs: frequencyNeedsValue(value.frequency) ? 7 : 12, sm: frequencyNeedsValue(value.frequency) ? 8 : 12}}>
                         <TextField
-                            label={t("dosing.durationValue")}
-                            type="number"
+                            select
+                            slotProps={inheritSelectProps}
+                            label={t("dosing.frequency")}
                             size="small"
                             fullWidth
-                            value={value.durationValue ?? ""}
-                            onChange={(e) => set({durationValue: toNumber(e.target.value)})}
-                            error={errors.includes("durationValue")}
-                            slotProps={{htmlInput: {min: 1, step: 1}}}
-                        />
+                            value={value.frequency ?? ""}
+                            onChange={(e) => set({frequency: (e.target.value || null) as Frequency | null})}
+                        >
+                            <MenuItem value="">{emptyLabel}</MenuItem>
+                            {FREQUENCIES.map(f => <MenuItem key={f} value={f}>{t(`dosing.frequencies.${f}`)}</MenuItem>)}
+                        </TextField>
                     </Grid>
+                    {frequencyNeedsValue(value.frequency) && (
+                        <Grid size={{xs: 5, sm: 4}}>
+                            <TextField
+                                label={value.frequency === "daily" ? t("dosing.timesPerDay") : t("dosing.hours")}
+                                type="number"
+                                size="small"
+                                fullWidth
+                                value={value.frequencyValue ?? ""}
+                                onChange={(e) => set({frequencyValue: toNumber(e.target.value)})}
+                                error={errors.includes("frequencyValue")}
+                                slotProps={{htmlInput: {min: 1, step: 1}}}
+                            />
+                        </Grid>
+                    )}
+                    {value.frequency === "custom" && (
+                        <Grid size={12}>
+                            <TextField
+                                label={t("dosing.customFrequency")}
+                                size="small"
+                                fullWidth
+                                value={value.frequencyText ?? ""}
+                                onChange={(e) => set({frequencyText: e.target.value})}
+                                error={errors.includes("frequencyText")}
+                                slotProps={{htmlInput: {dir: "auto", maxLength: MAX_FREQUENCY_TEXT_LENGTH}}}
+                            />
+                        </Grid>
+                    )}
+
+                    <Grid size={{xs: durationNeedsValue(value.durationUnit) ? 7 : 12, sm: durationNeedsValue(value.durationUnit) ? 8 : 12}}>
+                        <TextField
+                            select
+                            slotProps={inheritSelectProps}
+                            label={t("dosing.durationUnit")}
+                            size="small"
+                            fullWidth
+                            value={value.durationUnit ?? ""}
+                            onChange={(e) => set({durationUnit: (e.target.value || null) as DurationUnit | null})}
+                        >
+                            <MenuItem value="">{emptyLabel}</MenuItem>
+                            {DURATION_UNITS.map(u => <MenuItem key={u} value={u}>{t(`dosing.durations.${u}`)}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+
+                    {durationNeedsValue(value.durationUnit) && (
+                        <Grid size={{xs: 5, sm: 4}}>
+                            <TextField
+                                label={t("dosing.durationValue")}
+                                type="number"
+                                size="small"
+                                fullWidth
+                                value={value.durationValue ?? ""}
+                                onChange={(e) => set({durationValue: toNumber(e.target.value)})}
+                                error={errors.includes("durationValue")}
+                                slotProps={{htmlInput: {min: 1, step: 1}}}
+                            />
+                        </Grid>
+                    )}
+                    </>
                 )}
                 <Grid size={12}>
                     <Typography variant="caption" color="text.secondary" component="div" sx={{mb: 0.5}}>
@@ -168,10 +241,12 @@ export const DosingFields = ({value, onChange, showErrors, inheritFrom, allowAsk
                         onChange={(_, eye: DosingEye | null) => set({eye})}
                         sx={{flexWrap: "wrap"}}
                     >
-                        {eyes.map(e => (
-                            <ToggleButton key={e} value={e} sx={{px: 2}}>
-                                {e === ASK_EYE ? t("dosing.askEye") : t(`dosing.eyes.${e}`)}
-                            </ToggleButton>
+                        {eyes.map(e => e === ASK_EYE ? (
+                            <Tooltip key={e} title={t("dosing.askEyeInfo")}>
+                                <ToggleButton value={e} sx={{px: 2}}>{t("dosing.askEye")}</ToggleButton>
+                            </Tooltip>
+                        ) : (
+                            <ToggleButton key={e} value={e} sx={{px: 2}}>{t(`dosing.eyes.${e}`)}</ToggleButton>
                         ))}
                     </ToggleButtonGroup>
                 </Grid>

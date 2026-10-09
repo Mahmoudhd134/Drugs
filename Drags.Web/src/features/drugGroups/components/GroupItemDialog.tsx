@@ -4,6 +4,7 @@ import {useTheme} from "@mui/material/styles";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
+import {InfoTip} from "../../../components/common/InfoTip.tsx";
 import {DosingFields} from "../../dosing/components/DosingFields.tsx";
 import {dosingErrors, isDosingEmpty, normalizeDosing, type Dosing} from "../../dosing/types.ts";
 import type {EditorItem} from "../editorItem.ts";
@@ -21,7 +22,7 @@ export const GroupItemDialog = ({item, onClose, onSave}: Props) => {
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
 
     return (
-        <Dialog open={!!item} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
+        <Dialog open={!!item} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             {item && <ItemForm key={item.key} item={item} onClose={onClose} onSave={onSave}/>}
         </Dialog>
     );
@@ -52,7 +53,10 @@ const ItemForm = ({item, onClose, onSave}: { item: EditorItem } & Omit<Props, "i
             </DialogTitle>
             <DialogContent>
                 <Stack sx={{gap: 1.5, pt: 1}}>
-                    <Typography variant="body2" color="text.secondary">{t("dosing.inheritHint")}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {t("dosing.inheritHint")}
+                        <InfoTip title={t("dosing.inheritInfo")}/>
+                    </Typography>
                     <DosingFields
                         value={dosing}
                         onChange={setDosing}
