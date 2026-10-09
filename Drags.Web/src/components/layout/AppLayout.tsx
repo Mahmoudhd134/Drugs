@@ -1,5 +1,5 @@
 import {type ReactNode, Suspense, useState} from "react";
-import {NavLink, Outlet} from "react-router-dom";
+import {Link as RouterLink, NavLink, Outlet} from "react-router-dom";
 import {
     AppBar,
     Box,
@@ -84,10 +84,21 @@ export const AppLayout = () => {
                             <MenuIcon/>
                         </IconButton>
                     </Tooltip>
-                    <Box component="img" src="/drug.png" alt="" sx={{width: 28, height: 28, me: 1.5}}/>
-                    <Typography variant="h6" noWrap sx={{flexGrow: 1, color: "primary.main"}}>
-                        {t("app.name")}
-                    </Typography>
+                    {/* Logo + name go to the main page (prescription) */}
+                    <Tooltip title={t("nav.home")}>
+                        <Box
+                            component={RouterLink}
+                            to="/"
+                            aria-label={t("nav.home")}
+                            sx={{display: "flex", alignItems: "center", minWidth: 0, textDecoration: "none", borderRadius: 1}}
+                        >
+                            <Box component="img" src="/drug.png" alt="" sx={{width: 28, height: 28, me: 1.5}}/>
+                            <Typography variant="h6" noWrap sx={{color: "primary.main"}}>
+                                {t("app.name")}
+                            </Typography>
+                        </Box>
+                    </Tooltip>
+                    <Box sx={{flexGrow: 1}}/>
                     <LanguageMenu/>
                 </Toolbar>
             </AppBar>

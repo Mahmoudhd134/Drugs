@@ -12,6 +12,7 @@ const en = {
         drugs: "Drugs",
         openMenu: "Open menu",
         language: "Language",
+        home: "Go to the prescription page",
     },
     common: {
         save: "Save",

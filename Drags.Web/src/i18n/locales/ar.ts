@@ -10,6 +10,7 @@ const ar: Translations = {
         prescription: "الروشتة",
         groups: "المجموعات",
         drugs: "الأدوية",
+        home: "الذهاب إلى صفحة الروشتة",
         openMenu: "فتح القائمة",
         language: "اللغة",
     },

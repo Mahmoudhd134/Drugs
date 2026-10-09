@@ -148,7 +148,7 @@ Swagger UI is available in Development at `/swagger`.
 | `/manage` | redirects to `/drugs` (old URL) |
 | `*` | redirects to `/` |
 
-- `AppLayout`: fixed app bar (logo, app name, `LanguageMenu`), sidebar navigation
+- `AppLayout`: fixed app bar (logo + app name, a link to `/`; `LanguageMenu`), sidebar navigation
   (`NAV_ITEMS`; permanent ≥ md, drawer on mobile). Add new modules to `NAV_ITEMS`.
 
 ### Internationalization (UI text only)
