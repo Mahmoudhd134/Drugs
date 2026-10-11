@@ -86,8 +86,8 @@ const SortableRow = ({id, children}: { id: string | number; children: ReactNode 
                 position: "relative",
                 zIndex: isDragging ? 1 : 0,
                 py: 1,
-                pe: 1,
-                ps: 0.5,
+                paddingInlineEnd: 1,
+                paddingInlineStart: 0.5,
             }}
         >
             <Tooltip title={t("common.dragToReorder")}>

@@ -232,11 +232,8 @@ Swagger UI is available in Development at `/swagger`.
 - `useLanguage()` returns `{ language, dir, setLanguage }`.
 - RTL: use logical properties in `sx` (`marginInlineStart`, `paddingInlineEnd`, `borderInlineStart`…)
   or left/right (the RTL stylis plugin flips them). Note: the `ms`/`me`/`ps`/`pe` shorthands are
-  **not** applied by this MUI version (older code still uses them, without effect).
-  **Tech debt (to fix):** 5 uses render with zero spacing: `DrugGroupsPage.tsx:137` (`ps: 2.5`),
-  `GroupItemDialog.tsx:74` (`me: "auto"`), `SortableList.tsx:89-90` (`pe: 1`, `ps: 0.5`),
-  `DosingFields.tsx:138` (`me: 0`). Replace with `paddingInlineStart` / `marginInlineEnd` /
-  `paddingInlineEnd` and check the layout in both languages.
+  **not** applied by this MUI version (they render as zero); don't use them. A `dir="auto"` element
+  flips its own start/end, so put `dir="auto"` on an inner span, not on the element carrying the spacing.
   Directional icons (e.g. back arrow) must be flipped manually when `dir === "rtl"`.
 - User-entered content (drug/group names) can be Arabic or English: inputs use `dir="auto"`.
 - Adding a language: add it to `LANGUAGES`, create `locales/<code>.ts` typed `Translations`,

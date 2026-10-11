@@ -71,7 +71,7 @@ const ItemForm = ({item, onClose, onSave}: { item: EditorItem } & Omit<Props, "i
                     startIcon={<RestartAltIcon/>}
                     onClick={() => setDosing({})}
                     disabled={isDosingEmpty(dosing)}
-                    sx={{me: "auto"}}
+                    sx={{marginInlineEnd: "auto"}}
                 >
                     {t("dosing.resetToDefault")}
                 </Button>

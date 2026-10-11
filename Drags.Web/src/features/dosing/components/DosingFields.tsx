@@ -135,7 +135,7 @@ export const DosingFields = ({value, onChange, showErrors, inheritFrom, allowAsk
                         <FormControlLabel
                             control={<Switch checked={tapering} onChange={(e) => toggleTaper(e.target.checked)}/>}
                             label={t("dosing.taper.label")}
-                            sx={{me: 0}}
+                            sx={{marginInlineEnd: 0}}
                         />
                         <InfoTip title={t("dosing.taper.info")}/>
                     </Stack>

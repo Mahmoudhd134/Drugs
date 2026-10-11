@@ -134,7 +134,7 @@ export const DrugGroupsPage = () => {
                                             <Chip size="small" color="primary" variant="outlined"
                                                   label={t("groups.drugCount", {count: group.items.length})}/>
                                         </Stack>
-                                        <Box component="ol" sx={{m: 0, ps: 2.5, color: "text.secondary"}}>
+                                        <Box component="ol" sx={{m: 0, paddingInlineStart: 2.5, color: "text.secondary"}}>
                                             {group.items.slice(0, PREVIEW_DRUGS).map(({drug}, index) => (
                                                 <Typography component="li" variant="body2" key={index} noWrap>
                                                     {drug.name}
