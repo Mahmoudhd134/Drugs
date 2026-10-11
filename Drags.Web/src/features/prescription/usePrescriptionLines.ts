@@ -3,7 +3,10 @@ import type {Drug} from "../drugs/types.ts";
 import {eyeKey, otherEye, type Dosing} from "../dosing/types.ts";
 import type {PrescriptionLine} from "./types.ts";
 
-const STORAGE_KEY = "prescription.lines";
+/** One prescription per clinic, so clinics never mix */
+const storageKey = (clinicId: number) => `prescription.lines.${clinicId}`;
+/** Before clinics (login) the lines were stored for the whole browser */
+const UNSCOPED_STORAGE_KEY = "prescription.lines";
 /** Before structured dosing the selection was stored as a plain list of drugs */
 const LEGACY_STORAGE_KEY = "prescription.selection";
 
@@ -20,17 +23,25 @@ const lineFromDrug = (drug: Drug) => newLine(drug);
 export const lineIdentity = (drugId: number, dosing: Dosing) => `${drugId}:${eyeKey(dosing)}`;
 const identity = lineIdentity;
 
-const load = (): PrescriptionLine[] => {
+const load = (clinicId: number): PrescriptionLine[] => {
+    const key = storageKey(clinicId);
     try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+        const stored = JSON.parse(localStorage.getItem(key) ?? "null");
         if (Array.isArray(stored)) return stored;
+
+        // Older storage goes to the first clinic opened. Saved under the new key before the old one
+        // is dropped, so a repeated load (React may call this initializer twice) still finds the lines
+        const unscoped = JSON.parse(localStorage.getItem(UNSCOPED_STORAGE_KEY) ?? "null");
+        if (Array.isArray(unscoped)) {
+            localStorage.setItem(key, JSON.stringify(unscoped));
+            localStorage.removeItem(UNSCOPED_STORAGE_KEY);
+            return unscoped;
+        }
 
         const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) ?? "null");
         if (Array.isArray(legacy)) {
             const migrated = (legacy as Drug[]).map(lineFromDrug);
-            // Save under the new key before dropping the old one, so a repeated load
-            // (React may call this initializer twice) still finds the lines
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+            localStorage.setItem(key, JSON.stringify(migrated));
             localStorage.removeItem(LEGACY_STORAGE_KEY);
             return migrated;
         }
@@ -41,19 +52,19 @@ const load = (): PrescriptionLine[] => {
 };
 
 /**
- * The lines of the current prescription. Survives page reloads (localStorage).
- * Each drug appears at most once per eye.
+ * The lines of the clinic's current prescription. Survives page reloads (localStorage, one key per
+ * clinic). Each drug appears at most once per eye. The page is re-mounted when the clinic changes.
  */
-export const usePrescriptionLines = () => {
-    const [lines, setLines] = useState<PrescriptionLine[]>(load);
+export const usePrescriptionLines = (clinicId: number) => {
+    const [lines, setLines] = useState<PrescriptionLine[]>(() => load(clinicId));
 
     useEffect(() => {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
+            localStorage.setItem(storageKey(clinicId), JSON.stringify(lines));
         } catch {
             // Storage unavailable (private mode / quota): the prescription just won't persist
         }
-    }, [lines]);
+    }, [clinicId, lines]);
 
     /** Drugs that have at least one line, for "Added" markers. */
     const drugIds = useMemo(() => new Set(lines.map(l => l.drug.id)), [lines]);

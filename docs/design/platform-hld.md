@@ -1,6 +1,7 @@
 # High-level design: multi-clinic platform (MVP)
 
-Status: **agreed design; Phase 1 (Foundations) implemented** ([clinic scoping](../features/clinic-scoping/tech.md)).
+Status: **agreed design; Phase 1 (Foundations) and Phase 2 (Identity) implemented**
+([clinic scoping](../features/clinic-scoping/tech.md), [login](../features/auth/tech.md)).
 Decided in discussion on 2026-10-11.
 When each phase is built it gets its own `docs/features/<feature>/` (tech + business) and the
 overviews are updated; this file stays the big picture.
@@ -98,8 +99,8 @@ flowchart LR
 ```
 Drags.Api/
   Features/
-    Identity/      AuthController, MeController, OtpService, SessionService, TokenService, PhoneNumbers
-    Access/        PermissionService, Permissions.cs, DefaultRoles.cs, HasPermissionAttribute + handler
+    Identity/      AuthController, MeController, OtpService, SessionService, TokenService, PhoneNormalizer
+    Access/        MembershipService (built in phase 2), PermissionService, Permissions.cs, DefaultRoles.cs, HasPermissionAttribute + handler
     Platform/      Admin*Controllers, ClinicProvisioningService, Seeders/ (IClinicSeeder implementations)
     Drugs/, DrugGroups/   (existing; become the Catalog module)
   Shared/          IClinicContext, ICurrentUser, IClinicOwned, IHasTimestamps, ErrorCodes, PagedResult
@@ -211,7 +212,7 @@ Old rows are deleted by a cleanup on each request (older than 1 day).
 | RefreshTokenHash | varchar(100) | **unique**; rotated on every refresh |
 | ContextType | varchar(20) null | `clinic` / `platform` / null (not chosen yet) |
 | ClinicId | int null | FK → Clinics; set when `ContextType = clinic` |
-| ExpiresAt | timestamptz | sliding: 30 days (12 h for platform context) |
+| ExpiresAt | timestamptz | sliding: 30 days (12 h for every super-admin session, as built in phase 2) |
 | LastUsedAt | timestamptz | |
 | RevokedAt | timestamptz null | logout, staff removed, clinic suspended |
 
@@ -359,9 +360,11 @@ Any failure rolls back everything. New modules add a seeder (e.g. the default re
 Every start (idempotent): ensure the template clinic exists; ensure every phone in
 `Platform:SuperAdminPhones` has a `User` with `IsSuperAdmin = true` (and no other user has it).
 Development only, on an empty DB: provision a "Demo clinic" owned by `Platform:DevOwnerPhone`.
-Built so far (phase 1, `StartupSeeder`): the template is ensured; on an empty dev DB "Demo clinic" (10,000 sample
-drugs) and "Second demo clinic" (a few drugs + one group, for isolation checks) are created
-directly, in one transaction. Super admins, owners and provisioning come with phases 2–4.
+Built so far (phases 1–2): the template is ensured; super admins are seeded from config (others lose
+the flag and their sessions); on an empty dev DB "Demo clinic" (10,000 sample drugs) and "Second
+demo clinic" (a few drugs + one group, for isolation checks) are created directly, in one
+transaction, with the `DevOwnerPhone` user as staff "Dev Owner" in both (no roles yet). Owner roles
+and provisioning come with phases 3–4.
 
 ### 7.5 Editing the template
 
@@ -411,6 +414,16 @@ type Me = {
   permissions: string[];                       // ["*"] for Owner / template access
 };
 ```
+
+**Built in phase 2 (deviations from the table above)** — see [login tech](../features/auth/tech.md):
+- `GET /auth/otp/mode` (anonymous) → `{ mode }`, so the login page shows the display-mode banner up front.
+- `/auth/refresh` and `/auth/context` return 409 when a parallel call rotated the cookie < 30 s ago
+  (cookie kept); `/auth/context` also requires the session's refresh cookie (401 otherwise).
+- `/auth/otp/verify` also returns `invalidPhone`.
+- Every super-admin session lasts 12 h (sliding); display mode is allowed only in Development;
+  `Otp:Mode` defaults to `Sms`, which is refused until an SMS sender exists.
+- Sessions are not revoked on suspension or staff deactivation yet: access is re-checked at refresh
+  and switch, and open access tokens stay valid ≤ 15 min (7.6's "next request → 401" is not met yet).
 
 ### 8.2 Catalog (clinic context; existing contracts unchanged)
 
@@ -493,7 +506,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
     "PlatformSessionHours": 12
   },
   "Otp": {
-    "Mode": "Display",          // Display | Sms. Display + Production environment = startup error
+    "Mode": "Display",          // Display | Sms. Built: Display only in Development (startup error elsewhere); default Sms
     "Length": 6, "ExpiryMinutes": 5, "MaxAttempts": 5,
     "ResendSeconds": 60, "MaxPerPhonePerHour": 5,
     "HashKey": "<secret>"
@@ -532,10 +545,10 @@ How the MVP leaves room, so these are additions:
 | # | Phase | Done when |
 |---|---|---|
 | 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
-| 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | Login, refresh, switch and logout work in the browser |
+| 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`, and the **display-mode guard** (planned for phase 5): the app refuses to start with `Otp:Mode = Display` outside Development (so in Production too). Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until phase 3 |
 | 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>` | Catalog endpoints and nav are permission-gated |
 | 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
-| 5 | **Hardening**: rate limits, display-mode guard, docs (features + overviews, both languages) | Checks green; RTL verified |
+| 5 | **Hardening**: rate limits, ~~display-mode guard~~ (done in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
 
 ## 13. Open questions
 

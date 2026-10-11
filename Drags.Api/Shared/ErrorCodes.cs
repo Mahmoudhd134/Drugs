@@ -13,6 +13,16 @@ public static class ErrorCodes
     public const string InvalidDosing = "invalidDosing";
     public const string DuplicateGroupItem = "duplicateGroupItem";
 
+    // Identity
+    public const string InvalidPhone = "invalidPhone";
+    public const string InvalidCode = "invalidCode";
+    public const string CodeExpired = "codeExpired";
+    public const string TooManyAttempts = "tooManyAttempts";
+    public const string TooManyRequests = "tooManyRequests";
+    public const string NoAccess = "noAccess";
+    public const string ClinicSuspended = "clinicSuspended";
+    public const string Forbidden = "forbidden";
+
     /// <summary>Returns an error code for an invalid name, or null when valid.</summary>
     public static string ValidateName(string name) =>
         string.IsNullOrWhiteSpace(name) ? NameRequired

@@ -1,0 +1,172 @@
+import {type FormEvent, useEffect, useState} from "react";
+import {type Location, Navigate, useLocation, useNavigate} from "react-router-dom";
+import {Alert, Box, Button, Card, CardContent, Stack, TextField, Typography} from "@mui/material";
+import {useTranslation} from "react-i18next";
+import {getErrorMessage} from "../../../api/errors.ts";
+import {requestOtp, useOtpMode, verifyOtp} from "../api.ts";
+import {homeOf, useAuth} from "../useAuth.ts";
+import type {AuthResult} from "../types.ts";
+import {FullPageSpinner} from "../../../components/common/FullPageSpinner.tsx";
+
+/** Pages a user may come back to after logging in (only inside the clinic app). */
+const returnPath = (auth: AuthResult, from: Location | undefined) => {
+    const path = from ? `${from.pathname}${from.search}` : null;
+    const outsideClinicApp = !path || ["/login", "/select-clinic", "/platform"].some(p => path.startsWith(p));
+    return auth.context?.type === "clinic" && !outsideClinicApp ? path : homeOf(auth.context);
+};
+
+/**
+ * Phone → one-time code → in. In OTP display mode (development) the API returns the code: it is
+ * shown, filled in and submitted automatically, under a visible banner.
+ */
+export const LoginPage = () => {
+    const {t} = useTranslation();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const {status, context, signIn} = useAuth();
+    const {data: otpMode} = useOtpMode();
+
+    const [step, setStep] = useState<"phone" | "code">("phone");
+    const [phone, setPhone] = useState("");
+    const [code, setCode] = useState("");
+    const [devCode, setDevCode] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [resendAt, setResendAt] = useState(0);
+    const [now, setNow] = useState(() => Date.now());
+
+    // Ticks the resend countdown
+    useEffect(() => {
+        if (step !== "code" || resendAt <= now) return;
+        const timer = window.setTimeout(() => setNow(Date.now()), 1000);
+        return () => window.clearTimeout(timer);
+    }, [step, resendAt, now]);
+
+    if (status === "loading") return <FullPageSpinner/>;
+    if (status === "authenticated") return <Navigate to={homeOf(context)} replace/>;
+
+    const from = (location.state as { from?: Location } | null)?.from;
+
+    const verify = async (value: string) => {
+        setBusy(true);
+        setError(null);
+        try {
+            const auth = await verifyOtp(phone, value);
+            signIn(auth);
+            navigate(returnPath(auth, from), {replace: true});
+        } catch (e) {
+            setError(getErrorMessage(e));
+            setBusy(false);
+        }
+    };
+
+    const sendCode = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            const result = await requestOtp(phone);
+            setStep("code");
+            setResendAt(Date.now() + result.resendAfterSeconds * 1000);
+            setNow(Date.now());
+            setDevCode(result.devCode ?? null);
+            setCode(result.devCode ?? "");
+            if (result.devCode) {
+                await verify(result.devCode);
+                return;
+            }
+        } catch (e) {
+            setError(getErrorMessage(e));
+        }
+        setBusy(false);
+    };
+
+    const onSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        if (busy) return;
+        if (step === "phone") void sendCode();
+        else void verify(code);
+    };
+
+    const secondsLeft = Math.max(0, Math.ceil((resendAt - now) / 1000));
+
+    return (
+        <Stack sx={{gap: 2}}>
+            {(otpMode === "Display" || devCode) && <Alert severity="warning" variant="filled">{t("auth.displayModeBanner")}</Alert>}
+            <Card variant="outlined">
+                <CardContent component="form" onSubmit={onSubmit} noValidate sx={{p: {xs: 2.5, sm: 4}}}>
+                    <Typography variant="h5" component="h1" gutterBottom>
+                        {step === "phone" ? t("auth.loginTitle") : t("auth.codeTitle")}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{mb: 3}}>
+                        {step === "phone"
+                            ? t("auth.loginSubtitle")
+                            : <>{t("auth.codeSentTo")} <Box component="span" dir="ltr" sx={{fontWeight: 600}}>{phone}</Box></>}
+                    </Typography>
+
+                    <Stack sx={{gap: 2}}>
+                        {step === "phone" ? (
+                            <TextField
+                                label={t("auth.phone")}
+                                helperText={t("auth.phoneHint")}
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                type="tel"
+                                autoComplete="tel"
+                                autoFocus
+                                required
+                                fullWidth
+                                slotProps={{htmlInput: {dir: "ltr", inputMode: "tel", maxLength: 30}}}
+                            />
+                        ) : (
+                            <>
+                                {devCode && <Alert severity="info">{t("auth.devCode")} <b dir="ltr">{devCode}</b></Alert>}
+                                <TextField
+                                    label={t("auth.code")}
+                                    value={code}
+                                    onChange={(e) => setCode(e.target.value)}
+                                    autoComplete="one-time-code"
+                                    autoFocus
+                                    required
+                                    fullWidth
+                                    slotProps={{htmlInput: {dir: "ltr", inputMode: "numeric", maxLength: 9}}}
+                                />
+                            </>
+                        )}
+
+                        {error && <Alert severity="error">{error}</Alert>}
+
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            size="large"
+                            disabled={busy || (step === "phone" ? !phone.trim() : !code.trim())}
+                        >
+                            {step === "phone"
+                                ? busy ? t("auth.sending") : t("auth.sendCode")
+                                : busy ? t("auth.verifying") : t("auth.verify")}
+                        </Button>
+
+                        {step === "code" && (
+                            <Stack direction="row" sx={{justifyContent: "space-between", flexWrap: "wrap", gap: 1}}>
+                                <Button
+                                    onClick={() => {
+                                        setStep("phone");
+                                        setCode("");
+                                        setDevCode(null);
+                                        setError(null);
+                                    }}
+                                    disabled={busy}
+                                >
+                                    {t("auth.changePhone")}
+                                </Button>
+                                <Button onClick={() => void sendCode()} disabled={busy || secondsLeft > 0}>
+                                    {secondsLeft > 0 ? t("auth.resendIn", {count: secondsLeft}) : t("auth.resend")}
+                                </Button>
+                            </Stack>
+                        )}
+                    </Stack>
+                </CardContent>
+            </Card>
+        </Stack>
+    );
+};

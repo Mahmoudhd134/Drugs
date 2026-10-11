@@ -69,7 +69,7 @@ removes it from all groups).
 
 ## Edge cases & limitations
 - Deleting the last row on a page steps back one page.
-- Deleting a drug does not touch prescriptions already stored in a browser (`prescription.lines`).
+- Deleting a drug does not touch prescriptions already stored in a browser (`prescription.lines.<clinicId>`).
 - Name ordering follows the database's default collation.
 - No duplicate-name check: two drugs may share a name.
 

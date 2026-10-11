@@ -17,6 +17,7 @@ docs/
     │   ├── tech.md
     │   └── business.md
     ├── clinic-scoping/        ← clinics + automatic per-clinic data isolation (platform phase 1)
+    ├── auth/                  ← phone + OTP login, sessions, clinic contexts (platform phase 2)
     ├── dosing/                ← structured dosing (shared by drugs, groups, prescriptions)
     ├── tapering/              ← tapering schedules (steps inside a dosing)
     ├── drugs/                 ← drug catalog
@@ -38,6 +39,7 @@ docs/
 | Feature | Tech | Business |
 |---|---|---|
 | Clinic scoping | [tech](features/clinic-scoping/tech.md) | [business](features/clinic-scoping/business.md) |
+| Login (phone + OTP) | [tech](features/auth/tech.md) | [business](features/auth/business.md) |
 | Structured dosing | [tech](features/dosing/tech.md) | [business](features/dosing/business.md) |
 | Tapering schedules | [tech](features/tapering/tech.md) | [business](features/tapering/business.md) |
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |

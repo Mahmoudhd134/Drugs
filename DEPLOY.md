@@ -68,6 +68,13 @@ produces a ready-to-copy folder: **`D:\Drags\publish`**.
 
 **Database:** PostgreSQL. Set the connection string on the server, e.g. an environment variable
 `ConnectionStrings__DefaultConnection` (in `web.config` under `<environmentVariables>`).
+
+**Login (phase 2) — the app won't start without these** (environment variables, never in `appsettings.json`):
+`Auth__Jwt__SigningKey` and `Otp__HashKey` (random secrets, at least 32 bytes each) and the super
+admins' phones `Platform__SuperAdminPhones__0`, `Platform__SuperAdminPhones__1`, … Note: outside
+Development the app **cannot start yet**, because OTP display mode is refused there and there is no
+SMS sender. Login also needs **HTTPS** (the refresh cookie is `Secure`): the http binding below is not
+enough once login is deployed.
 The schema is created automatically on first run via EF Core migrations; it starts **empty**
 (the 10 000-row dev seed only runs in Development).
 

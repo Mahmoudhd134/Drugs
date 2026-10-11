@@ -15,10 +15,13 @@ import {htmlForPaste, linesToHtml, linesToPlainText} from "../prescriptionText.t
 import type {PrescriptionLine} from "../types.ts";
 import type {DrugGroup} from "../../drugGroups/types.ts";
 import type {Drug} from "../../drugs/types.ts";
+import {useClinic} from "../../auth/useAuth.ts";
 
 export const PrescriptionPage = () => {
     const {t} = useTranslation();
-    const prescription = usePrescriptionLines();
+    // The page is re-mounted on a clinic switch (RequireAuth), so the hook never sees clinicId change
+    const {clinicId} = useClinic();
+    const prescription = usePrescriptionLines(clinicId);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingLine, setEditingLine] = useState<PrescriptionLine | null>(null);
     const groupDialogs = useGroupAddDialogs();

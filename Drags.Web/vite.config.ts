@@ -12,4 +12,10 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
+    server: {
+        // Same origin as the SPA in development, so the refresh cookie (SameSite=Strict) is sent
+        proxy: {
+            '/api': 'http://localhost:5000',
+        },
+    },
 })

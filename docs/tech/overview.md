@@ -12,7 +12,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 | Layer | Tech |
 |---|---|
-| Backend | ASP.NET Core 9 (controllers), EF Core 9, PostgreSQL (Npgsql) |
+| Backend | ASP.NET Core 9 (controllers), EF Core 9, PostgreSQL (Npgsql), JWT bearer auth, libphonenumber-csharp |
 | Frontend | React 18, TypeScript 5.8, Vite 6, MUI 7 (+ icons), TanStack Query 5, React Router 6 |
 | i18n | i18next + react-i18next + browser language detector; MUI RTL via emotion + `@mui/stylis-plugin-rtl` |
 | Other UI libs | dnd-kit (drag-to-reorder), react-quill (rich-text editor), react-hot-toast |
@@ -25,19 +25,23 @@ Drags.sln
 Drags.Api/                     ASP.NET Core API (+ serves the SPA in production)
   Controllers/BaseApiController.cs
   Features/<Feature>/          controller + DTOs per feature
-  Features/Platform/           StartupSeeder (startup seed), TemporaryClinicMiddleware (until login)
-  Models/                      EF entities (Clinic, Drug, DrugGroup, Dosing)
+  Features/Identity/           login: AuthController, MeController, OtpService, SessionService,
+                               TokenService, PhoneNormalizer, IOtpSender, CurrentUser, IdentitySeeder,
+                               IdentitySetup (DI + middleware)
+  Features/Access/             MembershipService (a user's clinics, read across clinics)
+  Features/Platform/           StartupSeeder (startup seed: template, super admins, dev data)
+  Models/                      EF entities (Clinic, Drug, DrugGroup, Dosing, User, OtpCode, Session, Staff)
   Database/AppDbContext.cs     EF model configuration + clinic query filter
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Migrations/                  EF Core migrations (applied automatically on startup)
-  Shared/                      AppSettings, ErrorCodes, PagedResult, IClinicOwned,
-                               IHasTimestamps, IClinicContext (+ ClinicContext)
+  Shared/                      AppSettings (+ startup validation), ErrorCodes, PagedResult, IClinicOwned,
+                               IHasTimestamps, IClinicContext (+ ClinicContext), ICurrentUser
   Program.cs                   DI, middleware, migrate-on-startup, seeding
 Drags.Web/                     React SPA (Vite); builds into Drags.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
   src/api/                     axios client, error → message, shared API types
   src/components/common/       reusable UI (SearchField, SearchableList, SortableList, …)
-  src/components/layout/       AppLayout (app bar + sidebar), LanguageMenu
+  src/components/layout/       AppLayout (clinic app: app bar + sidebar), SimpleLayout (login etc.), LanguageMenu
   src/features/<feature>/      api.ts, types.ts, components/, pages/
   src/hooks/                   useLanguage, useDebouncedValue
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
@@ -51,19 +55,24 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Production:** one origin. The API serves `wwwroot` (SPA) and `/api/v1/*`. The SPA calls the
   API with the relative base URL `/api/v1`. `MapFallbackToFile("index.html")` serves client routes.
 - **Development:** Vite dev server on `http://localhost:5173`; API on `http://localhost:5000`
-  (launch profile `http`, usually run from Rider). `Drags.Web/.env.development` sets
-  `VITE_API_BASE_URL=http://localhost:5000/api/v1`; the API allows the Vite origin via
-  `AllowedOrigins` (CORS) in `appsettings.json`.
+  (launch profile `http`, usually run from Rider). Vite **proxies `/api`** to the API
+  (`vite.config.ts`) and `Drags.Web/.env.development` sets `VITE_API_BASE_URL=/api/v1`, so the SPA
+  and API share one origin, as in production (the refresh cookie is `SameSite=Strict`).
+  `AllowedOrigins` (CORS) in `appsettings.json` is no longer needed by the SPA.
 - **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
   container from `docker-compose.yml` (set in `appsettings.Development.json`); production must set
   the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
-  `Program.cs` runs `Database.MigrateAsync()` then `StartupSeeder` on every startup: it ensures the
-  template clinic exists; in Development, an empty DB also gets "Demo clinic" (10,000 sample drugs)
-  and "Second demo clinic" (3 drugs + 1 group).
+  `Program.cs` validates the settings (missing/short secrets, OTP display mode outside Development,
+  `Otp:Mode = Sms` (no sender yet), or an invalid seeded phone stop the app; sections `Auth`, `Otp`,
+  `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
+  template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
+  also gets "Demo clinic" (10,000 sample drugs) and "Second demo clinic" (3 drugs + 1 group), with
+  the `Platform:DevOwnerPhone` user as staff "Dev Owner" in both.
+- **Login:** phone + one-time code; a JWT access token per context (a clinic, or the platform for a
+  super admin) and a rotating refresh token in an HttpOnly cookie ([login](../features/auth/tech.md)).
 - **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
-  request's clinic automatically ([clinic scoping](../features/clinic-scoping/tech.md)). Until login
-  exists (platform phase 2), `TemporaryClinicMiddleware` puts every request in the first active
-  non-template clinic (the Demo clinic).
+  request's clinic automatically ([clinic scoping](../features/clinic-scoping/tech.md)). The clinic
+  comes only from the access token's `clinic_id` (`UseClinicFromToken`); no token = no clinic.
 
 ## Backend
 
@@ -80,20 +89,33 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   **start with** the term first.
 - Validation errors return **400** with a machine-readable code. The frontend translates codes.
   Codes live in `Shared/ErrorCodes.cs`: `nameRequired`, `nameTooLong`, `drugsRequired`, `drugNotFound`,
-  `invalidDosing`, `duplicateGroupItem`.
+  `invalidDosing`, `duplicateGroupItem`, and for login `invalidPhone`, `invalidCode`, `codeExpired`,
+  `tooManyAttempts`, `tooManyRequests` (429), `noAccess` (403), `clinicSuspended` (403), `forbidden` (403).
+  401 = missing/expired access token (no code; the SPA refreshes and retries once).
   Add new codes there **and** under `errors.*` in both locale files.
 - `Nullable` is disabled in the csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
 - **Clinic-owned data:** a clinic's entity implements `IClinicOwned` (and `IHasTimestamps`); the
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
   with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
-  take a `clinicId` from the client in clinic routes. Only Platform code may `IgnoreQueryFilters()`.
+  take a `clinicId` from the client in clinic routes. Only Platform code (and the Access module's
+  membership queries, read-only, to list a user's clinics) may `IgnoreQueryFilters()`.
+- **Auth:** clinic endpoints carry `[Authorize(Policy = AuthPolicies.ClinicContext)]` (a clinic-context
+  token; platform tokens get 403). Read the caller from `ICurrentUser` (claims), never from the body.
 
 ### Data model
 
 ```
 Clinics (Platform)
 - Id (PK), Name (≤256), Status ("active" | "suspended"), IsTemplate (only one: partial unique index)
+
+Users (Identity)       Phone (E.164, unique), IsSuperAdmin, LastLoginAt
+OtpCodes (Identity)    Phone, CodeHash (HMAC), ExpiresAt, Attempts, ConsumedAt; index (Phone, CreatedAt)
+Sessions (Identity)    Id (uuid), UserId (cascade), RefreshTokenHash (unique), ContextType, ClinicId,
+                       ExpiresAt (sliding), LastUsedAt, RevokedAt
+Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive; unique (ClinicId, UserId)
 ```
+
+Details: [login tech](../features/auth/tech.md).
 
 Every table has `CreatedAt`/`UpdatedAt` (`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
 and `DrugGroupItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
@@ -126,6 +148,14 @@ Drugs                       DrugGroups
 
 | Method | Route | Purpose |
 |---|---|---|
+| GET | `/auth/otp/mode` | `{ mode }` (`Display` → the login page shows its banner). Anonymous |
+| POST | `/auth/otp/request` | `{ phone }` → code created (`devCode` in display mode). Anonymous |
+| POST | `/auth/otp/verify` | `{ phone, code }` → `AuthResult` + refresh cookie. Anonymous |
+| POST | `/auth/refresh` | Refresh cookie → new `AuthResult`, cookie rotated |
+| POST | `/auth/context` | `{ type, clinicId? }` → `AuthResult` for that context |
+| GET | `/auth/contexts` | Contexts the user can pick |
+| POST | `/auth/logout` | Revokes the session, clears the cookie → 204 |
+| GET | `/me` | User, context, staff, permissions (`["*"]`, TEMPORARY until phase 3) |
 | GET | `/drugs?search=&page=1&pageSize=20` | Paged drugs, ordered by name (prefix matches first when searching) |
 | GET | `/drugs/{id}` | One drug |
 | POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |
@@ -137,6 +167,10 @@ Drugs                       DrugGroups
 | POST | `/drug-groups` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + group |
 | PUT | `/drug-groups/{id}` | Replace name and items (order + overrides) → group |
 | DELETE | `/drug-groups/{id}` | Delete → 204 |
+
+Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
+(`Authorization: Bearer …`): none/expired → 401, platform or no context → 403. Auth contracts:
+[login tech](../features/auth/tech.md).
 
 Swagger UI is available in Development at `/swagger`.
 
@@ -152,20 +186,27 @@ Swagger UI is available in Development at `/swagger`.
   keeping ids → drop old), never drop-and-recreate. Test up, down to the previous migration, and
   up again on a copy of a real DB.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
-  to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1). To reset a dev DB: `docker compose down -v && docker compose up -d`.
+  to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1) and for login
+  (phase 2). To reset a dev DB: `docker compose down -v && docker compose up -d`.
 
 ## Frontend
 
 ### App shell
 
 - `main.tsx` imports `./i18n` (initializes i18next) and renders `App`.
-- `AppProviders`: TanStack `QueryClient` (staleTime 30 s, retry 1, no refetch on focus),
-  emotion cache per direction (`rtl` cache adds the stylis RTL plugin), MUI theme from
-  `createAppTheme(direction)`, `CssBaseline`, `Toaster`.
-- Routes (`app/App.tsx`), each page lazy-loaded as its own chunk inside `AppLayout` (`Suspense`):
+- `AppProviders` (inside `BrowserRouter`): TanStack `QueryClient` (staleTime 30 s, retry 1, no
+  refetch on focus), emotion cache per direction (`rtl` cache adds the stylis RTL plugin), MUI theme
+  from `createAppTheme(direction)`, `CssBaseline`, `AuthProvider` (session restore, `useAuth()`),
+  `Toaster`.
+- Routes (`app/App.tsx`), each page lazy-loaded as its own chunk (`Suspense`). Login pages use
+  `SimpleLayout`; the clinic app is `AppLayout` behind `RequireAuth context="clinic"`
+  ([login](../features/auth/tech.md)):
 
 | Path | Page |
 |---|---|
+| `/login` | `LoginPage` (phone → code) |
+| `/select-clinic` | `SelectClinicPage` (logged in) |
+| `/platform` | `PlatformPage` (platform context; TEMPORARY placeholder until the admin area) |
 | `/` | `PrescriptionPage` |
 | `/groups` | `DrugGroupsPage` |
 | `/groups/new`, `/groups/:id` | `DrugGroupEditorPage` |
@@ -173,8 +214,10 @@ Swagger UI is available in Development at `/swagger`.
 | `/manage` | redirects to `/drugs` (old URL) |
 | `*` | redirects to `/` |
 
-- `AppLayout`: fixed app bar (logo + app name, a link to `/`; `LanguageMenu`), sidebar navigation
-  (`NAV_ITEMS`; permanent ≥ md, drawer on mobile). Add new modules to `NAV_ITEMS`.
+- `AppLayout`: fixed app bar (logo + app name, a link to `/`; the clinic name; `LanguageMenu`;
+  `UserMenu` with switch clinic and logout), a warning banner in the template clinic, sidebar
+  navigation (`NAV_ITEMS`; permanent ≥ md, drawer on mobile). Add new modules to `NAV_ITEMS`.
+  Pages are re-mounted when the context changes; `useClinic()` gives the current clinic.
 
 ### Internationalization (UI text only)
 
@@ -187,7 +230,13 @@ Swagger UI is available in Development at `/swagger`.
   `i18n.getFixedT("ar")` using Arabic plural suffixes (`_zero/_one/_two/_few/_many/_other`).
 - The chosen language persists in `localStorage["language"]`; `<html lang/dir>` follows it.
 - `useLanguage()` returns `{ language, dir, setLanguage }`.
-- RTL: use MUI logical spacing in `sx` (`ms`, `me`, `ps`, `pe`) instead of left/right.
+- RTL: use logical properties in `sx` (`marginInlineStart`, `paddingInlineEnd`, `borderInlineStart`…)
+  or left/right (the RTL stylis plugin flips them). Note: the `ms`/`me`/`ps`/`pe` shorthands are
+  **not** applied by this MUI version (older code still uses them, without effect).
+  **Tech debt (to fix):** 5 uses render with zero spacing: `DrugGroupsPage.tsx:137` (`ps: 2.5`),
+  `GroupItemDialog.tsx:74` (`me: "auto"`), `SortableList.tsx:89-90` (`pe: 1`, `ps: 0.5`),
+  `DosingFields.tsx:138` (`me: 0`). Replace with `paddingInlineStart` / `marginInlineEnd` /
+  `paddingInlineEnd` and check the layout in both languages.
   Directional icons (e.g. back arrow) must be flipped manually when `dir === "rtl"`.
 - User-entered content (drug/group names) can be Arabic or English: inputs use `dir="auto"`.
 - Adding a language: add it to `LANGUAGES`, create `locales/<code>.ts` typed `Translations`,
@@ -195,7 +244,12 @@ Swagger UI is available in Development at `/swagger`.
 
 ### Data fetching
 
-- `api/client.ts`: one axios instance (`baseURL` = `VITE_API_BASE_URL` or `/api/v1`).
+- `api/client.ts`: one axios instance (`baseURL` = `VITE_API_BASE_URL` or `/api/v1`). Interceptors add
+  `Authorization: Bearer <access token>` and, on a 401, refresh once (shared promise) and retry
+  (not if the refresh moved to another clinic); a 401 from the refresh logs out (→ `/login`), a
+  network error doesn't. The access token lives only in memory
+  (`features/auth/session.ts`), never in storage.
+- A context switch or logout cancels in-flight queries and clears the whole query cache.
 - Each feature has `api.ts` with a query-key factory (`drugKeys`, `drugGroupKeys`) and hooks:
   `useX` (one page, `keepPreviousData`), `useXPicker` (`useInfiniteQuery`, "load more", 30/page),
   `useSaveX` / `useDeleteX` mutations that invalidate the feature's keys.
@@ -220,8 +274,12 @@ Swagger UI is available in Development at `/swagger`.
 | Key | Content |
 |---|---|
 | `language` | UI language code |
-| `prescription.lines` | Current prescription lines (drug snapshot + dosing + note) |
-| `prescription.selection` | Legacy (pre-dosing) list of drugs; migrated to `prescription.lines` on load, then removed |
+| `prescription.lines.<clinicId>` | The clinic's current prescription lines (drug snapshot + dosing + note) |
+| `prescription.lines` | Legacy (before login): moved to the first clinic opened, then removed |
+| `prescription.selection` | Legacy (pre-dosing) list of drugs; migrated the same way, then removed |
+
+Not in storage: the access token (memory only). The refresh token is an `HttpOnly` cookie
+(`drags_refresh`, path `/api/v1/auth`) that scripts cannot read.
 
 ### Code conventions
 
@@ -253,13 +311,21 @@ Migrations: add **and** apply them with the CLI (`dotnet ef migrations add <Name
 the files, so a `--no-build` update would apply nothing; check with `dotnet ef migrations list`),
 even though startup also migrates.
 
-Every request acts in the Demo clinic (looked up once; restart the API after resetting the DB).
-In Development, send `X-Dev-Clinic-Id: <id>` to act in another clinic (temporary, until login),
-e.g. the Second demo clinic for isolation checks (unknown id → 400):
+Login in Development: `Otp:Mode` is `Display`, so the code is shown on the login page (and logged
+by the API). Seeded phones (`appsettings.Development.json`): `01000000002` = "Dev Owner", staff in
+both demo clinics; `01000000001` = super admin (platform + template clinic). Any other valid number
+gets a code but no access. API calls need a token:
 
 ```bash
-curl -H "X-Dev-Clinic-Id: 3" http://localhost:5000/api/v1/drugs
+curl -s -X POST localhost:5000/api/v1/auth/otp/request -H "Content-Type: application/json" -d '{"phone":"01000000002"}'
+curl -s -X POST localhost:5000/api/v1/auth/otp/verify  -H "Content-Type: application/json" -d '{"phone":"01000000002","code":"<devCode>"}'
+curl -s -X POST localhost:5000/api/v1/auth/context -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" -d '{"type":"clinic","clinicId":3}'
+curl -s localhost:5000/api/v1/drugs -H "Authorization: Bearer <accessToken>"
 ```
+
+A new code for the same phone needs 60 s (5 per hour); in dev, `DELETE FROM "OtpCodes"` resets it.
+Secrets: dev values are in `appsettings.Development.json`; any other environment must set
+`Auth__Jwt__SigningKey` and `Otp__HashKey` (≥ 32 bytes) as environment variables, or the app won't start.
 
 Checks before committing:
 
@@ -277,9 +343,13 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- No authentication or roles: anyone who can reach the site can edit data. Every request acts in
-  one clinic (`TemporaryClinicMiddleware`); with no non-template clinic (a fresh Production DB)
-  lists are empty and saves fail, until platform phase 4 can create clinics.
+- Login exists but no roles yet: every staff member can do everything in their clinic (phase 3).
+  Users and staff come only from seeding until the admin area (phase 4).
+- Production cannot start yet: OTP display mode is refused outside Development and there is no SMS sender.
+- Access tokens stay valid up to 15 min after logout/suspension (no per-request session check).
+- **HTTPS is now required** outside localhost: the login refresh cookie is `Secure`, so on the
+  plain-http LAN setup every reload would ask for a new login. Moving the deployment to HTTPS is a
+  prerequisite for phase 2 in production.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
 - No automated database backups yet.

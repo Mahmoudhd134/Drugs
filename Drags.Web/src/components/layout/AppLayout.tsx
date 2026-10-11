@@ -1,9 +1,9 @@
 import {type ReactNode, Suspense, useState} from "react";
 import {Link as RouterLink, NavLink, Outlet} from "react-router-dom";
 import {
+    Alert,
     AppBar,
     Box,
-    CircularProgress,
     Drawer,
     IconButton,
     List,
@@ -21,6 +21,9 @@ import CategoryIcon from "@mui/icons-material/Category";
 import MedicationIcon from "@mui/icons-material/Medication";
 import {useTranslation} from "react-i18next";
 import {LanguageMenu} from "./LanguageMenu.tsx";
+import {UserMenu} from "../../features/auth/components/UserMenu.tsx";
+import {useClinic} from "../../features/auth/useAuth.ts";
+import {FullPageSpinner} from "../common/FullPageSpinner.tsx";
 
 const DRAWER_WIDTH = 232;
 
@@ -35,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export const AppLayout = () => {
     const {t} = useTranslation();
+    const clinic = useClinic();
     const [mobileOpen, setMobileOpen] = useState(false);
 
     const navigation = (
@@ -79,7 +83,7 @@ export const AppLayout = () => {
                             edge="start"
                             onClick={() => setMobileOpen(true)}
                             aria-label={t("nav.openMenu")}
-                            sx={{me: 1, display: {md: "none"}}}
+                            sx={{marginInlineEnd: 1, display: {md: "none"}}}
                         >
                             <MenuIcon/>
                         </IconButton>
@@ -92,14 +96,31 @@ export const AppLayout = () => {
                             aria-label={t("nav.home")}
                             sx={{display: "flex", alignItems: "center", minWidth: 0, textDecoration: "none", borderRadius: 1}}
                         >
-                            <Box component="img" src="/drug.png" alt="" sx={{width: 28, height: 28, me: 1.5}}/>
-                            <Typography variant="h6" noWrap sx={{color: "primary.main"}}>
+                            <Box component="img" src="/drug.png" alt="" sx={{width: 28, height: 28, marginInlineEnd: 1.5}}/>
+                            <Typography variant="h6" noWrap sx={{color: "primary.main", display: {xs: "none", sm: "block"}}}>
                                 {t("app.name")}
                             </Typography>
                         </Box>
                     </Tooltip>
+                    {/* The clinic everything on screen belongs to */}
+                    <Typography
+                        noWrap
+                        title={clinic.clinicName}
+                        sx={{
+                            marginInlineStart: {xs: 1, sm: 2},
+                            paddingInlineStart: {sm: 2},
+                            borderInlineStart: {sm: "1px solid"},
+                            borderColor: {sm: "divider"},
+                            fontWeight: 600,
+                            minWidth: 0,
+                        }}
+                    >
+                        {/* dir="auto" only on the name: on the Typography it would flip the spacing side */}
+                        <span dir="auto">{clinic.clinicName}</span>
+                    </Typography>
                     <Box sx={{flexGrow: 1}}/>
                     <LanguageMenu/>
+                    <UserMenu/>
                 </Toolbar>
             </AppBar>
 
@@ -129,8 +150,13 @@ export const AppLayout = () => {
 
             <Box component="main" sx={{flexGrow: 1, minWidth: 0}}>
                 <Toolbar/>
+                {clinic.isTemplate && (
+                    <Alert severity="warning" square sx={{borderBottom: 1, borderColor: "divider"}}>
+                        {t("auth.templateBanner")}
+                    </Alert>
+                )}
                 <Box sx={{p: {xs: 2, md: 3}, maxWidth: 1400, mx: "auto"}}>
-                    <Suspense fallback={<Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress/></Box>}>
+                    <Suspense fallback={<FullPageSpinner/>}>
                         <Outlet/>
                     </Suspense>
                 </Box>

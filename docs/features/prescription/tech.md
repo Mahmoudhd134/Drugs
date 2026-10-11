@@ -24,7 +24,9 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 ## Frontend (`src/features/prescription/`)
 
 ### State: `usePrescriptionLines.ts`
-- Persisted to `localStorage["prescription.lines"]` on every change; storage errors are ignored.
+- Persisted per clinic to `localStorage["prescription.lines.<clinicId>"]` (`usePrescriptionLines(clinicId)`)
+  on every change; storage errors are ignored. The old unscoped `prescription.lines`, or else
+  `prescription.selection`, moves to the first clinic opened.
 - **Legacy migration:** if only the old key `prescription.selection` (array of drugs) exists, each
   drug becomes a line with its default dosing. The new key is written **before** the old key is
   removed, because React may call the state initializer twice.

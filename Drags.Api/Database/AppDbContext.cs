@@ -12,6 +12,8 @@ namespace Drags.Api.Database;
 public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext clinicContext) : DbContext(options)
 {
     public const int NameMaxLength = 256;
+    /// <summary>E.164 is at most 16 characters.</summary>
+    public const int PhoneMaxLength = 20;
 
     /// <summary>The current clinic; every <see cref="IClinicOwned"/> query is filtered to it.</summary>
     public int? ClinicId => clinicContext.ClinicId;
@@ -20,6 +22,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     public DbSet<Drug> Drugs { get; set; }
     public DbSet<DrugGroup> DrugGroups { get; set; }
     public DbSet<DrugGroupItem> DrugGroupItems { get; set; }
+    public DbSet<User> Users { get; set; }
+    public DbSet<OtpCode> OtpCodes { get; set; }
+    public DbSet<Session> Sessions { get; set; }
+    public DbSet<Staff> Staff { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +65,38 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
                 .HasForeignKey(x => new { x.DrugId, x.ClinicId })
                 .HasPrincipalKey(x => new { x.Id, x.ClinicId });
             builder.OwnsOne(x => x.Dosing, ConfigureDosing);
+        });
+
+        modelBuilder.Entity<User>(builder =>
+        {
+            builder.Property(x => x.Phone).HasMaxLength(PhoneMaxLength).IsRequired();
+            builder.HasIndex(x => x.Phone).IsUnique();
+        });
+
+        modelBuilder.Entity<OtpCode>(builder =>
+        {
+            builder.Property(x => x.Phone).HasMaxLength(PhoneMaxLength).IsRequired();
+            builder.Property(x => x.CodeHash).HasMaxLength(100).IsRequired();
+            builder.HasIndex(x => new { x.Phone, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<Session>(builder =>
+        {
+            // Concurrency token: two refreshes racing with the same token can't both rotate it
+            builder.Property(x => x.RefreshTokenHash).HasMaxLength(100).IsRequired().IsConcurrencyToken();
+            builder.HasIndex(x => x.RefreshTokenHash).IsUnique();
+            builder.Property(x => x.PreviousRefreshTokenHash).HasMaxLength(100);
+            builder.HasIndex(x => x.PreviousRefreshTokenHash);
+            builder.Property(x => x.ContextType).HasMaxLength(20);
+            builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne<Clinic>().WithMany().HasForeignKey(x => x.ClinicId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Staff>(builder =>
+        {
+            builder.Property(x => x.FullName).HasMaxLength(NameMaxLength).IsRequired();
+            builder.HasIndex(x => new { x.ClinicId, x.UserId }).IsUnique();
+            builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         foreach (var type in modelBuilder.Model.GetEntityTypes()

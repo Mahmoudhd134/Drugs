@@ -1,13 +1,16 @@
 using Drags.Api.Controllers;
 using Drags.Api.Database;
 using Drags.Api.Models;
+using Drags.Api.Features.Identity;
 using Drags.Api.Shared;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.DrugGroups;
 
 [Route("api/v1/drug-groups")]
+[Authorize(Policy = AuthPolicies.ClinicContext)]
 public class DrugGroupsController(AppDbContext context) : BaseApiController
 {
     [HttpGet]

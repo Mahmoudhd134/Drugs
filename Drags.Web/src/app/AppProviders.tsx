@@ -8,6 +8,7 @@ import {CssBaseline, ThemeProvider} from "@mui/material";
 import {Toaster} from "react-hot-toast";
 import {createAppTheme} from "./theme.ts";
 import {useLanguage} from "../hooks/useLanguage.ts";
+import {AuthProvider} from "../features/auth/AuthProvider.tsx";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -34,7 +35,7 @@ export const AppProviders = ({children}: { children: ReactNode }) => {
             <CacheProvider value={emotionCaches[dir]}>
                 <ThemeProvider theme={theme}>
                     <CssBaseline/>
-                    {children}
+                    <AuthProvider>{children}</AuthProvider>
                     <Toaster
                         position="bottom-center"
                         toastOptions={{style: {fontFamily: theme.typography.fontFamily, whiteSpace: "pre-line"}}}

@@ -14,7 +14,7 @@ exists, a temporary middleware chooses the clinic. API contracts are unchanged.
 |---|---|---|
 | Id | int PK, identity | |
 | Name | varchar(256) | required |
-| Status | varchar(20) | `active` / `suspended` (`ClinicStatus`); only used to pick the default clinic so far |
+| Status | varchar(20) | `active` / `suspended` (`ClinicStatus`); only used to pick the default clinic so far *(phase 2: suspended clinics are left out of login contexts → `clinicSuspended`)* |
 | IsTemplate | boolean | only one template: partial unique index `WHERE "IsTemplate"` |
 | CreatedAt, UpdatedAt | timestamptz | UTC |
 
@@ -64,7 +64,8 @@ No new endpoints, no contract changes. Behavior inside a clinic:
   lines also moves the group's `UpdatedAt`.
 - Controllers use `FirstOrDefaultAsync(x => x.Id == id)` instead of `FindAsync` (which can return
   a tracked entity without going through the filter).
-- **Temporary** `Features/Platform/TemporaryClinicMiddleware` (after CORS, before controllers):
+- *(Replaced in phase 2 by the token's `clinic_id`, see [login](../auth/tech.md); kept for history.)*
+  **Temporary** `Features/Platform/TemporaryClinicMiddleware` (after CORS, before controllers):
   sets the context to the first active non-template clinic (looked up once per process: restart
   the API after resetting the DB). In Development only, header `X-Dev-Clinic-Id: <id>` overrides
   it; an id that is not a clinic (or not a number) → 400 ProblemDetails. The template clinic is
@@ -84,12 +85,14 @@ No changes. The SPA never sends a clinic; the API decides it.
 - Fresh Production DB: only the template exists, so the middleware finds no clinic: lists are empty
   and saves throw (500) until clinics can be created (phase 4).
 - `Status` only matters for picking the default clinic; the dev header accepts suspended clinics,
-  and suspension is not enforced yet (phase 3/4).
+  and suspension is not enforced yet (phase 3/4). *(Phase 2: the middleware is gone; suspended
+  clinics can't be entered at login or switch, but open access tokens stay valid ≤ 15 min.)*
 - A group PUT always moves the group's `UpdatedAt` (even with no change), and its lines are
   re-inserted, so a line's `CreatedAt` is the last group save. A drug PUT with an identical
   non-null dosing also moves `UpdatedAt` (the dosing is replaced). Deleting a drug removes its
   lines (DB cascade) without moving those groups' `UpdatedAt`.
-- The prescription in `localStorage` is not per clinic yet (planned with login).
+- The prescription in `localStorage` is not per clinic yet (planned with login). *(Done in phase 2:
+  `prescription.lines.<clinicId>`.)*
 
 ## Testing notes
 Verified manually (no automated tests in the MVP) on a reset DB, API on :5000, Vite on :5173:
