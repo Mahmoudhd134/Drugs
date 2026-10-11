@@ -1,5 +1,5 @@
 using Drags.Api.Database;
-using Drags.Api.Models;
+using Drags.Api.Features.Platform;
 using Drags.Api.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -12,10 +12,13 @@ builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-);
+builder.Services.AddScoped<ClinicContext>();
+builder.Services.AddScoped<IClinicContext>(serviceProvider => serviceProvider.GetRequiredService<ClinicContext>());
 
+builder.Services.AddDbContext<AppDbContext>(options => options
+    .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+    .AddInterceptors(new ClinicAndTimestampsInterceptor())
+);
 
 builder.Services.Configure<AppSettings>(builder.Configuration);
 
@@ -42,23 +45,18 @@ app.UseCors(cors => cors
     .AllowAnyHeader()
     .AllowAnyMethod());
 
+// TEMPORARY until Phase 2 (login): sets the request's clinic
+app.UseMiddleware<TemporaryClinicMiddleware>();
+
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
-var context = app.Services.CreateScope().ServiceProvider.GetRequiredService<AppDbContext>();
-await context.Database.MigrateAsync();
-
-if (app.Environment.IsDevelopment())
+using (var scope = app.Services.CreateScope())
 {
-    if (context.Drugs.Any() == false)
-    {
-        context.Drugs.AddRange(Enumerable.Range(1, 10000).Select(x => new Drug
-        {
-            Name = $"Drug number {x}",
-            Description = $"Description of drug number {x}"
-        }));
-        await context.SaveChangesAsync();
-    }
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await context.Database.MigrateAsync();
+    await StartupSeeder.SeedAsync(context, scope.ServiceProvider.GetRequiredService<ClinicContext>(),
+        app.Environment.IsDevelopment());
 }
 
 app.Run();

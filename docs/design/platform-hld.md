@@ -1,6 +1,7 @@
 # High-level design: multi-clinic platform (MVP)
 
-Status: **agreed design, not implemented.** Decided in discussion on 2026-10-11.
+Status: **agreed design; Phase 1 (Foundations) implemented** ([clinic scoping](../features/clinic-scoping/tech.md)).
+Decided in discussion on 2026-10-11.
 When each phase is built it gets its own `docs/features/<feature>/` (tech + business) and the
 overviews are updated; this file stays the big picture.
 
@@ -40,7 +41,7 @@ features (patients, forms, portal, audit) are additions, not rewrites. See [Futu
 | NFR-4 | Display OTP mode can **never** run in Production (startup fails). |
 | NFR-5 | All times stored in UTC (`timestamptz`). Every table has `CreatedAt`/`UpdatedAt`. |
 | NFR-6 | One deployable (API + SPA), one PostgreSQL database. Production requires HTTPS. |
-| NFR-7 | Automated integration tests for isolation, permissions and the auth flow (real PostgreSQL). |
+| NFR-7 | No automated tests in the MVP: each phase is verified manually (API calls + browser). Integration tests (isolation, permissions, auth; real PostgreSQL) come after the MVP. |
 
 ### 1.3 Out of the MVP (designed for, not built)
 
@@ -103,7 +104,6 @@ Drags.Api/
     Drugs/, DrugGroups/   (existing; become the Catalog module)
   Shared/          IClinicContext, ICurrentUser, IClinicOwned, IHasTimestamps, ErrorCodes, PagedResult
   Database/        AppDbContext (query filters, timestamps interceptor)
-Drags.Api.Tests/   integration tests (WebApplicationFactory + Testcontainers PostgreSQL)
 ```
 
 The current `Features/<Feature>` convention stays; a module may span several feature folders.
@@ -260,7 +260,7 @@ The role must belong to the staff's clinic (checked in `AccessService`; the filt
 |---|---|
 | Drugs | + `ClinicId` (FK, restrict), index `(ClinicId, Name)`, timestamps |
 | DrugGroups | + `ClinicId` (FK, restrict), index `(ClinicId, Name)`, timestamps |
-| DrugGroupItems | + `ClinicId` (same as its group; makes the filter uniform), timestamps |
+| DrugGroupItems | + `ClinicId` (same as its group; makes the filter uniform), timestamps; composite FKs `(DrugGroupId, ClinicId)` → `DrugGroups(Id, ClinicId)` and `(DrugId, ClinicId)` → `Drugs(Id, ClinicId)` so the DB enforces one clinic per line |
 
 Everything else (owned `Dosing`, cascades, one drug per group per eye) is unchanged.
 
@@ -358,8 +358,10 @@ Any failure rolls back everything. New modules add a seeder (e.g. the default re
 
 Every start (idempotent): ensure the template clinic exists; ensure every phone in
 `Platform:SuperAdminPhones` has a `User` with `IsSuperAdmin = true` (and no other user has it).
-Development only, on an empty DB: fill the template with the sample drugs and provision a
-"Demo clinic" owned by `Platform:DevOwnerPhone`.
+Development only, on an empty DB: provision a "Demo clinic" owned by `Platform:DevOwnerPhone`.
+Built so far (phase 1, `StartupSeeder`): the template is ensured; on an empty dev DB "Demo clinic" (10,000 sample
+drugs) and "Second demo clinic" (a few drugs + one group, for isolation checks) are created
+directly, in one transaction. Super admins, owners and provisioning come with phases 2–4.
 
 ### 7.5 Editing the template
 
@@ -529,11 +531,11 @@ How the MVP leaves room, so these are additions:
 
 | # | Phase | Done when |
 |---|---|---|
-| 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps, test project | Isolation tests pass with two seeded clinics |
+| 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
 | 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | Login, refresh, switch and logout work in the browser |
 | 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>` | Catalog endpoints and nav are permission-gated |
-| 4 | **Platform**: clinics, provisioning, template clinic, startup seeding, admin area | Super admin creates a clinic and its owner logs in to a copied catalog |
-| 5 | **Hardening**: rate limits, display-mode guard, docs (features + overviews, both languages) | Checks + tests green; RTL verified |
+| 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
+| 5 | **Hardening**: rate limits, display-mode guard, docs (features + overviews, both languages) | Checks green; RTL verified |
 
 ## 13. Open questions
 

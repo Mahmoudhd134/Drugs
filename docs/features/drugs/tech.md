@@ -9,10 +9,15 @@ prescriptions. Content is stored once, as typed (not translated).
 
 | Column | Type | Rules |
 |---|---|---|
-| Id | int PK, autoincrement | |
-| Name | TEXT | required, max 256 (`AppDbContext.NameMaxLength`) |
-| Description | TEXT | nullable; free text, may be multi-line |
+| Id | integer PK, identity | |
+| Name | varchar(256) | required, max 256 (`AppDbContext.NameMaxLength`) |
+| Description | text | nullable; free text, may be multi-line |
 | DefaultDosing_* | 8 columns | owned `Dosing`, nullable; see [dosing](../dosing/tech.md) |
+| ClinicId | int FK → `Clinics` (restrict) | owning clinic; filled on insert; index `(ClinicId, Name)` |
+| CreatedAt, UpdatedAt | timestamptz | UTC, filled on save |
+
+Every query is scoped to the current clinic: another clinic's drug is 404 (see
+[clinic scoping](../clinic-scoping/tech.md)).
 
 Relationship: `Drug.GroupItems` → `DrugGroupItems.DrugId` with **cascade delete** (deleting a drug
 removes it from all groups).

@@ -38,7 +38,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     [HttpGet("{id:int}")]
     public async Task<ActionResult<DrugDto>> GetById(int id)
     {
-        var drug = await context.Drugs.FindAsync(id);
+        var drug = await context.Drugs.FirstOrDefaultAsync(d => d.Id == id);
         return drug is null ? NotFound() : drug.ToDto();
     }
 
@@ -62,7 +62,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
         if (request.Validate() is { } error)
             return ApiError(error);
 
-        var drug = await context.Drugs.FindAsync(id);
+        var drug = await context.Drugs.FirstOrDefaultAsync(d => d.Id == id);
         if (drug is null)
             return NotFound();
 
@@ -84,7 +84,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var drug = await context.Drugs.FindAsync(id);
+        var drug = await context.Drugs.FirstOrDefaultAsync(d => d.Id == id);
         if (drug is null)
             return NotFound();
 

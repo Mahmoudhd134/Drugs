@@ -16,6 +16,7 @@ docs/
     ├── _template/             ← copy this folder for every new feature
     │   ├── tech.md
     │   └── business.md
+    ├── clinic-scoping/        ← clinics + automatic per-clinic data isolation (platform phase 1)
     ├── dosing/                ← structured dosing (shared by drugs, groups, prescriptions)
     ├── tapering/              ← tapering schedules (steps inside a dosing)
     ├── drugs/                 ← drug catalog
@@ -36,6 +37,7 @@ docs/
 
 | Feature | Tech | Business |
 |---|---|---|
+| Clinic scoping | [tech](features/clinic-scoping/tech.md) | [business](features/clinic-scoping/business.md) |
 | Structured dosing | [tech](features/dosing/tech.md) | [business](features/dosing/business.md) |
 | Tapering schedules | [tech](features/tapering/tech.md) | [business](features/tapering/business.md) |
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |

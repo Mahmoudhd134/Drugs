@@ -25,11 +25,14 @@ Drags.sln
 Drags.Api/                     ASP.NET Core API (+ serves the SPA in production)
   Controllers/BaseApiController.cs
   Features/<Feature>/          controller + DTOs per feature
-  Models/                      EF entities
-  Database/AppDbContext.cs     EF model configuration
+  Features/Platform/           StartupSeeder (startup seed), TemporaryClinicMiddleware (until login)
+  Models/                      EF entities (Clinic, Drug, DrugGroup, Dosing)
+  Database/AppDbContext.cs     EF model configuration + clinic query filter
+  Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Migrations/                  EF Core migrations (applied automatically on startup)
-  Shared/                      AppSettings, ErrorCodes, PagedResult
-  Program.cs                   DI, middleware, migrate-on-startup, dev seed
+  Shared/                      AppSettings, ErrorCodes, PagedResult, IClinicOwned,
+                               IHasTimestamps, IClinicContext (+ ClinicContext)
+  Program.cs                   DI, middleware, migrate-on-startup, seeding
 Drags.Web/                     React SPA (Vite); builds into Drags.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
   src/api/                     axios client, error → message, shared API types
@@ -54,8 +57,13 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
   container from `docker-compose.yml` (set in `appsettings.Development.json`); production must set
   the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
-  `Program.cs` runs `Database.MigrateAsync()` on every startup. In Development an empty DB is
-  seeded with 10,000 sample drugs.
+  `Program.cs` runs `Database.MigrateAsync()` then `StartupSeeder` on every startup: it ensures the
+  template clinic exists; in Development, an empty DB also gets "Demo clinic" (10,000 sample drugs)
+  and "Second demo clinic" (3 drugs + 1 group).
+- **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
+  request's clinic automatically ([clinic scoping](../features/clinic-scoping/tech.md)). Until login
+  exists (platform phase 2), `TemporaryClinicMiddleware` puts every request in the first active
+  non-template clinic (the Demo clinic).
 
 ## Backend
 
@@ -75,8 +83,22 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   `invalidDosing`, `duplicateGroupItem`.
   Add new codes there **and** under `errors.*` in both locale files.
 - `Nullable` is disabled in the csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
+- **Clinic-owned data:** a clinic's entity implements `IClinicOwned` (and `IHasTimestamps`); the
+  query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
+  with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
+  take a `clinicId` from the client in clinic routes. Only Platform code may `IgnoreQueryFilters()`.
 
 ### Data model
+
+```
+Clinics (Platform)
+- Id (PK), Name (≤256), Status ("active" | "suspended"), IsTemplate (only one: partial unique index)
+```
+
+Every table has `CreatedAt`/`UpdatedAt` (`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
+and `DrugGroupItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
+`Drugs` and `DrugGroups`. Group items reference their group and drug with composite FKs
+`(DrugGroupId, ClinicId)` / `(DrugId, ClinicId)`, so the database rejects cross-clinic lines.
 
 ```
 Drugs                       DrugGroups
@@ -130,7 +152,7 @@ Swagger UI is available in Development at `/swagger`.
   keeping ids → drop old), never drop-and-recreate. Test up, down to the previous migration, and
   up again on a copy of a real DB.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
-  to PostgreSQL. To reset a dev DB: `docker compose down -v && docker compose up -d`.
+  to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1). To reset a dev DB: `docker compose down -v && docker compose up -d`.
 
 ## Frontend
 
@@ -226,6 +248,19 @@ dotnet run --project Drags.Api --launch-profile http
 cd Drags.Web && npm run dev            # http://localhost:5173
 ```
 
+Migrations: add **and** apply them with the CLI (`dotnet ef migrations add <Name>`, then
+`dotnet ef database update` **without** `--no-build`: `migrations add` compiles before it writes
+the files, so a `--no-build` update would apply nothing; check with `dotnet ef migrations list`),
+even though startup also migrates.
+
+Every request acts in the Demo clinic (looked up once; restart the API after resetting the DB).
+In Development, send `X-Dev-Clinic-Id: <id>` to act in another clinic (temporary, until login),
+e.g. the Second demo clinic for isolation checks (unknown id → 400):
+
+```bash
+curl -H "X-Dev-Clinic-Id: 3" http://localhost:5000/api/v1/drugs
+```
+
 Checks before committing:
 
 ```bash
@@ -242,7 +277,9 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- No authentication or roles: anyone who can reach the site can edit data.
+- No authentication or roles: anyone who can reach the site can edit data. Every request acts in
+  one clinic (`TemporaryClinicMiddleware`); with no non-template clinic (a fresh Production DB)
+  lists are empty and saves fail, until platform phase 4 can create clinics.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
 - No automated database backups yet.

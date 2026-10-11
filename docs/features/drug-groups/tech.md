@@ -12,6 +12,11 @@ Dosing flows: drug default → **group override** → prescription line (see [do
 - `DrugGroups` (`Models/DrugGroup.cs`): `Id`, `Name` (required, max 256).
 - `DrugGroupItems`: `Id`, `DrugGroupId` (FK, cascade), `DrugId` (FK, cascade), `Order` (0-based),
   `Dosing_*` (owned `Dosing`, nullable) = the group override.
+- Both tables also have `ClinicId` (FK → `Clinics`, restrict; an item's FKs to its group and drug
+  are composite with `ClinicId`, so the DB rejects cross-clinic lines) and
+  `CreatedAt`/`UpdatedAt` (UTC); index `(ClinicId, Name)` on `DrugGroups`. Everything is scoped
+  to the current clinic ([clinic scoping](../clinic-scoping/tech.md)): another clinic's group is
+  404, and another clinic's drug in `items` is `drugNotFound`.
 - Override semantics (applied by the frontend, `mergeDosing`): each part left empty is taken from
   the drug's **current** default: dose (amount + unit), frequency (+ value/text), duration
   (+ value), eye. So editing a drug's default updates every group that didn't override that part.

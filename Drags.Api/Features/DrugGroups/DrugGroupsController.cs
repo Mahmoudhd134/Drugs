@@ -67,6 +67,8 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
         group.Name = request.Name.Trim();
         context.DrugGroupItems.RemoveRange(group.Items);
         group.Items = BuildItems(items);
+        // Changing only the lines is still a change to the group (the interceptor sets the time)
+        context.Entry(group).Property(g => g.UpdatedAt).IsModified = true;
 
         await context.SaveChangesAsync();
         return await LoadDto(id);
@@ -75,7 +77,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var group = await context.DrugGroups.FindAsync(id);
+        var group = await context.DrugGroups.FirstOrDefaultAsync(g => g.Id == id);
         if (group is null)
             return NotFound();
 
