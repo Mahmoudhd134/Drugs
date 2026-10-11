@@ -234,6 +234,9 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 
 ## Known limitations / tech debt
 
+> Planned direction (clinics, staff, phone + OTP login, super admin, dynamic forms):
+> [platform high-level design](../design/platform-hld.md).
+
 - No authentication or roles: anyone who can reach the site can edit data.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
