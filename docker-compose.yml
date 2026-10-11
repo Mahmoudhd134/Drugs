@@ -1,0 +1,23 @@
+# Local development database (PostgreSQL). Start: docker compose up -d   Stop: docker compose down
+# Connection string: Host=localhost;Port=5432;Database=drags;Username=drags;Password=drags
+services:
+  postgres:
+    image: postgres:17
+    container_name: drags-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: drags
+      POSTGRES_USER: drags
+      POSTGRES_PASSWORD: drags
+    ports:
+      - "5432:5432"
+    volumes:
+      - drags-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drags -d drags"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  drags-pgdata:

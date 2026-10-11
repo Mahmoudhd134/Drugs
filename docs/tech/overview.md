@@ -12,7 +12,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 | Layer | Tech |
 |---|---|
-| Backend | ASP.NET Core 9 (controllers), EF Core 9, SQLite |
+| Backend | ASP.NET Core 9 (controllers), EF Core 9, PostgreSQL (Npgsql) |
 | Frontend | React 18, TypeScript 5.8, Vite 6, MUI 7 (+ icons), TanStack Query 5, React Router 6 |
 | i18n | i18next + react-i18next + browser language detector; MUI RTL via emotion + `@mui/stylis-plugin-rtl` |
 | Other UI libs | dnd-kit (drag-to-reorder), react-quill (rich-text editor), react-hot-toast |
@@ -51,7 +51,9 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   (launch profile `http`, usually run from Rider). `Drags.Web/.env.development` sets
   `VITE_API_BASE_URL=http://localhost:5000/api/v1`; the API allows the Vite origin via
   `AllowedOrigins` (CORS) in `appsettings.json`.
-- **Database:** SQLite file `database.db` next to the app (`ConnectionStrings:DefaultConnection`).
+- **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
+  container from `docker-compose.yml` (set in `appsettings.Development.json`); production must set
+  the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
   `Program.cs` runs `Database.MigrateAsync()` on every startup. In Development an empty DB is
   seeded with 10,000 sample drugs.
 
@@ -118,16 +120,17 @@ Swagger UI is available in Development at `/swagger`.
 
 ### Migrations
 
-- Tool: `dotnet-ef` 9.0.0. If `dotnet tool install` fails with **401**, a private NuGet feed is
-  configured on the machine; install from nuget.org only with a config that `<clear/>`s sources:
-  `dotnet tool install dotnet-ef --version 9.0.0 --tool-path <dir> --configfile <nuget.org-only config>`.
+- Tool: `dotnet-ef` 9.0.x. If `dotnet tool install` (or restore) fails with **401**, a private NuGet
+  feed is configured on the machine; use a config that `<clear/>`s sources and adds only nuget.org:
+  `dotnet tool install dotnet-ef --version 9.0.20 --tool-path <dir> --configfile <nuget.org-only config>`.
 - If the API is running from Rider, the Debug `bin` is locked: run EF commands with
   `--configuration Release`.
-- **Production has real data.** Review every generated migration. Renames/restructures must copy
-  data (create new tables → `INSERT … SELECT` keeping ids → drop old), never drop-and-recreate.
-  Test `database update` up, down to the previous migration, and up again on a copy of a real DB.
-- History: `Initial` → `AddCombos` → `RenameToDrugs` (renamed `Drags/Combos/ComboDrags` to
-  `Drugs/DrugGroups/DrugGroupItems`, data preserved) → `AddDrugDefaultDosing` → `AddGroupItemDosing` → `AddTaperSteps` (nullable columns).
+- **Nothing is in production yet**, so the schema may still be reset. Once deployed, review every
+  generated migration: renames/restructures must copy data (create new tables → `INSERT … SELECT`
+  keeping ids → drop old), never drop-and-recreate. Test up, down to the previous migration, and
+  up again on a copy of a real DB.
+- History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
+  to PostgreSQL. To reset a dev DB: `docker compose down -v && docker compose up -d`.
 
 ## Frontend
 
@@ -215,6 +218,8 @@ Swagger UI is available in Development at `/swagger`.
 ## Development workflow
 
 ```bash
+# PostgreSQL for local dev (required before starting the API)
+docker compose up -d                   # localhost:5432, db/user/password: drags
 # API (or run Drags.Api from Rider, profile "http")
 dotnet run --project Drags.Api --launch-profile http
 # Frontend
@@ -237,8 +242,8 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - No authentication or roles: anyone who can reach the site can edit data.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
-- SQLite single file inside the site folder: no automated backups; redeploys must not overwrite it.
-- Name ordering uses SQLite's binary collation (uppercase before lowercase; Latin before Arabic).
+- No automated database backups yet.
+- Name ordering follows the database's default collation (not tuned for Arabic).
   `ToLower` search is case-insensitive for ASCII only (Arabic has no case, so it is unaffected).
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.

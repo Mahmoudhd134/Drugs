@@ -1,7 +1,7 @@
 # Clinic Drugs (Drags)
 
 Web app for a clinic: drug catalog, drug groups (treatment templates), and a prescription builder
-that copies text for Word. ASP.NET Core 9 + EF Core + SQLite API; React + TypeScript + MUI SPA;
+that copies text for Word. ASP.NET Core 9 + EF Core + PostgreSQL API; React + TypeScript + MUI SPA;
 UI in English and Arabic (RTL). Drug/group content is not translated.
 
 ## Before any change
@@ -15,10 +15,10 @@ Read the docs, they are the source of truth for how and why things work:
   (tech in English, business in Arabic). Update both overviews if you add endpoints, tables, pages
   or user-visible capabilities. Update docs in the same commit as the code.
 - UI strings go in `Drags.Web/src/i18n/locales/en.ts` **and** `ar.ts`; check the UI in Arabic (RTL).
-- Migrations must preserve production data (see "Migrations" in the tech overview).
+- Migrations: nothing in production yet; once deployed they must preserve data (see "Migrations" in the tech overview).
 
 ## Working here
-- Dev: Vite at http://localhost:5173 (test UI there); API at http://localhost:5000, usually run
-  from Rider. Don't kill Rider's process; build with `-c Release` if the Debug bin is locked.
+- Dev: `docker compose up -d` (PostgreSQL); Vite at http://localhost:5173 (test UI there); API at
+  http://localhost:5000, usually run from Rider. Don't kill Rider's process; build with `-c Release` if the Debug bin is locked.
 - Checks: `cd Drags.Web && npx tsc -b && npx eslint src` and `dotnet build Drags.Api`.
 - Commit directly on `main`, only when asked. Never push unless asked.

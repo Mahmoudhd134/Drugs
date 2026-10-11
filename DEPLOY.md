@@ -54,7 +54,7 @@ produces a ready-to-copy folder: **`D:\Drags\publish`**.
    - Physical path: `C:\inetpub\Drags`
    - Binding: **http**, port `80` (or any free port, e.g. `8080`)
 
-4. **Grant write permission** so SQLite can create/update `database.db` and logs:
+4. **Grant write permission** for logs:
    - Right-click `C:\inetpub\Drags` → *Properties* → *Security* → *Edit* → *Add…*
    - Enter `IIS AppPool\DragsPool`, give it **Modify**.
 
@@ -66,8 +66,10 @@ produces a ready-to-copy folder: **`D:\Drags\publish`**.
 5. **Browse** to `http://localhost` (on the laptop) or `http://<laptop-ip>` from
    another device on the network.
 
-The database (`database.db`) is created automatically on first run via EF Core
-migrations — it starts **empty** (the 10 000-row dev seed only runs in Development).
+**Database:** PostgreSQL. Set the connection string on the server, e.g. an environment variable
+`ConnectionStrings__DefaultConnection` (in `web.config` under `<environmentVariables>`).
+The schema is created automatically on first run via EF Core migrations; it starts **empty**
+(the 10 000-row dev seed only runs in Development).
 
 ---
 
@@ -75,8 +77,7 @@ migrations — it starts **empty** (the 10 000-row dev seed only runs in Develop
 
 1. Run `.\deploy.ps1` again on your dev machine.
 2. In IIS Manager, **Stop** the `Drags` site (releases the running `.exe`).
-3. Copy the new `publish` contents over the server folder —
-   **keep the existing `database.db`** so you don't lose data.
+3. Copy the new `publish` contents over the server folder (data lives in PostgreSQL, not the folder).
 4. **Start** the site.
 
 ---
@@ -87,7 +88,6 @@ migrations — it starts **empty** (the 10 000-row dev seed only runs in Develop
   Install it, then `iisreset`.
 - **HTTP 500.30 (app won't start)** — set `stdoutLogEnabled="true"` in `web.config`,
   create a `logs` folder in the site, restart, and read `logs\stdout*.log`.
-- **Database errors / read-only** — the app pool identity lacks write access to the
-  folder. Re-check step 3.4.
+- **Database errors** — check the PostgreSQL connection string and that the server can reach it.
 - **Reach it from other PCs** — allow the port through Windows Firewall
   (`New-NetFirewallRule -DisplayName "Drags" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow`).
