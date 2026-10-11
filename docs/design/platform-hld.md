@@ -39,7 +39,7 @@ features (patients, forms, portal, audit) are additions, not rewrites. See [Futu
 | NFR-1 | **Isolation by default:** clinic scoping is automatic (EF query filter), not something each endpoint remembers. |
 | NFR-2 | Permission or role changes apply within a minute, without logging in again. |
 | NFR-3 | OTP brute force is limited (attempts per code, codes per phone per hour, requests per IP). |
-| NFR-4 | Display OTP mode can **never** run in Production (startup fails). |
+| NFR-4 | Display OTP mode is **opt-in by config** (startup warning outside Development); hard-blocked again in Production once an SMS sender exists. |
 | NFR-5 | All times stored in UTC (`timestamptz`). Every table has `CreatedAt`/`UpdatedAt`. |
 | NFR-6 | One deployable (API + SPA), one PostgreSQL database. Production requires HTTPS. |
 | NFR-7 | No automated tests in the MVP: each phase is verified manually (API calls + browser). Integration tests (isolation, permissions, auth; real PostgreSQL) come after the MVP. |
@@ -420,8 +420,9 @@ type Me = {
 - `/auth/refresh` and `/auth/context` return 409 when a parallel call rotated the cookie < 30 s ago
   (cookie kept); `/auth/context` also requires the session's refresh cookie (401 otherwise).
 - `/auth/otp/verify` also returns `invalidPhone`.
-- Every super-admin session lasts 12 h (sliding); display mode is allowed only in Development;
-  `Otp:Mode` defaults to `Sms`, which is refused until an SMS sender exists.
+- Every super-admin session lasts 12 h (sliding). Display mode is allowed in **any** environment by
+  config (startup warning outside Development), replacing NFR-4 until an SMS sender exists, so a demo
+  or staging server can run; `Otp:Mode` defaults to `Sms`, which is refused until a sender exists.
 - Sessions are not revoked on suspension or staff deactivation yet: access is re-checked at refresh
   and switch, and open access tokens stay valid ≤ 15 min (7.6's "next request → 401" is not met yet).
 
@@ -506,7 +507,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
     "PlatformSessionHours": 12
   },
   "Otp": {
-    "Mode": "Display",          // Display | Sms. Built: Display only in Development (startup error elsewhere); default Sms
+    "Mode": "Display",          // Display | Sms. Built: Display allowed anywhere by config (warning outside Development); default Sms, refused until a sender exists
     "Length": 6, "ExpiryMinutes": 5, "MaxAttempts": 5,
     "ResendSeconds": 60, "MaxPerPhonePerHour": 5,
     "HashKey": "<secret>"
@@ -545,10 +546,10 @@ How the MVP leaves room, so these are additions:
 | # | Phase | Done when |
 |---|---|---|
 | 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
-| 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`, and the **display-mode guard** (planned for phase 5): the app refuses to start with `Otp:Mode = Display` outside Development (so in Production too). Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until phase 3 |
-| 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>` | Catalog endpoints and nav are permission-gated |
+| 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until phase 3 |
+| 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | Catalog endpoints and nav are permission-gated |
 | 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
-| 5 | **Hardening**: rate limits, ~~display-mode guard~~ (done in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
+| 5 | **Hardening**: rate limits, display-mode guard for real production once an SMS sender exists (relaxed to a config choice in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
 
 ## 13. Open questions
 

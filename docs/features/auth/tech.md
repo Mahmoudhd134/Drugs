@@ -147,9 +147,11 @@ no/expired/invalid token → 401; a platform or no-context token → 403 `forbid
   `IsPlatform`, `IsSuperAdmin` (platform tokens only).
 - `Shared/AppSettings` now binds `Auth`, `Otp`, `Platform` and `Validate()`s them in `Program.cs`
   before anything starts: signing key and OTP hash key ≥ 32 bytes, issuer/audience set, sane limits,
-  `Sms` refused (no sender yet), and **Display mode refused outside the Development environment**
-  (HLD NFR-4 asks for Production; Staging or any other shared environment is refused too, since display
-  mode lets anyone log in as any phone).
+  and `Sms` refused (no sender yet). **Display mode is allowed in any environment, by config**
+  (`Otp__Mode=Display`), so a staging server or a demo for doctors can run before an SMS provider
+  exists; outside Development a startup warning is logged, and the login page always shows the
+  display-mode banner. This deliberately drops HLD NFR-4 ("never in Production") until a sender exists:
+  in display mode anyone can log in as any phone, so use it only where that is acceptable.
 - **Seeding** (every start, idempotent): `Features/Platform/StartupSeeder` ensures the template clinic,
   then calls `Features/Identity/IdentitySeeder`: every `Platform:SuperAdminPhones` entry (normalized;
   invalid → startup error) gets a user with `IsSuperAdmin`; any other user loses the flag and their
@@ -164,7 +166,7 @@ no/expired/invalid token → 401; a platform or no-context token → 403 `forbid
 | `Auth:Jwt:Issuer` / `Audience` | `drags` | | |
 | `Auth:Jwt:SigningKey` | — | dev key | env `Auth__Jwt__SigningKey` (≥ 32 bytes) |
 | `Auth:AccessTokenMinutes` / `RefreshTokenDays` / `PlatformSessionHours` | 15 / 30 / 12 | | |
-| `Otp:Mode` | `Sms` (safe default; refused until an SMS sender exists) | `Display` | must not be `Display` (only Development allows it) |
+| `Otp:Mode` | `Sms` (refused until an SMS sender exists) | `Display` | env `Otp__Mode=Display` for a demo/staging server (startup warning; anyone can log in) |
 | `Otp:Length`, `ExpiryMinutes`, `MaxAttempts`, `ResendSeconds`, `MaxPerPhonePerHour` | 6, 5, 5, 60, 5 | | |
 | `Otp:HashKey` | — | dev key | env `Otp__HashKey` (≥ 32 bytes) |
 | `Platform:DefaultRegion` | `EG` | | |
@@ -230,7 +232,8 @@ no/expired/invalid token → 401; a platform or no-context token → 403 `forbid
   localhost.
 - **HTTPS is required** outside localhost (the refresh cookie is `Secure`); the current plain-http
   LAN setup in `DEPLOY.md` must move to HTTPS before this is deployed (HLD NFR-6).
-- `Otp:Mode = Sms` has no sender, so **Production cannot start yet** (Display is refused outside Development).
+- `Otp:Mode = Sms` has no sender, so a deployed server runs only with `Otp__Mode=Display`
+  (a demo/staging setup, not real patients' data: anyone can log in as any phone).
 - Per-IP rate limiting of `/auth/otp/*` is phase 5.
 - The template clinic is still empty (filled in phase 4).
 - No user/staff management UI or API yet: users exist only through seeding (phase 4).

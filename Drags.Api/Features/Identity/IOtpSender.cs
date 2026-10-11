@@ -11,7 +11,7 @@ public interface IOtpSender
 
 /// <summary>
 /// <c>Otp:Mode = Display</c>: nothing is sent; the code is logged and returned by the API.
-/// <see cref="Shared.AppSettings.Validate"/> refuses this mode outside the Development environment.
+/// Allowed in any environment by config; Program.cs logs a warning outside Development.
 /// </summary>
 public class DisplayOtpSender(ILogger<DisplayOtpSender> logger) : IOtpSender
 {

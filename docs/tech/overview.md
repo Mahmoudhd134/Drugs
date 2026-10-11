@@ -62,8 +62,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
   container from `docker-compose.yml` (set in `appsettings.Development.json`); production must set
   the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
-  `Program.cs` validates the settings (missing/short secrets, OTP display mode outside Development,
-  `Otp:Mode = Sms` (no sender yet), or an invalid seeded phone stop the app; sections `Auth`, `Otp`,
+  `Program.cs` validates the settings (missing/short secrets, `Otp:Mode = Sms` (no sender yet), or an
+  invalid seeded phone stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
   also gets "Demo clinic" (10,000 sample drugs) and "Second demo clinic" (3 drugs + 1 group), with
@@ -342,7 +342,12 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 
 - Login exists but no roles yet: every staff member can do everything in their clinic (phase 3).
   Users and staff come only from seeding until the admin area (phase 4).
-- Production cannot start yet: OTP display mode is refused outside Development and there is no SMS sender.
+- No SMS sender yet: a deployed server must run with `Otp__Mode=Display` (code on screen; anyone can
+  log in as any phone), so it suits a demo/staging server only.
+- No per-IP limit on OTP requests yet (phase 5): one person can request codes for many numbers
+  (costly once SMS is real).
+- `AllowedOrigins` (CORS) is no longer used (dev goes through the Vite proxy, production is
+  same-origin); it can be removed.
 - Access tokens stay valid up to 15 min after logout/suspension (no per-request session check).
 - **HTTPS is now required** outside localhost: the login refresh cookie is `Secure`, so on the
   plain-http LAN setup every reload would ask for a new login. Moving the deployment to HTTPS is a

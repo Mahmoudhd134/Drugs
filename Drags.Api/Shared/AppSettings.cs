@@ -9,8 +9,8 @@ public class AppSettings
     public OtpSettings Otp { get; set; } = new();
     public PlatformSettings Platform { get; set; } = new();
 
-    /// <summary>Stops the app at startup on missing secrets or an unsafe OTP mode.</summary>
-    public void Validate(IHostEnvironment environment)
+    /// <summary>Stops the app at startup on missing secrets or an unusable OTP mode.</summary>
+    public void Validate()
     {
         const int minKeyBytes = 32;
         if (Encoding.UTF8.GetByteCount(Auth.Jwt.SigningKey ?? "") < minKeyBytes)
@@ -21,15 +21,14 @@ public class AppSettings
         if (Encoding.UTF8.GetByteCount(Otp.HashKey ?? "") < minKeyBytes)
             throw new InvalidOperationException(
                 $"Otp:HashKey is missing or shorter than {minKeyBytes} bytes (set env var Otp__HashKey).");
-        // Display mode hands the code to whoever asks for it: development only (so never in
-        // Production, nor in a staging or other environment reachable by others)
-        if (Otp.Mode == OtpModes.Display && !environment.IsDevelopment())
+        // Display is the only working mode until an SMS sender exists. It is allowed in any
+        // environment by config (demos, staging); Program.cs warns outside Development, since it
+        // lets anyone log in as any phone
+        if (!string.Equals(Otp.Mode, OtpModes.Display, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
-                $"Otp:Mode Display is only allowed in the Development environment (this is {environment.EnvironmentName}).");
-        if (Otp.Mode == OtpModes.Sms)
-            throw new InvalidOperationException("Otp:Mode Sms has no sender yet: only Display works (Development only).");
-        if (Otp.Mode != OtpModes.Display)
-            throw new InvalidOperationException($"Otp:Mode must be {OtpModes.Display} or {OtpModes.Sms}.");
+                $"Otp:Mode '{Otp.Mode}' is not supported: set Otp:Mode to {OtpModes.Display} (Sms has no sender yet).");
+        // Normalized, so later == checks work whatever the case in config
+        Otp.Mode = OtpModes.Display;
         if (Otp.Length is < 4 or > 9 || Otp.MaxAttempts < 1 || Otp.ExpiryMinutes < 1 || Otp.MaxPerPhonePerHour < 1
             || Otp.ResendSeconds < 0)
             throw new InvalidOperationException(
@@ -72,7 +71,10 @@ public class OtpSettings
 
 public static class OtpModes
 {
-    /// <summary>The code is returned by the API and logged (Development environment only).</summary>
+    /// <summary>
+    /// The code is returned by the API and logged, and the login page shows a banner. Any environment
+    /// may use it (a startup warning is logged outside Development): anyone can log in as any phone.
+    /// </summary>
     public const string Display = "Display";
     /// <summary>The code is sent by SMS (no sender yet: the app refuses to start in this mode).</summary>
     public const string Sms = "Sms";

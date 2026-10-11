@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Secrets (Auth:Jwt:SigningKey, Otp:HashKey) come from environment variables outside Development
 var appSettings = builder.Configuration.Get<AppSettings>() ?? new AppSettings();
-appSettings.Validate(builder.Environment);
+appSettings.Validate();
 builder.Services.AddSingleton(appSettings);
 
 builder.Services.AddControllers();
@@ -28,6 +28,11 @@ builder.Services.AddDbContext<AppDbContext>(options => options
 builder.Services.AddIdentityModule(appSettings);
 
 var app = builder.Build();
+
+if (appSettings.Otp.Mode == OtpModes.Display && !app.Environment.IsDevelopment())
+    app.Logger.LogWarning(
+        "Otp:Mode is Display in the {Environment} environment: login codes are shown on screen, so anyone can log in as any phone",
+        app.Environment.EnvironmentName);
 
 app.UseExceptionHandler();
 
