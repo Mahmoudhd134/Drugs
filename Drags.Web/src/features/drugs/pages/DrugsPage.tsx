@@ -3,7 +3,6 @@ import {
     Alert,
     Box,
     Button,
-    IconButton,
     LinearProgress,
     Paper,
     Table,
@@ -31,6 +30,9 @@ import {fetchDrugGroupNames, useDeleteDrug, useDrugs} from "../api.ts";
 import {DrugFormDialog} from "../components/DrugFormDialog.tsx";
 import {DrugText} from "../components/DrugText.tsx";
 import type {Drug} from "../types.ts";
+import {PERMISSIONS} from "../../access/permissions.ts";
+import {usePermissions} from "../../access/usePermissions.ts";
+import {PermissionButton, PermissionIconButton} from "../../access/components/PermissionControls.tsx";
 
 const PAGE_SIZES = [10, 20, 50];
 
@@ -41,8 +43,13 @@ export const DrugsPage = () => {
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(20);
     const [dialog, setDialog] = useState<{ open: boolean; drug: Drug | null }>({open: false, drug: null});
+    const {can, canAny} = usePermissions();
+    const showActions = canAny(PERMISSIONS.drugs.update, PERMISSIONS.drugs.delete);
+    const canUpdate = can(PERMISSIONS.drugs.update);
+    // Without edit permission a row opens read-only details
+    const canOpen = canUpdate || can(PERMISSIONS.drugs.details);
 
-    const drugs = useDrugs(debouncedSearch, page + 1, pageSize);
+    const drugs = useDrugs(debouncedSearch, page + 1, pageSize, {enabled: can(PERMISSIONS.drugs.list)});
     const deleteDrug = useDeleteDrug();
     const {confirm, dialog: confirmDialog} = useConfirm();
 
@@ -53,8 +60,10 @@ export const DrugsPage = () => {
     const openEdit = (drug: Drug) => setDialog({open: true, drug});
 
     const handleDelete = async (drug: Drug) => {
-        // Name the groups that will lose this drug; if the lookup fails, still allow deleting
-        const groupNames = await fetchDrugGroupNames(drug.id).catch(() => [] as string[]);
+        // Name the groups that will lose this drug (needs drug details); if the lookup fails, still allow deleting
+        const groupNames = can(PERMISSIONS.drugs.details)
+            ? await fetchDrugGroupNames(drug.id).catch(() => [] as string[])
+            : [];
         const confirmed = await confirm({
             title: t("drugs.deleteTitle"),
             message: [
@@ -82,7 +91,11 @@ export const DrugsPage = () => {
             <PageHeader
                 title={t("drugs.title")}
                 subtitle={drugs.data && t("drugs.subtitle", {count: totalCount})}
-                actions={<Button variant="contained" startIcon={<AddIcon/>} onClick={openCreate}>{t("drugs.add")}</Button>}
+                actions={
+                    <PermissionButton permission={PERMISSIONS.drugs.create} variant="contained" startIcon={<AddIcon/>} onClick={openCreate}>
+                        {t("drugs.add")}
+                    </PermissionButton>
+                }
             />
 
             <Paper variant="outlined" sx={{overflow: "hidden"}}>
@@ -111,7 +124,11 @@ export const DrugsPage = () => {
                         icon={<MedicationIcon/>}
                         title={t("drugs.emptyTitle")}
                         description={t("drugs.emptyDescription")}
-                        action={<Button variant="contained" startIcon={<AddIcon/>} onClick={openCreate}>{t("drugs.add")}</Button>}
+                        action={
+                            <PermissionButton permission={PERMISSIONS.drugs.create} variant="contained" startIcon={<AddIcon/>} onClick={openCreate}>
+                                {t("drugs.add")}
+                            </PermissionButton>
+                        }
                     />
                 ) : !drugs.isPending && items.length === 0 ? (
                     <EmptyState compact title={t("drugs.noResults")}/>
@@ -122,32 +139,42 @@ export const DrugsPage = () => {
                                 <TableHead>
                                     <TableRow>
                                         <TableCell>{t("drugs.name")}</TableCell>
-                                        <TableCell align="right" sx={{width: 110}}>{t("drugs.actions")}</TableCell>
+                                        {showActions && <TableCell align="right" sx={{width: 110}}>{t("drugs.actions")}</TableCell>}
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {items.map(drug => (
                                         <TableRow
                                             key={drug.id}
-                                            hover
-                                            onClick={() => openEdit(drug)}
-                                            sx={{cursor: "pointer", "& td": {py: 1.25}}}
+                                            hover={canOpen}
+                                            onClick={canOpen ? () => openEdit(drug) : undefined}
+                                            // Keyboard path to the details too (a viewer has no edit icon)
+                                            tabIndex={canOpen ? 0 : undefined}
+                                            onKeyDown={canOpen ? (e) => {
+                                                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                                                    e.preventDefault();
+                                                    openEdit(drug);
+                                                }
+                                            } : undefined}
+                                            sx={{cursor: canOpen ? "pointer" : undefined, "& td": {py: 1.25}}}
                                         >
                                             <TableCell>
                                                 <DrugText drug={drug} descriptionLines={2} showDosing/>
                                             </TableCell>
-                                            <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                                            {showActions && <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                                                 <Tooltip title={t("common.edit")}>
-                                                    <IconButton size="small" onClick={() => openEdit(drug)} aria-label={t("common.edit")}>
+                                                    <PermissionIconButton permission={PERMISSIONS.drugs.update} size="small"
+                                                                          onClick={() => openEdit(drug)} aria-label={t("common.edit")}>
                                                         <EditIcon fontSize="small"/>
-                                                    </IconButton>
+                                                    </PermissionIconButton>
                                                 </Tooltip>
                                                 <Tooltip title={t("common.delete")}>
-                                                    <IconButton size="small" color="error" onClick={() => void handleDelete(drug)} aria-label={t("common.delete")}>
+                                                    <PermissionIconButton permission={PERMISSIONS.drugs.delete} size="small" color="error"
+                                                                          onClick={() => void handleDelete(drug)} aria-label={t("common.delete")}>
                                                         <DeleteIcon fontSize="small"/>
-                                                    </IconButton>
+                                                    </PermissionIconButton>
                                                 </Tooltip>
-                                            </TableCell>
+                                            </TableCell>}
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -174,6 +201,7 @@ export const DrugsPage = () => {
             <DrugFormDialog
                 open={dialog.open}
                 drug={dialog.drug}
+                readOnly={dialog.drug !== null && !canUpdate}
                 onClose={() => setDialog(d => ({...d, open: false}))}
             />
             {confirmDialog}

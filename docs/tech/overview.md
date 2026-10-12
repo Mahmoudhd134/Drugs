@@ -12,7 +12,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 | Layer | Tech |
 |---|---|
-| Backend | ASP.NET Core 9 (controllers), EF Core 9, PostgreSQL (Npgsql), JWT bearer auth, libphonenumber-csharp |
+| Backend | ASP.NET Core 9 (controllers), EF Core 9, PostgreSQL (Npgsql), JWT bearer auth, HybridCache, libphonenumber-csharp |
 | Frontend | React 18, TypeScript 5.8, Vite 6, MUI 7 (+ icons), TanStack Query 5, React Router 6 |
 | i18n | i18next + react-i18next + browser language detector; MUI RTL via emotion + `@mui/stylis-plugin-rtl` |
 | Other UI libs | dnd-kit (drag-to-reorder), react-quill (rich-text editor), react-hot-toast |
@@ -28,9 +28,11 @@ Drags.Api/                     ASP.NET Core API (+ serves the SPA in production)
   Features/Identity/           login: AuthController, MeController, OtpService, SessionService,
                                TokenService, PhoneNormalizer, IOtpSender, CurrentUser, IdentitySeeder,
                                IdentitySetup (DI + middleware)
-  Features/Access/             MembershipService (a user's clinics, read across clinics)
+  Features/Access/             permissions: Permissions + PermissionCatalog, DefaultRoles, AccessCache
+                               (HybridCache), PermissionService, [HasPermission] + handlers,
+                               PermissionsController, MembershipService, AccessSetup (DI)
   Features/Platform/           StartupSeeder (startup seed: template, super admins, dev data)
-  Models/                      EF entities (Clinic, Drug, DrugGroup, Dosing, User, OtpCode, Session, Staff)
+  Models/                      EF entities (Clinic, Drug, DrugGroup, Dosing, User, OtpCode, Session, Staff, Role)
   Database/AppDbContext.cs     EF model configuration + clinic query filter
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Migrations/                  EF Core migrations (applied automatically on startup)
@@ -42,7 +44,10 @@ Drags.Web/                     React SPA (Vite); builds into Drags.Api/wwwroot
   src/api/                     axios client, error → message, shared API types
   src/components/common/       reusable UI (SearchField, SearchableList, SortableList, …)
   src/components/layout/       AppLayout (clinic app: app bar + sidebar), SimpleLayout (login etc.), LanguageMenu
+  src/app/navigation.tsx       NAV_ITEMS (sidebar) with the permission each page needs
   src/features/<feature>/      api.ts, types.ts, components/, pages/
+  src/features/access/         permissions.ts, usePermissions, withPermission, <Can>, Permission* controls,
+                               <RequirePermission>
   src/hooks/                   useLanguage, useDebouncedValue
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
@@ -67,12 +72,16 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
   also gets "Demo clinic" (10,000 sample drugs) and "Second demo clinic" (3 drugs + 1 group), with
-  the `Platform:DevOwnerPhone` user as staff "Dev Owner" in both.
+  the default roles in both, the `Platform:DevOwnerPhone` user as staff "Dev Owner" (Owner) in both, and
+  `Platform:DevAssistantPhone` as "Dev Assistant" (Assistant in the first, read-only "Viewer" in the second).
 - **Login:** phone + one-time code; a JWT access token per context (a clinic, or the platform for a
   super admin) and a rotating refresh token in an HttpOnly cookie ([login](../features/auth/tech.md)).
 - **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
   request's clinic automatically ([clinic scoping](../features/clinic-scoping/tech.md)). The clinic
   comes only from the access token's `clinic_id` (`UseClinicFromToken`); no token = no clinic.
+- **Permissions:** roles per clinic, one permission per action, checked on every catalog endpoint
+  (`[HasPermission]`) and in the UI; never in the token: cached per staff/role on the server, read from
+  `/me` in the SPA ([access](../features/access/tech.md)).
 
 ## Backend
 
@@ -98,9 +107,15 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
   with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
   take a `clinicId` from the client in clinic routes. Only Platform code (and the Access module's
-  membership queries, read-only, to list a user's clinics) may `IgnoreQueryFilters()`.
-- **Auth:** clinic endpoints carry `[Authorize(Policy = AuthPolicies.ClinicContext)]` (a clinic-context
-  token; platform tokens get 403). Read the caller from `ICurrentUser` (claims), never from the body.
+  membership queries and access-cache loads by id, read-only) may `IgnoreQueryFilters()`.
+- **Auth:** clinic controllers carry `[Authorize(Policy = AuthPolicies.ClinicContext)]` (a clinic-context
+  token whose staff member and clinic are still active; platform tokens get 403). Read the caller from
+  `ICurrentUser` (claims), never from the body.
+- **Permissions:** every clinic action carries `[HasPermission(Permissions.X.Y)]` (implies the clinic
+  policy); checks inside code use `IPermissionService.EnsureAsync`. Adding a permission is one constant in
+  `Features/Access/Permissions.cs` (+ the SPA mirror and labels). Changes to staff, roles, clinics or
+  users must call the `IAccessCache.Invalidate*` method from the
+  [invalidation table](../features/access/tech.md#cache-accesscache).
 
 ### Data model
 
@@ -113,9 +128,13 @@ OtpCodes (Identity)    Phone, CodeHash (HMAC), ExpiresAt, Attempts, ConsumedAt; 
 Sessions (Identity)    Id (uuid), UserId (cascade), RefreshTokenHash (unique), ContextType, ClinicId,
                        ExpiresAt (sliding), LastUsedAt, RevokedAt
 Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive; unique (ClinicId, UserId)
+Roles (Access)         ClinicId (clinic-owned), Name (<=100, unique per clinic), IsOwner (one per clinic)
+RolePermissions        RoleId (cascade) + Permission (<=100), PK (RoleId, Permission); none for Owner
+StaffRoles             StaffId, RoleId, ClinicId (clinic-owned); PK (StaffId, RoleId); composite FKs
+                       (StaffId, ClinicId) -> Staff and (RoleId, ClinicId) -> Roles (cascade)
 ```
 
-Details: [login tech](../features/auth/tech.md).
+Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md).
 
 Every table has `CreatedAt`/`UpdatedAt` (`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
 and `DrugGroupItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
@@ -155,7 +174,8 @@ Drugs                       DrugGroups
 | POST | `/auth/context` | `{ type, clinicId? }` → `AuthResult` for that context |
 | GET | `/auth/contexts` | Contexts the user can pick |
 | POST | `/auth/logout` | Revokes the session, clears the cookie → 204 |
-| GET | `/me` | User, context, staff, permissions (`["*"]`, TEMPORARY until phase 3) |
+| GET | `/me` | User, context, staff, permissions (expanded keys in a clinic context) |
+| GET | `/permissions` | The permission catalog `[{ key, resource, action, requires }]` (any access token) |
 | GET | `/drugs?search=&page=1&pageSize=20` | Paged drugs, ordered by name (prefix matches first when searching) |
 | GET | `/drugs/{id}` | One drug |
 | POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |
@@ -169,7 +189,9 @@ Drugs                       DrugGroups
 | DELETE | `/drug-groups/{id}` | Delete → 204 |
 
 Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
-(`Authorization: Bearer …`): none/expired → 401, platform or no context → 403. Auth contracts:
+(`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
+permission (e.g. `drugs.delete`, [table](../features/access/tech.md#api)), else 403 `forbidden`;
+inactive staff → 403 `noAccess`, suspended clinic → 403 `clinicSuspended`. Auth contracts:
 [login tech](../features/auth/tech.md).
 
 Swagger UI is available in Development at `/swagger`.
@@ -187,7 +209,8 @@ Swagger UI is available in Development at `/swagger`.
   up again on a copy of a real DB.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
   to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1) and for login
-  (phase 2). To reset a dev DB: `docker compose down -v && docker compose up -d`.
+  (phase 2). From phase 3 on, migrations are **added on top** (`AddRoles`), never regenerated.
+  To reset a dev DB: `docker compose down -v && docker compose up -d`, then `dotnet ef database update`.
 
 ## Frontend
 
@@ -207,16 +230,18 @@ Swagger UI is available in Development at `/swagger`.
 | `/login` | `LoginPage` (phone → code) |
 | `/select-clinic` | `SelectClinicPage` (logged in) |
 | `/platform` | `PlatformPage` (platform context; TEMPORARY placeholder until the admin area) |
-| `/` | `PrescriptionPage` |
-| `/groups` | `DrugGroupsPage` |
-| `/groups/new`, `/groups/:id` | `DrugGroupEditorPage` |
-| `/drugs` | `DrugsPage` |
+| `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
+| `/groups` | `DrugGroupsPage` (`groups.list`) |
+| `/groups/new`, `/groups/:id` | `DrugGroupEditorPage` (`groups.create` / `groups.details`; read only without `groups.update`) |
+| `/drugs` | `DrugsPage` (`drugs.list`) |
 | `/manage` | redirects to `/drugs` (old URL) |
 | `*` | redirects to `/` |
 
 - `AppLayout`: fixed app bar (logo + app name, a link to `/`; the clinic name; `LanguageMenu`;
   `UserMenu` with switch clinic and logout), a warning banner in the template clinic, sidebar
-  navigation (`NAV_ITEMS`; permanent ≥ md, drawer on mobile). Add new modules to `NAV_ITEMS`.
+  navigation (`NAV_ITEMS` in `app/navigation.tsx`, each with its `permission`; items the user can't open
+  are hidden; permanent ≥ md, drawer on mobile). Add new modules to `NAV_ITEMS` and `CLINIC_ROUTES`
+  (`app/App.tsx`: each route with its permission, wrapped in `RequirePermission`).
   Pages are re-mounted when the context changes; `useClinic()` gives the current clinic.
 
 ### Internationalization (UI text only)
@@ -249,7 +274,10 @@ Swagger UI is available in Development at `/swagger`.
 - A context switch or logout cancels in-flight queries and clears the whole query cache.
 - Each feature has `api.ts` with a query-key factory (`drugKeys`, `drugGroupKeys`) and hooks:
   `useX` (one page, `keepPreviousData`), `useXPicker` (`useInfiniteQuery`, "load more", 30/page),
-  `useSaveX` / `useDeleteX` mutations that invalidate the feature's keys.
+  `useSaveX` / `useDeleteX` mutations that invalidate the feature's keys. Query hooks take
+  `{enabled}` (`QueryOptions`), so pages never call endpoints the user can't use.
+- Queries retry once, and only on network/5xx errors. Any 403 reloads `/me` (permissions may have
+  changed); a 403 from a query also toasts the translated reason.
   Drug mutations also invalidate group queries (groups embed drug names).
 - `api/errors.ts` → `getErrorMessage(error)`: maps the API `code` to `errors.<code>`, 404 to
   `errors.notFound`, no response to `errors.network`, else `errors.generic`.
@@ -265,6 +293,16 @@ Swagger UI is available in Development at `/swagger`.
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))` |
 | `InfoTip` | Small ⓘ icon with a tooltip (opens on tap too) to explain a field or option |
+
+Permission pieces (`features/access`, [details](../features/access/tech.md#frontend-srcfeaturesaccess)):
+
+| Piece | Use |
+|---|---|
+| `usePermissions()` | `{ can, canAll, canAny, allows, ready }` for logic |
+| `<Can permission / anyOf / allOf fallback?>` | Render children only when allowed |
+| `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` | Gated MUI controls; `whenDenied="disable"` shows them disabled with a tooltip (default hidden) |
+| `withPermission(Component)` | Gate any control that takes `disabled` the same way |
+| `<RequirePermission>` | Route guard with the "No permission" page |
 
 ### Browser storage
 
@@ -309,8 +347,9 @@ the files, so a `--no-build` update would apply nothing; check with `dotnet ef m
 even though startup also migrates.
 
 Login in Development: `Otp:Mode` is `Display`, so the code is shown on the login page (and logged
-by the API). Seeded phones (`appsettings.Development.json`): `01000000002` = "Dev Owner", staff in
-both demo clinics; `01000000001` = super admin (platform + template clinic). Any other valid number
+by the API). Seeded phones (`appsettings.Development.json`): `01000000002` = "Dev Owner", Owner in
+both demo clinics; `01000000003` = "Dev Assistant", Assistant (no deletes) in "Demo clinic" and
+Viewer (read only) in "Second demo clinic"; `01000000001` = super admin (platform + template clinic). Any other valid number
 gets a code but no access. API calls need a token:
 
 ```bash
@@ -340,15 +379,18 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- Login exists but no roles yet: every staff member can do everything in their clinic (phase 3).
-  Users and staff come only from seeding until the admin area (phase 4).
+- Users, staff and roles come only from seeding until the admin area (phase 4).
+- Permission or active-flag changes made outside the (future) admin endpoints apply within 30 s
+  (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
+  on any 403).
 - No SMS sender yet: a deployed server must run with `Otp__Mode=Display` (code on screen; anyone can
   log in as any phone), so it suits a demo/staging server only.
 - No per-IP limit on OTP requests yet (phase 5): one person can request codes for many numbers
   (costly once SMS is real).
 - `AllowedOrigins` (CORS) is no longer used (dev goes through the Vite proxy, production is
   same-origin); it can be removed.
-- Access tokens stay valid up to 15 min after logout/suspension (no per-request session check).
+- Access tokens stay valid up to 15 min after **logout** (no per-request session check). Suspension
+  and staff deactivation are checked per request through the access cache (within 30 s).
 - **HTTPS is now required** outside localhost: the login refresh cookie is `Secure`, so on the
   plain-http LAN setup every reload would ask for a new login. Moving the deployment to HTTPS is a
   prerequisite for phase 2 in production.

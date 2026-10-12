@@ -29,7 +29,7 @@ export type Me = {
     user: { id: number; phone: string; isSuperAdmin: boolean };
     context: Context | null;
     staff: { id: number; fullName: string } | null;
-    /** TEMPORARY: ["*"] in every context until phase 3 (Access) */
+    /** Expanded permission keys in a clinic context (see features/access/permissions.ts); [] otherwise */
     permissions: string[];
 };
 

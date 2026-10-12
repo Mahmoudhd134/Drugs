@@ -17,6 +17,7 @@ import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {useSaveDrug} from "../api.ts";
 import type {Drug} from "../types.ts";
+import {DrugText} from "./DrugText.tsx";
 import {DosingFields} from "../../dosing/components/DosingFields.tsx";
 import {dosingErrors, isDosingEmpty, normalizeDosing, type Dosing} from "../../dosing/types.ts";
 
@@ -24,18 +25,31 @@ type Props = {
     open: boolean;
     /** null to create a new drug */
     drug: Drug | null;
+    /** Show the drug's details without editing (no edit permission) */
+    readOnly?: boolean;
     onClose: () => void;
 };
 
-export const DrugFormDialog = ({open, drug, onClose}: Props) => {
+export const DrugFormDialog = ({open, drug, readOnly, onClose}: Props) => {
     const {t} = useTranslation();
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
-            <DialogTitle>{drug === null ? t("drugs.new") : t("drugs.edit")}</DialogTitle>
-            {/* The dialog unmounts this after closing, so it starts from the given drug on each open */}
-            <DrugForm drug={drug} onClose={onClose}/>
+            <DialogTitle>{drug === null ? t("drugs.new") : readOnly ? t("drugs.details") : t("drugs.edit")}</DialogTitle>
+            {readOnly && drug !== null ? (
+                <>
+                    <DialogContent sx={{pt: 1}}>
+                        <DrugText drug={drug} showDosing/>
+                    </DialogContent>
+                    <DialogActions sx={{px: 3, pb: 2}}>
+                        <Button onClick={onClose}>{t("common.close")}</Button>
+                    </DialogActions>
+                </>
+            ) : (
+                // The dialog unmounts this after closing, so it starts from the given drug on each open
+                <DrugForm drug={drug} onClose={onClose}/>
+            )}
         </Dialog>
     );
 };

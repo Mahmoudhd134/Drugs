@@ -11,12 +11,14 @@ type Props = {
     onSelect: (group: DrugGroup) => void;
     autoFocus?: boolean;
     maxHeight?: number | string;
+    /** False: never loads (e.g. no permission to list groups) */
+    enabled?: boolean;
 };
 
-export const GroupPicker = ({onSelect, autoFocus, maxHeight}: Props) => {
+export const GroupPicker = ({onSelect, autoFocus, maxHeight, enabled = true}: Props) => {
     const {t} = useTranslation();
     const [search, setSearch] = useState("");
-    const query = useDrugGroupPicker(useDebouncedValue(search.trim()));
+    const query = useDrugGroupPicker(useDebouncedValue(search.trim()), {enabled});
     const items = query.data?.pages.flatMap(p => p.items) ?? [];
 
     return (

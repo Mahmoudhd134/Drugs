@@ -15,6 +15,11 @@ public static class AuthClaims
 
 public static class AuthPolicies
 {
-    /// <summary>An access token in a clinic context (catalog endpoints). Platform or no-context tokens → 403.</summary>
+    /// <summary>
+    /// An access token in a clinic context, and the staff member and clinic still active (cached
+    /// check, <c>Access.ClinicAccessRequirement</c>). Platform or no-context tokens → 403
+    /// <c>forbidden</c>; inactive staff → <c>noAccess</c>; suspended clinic → <c>clinicSuspended</c>.
+    /// Implied by <c>[HasPermission]</c>.
+    /// </summary>
     public const string ClinicContext = "ClinicContext";
 }

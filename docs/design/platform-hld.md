@@ -1,7 +1,8 @@
 # High-level design: multi-clinic platform (MVP)
 
-Status: **agreed design; Phase 1 (Foundations) and Phase 2 (Identity) implemented**
-([clinic scoping](../features/clinic-scoping/tech.md), [login](../features/auth/tech.md)).
+Status: **agreed design; Phase 1 (Foundations), Phase 2 (Identity) and Phase 3 (Access) implemented**
+([clinic scoping](../features/clinic-scoping/tech.md), [login](../features/auth/tech.md),
+[access](../features/access/tech.md)).
 Decided in discussion on 2026-10-11.
 When each phase is built it gets its own `docs/features/<feature>/` (tech + business) and the
 overviews are updated; this file stays the big picture.
@@ -135,7 +136,7 @@ The current `Features/<Feature>` convention stays; a module may span several fea
 - `[HasPermission(Permissions.DrugsUpdate)]` on actions → policy handler asks
   `PermissionService.GetPermissions(staffId)`.
 - Permissions are **not** in the token. `PermissionService` loads the staff's roles + clinic status
-  and caches it in memory for 60 s; any change to that clinic's roles/staff clears the cache.
+  and caches it in memory for 60 s; any change to that clinic's roles/staff clears the cache. *(Built in phase 3 with HybridCache: 10 min expiry, 30 s local, invalidated by tag; see [access](../features/access/tech.md).)*
 - Owner role → all permissions. Inactive staff or suspended clinic → 403 (`noAccess` /
   `clinicSuspended`).
 - Admin endpoints: `[Authorize(Policy = "SuperAdmin")]` requires a platform-context token.
@@ -242,7 +243,7 @@ Old rows are deleted by a cleanup on each request (older than 1 day).
 Values must be in `Permissions.All` (`unknownPermission`). Owner roles have no rows (implicit all).
 
 **StaffRoles**: `StaffId` (FK, cascade) + `RoleId` (FK, cascade), PK `(StaffId, RoleId)`.
-The role must belong to the staff's clinic (checked in `AccessService`; the filter hides other clinics' roles anyway).
+The role must belong to the staff's clinic (checked in `AccessService`; the filter hides other clinics' roles anyway). *(Built in phase 3: `StaffRoles` also has `ClinicId`, with composite FKs to `Staff(Id, ClinicId)` and `Roles(Id, ClinicId)`, so the database enforces it.)*
 
 ### 5.3 Platform
 
@@ -411,7 +412,7 @@ type Me = {
   user: { id: number; phone: string; isSuperAdmin: boolean };
   context: Context | null;
   staff: { id: number; fullName: string } | null;
-  permissions: string[];                       // ["*"] for Owner / template access
+  permissions: string[];                       // expanded keys (phase 3: every key for Owner / template access, not "*")
 };
 ```
 
@@ -547,7 +548,8 @@ How the MVP leaves room, so these are additions:
 |---|---|---|
 | 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
 | 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until phase 3 |
-| 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | Catalog endpoints and nav are permission-gated |
+| 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (phase 4's role editor) |
+| 3.5 | **Architecture refactor** (pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | Same endpoints and responses verified manually; Phase 4 is written in the new structure |
 | 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
 | 5 | **Hardening**: rate limits, display-mode guard for real production once an SMS sender exists (relaxed to a config choice in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
 

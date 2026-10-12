@@ -7,7 +7,7 @@ device) holding a rotating refresh token and the current **context**: a clinic (
 template clinic for a super admin) or the platform (super admin). The API issues a short-lived JWT
 access token per context; the request's clinic (`IClinicContext`) now comes only from that token's
 `clinic_id`, which replaces phase 1's `TemporaryClinicMiddleware` and the `X-Dev-Clinic-Id` header.
-A minimal `Staff` table says which clinics a user may enter (roles come with phase 3).
+A minimal `Staff` table says which clinics a user may enter (roles: phase 3, [access](../access/tech.md)).
 
 ## Data model
 Migration: the single PostgreSQL `Initial` was regenerated (nothing in production; dev DB reset
@@ -76,13 +76,15 @@ code; 403 from a policy has `forbidden`).
 
 Shapes (`Features/Identity/AuthDtos.cs`, `Drags.Web/src/features/auth/types.ts`) follow HLD 8.1:
 `AuthResult { accessToken, expiresAt, context | null, contexts[] }`;
-`Context` = `{ type: "clinic", clinicId, clinicName, isTemplate, roles: [] }` or `{ type: "platform" }`;
+`Context` = `{ type: "clinic", clinicId, clinicName, isTemplate, roles: string[] }` or `{ type: "platform" }`;
 `Me { user: { id, phone, isSuperAdmin }, context, staff: { id, fullName } | null, permissions }`.
-`roles` is always `[]` until phase 3. **TEMPORARY:** `permissions` is `["*"]` whenever a context is
-chosen (`[]` otherwise); phase 3 computes it from roles.
+`roles` lists the user's role names in that clinic and `permissions` the expanded permission keys in a
+clinic context (`[]` otherwise), both since phase 3 ([access](../access/tech.md)).
 
 Catalog endpoints (`/drugs`, `/drug-groups`) carry `[Authorize(Policy = AuthPolicies.ClinicContext)]`:
-no/expired/invalid token → 401; a platform or no-context token → 403 `forbidden`.
+no/expired/invalid token → 401; a platform or no-context token → 403 `forbidden`. Since phase 3 each
+action also needs its permission, and the staff member and clinic must still be active
+([access](../access/tech.md)).
 
 ## Backend
 `Features/Identity/`:
@@ -222,9 +224,9 @@ no/expired/invalid token → 401; a platform or no-context token → 403 `forbid
   `tooManyRequests`, `noAccess`, `clinicSuspended`, `forbidden`) in `en.ts` and `ar.ts`.
 
 ## Edge cases & limitations
-- Access tokens stay valid until they expire (≤ 15 min) after logout, a suspension or a staff
-  deactivation; refresh and context switches re-check access. (HLD 7.6's "next request → 401" needs
-  a per-request session check: phase 3/4.)
+- Access tokens stay valid until they expire (≤ 15 min) after logout; refresh and context switches
+  re-check access. *(Phase 3: suspension and staff deactivation are checked on every clinic request
+  through the access cache; every issued token invalidates the user's cached access entries.)*
 - The context is per session (per browser), not per tab: switching clinic in one tab moves the
   other tabs' next refresh to that clinic too.
 - Calls racing with the same cookie: one wins, the others get 409 within 30 s (cookie kept) and

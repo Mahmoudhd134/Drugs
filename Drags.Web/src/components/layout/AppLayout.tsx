@@ -1,4 +1,4 @@
-import {type ReactNode, Suspense, useState} from "react";
+import {Suspense, useState} from "react";
 import {Link as RouterLink, NavLink, Outlet} from "react-router-dom";
 import {
     Alert,
@@ -16,34 +16,25 @@ import {
 } from "@mui/material";
 import {alpha} from "@mui/material/styles";
 import MenuIcon from "@mui/icons-material/Menu";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import CategoryIcon from "@mui/icons-material/Category";
-import MedicationIcon from "@mui/icons-material/Medication";
 import {useTranslation} from "react-i18next";
 import {LanguageMenu} from "./LanguageMenu.tsx";
 import {UserMenu} from "../../features/auth/components/UserMenu.tsx";
 import {useClinic} from "../../features/auth/useAuth.ts";
 import {FullPageSpinner} from "../common/FullPageSpinner.tsx";
+import {NAV_ITEMS} from "../../app/navigation.tsx";
+import {usePermissions} from "../../features/access/usePermissions.ts";
 
 const DRAWER_WIDTH = 232;
-
-type NavItem = { to: string; labelKey: string; icon: ReactNode; end?: boolean };
-
-// Add new modules of the clinic system here
-const NAV_ITEMS: NavItem[] = [
-    {to: "/", labelKey: "nav.prescription", icon: <ReceiptLongIcon/>, end: true},
-    {to: "/groups", labelKey: "nav.groups", icon: <CategoryIcon/>},
-    {to: "/drugs", labelKey: "nav.drugs", icon: <MedicationIcon/>},
-];
 
 export const AppLayout = () => {
     const {t} = useTranslation();
     const clinic = useClinic();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const {can} = usePermissions();
 
     const navigation = (
         <List sx={{px: 1.5, py: 2}}>
-            {NAV_ITEMS.map(item => (
+            {NAV_ITEMS.filter(item => can(item.permission)).map(item => (
                 <ListItemButton
                     key={item.to}
                     component={NavLink}

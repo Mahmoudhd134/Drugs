@@ -129,6 +129,7 @@ const ar: Translations = {
         add: "إضافة دواء",
         new: "دواء جديد",
         edit: "تعديل الدواء",
+        details: "تفاصيل الدواء",
         searchPlaceholder: "ابحث عن دواء بالاسم…",
         name: "الاسم",
         description: "الوصف",
@@ -245,6 +246,7 @@ const ar: Translations = {
         subtitle: "إجمالي المجموعات: {{count}}",
         new: "مجموعة جديدة",
         edit: "تعديل المجموعة",
+        view: "المجموعة",
         searchPlaceholder: "ابحث عن مجموعة بالاسم…",
         name: "اسم المجموعة",
         details: "البيانات",
@@ -271,6 +273,37 @@ const ar: Translations = {
         customDosing: "جرعة خاصة بالمجموعة",
         customDosingInfo: "لهذا الدواء جرعة خاصة في هذه المجموعة بدل جرعته الافتراضية.",
         alreadyInGroupForEye: "«{{name}}» موجود بالفعل في هذه المجموعة لنفس العين",
+    },
+    access: {
+        noPermissionTitle: "لا توجد صلاحية",
+        noPermissionDescription: "ليست لديك صلاحية لفتح هذه الصفحة. اطلبها من مالك العيادة إن احتجت إليها.",
+        noPermissionTooltip: "ليست لديك صلاحية",
+        goHome: "الذهاب إلى صفحة البداية",
+        nothingToPick: "ليست لديك صلاحية للبحث في الأدوية أو المجموعات.",
+    },
+    permissionResources: {
+        drugs: "الأدوية",
+        groups: "المجموعات",
+        prescriptions: "الروشتة",
+    },
+    permissions: {
+        drugs: {
+            list: "عرض قائمة الأدوية والبحث فيها",
+            details: "فتح دواء",
+            create: "إضافة أدوية",
+            update: "تعديل الأدوية",
+            delete: "حذف الأدوية",
+        },
+        groups: {
+            list: "عرض قائمة المجموعات والبحث فيها",
+            details: "فتح مجموعة",
+            create: "إضافة مجموعات",
+            update: "تعديل المجموعات",
+            delete: "حذف المجموعات",
+        },
+        prescriptions: {
+            create: "كتابة الروشتات",
+        },
     },
 };
 

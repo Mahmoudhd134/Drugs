@@ -1,6 +1,7 @@
 using Drags.Api.Controllers;
 using Drags.Api.Database;
 using Drags.Api.Models;
+using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
 using Drags.Api.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -14,6 +15,7 @@ namespace Drags.Api.Features.DrugGroups;
 public class DrugGroupsController(AppDbContext context) : BaseApiController
 {
     [HttpGet]
+    [HasPermission(Permissions.Groups.List)]
     public async Task<PagedResult<DrugGroupDto>> GetAll(string search = "", int page = 1, int pageSize = 20)
     {
         (page, pageSize) = NormalizePaging(page, pageSize);
@@ -36,6 +38,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     }
 
     [HttpGet("{id:int}")]
+    [HasPermission(Permissions.Groups.Details)]
     public async Task<ActionResult<DrugGroupDto>> GetById(int id)
     {
         var group = await IncludeDrugs(context.DrugGroups.AsNoTracking()).FirstOrDefaultAsync(g => g.Id == id);
@@ -43,6 +46,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     }
 
     [HttpPost]
+    [HasPermission(Permissions.Groups.Create)]
     public async Task<ActionResult<DrugGroupDto>> Create([FromBody] SaveDrugGroupRequest request)
     {
         var items = request.Items.Normalize();
@@ -57,6 +61,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     }
 
     [HttpPut("{id:int}")]
+    [HasPermission(Permissions.Groups.Update)]
     public async Task<ActionResult<DrugGroupDto>> Update(int id, [FromBody] SaveDrugGroupRequest request)
     {
         var items = request.Items.Normalize();
@@ -78,6 +83,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
     }
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permissions.Groups.Delete)]
     public async Task<IActionResult> Delete(int id)
     {
         var group = await context.DrugGroups.FirstOrDefaultAsync(g => g.Id == id);

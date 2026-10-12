@@ -49,18 +49,29 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
     const retry = useCallback(() => startSession(true), []);
 
     const auth = session.status === "authenticated" ? session.auth : null;
-    const {data: me} = useMeQuery(contextKey(auth?.context ?? null), auth !== null);
+    const meQuery = useMeQuery(contextKey(auth?.context ?? null), auth !== null);
+    const me = meQuery.data;
+    // Failed (after its retry): pages show a load error with Retry, not "no permission"
+    const meFailed = auth !== null && me === undefined && meQuery.isError;
+    const meReady = auth !== null && me !== undefined;
+    const meRetrying = meFailed && meQuery.isFetching;
+    const refetchMe = meQuery.refetch;
+    const retryMe = useCallback(() => void refetchMe(), [refetchMe]);
 
     const value = useMemo<AuthValue>(() => ({
         status: session.status,
         context: auth?.context ?? null,
         contexts: auth?.contexts ?? [],
         me: auth ? me ?? null : null,
+        meReady,
+        meFailed,
+        meRetrying,
+        retryMe,
         signIn,
         switchContext,
         logout,
         retry,
-    }), [session.status, auth, me, signIn, switchContext, logout, retry]);
+    }), [session.status, auth, me, meReady, meFailed, meRetrying, retryMe, signIn, switchContext, logout, retry]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

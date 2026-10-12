@@ -31,6 +31,10 @@ import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {useDeleteDrugGroup, useDrugGroups} from "../api.ts";
 import type {DrugGroup} from "../types.ts";
+import {PERMISSIONS} from "../../access/permissions.ts";
+import {usePermissions} from "../../access/usePermissions.ts";
+import {Can} from "../../access/components/Can.tsx";
+import {PermissionIconButton} from "../../access/components/PermissionControls.tsx";
 
 const PAGE_SIZE = 12;
 const PREVIEW_DRUGS = 4;
@@ -42,7 +46,9 @@ export const DrugGroupsPage = () => {
     const debouncedSearch = useDebouncedValue(search.trim());
     const [page, setPage] = useState(1);
 
-    const groups = useDrugGroups(debouncedSearch, page, PAGE_SIZE);
+    const {can} = usePermissions();
+    const canOpen = can(PERMISSIONS.groups.details);
+    const groups = useDrugGroups(debouncedSearch, page, PAGE_SIZE, {enabled: can(PERMISSIONS.groups.list)});
     const deleteGroup = useDeleteDrugGroup();
     const {confirm, dialog: confirmDialog} = useConfirm();
 
@@ -67,10 +73,13 @@ export const DrugGroupsPage = () => {
         }
     };
 
+    // A link, so it is gated with <Can> (the Permission* controls take no component prop)
     const newGroupButton = (
-        <Button variant="contained" startIcon={<AddIcon/>} component={RouterLink} to="/groups/new">
-            {t("groups.new")}
-        </Button>
+        <Can permission={PERMISSIONS.groups.create}>
+            <Button variant="contained" startIcon={<AddIcon/>} component={RouterLink} to="/groups/new">
+                {t("groups.new")}
+            </Button>
+        </Can>
     );
 
     return (
@@ -124,6 +133,7 @@ export const DrugGroupsPage = () => {
                             <Card key={group.id} variant="outlined" sx={{display: "flex", flexDirection: "column"}}>
                                 <CardActionArea
                                     onClick={() => navigate(`/groups/${group.id}`)}
+                                    disabled={!canOpen}
                                     sx={{flexGrow: 1, alignItems: "flex-start", display: "flex"}}
                                 >
                                     <CardContent sx={{width: "100%"}}>
@@ -148,20 +158,25 @@ export const DrugGroupsPage = () => {
                                         )}
                                     </CardContent>
                                 </CardActionArea>
-                                <CardActions sx={{justifyContent: "flex-end", borderTop: 1, borderColor: "divider"}}>
-                                    <Tooltip title={t("common.edit")}>
-                                        <IconButton size="small" component={RouterLink} to={`/groups/${group.id}`}
-                                                    aria-label={t("common.edit")}>
-                                            <EditIcon fontSize="small"/>
-                                        </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title={t("common.delete")}>
-                                        <IconButton size="small" color="error" onClick={() => void handleDelete(group)}
-                                                    aria-label={t("common.delete")}>
-                                            <DeleteIcon fontSize="small"/>
-                                        </IconButton>
-                                    </Tooltip>
-                                </CardActions>
+                                <Can anyOf={[PERMISSIONS.groups.update, PERMISSIONS.groups.delete]}>
+                                    <CardActions sx={{justifyContent: "flex-end", borderTop: 1, borderColor: "divider"}}>
+                                        <Can permission={PERMISSIONS.groups.update}>
+                                            <Tooltip title={t("common.edit")}>
+                                                <IconButton size="small" component={RouterLink} to={`/groups/${group.id}`}
+                                                            aria-label={t("common.edit")}>
+                                                    <EditIcon fontSize="small"/>
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Can>
+                                        <Tooltip title={t("common.delete")}>
+                                            <PermissionIconButton permission={PERMISSIONS.groups.delete} size="small" color="error"
+                                                                  onClick={() => void handleDelete(group)}
+                                                                  aria-label={t("common.delete")}>
+                                                <DeleteIcon fontSize="small"/>
+                                            </PermissionIconButton>
+                                        </Tooltip>
+                                    </CardActions>
+                                </Can>
                             </Card>
                         ))}
                     </Box>

@@ -47,8 +47,11 @@ public class ClinicAndTimestampsInterceptor : SaveChangesInterceptor
                 var clinicId = db.ClinicId ?? throw new InvalidOperationException(
                     $"Cannot save {entry.Metadata.ClrType.Name}: no clinic in context.");
 
-                if (entry.State == EntityState.Added && owned.ClinicId == 0)
-                    owned.ClinicId = clinicId;
+                // A key part (composite FKs) of a new row may hold an EF temporary value instead of 0;
+                // set through the entry so EF propagates it to dependents
+                var clinicIdProperty = entry.Property(nameof(IClinicOwned.ClinicId));
+                if (entry.State == EntityState.Added && (owned.ClinicId == 0 || clinicIdProperty.IsTemporary))
+                    clinicIdProperty.CurrentValue = clinicId;
                 // The original value too, so a row can't be moved from another clinic into this one
                 else if (owned.ClinicId != clinicId || (entry.State != EntityState.Added
                          && (int)entry.Property(nameof(IClinicOwned.ClinicId)).OriginalValue != clinicId))

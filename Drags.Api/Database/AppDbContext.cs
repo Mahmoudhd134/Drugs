@@ -14,6 +14,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     public const int NameMaxLength = 256;
     /// <summary>E.164 is at most 16 characters.</summary>
     public const int PhoneMaxLength = 20;
+    public const int RoleNameMaxLength = 100;
+    public const int PermissionMaxLength = 100;
 
     /// <summary>The current clinic; every <see cref="IClinicOwned"/> query is filtered to it.</summary>
     public int? ClinicId => clinicContext.ClinicId;
@@ -26,6 +28,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     public DbSet<OtpCode> OtpCodes { get; set; }
     public DbSet<Session> Sessions { get; set; }
     public DbSet<Staff> Staff { get; set; }
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<StaffRole> StaffRoles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -97,6 +101,42 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
             builder.Property(x => x.FullName).HasMaxLength(NameMaxLength).IsRequired();
             builder.HasIndex(x => new { x.ClinicId, x.UserId }).IsUnique();
             builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            // Target of the staff roles' (StaffId, ClinicId) FK
+            builder.HasAlternateKey(x => new { x.Id, x.ClinicId });
+        });
+
+        modelBuilder.Entity<Role>(builder =>
+        {
+            builder.Property(x => x.Name).HasMaxLength(RoleNameMaxLength).IsRequired();
+            builder.HasIndex(x => new { x.ClinicId, x.Name }).IsUnique();
+            // One Owner role per clinic
+            builder.HasIndex(x => x.ClinicId).IsUnique().HasFilter("\"IsOwner\"").HasDatabaseName("IX_Roles_ClinicId_Owner");
+            // Target of the staff roles' (RoleId, ClinicId) FK
+            builder.HasAlternateKey(x => new { x.Id, x.ClinicId });
+            builder.HasMany(x => x.Permissions).WithOne().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RolePermission>(builder =>
+        {
+            // No DbSet (only reached through its role), so name the table here
+            builder.ToTable("RolePermissions");
+            builder.HasKey(x => new { x.RoleId, x.Permission });
+            builder.Property(x => x.Permission).HasMaxLength(PermissionMaxLength);
+        });
+
+        modelBuilder.Entity<StaffRole>(builder =>
+        {
+            builder.HasKey(x => new { x.StaffId, x.RoleId });
+            // Composite FKs that include ClinicId: the database itself guarantees that a staff member
+            // only gets roles of their own clinic
+            builder.HasOne(x => x.Staff).WithMany(x => x.Roles)
+                .HasForeignKey(x => new { x.StaffId, x.ClinicId })
+                .HasPrincipalKey(x => new { x.Id, x.ClinicId })
+                .OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(x => x.Role).WithMany()
+                .HasForeignKey(x => new { x.RoleId, x.ClinicId })
+                .HasPrincipalKey(x => new { x.Id, x.ClinicId })
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         foreach (var type in modelBuilder.Model.GetEntityTypes()
@@ -112,7 +152,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
 
     /// <summary>
     /// FK to the clinic (restrict) and the clinic filter. Fails closed: no clinic in context = no rows.
-    /// Only Platform code may bypass it with <c>IgnoreQueryFilters()</c>.
+    /// Only Platform code (and the Access module's read-only membership queries and cache loads by id)
+    /// may bypass it with <c>IgnoreQueryFilters()</c>.
     /// </summary>
     private void ConfigureClinicOwned<T>(ModelBuilder modelBuilder) where T : class, IClinicOwned
     {

@@ -1,6 +1,7 @@
 using Drags.Api.Controllers;
 using Drags.Api.Database;
 using Drags.Api.Models;
+using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
 using Drags.Api.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,7 @@ namespace Drags.Api.Features.Drugs;
 public class DrugsController(AppDbContext context) : BaseApiController
 {
     [HttpGet]
+    [HasPermission(Permissions.Drugs.List)]
     public async Task<PagedResult<DrugDto>> GetAll(string search = "", int page = 1, int pageSize = 20)
     {
         (page, pageSize) = NormalizePaging(page, pageSize);
@@ -39,6 +41,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     }
 
     [HttpGet("{id:int}")]
+    [HasPermission(Permissions.Drugs.Details)]
     public async Task<ActionResult<DrugDto>> GetById(int id)
     {
         var drug = await context.Drugs.FirstOrDefaultAsync(d => d.Id == id);
@@ -46,6 +49,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     }
 
     [HttpPost]
+    [HasPermission(Permissions.Drugs.Create)]
     public async Task<ActionResult<DrugDto>> Create([FromBody] SaveDrugRequest request)
     {
         if (request.Validate() is { } error)
@@ -60,6 +64,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
     }
 
     [HttpPut("{id:int}")]
+    [HasPermission(Permissions.Drugs.Update)]
     public async Task<ActionResult<DrugDto>> Update(int id, [FromBody] SaveDrugRequest request)
     {
         if (request.Validate() is { } error)
@@ -76,6 +81,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
 
     /// <summary>Names of the groups that contain this drug (shown before deleting it).</summary>
     [HttpGet("{id:int}/groups")]
+    [HasPermission(Permissions.Drugs.Details)]
     public async Task<List<string>> GetGroups(int id) =>
         await context.DrugGroupItems.AsNoTracking()
             .Where(i => i.DrugId == id)
@@ -85,6 +91,7 @@ public class DrugsController(AppDbContext context) : BaseApiController
             .ToListAsync();
 
     [HttpDelete("{id:int}")]
+    [HasPermission(Permissions.Drugs.Delete)]
     public async Task<IActionResult> Delete(int id)
     {
         var drug = await context.Drugs.FirstOrDefaultAsync(d => d.Id == id);

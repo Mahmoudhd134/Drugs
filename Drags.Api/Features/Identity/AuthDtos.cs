@@ -29,9 +29,9 @@ public record ContextDto(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? IsTemplate,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<string> Roles)
 {
-    // Roles come with phase 3 (Access)
-    public static ContextDto ForClinic(int clinicId, string clinicName, bool isTemplate) =>
-        new(ContextTypes.Clinic, clinicId, clinicName, isTemplate, []);
+    /// <param name="roles">The user's role names there (none in the template clinic).</param>
+    public static ContextDto ForClinic(int clinicId, string clinicName, bool isTemplate, List<string> roles) =>
+        new(ContextTypes.Clinic, clinicId, clinicName, isTemplate, roles);
 
     public static readonly ContextDto Platform = new(ContextTypes.Platform, null, null, null, null);
 

@@ -9,6 +9,14 @@ export type AuthValue = {
     contexts: Context[];
     /** The user, staff name and permissions (null while loading or logged out). */
     me: Me | null;
+    /** `/me` answered for the current context: permissions are known. */
+    meReady: boolean;
+    /** `/me` failed (network/server error): permissions are unknown. */
+    meFailed: boolean;
+    /** The failed `/me` is being loaded again. */
+    meRetrying: boolean;
+    /** Loads `/me` again after a failure. */
+    retryMe: () => void;
     /** After a verified code. */
     signIn: (auth: AuthResult) => void;
     switchContext: (context: Context) => Promise<AuthResult>;

@@ -28,6 +28,7 @@ public class SessionService(
     AppSettings settings,
     TokenService tokens,
     MembershipService memberships,
+    IAccessCache accessCache,
     TimeProvider clock)
 {
     /// <summary>How long a just-rotated refresh token still answers 409 instead of 401.</summary>
@@ -42,7 +43,7 @@ public class SessionService(
     public async Task<List<ContextDto>> GetContextsAsync(User user, CancellationToken cancellationToken)
     {
         var clinics = await memberships.GetEnterableClinicsAsync(user.Id, cancellationToken);
-        var contexts = clinics.Select(c => ContextDto.ForClinic(c.ClinicId, c.ClinicName, false)).ToList();
+        var contexts = clinics.Select(c => ContextDto.ForClinic(c.ClinicId, c.ClinicName, false, c.Roles)).ToList();
 
         if (user.IsSuperAdmin)
         {
@@ -51,7 +52,7 @@ public class SessionService(
                 .Select(c => new { c.Id, c.Name })
                 .FirstOrDefaultAsync(cancellationToken);
             if (template is not null)
-                contexts.Add(ContextDto.ForClinic(template.Id, template.Name, true));
+                contexts.Add(ContextDto.ForClinic(template.Id, template.Name, true, []));
             contexts.Add(ContextDto.Platform);
         }
         return contexts;
@@ -201,6 +202,13 @@ public class SessionService(
         var staffId = context is { Type: ContextTypes.Clinic, IsTemplate: false, ClinicId: { } clinicId }
             ? await memberships.GetStaffIdAsync(user.Id, clinicId, cancellationToken)
             : null;
+        // A new token starts from fresh access data (roles, active flags, clinic status). The staff
+        // entry by its own tag (always right, whoever loaded it), plus every entry of the user: a
+        // refresh that moved them out of a clinic they lost must also drop that clinic's entry, which
+        // their older access token still points to
+        if (staffId is not null)
+            await accessCache.InvalidateStaffAsync(staffId.Value, cancellationToken);
+        await accessCache.InvalidateUserAsync(user.Id, cancellationToken);
         var (accessToken, expiresAt) = tokens.CreateAccessToken(user, session, staffId);
         return new SessionOutcome(new SessionIssue(
             new AuthResult(accessToken, expiresAt, context, contexts), refreshToken, session.ExpiresAt));

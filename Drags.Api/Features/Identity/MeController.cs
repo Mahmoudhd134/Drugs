@@ -1,5 +1,6 @@
 using Drags.Api.Controllers;
 using Drags.Api.Database;
+using Drags.Api.Features.Access;
 using Drags.Api.Models;
 using Drags.Api.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -8,9 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.Identity;
 
-/// <summary><c>GET /api/v1/me</c>: the caller's user, context, staff and permissions.</summary>
+/// <summary>
+/// <c>GET /api/v1/me</c>: the caller's user, context, staff and permissions (never in the token: the
+/// SPA reads them here).
+/// </summary>
 [Authorize]
-public class MeController(AppDbContext db, SessionService sessions, ICurrentUser currentUser) : BaseApiController
+public class MeController(AppDbContext db, SessionService sessions, ICurrentUser currentUser,
+    IPermissionService permissions) : BaseApiController
 {
     [HttpGet]
     public async Task<ActionResult<MeDto>> Get(CancellationToken cancellationToken)
@@ -32,8 +37,10 @@ public class MeController(AppDbContext db, SessionService sessions, ICurrentUser
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
-        // TEMPORARY (until phase 3, Access): every context grants everything
-        List<string> permissions = context is null ? [] : ["*"];
-        return new MeDto(new MeUserDto(user.Id, user.Phone, user.IsSuperAdmin), context, staff, permissions);
+        // Expanded keys in a clinic context (empty without access); none on the platform yet
+        var permissionKeys = context is { Type: ContextTypes.Clinic }
+            ? (await permissions.GetAsync(cancellationToken)).ToList()
+            : [];
+        return new MeDto(new MeUserDto(user.Id, user.Phone, user.IsSuperAdmin), context, staff, permissionKeys);
     }
 }

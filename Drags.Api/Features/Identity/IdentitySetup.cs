@@ -14,7 +14,6 @@ public static class IdentitySetup
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<OtpService>();
         services.AddScoped<SessionService>();
-        services.AddScoped<MembershipService>();
         services.AddSingleton<TokenService>();
         // The only sender so far (AppSettings.Validate refuses other modes); an SMS sender goes here
         services.AddSingleton<IOtpSender, DisplayOtpSender>();
@@ -46,7 +45,9 @@ public static class IdentitySetup
             .AddPolicy(AuthPolicies.ClinicContext, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireClaim(AuthClaims.Context, Models.ContextTypes.Clinic)
-                .RequireClaim(AuthClaims.ClinicId));
+                .RequireClaim(AuthClaims.ClinicId)
+                // Every clinic request: the staff member and the clinic must still be active
+                .AddRequirements(new ClinicAccessRequirement()));
 
         return services;
     }

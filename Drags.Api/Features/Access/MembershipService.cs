@@ -4,7 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.Access;
 
-public record MemberClinic(int ClinicId, string ClinicName);
+/// <param name="Roles">The user's role names in the clinic (Owner first, then by name).</param>
+public record MemberClinic(int ClinicId, string ClinicName, List<string> Roles);
 
 /// <summary>
 /// A user's staff memberships across clinics (Access module), for login and context checks. These
@@ -16,13 +17,15 @@ public class MembershipService(AppDbContext db)
     private IQueryable<Staff> ActiveMemberships(int userId) =>
         db.Staff.IgnoreQueryFilters().AsNoTracking().Where(s => s.UserId == userId && s.IsActive);
 
-    /// <summary>Active, non-template clinics where the user is active staff, by name.</summary>
+    /// <summary>Active, non-template clinics where the user is active staff, by name, with their roles there.</summary>
     public Task<List<MemberClinic>> GetEnterableClinicsAsync(int userId, CancellationToken cancellationToken) =>
         ActiveMemberships(userId)
-            .Join(db.Clinics, s => s.ClinicId, c => c.Id, (s, c) => c)
-            .Where(c => c.Status == ClinicStatus.Active && !c.IsTemplate)
-            .OrderBy(c => c.Name).ThenBy(c => c.Id)
-            .Select(c => new MemberClinic(c.Id, c.Name))
+            .Join(db.Clinics, s => s.ClinicId, c => c.Id, (s, c) => new { Staff = s, Clinic = c })
+            .Where(x => x.Clinic.Status == ClinicStatus.Active && !x.Clinic.IsTemplate)
+            .OrderBy(x => x.Clinic.Name).ThenBy(x => x.Clinic.Id)
+            .Select(x => new MemberClinic(x.Clinic.Id, x.Clinic.Name, x.Staff.Roles
+                .OrderByDescending(r => r.Role.IsOwner).ThenBy(r => r.Role.Name)
+                .Select(r => r.Role.Name).ToList()))
             .ToListAsync(cancellationToken);
 
     /// <summary>The user's active staff row in the clinic, if any.</summary>

@@ -41,6 +41,9 @@ import {
 import type {Drug} from "../../drugs/types.ts";
 import {useDeleteDrugGroup, useDrugGroup, useSaveDrugGroup} from "../api.ts";
 import type {DrugGroup} from "../types.ts";
+import {PERMISSIONS} from "../../access/permissions.ts";
+import {usePermissions} from "../../access/usePermissions.ts";
+import {PermissionButton} from "../../access/components/PermissionControls.tsx";
 
 // Long chip labels wrap onto a second line instead of being cut off on narrow screens
 const wrappingChip = {maxWidth: "100%", height: "auto", "& .MuiChip-label": {whiteSpace: "normal", py: 0.25}};
@@ -49,7 +52,8 @@ export const DrugGroupEditorPage = () => {
     const {t} = useTranslation();
     const {id} = useParams();
     const groupId = id === undefined ? null : Number(id);
-    const details = useDrugGroup(Number.isInteger(groupId) ? groupId : null);
+    const {can} = usePermissions();
+    const details = useDrugGroup(Number.isInteger(groupId) ? groupId : null, {enabled: can(PERMISSIONS.groups.details)});
 
     if (groupId !== null && !Number.isInteger(groupId)) return <Navigate to="/groups" replace/>;
 
@@ -74,6 +78,12 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
     const save = useSaveDrugGroup();
     const deleteGroup = useDeleteDrugGroup();
     const {confirm, dialog: confirmDialog} = useConfirm();
+    const {can} = usePermissions();
+    // Without the permission to save, the group is only shown
+    const readOnly = !can(groupId === null ? PERMISSIONS.groups.create : PERMISSIONS.groups.update);
+    const canPickDrugs = !readOnly && can(PERMISSIONS.drugs.list);
+    // The list, or the start page for a role that may create groups but not list them
+    const exitTo = can(PERMISSIONS.groups.list) ? "/groups" : "/";
 
     const [name, setName] = useState(initial?.name ?? "");
     const initialItems = useMemo(() => toEditorItems(initial?.items), [initial]);
@@ -140,7 +150,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
             });
             if (!confirmed) return;
         }
-        navigate("/groups");
+        navigate(exitTo);
     };
 
     const handleSave = async () => {
@@ -160,7 +170,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                 items: toSaveItems(items),
             });
             toast.success(groupId === null ? t("groups.created") : t("groups.updated"));
-            navigate("/groups");
+            navigate(exitTo);
         } catch (error) {
             toast.error(getErrorMessage(error));
         }
@@ -178,7 +188,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
         try {
             await deleteGroup.mutateAsync(groupId);
             toast.success(t("groups.deleted"));
-            navigate("/groups");
+            navigate(exitTo);
         } catch (error) {
             toast.error(getErrorMessage(error));
         }
@@ -194,24 +204,30 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                         </IconButton>
                     </Tooltip>
                 }
-                title={groupId === null ? t("groups.new") : t("groups.edit")}
+                title={groupId === null ? t("groups.new") : readOnly ? t("groups.view") : t("groups.edit")}
                 actions={
                     <>
                         {groupId !== null && (
-                            <Button color="error" startIcon={<DeleteIcon/>} onClick={() => void handleDelete()}>
+                            // Shown disabled (with a tooltip) to editors who can't delete, so they know why
+                            <PermissionButton permission={PERMISSIONS.groups.delete} whenDenied={readOnly ? "hide" : "disable"}
+                                              color="error" startIcon={<DeleteIcon/>} onClick={() => void handleDelete()}>
                                 {t("common.delete")}
-                            </Button>
+                            </PermissionButton>
                         )}
-                        <Button variant="outlined" onClick={() => void leave()}>{t("common.cancel")}</Button>
-                        <Button variant="contained" onClick={() => void handleSave()} disabled={save.isPending}>
-                            {save.isPending ? t("common.saving") : t("common.save")}
-                        </Button>
+                        {!readOnly && (
+                            <>
+                                <Button variant="outlined" onClick={() => void leave()}>{t("common.cancel")}</Button>
+                                <Button variant="contained" onClick={() => void handleSave()} disabled={save.isPending}>
+                                    {save.isPending ? t("common.saving") : t("common.save")}
+                                </Button>
+                            </>
+                        )}
                     </>
                 }
             />
 
             <Grid container spacing={2}>
-                <Grid size={{xs: 12, md: 7}}>
+                <Grid size={{xs: 12, md: canPickDrugs ? 7 : 12}}>
                     <Stack sx={{gap: 2}}>
                         <Paper variant="outlined" sx={{p: 2.5}}>
                             <Typography variant="subtitle1" sx={{fontWeight: 700, mb: 2}}>{t("groups.details")}</Typography>
@@ -221,8 +237,8 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                 onChange={(e) => setName(e.target.value)}
                                 error={nameError}
                                 helperText={nameError ? t("errors.nameRequired") : undefined}
-                                slotProps={{htmlInput: {dir: "auto", maxLength: 256}}}
-                                required
+                                slotProps={{htmlInput: {dir: "auto", maxLength: 256, readOnly}}}
+                                required={!readOnly}
                                 autoFocus={groupId === null}
                                 fullWidth
                             />
@@ -242,6 +258,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                 />
                             ) : (
                                 <DosingLineList
+                                    readOnly={readOnly}
                                     lines={items}
                                     onReorder={setItems}
                                     onEdit={setEditingItem}
@@ -282,13 +299,15 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                     </Stack>
                 </Grid>
 
-                <Grid size={{xs: 12, md: 5}}>
-                    <Paper variant="outlined" sx={{p: 2.5, position: {md: "sticky"}, top: {md: 88}}}>
-                        <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("groups.addDrugs")}</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>{t("groups.addDrugsHint")}</Typography>
-                        <DrugPicker onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>
-                    </Paper>
-                </Grid>
+                {canPickDrugs && (
+                    <Grid size={{xs: 12, md: 5}}>
+                        <Paper variant="outlined" sx={{p: 2.5, position: {md: "sticky"}, top: {md: 88}}}>
+                            <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("groups.addDrugs")}</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>{t("groups.addDrugsHint")}</Typography>
+                            <DrugPicker onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>
+                        </Paper>
+                    </Grid>
+                )}
             </Grid>
             <GroupItemDialog item={editingItem} onClose={() => setEditingItem(null)} onSave={updateItem}/>
             {confirmDialog}

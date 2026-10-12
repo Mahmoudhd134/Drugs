@@ -7,6 +7,8 @@ import {GroupPicker} from "../../drugGroups/components/GroupPicker.tsx";
 import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
 import type {DrugGroup} from "../../drugGroups/types.ts";
 import type {Drug} from "../../drugs/types.ts";
+import {PERMISSIONS} from "../../access/permissions.ts";
+import {usePermissions} from "../../access/usePermissions.ts";
 
 type CatalogTab = "groups" | "drugs";
 
@@ -16,30 +18,43 @@ type Props = {
     onSelectDrug: (drug: Drug) => void;
 };
 
-/** Search groups or single drugs to add to the prescription. Groups are the default tab. */
+/**
+ * Search groups or single drugs to add to the prescription. Groups are the default tab. Each tab
+ * needs its list permission; a picker the user can't use is neither shown nor loaded.
+ */
 export const CatalogPanel = ({selectedIds, onSelectGroup, onSelectDrug}: Props) => {
     const {t} = useTranslation();
-    const [tab, setTab] = useState<CatalogTab>("groups");
+    const {can} = usePermissions();
+    const canGroups = can(PERMISSIONS.groups.list);
+    const canDrugs = can(PERMISSIONS.drugs.list);
+    const [chosenTab, setTab] = useState<CatalogTab>("groups");
+    const tab: CatalogTab = chosenTab === "groups" && !canGroups ? "drugs" : chosenTab === "drugs" && !canDrugs ? "groups" : chosenTab;
 
     return (
         <Paper variant="outlined" sx={{p: 2.5}}>
             <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("prescription.catalog")}</Typography>
-            <Tabs
-                value={tab}
-                onChange={(_, value: CatalogTab) => setTab(value)}
-                variant="fullWidth"
-                sx={{mb: 2, borderBottom: 1, borderColor: "divider"}}
-            >
-                <Tab value="groups" icon={<CategoryIcon fontSize="small"/>} iconPosition="start" label={t("prescription.tabGroups")}/>
-                <Tab value="drugs" icon={<MedicationIcon fontSize="small"/>} iconPosition="start" label={t("prescription.tabDrugs")}/>
-            </Tabs>
-            {/* Keep both mounted so each tab remembers its search */}
-            <Box hidden={tab !== "groups"}>
-                <GroupPicker onSelect={onSelectGroup} autoFocus maxHeight="58vh"/>
-            </Box>
-            <Box hidden={tab !== "drugs"}>
-                <DrugPicker onSelect={onSelectDrug} selectedIds={selectedIds} maxHeight="58vh"/>
-            </Box>
+            {!canGroups && !canDrugs ? (
+                <Typography variant="body2" color="text.secondary" sx={{mt: 2}}>{t("access.nothingToPick")}</Typography>
+            ) : (
+                <>
+                    <Tabs
+                        value={tab}
+                        onChange={(_, value: CatalogTab) => setTab(value)}
+                        variant="fullWidth"
+                        sx={{mb: 2, borderBottom: 1, borderColor: "divider"}}
+                    >
+                        {canGroups && <Tab value="groups" icon={<CategoryIcon fontSize="small"/>} iconPosition="start" label={t("prescription.tabGroups")}/>}
+                        {canDrugs && <Tab value="drugs" icon={<MedicationIcon fontSize="small"/>} iconPosition="start" label={t("prescription.tabDrugs")}/>}
+                    </Tabs>
+                    {/* Keep both mounted so each tab remembers its search */}
+                    <Box hidden={tab !== "groups"}>
+                        <GroupPicker onSelect={onSelectGroup} autoFocus={tab === "groups"} maxHeight="58vh" enabled={canGroups}/>
+                    </Box>
+                    <Box hidden={tab !== "drugs"}>
+                        <DrugPicker onSelect={onSelectDrug} selectedIds={selectedIds} autoFocus={tab === "drugs"} maxHeight="58vh" enabled={canDrugs}/>
+                    </Box>
+                </>
+            )}
         </Paper>
     );
 };

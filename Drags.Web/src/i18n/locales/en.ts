@@ -129,6 +129,7 @@ const en = {
         add: "Add drug",
         new: "New drug",
         edit: "Edit drug",
+        details: "Drug details",
         searchPlaceholder: "Search drugs by name…",
         name: "Name",
         description: "Description",
@@ -246,6 +247,7 @@ const en = {
         subtitle: "Total groups: {{count}}",
         new: "New group",
         edit: "Edit group",
+        view: "Group",
         searchPlaceholder: "Search groups by name…",
         name: "Group name",
         details: "Details",
@@ -272,6 +274,39 @@ const en = {
         customDosing: "Group dosing",
         customDosingInfo: "This drug has its own dosing in this group instead of the drug's default.",
         alreadyInGroupForEye: "“{{name}}” is already in this group for that eye",
+    },
+    access: {
+        noPermissionTitle: "No permission",
+        noPermissionDescription: "You don't have permission to open this page. Ask the clinic owner if you need it.",
+        noPermissionTooltip: "You don't have permission",
+        goHome: "Go to the start page",
+        nothingToPick: "You don't have permission to search drugs or groups.",
+    },
+    /** Resource names, to group permissions (role editor) */
+    permissionResources: {
+        drugs: "Drugs",
+        groups: "Groups",
+        prescriptions: "Prescription",
+    },
+    /** One label per permission key (keep in sync with features/access/permissions.ts) */
+    permissions: {
+        drugs: {
+            list: "See the drug list and search it",
+            details: "Open a drug",
+            create: "Add drugs",
+            update: "Edit drugs",
+            delete: "Delete drugs",
+        },
+        groups: {
+            list: "See the group list and search it",
+            details: "Open a group",
+            create: "Add groups",
+            update: "Edit groups",
+            delete: "Delete groups",
+        },
+        prescriptions: {
+            create: "Write prescriptions",
+        },
     },
 };
 

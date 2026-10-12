@@ -4,8 +4,10 @@ import type {AuthResult, Me, OtpRequestResult} from "./types.ts";
 
 export const authKeys = {
     otpMode: ["auth", "otpMode"] as const,
+    /** Every context's /me (to reload permissions) */
+    allMe: ["me"] as const,
     /** Per context, so a switch never shows the previous context's answer */
-    me: (contextKey: string) => ["me", contextKey] as const,
+    me: (contextKey: string) => [...authKeys.allMe, contextKey] as const,
 };
 
 export const requestOtp = (phone: string) =>

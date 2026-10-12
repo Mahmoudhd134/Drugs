@@ -1,6 +1,6 @@
 import {keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {api} from "../../api/client.ts";
-import {hasNextPage, type PagedResult} from "../../api/types.ts";
+import {hasNextPage, type PagedResult, type QueryOptions} from "../../api/types.ts";
 import type {DrugGroup, SaveDrugGroupItem} from "./types.ts";
 
 const PICKER_PAGE_SIZE = 30;
@@ -16,27 +16,29 @@ export const drugGroupKeys = {
 const fetchDrugGroups = async (search: string, page: number, pageSize: number) =>
     (await api.get<PagedResult<DrugGroup>>("/drug-groups", {params: {search, page, pageSize}})).data;
 
-export const useDrugGroups = (search: string, page: number, pageSize: number) =>
+export const useDrugGroups = (search: string, page: number, pageSize: number, {enabled = true}: QueryOptions = {}) =>
     useQuery({
         queryKey: drugGroupKeys.list(search, page, pageSize),
         queryFn: () => fetchDrugGroups(search, page, pageSize),
         placeholderData: keepPreviousData,
+        enabled,
     });
 
-export const useDrugGroupPicker = (search: string) =>
+export const useDrugGroupPicker = (search: string, {enabled = true}: QueryOptions = {}) =>
     useInfiniteQuery({
         queryKey: drugGroupKeys.picker(search),
         queryFn: ({pageParam}) => fetchDrugGroups(search, pageParam, PICKER_PAGE_SIZE),
         initialPageParam: 1,
         getNextPageParam: (last) => (hasNextPage(last) ? last.page + 1 : undefined),
         placeholderData: keepPreviousData,
+        enabled,
     });
 
-export const useDrugGroup = (id: number | null) =>
+export const useDrugGroup = (id: number | null, {enabled = true}: QueryOptions = {}) =>
     useQuery({
         queryKey: drugGroupKeys.detail(id ?? 0),
         queryFn: async () => (await api.get<DrugGroup>(`/drug-groups/${id}`)).data,
-        enabled: id !== null,
+        enabled: enabled && id !== null,
         // Always edit the latest version
         staleTime: 0,
     });

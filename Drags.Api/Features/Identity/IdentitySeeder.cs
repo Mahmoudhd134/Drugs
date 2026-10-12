@@ -1,4 +1,5 @@
 using Drags.Api.Database;
+using Drags.Api.Features.Access;
 using Drags.Api.Models;
 using Drags.Api.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ public static class IdentitySeeder
     /// Every phone in <c>Platform:SuperAdminPhones</c> gets a user with <see cref="User.IsSuperAdmin"/>;
     /// any other user loses the flag, and their sessions are revoked (they may be in a super-admin context).
     /// </summary>
-    public static async Task SeedSuperAdminsAsync(AppDbContext db, PlatformSettings platform)
+    public static async Task SeedSuperAdminsAsync(AppDbContext db, PlatformSettings platform, IAccessCache accessCache)
     {
         var phones = platform.SuperAdminPhones
             .Where(p => !string.IsNullOrWhiteSpace(p))
@@ -29,11 +30,15 @@ public static class IdentitySeeder
         }
 
         var demoted = new List<int>();
+        // Existing users whose flag changes: their cached access (template context) is stale
+        var changed = new List<int>();
         foreach (var user in users)
         {
             var isSuperAdmin = phones.Contains(user.Phone);
             if (user.IsSuperAdmin && !isSuperAdmin)
                 demoted.Add(user.Id);
+            if (user.Id != 0 && user.IsSuperAdmin != isSuperAdmin)
+                changed.Add(user.Id);
             user.IsSuperAdmin = isSuperAdmin;
         }
 
@@ -43,6 +48,9 @@ public static class IdentitySeeder
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, now).SetProperty(x => x.UpdatedAt, now));
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
+        // In memory a restart clears the cache anyway; a distributed cache (Redis) would keep it
+        foreach (var userId in changed)
+            await accessCache.InvalidateUserAsync(userId);
     }
 
     /// <summary>Finds or creates the user of a phone from configuration (invalid → startup error).</summary>

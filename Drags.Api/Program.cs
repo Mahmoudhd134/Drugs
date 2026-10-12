@@ -1,4 +1,5 @@
 using Drags.Api.Database;
+using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
 using Drags.Api.Features.Platform;
 using Drags.Api.Shared;
@@ -26,6 +27,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options
 );
 
 builder.Services.AddIdentityModule(appSettings);
+builder.Services.AddAccessModule();
 
 var app = builder.Build();
 
@@ -64,6 +66,7 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await context.Database.MigrateAsync();
     await StartupSeeder.SeedAsync(context, scope.ServiceProvider.GetRequiredService<ClinicContext>(),
+        scope.ServiceProvider.GetRequiredService<IAccessCache>(),
         appSettings.Platform, app.Environment.IsDevelopment());
 }
 

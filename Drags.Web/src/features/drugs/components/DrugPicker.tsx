@@ -15,12 +15,14 @@ type Props = {
     selectedIds?: ReadonlySet<number>;
     autoFocus?: boolean;
     maxHeight?: number | string;
+    /** False: never loads (e.g. no permission to list drugs) */
+    enabled?: boolean;
 };
 
-export const DrugPicker = ({onSelect, selectedIds, autoFocus, maxHeight}: Props) => {
+export const DrugPicker = ({onSelect, selectedIds, autoFocus, maxHeight, enabled = true}: Props) => {
     const {t} = useTranslation();
     const [search, setSearch] = useState("");
-    const query = useDrugPicker(useDebouncedValue(search.trim()));
+    const query = useDrugPicker(useDebouncedValue(search.trim()), {enabled});
     const items = query.data?.pages.flatMap(p => p.items) ?? [];
 
     return (

@@ -196,6 +196,58 @@ namespace Drags.Api.Migrations
                     b.ToTable("OtpCodes");
                 });
 
+            modelBuilder.Entity("Drags.Api.Models.Role", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsOwner")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Roles_ClinicId_Owner")
+                        .HasFilter("\"IsOwner\"");
+
+                    b.HasIndex("ClinicId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.RolePermission", b =>
+                {
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Permission")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("RoleId", "Permission");
+
+                    b.ToTable("RolePermissions", (string)null);
+                });
+
             modelBuilder.Entity("Drags.Api.Models.Session", b =>
                 {
                     b.Property<Guid>("Id")
@@ -290,6 +342,28 @@ namespace Drags.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Staff");
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.StaffRole", b =>
+                {
+                    b.Property<int>("StaffId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("StaffId", "RoleId");
+
+                    b.HasIndex("ClinicId");
+
+                    b.HasIndex("RoleId", "ClinicId");
+
+                    b.HasIndex("StaffId", "ClinicId");
+
+                    b.ToTable("StaffRoles");
                 });
 
             modelBuilder.Entity("Drags.Api.Models.User", b =>
@@ -464,6 +538,24 @@ namespace Drags.Api.Migrations
                     b.Navigation("DrugGroup");
                 });
 
+            modelBuilder.Entity("Drags.Api.Models.Role", b =>
+                {
+                    b.HasOne("Drags.Api.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.RolePermission", b =>
+                {
+                    b.HasOne("Drags.Api.Models.Role", null)
+                        .WithMany("Permissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Drags.Api.Models.Session", b =>
                 {
                     b.HasOne("Drags.Api.Models.Clinic", null)
@@ -497,6 +589,33 @@ namespace Drags.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Drags.Api.Models.StaffRole", b =>
+                {
+                    b.HasOne("Drags.Api.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Drags.Api.Models.Role", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId", "ClinicId")
+                        .HasPrincipalKey("Id", "ClinicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Drags.Api.Models.Staff", "Staff")
+                        .WithMany("Roles")
+                        .HasForeignKey("StaffId", "ClinicId")
+                        .HasPrincipalKey("Id", "ClinicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
+
+                    b.Navigation("Staff");
+                });
+
             modelBuilder.Entity("Drags.Api.Models.Drug", b =>
                 {
                     b.Navigation("GroupItems");
@@ -505,6 +624,16 @@ namespace Drags.Api.Migrations
             modelBuilder.Entity("Drags.Api.Models.DrugGroup", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.Role", b =>
+                {
+                    b.Navigation("Permissions");
+                });
+
+            modelBuilder.Entity("Drags.Api.Models.Staff", b =>
+                {
+                    b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618
         }
