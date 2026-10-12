@@ -553,6 +553,16 @@ How the MVP leaves room, so these are additions:
 | 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
 | 5 | **Hardening**: rate limits, display-mode guard for real production once an SMS sender exists (relaxed to a config choice in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
 
+### 12.1 Enhancements (after all phases)
+
+Agreed improvements, done once phases 1–5 are complete:
+
+| Enhancement | What | Why |
+|---|---|---|
+| **Generated frontend permissions** | A script exports the backend `PermissionCatalog` (e.g. `dotnet run --project Drags.Api -- export-permissions`) and generates `Drags.Web/src/features/access/permissions.ts`; wired into the build so it can't go stale | One source of truth: a renamed or removed permission becomes a TypeScript compile error instead of a hand-synced list |
+| **Permission-aware prefetch** | A route table maps each page to its `import()` and `permission`; when the browser is idle (`requestIdleCallback`), the chunks of pages the user may open are preloaded (optionally on nav hover). The admin area and the Quill editor stay on demand | First navigation to each page is instant; users never download code they can't use |
+| **Vendor chunk split** | `build.rollupOptions.output.manualChunks`: React, MUI, router in their own chunks | They rarely change, so they stay cached across deploys (main chunk is ~197 kB gzipped today) |
+
 ## 13. Open questions
 
 - OTP provider for production (SMS gateway vs. WhatsApp Cloud API).

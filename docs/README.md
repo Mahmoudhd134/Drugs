@@ -12,6 +12,9 @@ docs/
 │   └── overview.md            ← architecture, stack, conventions, how to add a feature
 ├── business/
 │   └── overview.md            ← (عربي) what the system supports today
+├── design/
+│   ├── platform-hld.md        ← multi-clinic platform: requirements, data model, API, phases
+│   └── architecture.md        ← backend layers, MediatR use cases, Result/Error, ProblemDetails (Phase 3.5)
 └── features/
     ├── _template/             ← copy this folder for every new feature
     │   ├── tech.md
