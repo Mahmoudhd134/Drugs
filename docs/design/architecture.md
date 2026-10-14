@@ -8,9 +8,16 @@ Phase 3.5 is done in three steps:
 
 1. **Project split (done):** the four projects; Domain and data access moved (§ 1, § 2, § 4). Services,
    controllers and auth stay in `ClinicHub.Api`. See [carry-over](#carry-over-to-step-2).
-2. Use cases, `Result`/`Error`, MediatR, validation and the Application services (§ 3).
-3. API layer: thin controllers, `ApiProblemFactory`, ProblemDetails everywhere (§ 5, § 6), permissions
-   (§ 7.1).
+2. **Application foundations + Catalog:** MediatR abstractions, `Result`/`Error`, FluentValidation, the
+   pipeline behaviors and `ITransactionRunner` (§ 3); `ApiProblemFactory` with every error source and the
+   `Result` → HTTP helpers (§ 5, § 6); the Catalog module (Drugs, DrugGroups) as commands/queries with thin
+   controllers. The app works end to end after this step.
+3. **Identity, Access, Platform + permission structure:** the remaining services move to Application on top
+   of the abstractions (purpose-built interfaces for what `IAppDbContext` hides), their use cases and
+   Infrastructure implementations, Access 403s through `ApiProblemFactory`, and the permission constants
+   split per module with `[PermissionModule]` (§ 7.1).
+
+Module by module, so every step ends with a working app.
 
 ### Carry-over to step 2
 
