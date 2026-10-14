@@ -13,7 +13,7 @@ A minimal `Staff` table says which clinics a user may enter (roles: phase 3, [ac
 Migration: the single PostgreSQL `Initial` was regenerated (nothing in production; dev DB reset
 with `docker compose down -v && docker compose up -d`). All tables have `CreatedAt`/`UpdatedAt`.
 
-**Users** (`Models/User.cs`)
+**Users** (`Drags.Domain/Identity/User.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -22,7 +22,7 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | IsSuperAdmin | boolean | set only by the startup seeder |
 | LastLoginAt | timestamptz null | set on each successful verify |
 
-**OtpCodes** (`Models/OtpCode.cs`)
+**OtpCodes** (`Drags.Domain/Identity/OtpCode.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -33,7 +33,7 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | Attempts | int | wrong guesses; at `Otp:MaxAttempts` the code is dead |
 | ConsumedAt | timestamptz null | single use |
 
-**Sessions** (`Models/Session.cs`)
+**Sessions** (`Drags.Domain/Identity/Session.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -48,7 +48,7 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | LastUsedAt | timestamptz | |
 | RevokedAt | timestamptz null | logout, lost access, super admin demoted |
 
-**Staff** (`Models/Staff.cs`, Access module, `IClinicOwned`)
+**Staff** (`Drags.Domain/Access/Staff.cs`, Access module, `IClinicOwned`)
 
 | Column | Type | Rules |
 |---|---|---|

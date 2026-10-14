@@ -1,8 +1,12 @@
-using Drags.Api.Database;
 using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Application.Common.Abstractions;
+using Drags.Domain.Access;
+using Drags.Domain.Catalog;
+using Drags.Domain.Identity;
+using Drags.Domain.Platform;
+using Drags.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.Platform;

@@ -1,6 +1,5 @@
 using Drags.Api.Features.Drugs;
-using Drags.Api.Models;
-using Drags.Api.Shared;
+using Drags.Domain.Catalog;
 
 namespace Drags.Api.Features.DrugGroups;
 

@@ -1,6 +1,6 @@
 using System.Security.Claims;
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Domain.Identity;
 
 namespace Drags.Api.Features.Identity;
 

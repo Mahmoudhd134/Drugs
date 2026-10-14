@@ -1,7 +1,7 @@
 import type {DurationUnit, Frequency} from "./types.ts";
 
 // Tapering schedule options, in one place so the clinic's choices are one-line changes.
-// The limits are mirrored in Drags.Api/Shared/DosingRules.cs: keep both in sync.
+// The limits are mirrored in Drags.Domain/Catalog/DosingRules.cs: keep both in sync.
 
 /** Most steps a schedule can have */
 export const MAX_TAPER_STEPS = 10;

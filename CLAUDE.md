@@ -3,6 +3,8 @@
 Web app for a clinic: drug catalog, drug groups (treatment templates), and a prescription builder
 that copies text for Word. ASP.NET Core 9 + EF Core + PostgreSQL API; React + TypeScript + MUI SPA;
 UI in English and Arabic (RTL). Drug/group content is not translated.
+Backend projects: `Drags.Domain` ← `Drags.Application` ← `Drags.Infrastructure` ← `Drags.Api`
+(`docs/design/architecture.md`).
 
 ## Before any change
 Read the docs, they are the source of truth for how and why things work:
@@ -20,5 +22,9 @@ Read the docs, they are the source of truth for how and why things work:
 ## Working here
 - Dev: `docker compose up -d` (PostgreSQL); Vite at http://localhost:5173 (test UI there); API at
   http://localhost:5000, usually run from Rider. Don't kill Rider's process; build with `-c Release` if the Debug bin is locked.
-- Checks: `cd Drags.Web && npx tsc -b && npx eslint src` and `dotnet build Drags.Api`.
+- Checks: `cd Drags.Web && npx tsc -b && npx eslint src` and `dotnet build Drags.sln`.
+- EF commands (migrations live in `Drags.Infrastructure`): always pass
+  `--project Drags.Infrastructure --startup-project Drags.Api` (+ `--configuration Release` if Rider runs
+  the API; for `dotnet ef`, `-c` means `--context`),
+  e.g. `dotnet ef migrations add <Name> …`, `dotnet ef database update …`. Never regenerate migrations.
 - Commit directly on `main`, only when asked. Never push unless asked.

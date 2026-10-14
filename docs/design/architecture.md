@@ -1,8 +1,46 @@
 # Backend architecture
 
-Status: **agreed, not implemented yet.** Decided in discussion on 2026-10-12. Built in **Phase 3.5**,
+Status: **agreed, being implemented.** Decided in discussion on 2026-10-12. Built in **Phase 3.5**,
 a pure refactor between Phase 3 (Access) and Phase 4 (Platform), so the Phase 4 admin code is written
-directly in this structure. Until then, the code follows `docs/tech/overview.md`.
+directly in this structure. Until it is done, the code follows `docs/tech/overview.md`.
+
+Phase 3.5 is done in three steps:
+
+1. **Project split (done):** the four projects; Domain and data access moved (§ 1, § 2, § 4). Services,
+   controllers and auth stay in `Drags.Api`. See [carry-over](#carry-over-to-step-2).
+2. Use cases, `Result`/`Error`, MediatR, validation and the Application services (§ 3).
+3. API layer: thin controllers, `ApiProblemFactory`, ProblemDetails everywhere (§ 5, § 6), permissions
+   (§ 7.1).
+
+### Carry-over to step 2
+
+What step 1 could not move cleanly, and why:
+
+- **Controllers and services still inject the concrete `AppDbContext`**, not `IAppDbContext`. Some need
+  members the interface deliberately hides: transactions (`OtpService`, `IdentitySeeder`, `StartupSeeder`:
+  `Database.BeginTransactionAsync` → `ITransactionRunner`), raw SQL (`OtpService`'s per-phone
+  `pg_advisory_xact_lock` → a purpose-built interface, e.g. `IOtpLock`), `ChangeTracker.Clear()`
+  (`StartupSeeder`'s batched dev seed) and `Database.MigrateAsync()` (`Program.cs`; stays in
+  Infrastructure/Api). Switch each to `IAppDbContext` as it moves.
+- **`ErrorCodes.ValidateName`** stays in `Drags.Api/Shared` (it returns an API error code); only its limit
+  moved to `Domain.Common.FieldLimits`. It becomes FluentValidation rules with
+  `.WithErrorCode(...)` in the validators.
+- **`DosingRules.IsValid`** (Domain) returns `bool`; the callers (`DrugMappings.Validate`,
+  `DrugGroupsController.Validate`) map `false` to `invalidDosing`. Same for the validators in step 2.
+- Still in `Drags.Api`, to move per § 1:
+  - to Application: `ICurrentUser`, `IAccessCache`, `IOtpSender`, `PermissionService`, `SessionService`,
+    `OtpService`, `MembershipService`, `Permissions` + `PermissionCatalog`, `DefaultRoles`, `IdentitySeeder`,
+    `StartupSeeder`, `ErrorCodes` (→ per-feature error classes), `PagedResult`;
+  - to Infrastructure: `AccessCache`, `TokenService`, `DisplayOtpSender`, `CurrentUser`;
+  - stays in Api: `AppSettings` (+ validation), auth setup, `[HasPermission]` and its handlers.
+- `RolePermission` has **no** `DbSet` on `IAppDbContext` (decided in step 1, § 3.6): it is not clinic-owned,
+  so a set of its own would be read unfiltered; it is only reached through its (filtered) role.
+- The migrations' designer files and snapshot keep the old CLR names as strings
+  (`"Drags.Api.Models.Drug"`). EF compares the relational model, so this is harmless
+  (`has-pending-model-changes` reports none); the next `migrations add` rewrites the snapshot with the
+  new names. Historic designer files stay as they are.
+- `Drags.Application` references `Microsoft.EntityFrameworkCore` (for `DbSet<T>` in `IAppDbContext`), as
+  § 3.6 intends; it has no ASP.NET or Npgsql dependency.
 
 What does **not** change: endpoints, routes, request and response shapes (except error responses gaining
 fields, see [ProblemDetails](#6-errors-problemdetails)), the database schema, the frontend, and the
@@ -24,7 +62,7 @@ Drags.Api              → Application, Infrastructure
 
 | Project | Contains |
 |---|---|
-| **Domain** | Entities (`Drug`, `DrugGroup`, `DrugGroupItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`) |
+| **Domain** | Entities (`Drug`, `DrugGroup`, `DrugGroupItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`), field limits (`FieldLimits`) |
 | **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `ITokenService`, `ITransactionRunner`), application services that are not use cases (`PermissionService`, `SessionService`, `OtpService`), the permission catalog, `DefaultRoles`, startup seeding |
 | **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner`, `AccessCache` (HybridCache), `TokenService` (JWT), `DisplayOtpSender` (later SMS), `CurrentUser` (claims reader) |
 | **Api** | Thin controllers, authentication and authorization setup, `[HasPermission]` and its handler, the `ApiProblemFactory` and every error source, `Result` → HTTP mapping, SPA hosting (`wwwroot`), `Program.cs`, config validation |
@@ -149,8 +187,7 @@ public interface IAppDbContext
     DbSet<OtpCode> OtpCodes { get; }
     DbSet<Session> Sessions { get; }
     DbSet<Staff> Staff { get; }
-    DbSet<Role> Roles { get; }
-    DbSet<RolePermission> RolePermissions { get; }
+    DbSet<Role> Roles { get; }   // + its Permissions (RolePermission: no set, see below)
     DbSet<StaffRole> StaffRoles { get; }
     DbSet<Drug> Drugs { get; }
     DbSet<DrugGroup> DrugGroups { get; }
@@ -163,7 +200,8 @@ public interface IAppDbContext
 }
 ```
 
-- **Exposed:** one `DbSet` per table, and through it the whole EF query API (LINQ, `Include`, `AsNoTracking`,
+- **Exposed:** one `DbSet` per table (except `RolePermissions`: it has no clinic column, so it is only read
+  through its filtered `Role`, never on its own), and through it the whole EF query API (LINQ, `Include`, `AsNoTracking`,
   `ExecuteUpdateAsync`/`ExecuteDeleteAsync`, `IgnoreQueryFilters()` for the few cross-clinic reads).
 - **Not exposed:** `Database` (migrations, raw SQL, connections, transactions), `ChangeTracker`, `Model`,
   `Entry()`. Transactions go through `ITransactionRunner`; the interceptor stays in Infrastructure.

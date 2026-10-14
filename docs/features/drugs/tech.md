@@ -5,12 +5,12 @@ CRUD for drugs (name + optional description + optional **default dosing**). Drug
 prescriptions. Content is stored once, as typed (not translated).
 
 ## Data model
-`Drugs` (`Models/Drug.cs`)
+`Drugs` (`Drags.Domain/Catalog/Drug.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
 | Id | integer PK, identity | |
-| Name | varchar(256) | required, max 256 (`AppDbContext.NameMaxLength`) |
+| Name | varchar(256) | required, max 256 (`FieldLimits.NameMaxLength`) |
 | Description | text | nullable; free text, may be multi-line |
 | DefaultDosing_* | 8 columns | owned `Dosing`, nullable; see [dosing](../dosing/tech.md) |
 | ClinicId | int FK → `Clinics` (restrict) | owning clinic; filled on insert; index `(ClinicId, Name)` |
@@ -37,7 +37,7 @@ removes it from all groups).
 
 ## Backend
 - Validation: `SaveDrugRequest.Validate()`: `ErrorCodes.ValidateName` (required, ≤ 256 after trim),
-  then `DosingRules.Validate(DosingRules.Normalize(defaultDosing))`.
+  then `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`).
 - `DrugMappings.Apply` trims name and description; blank description → `null`; dosing is normalized
   (an all-empty dosing is stored as `null`).
 - List: optional search = case-insensitive `Contains` on `Name`. Ordering:

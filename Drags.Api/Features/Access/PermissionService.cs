@@ -1,5 +1,5 @@
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Domain.Platform;
 
 namespace Drags.Api.Features.Access;
 

@@ -1,3 +1,5 @@
+using Drags.Domain.Common;
+
 namespace Drags.Api.Shared;
 
 /// <summary>
@@ -26,6 +28,6 @@ public static class ErrorCodes
     /// <summary>Returns an error code for an invalid name, or null when valid.</summary>
     public static string ValidateName(string name) =>
         string.IsNullOrWhiteSpace(name) ? NameRequired
-        : name.Trim().Length > Database.AppDbContext.NameMaxLength ? NameTooLong
+        : name.Trim().Length > FieldLimits.NameMaxLength ? NameTooLong
         : null;
 }

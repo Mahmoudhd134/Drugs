@@ -109,6 +109,7 @@ Drags.Api/
 ```
 
 The current `Features/<Feature>` convention stays; a module may span several feature folders.
+(Superseded from Phase 3.5 by the layered projects in [backend architecture](architecture.md).)
 
 ---
 
@@ -549,7 +550,7 @@ How the MVP leaves room, so these are additions:
 | 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
 | 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until phase 3 |
 | 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (phase 4's role editor) |
-| 3.5 | **Architecture refactor** (pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | Same endpoints and responses verified manually; Phase 4 is written in the new structure |
+| 3.5 | **Architecture refactor** (pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | Same endpoints and responses verified manually; Phase 4 is written in the new structure. Step 1 (project split) ✅ done 2026-10-14 |
 | 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
 | 5 | **Hardening**: rate limits, display-mode guard for real production once an SMS sender exists (relaxed to a config choice in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
 

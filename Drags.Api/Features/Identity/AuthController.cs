@@ -1,6 +1,6 @@
 using Drags.Api.Controllers;
-using Drags.Api.Database;
 using Drags.Api.Shared;
+using Drags.Infrastructure.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

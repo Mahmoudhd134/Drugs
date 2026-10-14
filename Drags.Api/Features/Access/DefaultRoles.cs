@@ -1,5 +1,5 @@
-using Drags.Api.Database;
-using Drags.Api.Models;
+using Drags.Domain.Access;
+using Drags.Infrastructure.Database;
 
 namespace Drags.Api.Features.Access;
 

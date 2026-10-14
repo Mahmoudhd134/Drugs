@@ -9,8 +9,8 @@ Dosing flows down three levels, each pre-filling the next:
 drug default → group override (empty parts inherit) → prescription line (edited per patient).
 
 ## Data model
-`Models/Dosing.cs`: an EF **owned type**, stored as columns on the owner's table, prefixed with the
-navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
+`Drags.Domain/Catalog/Dosing.cs`: an EF **owned type**, stored as columns on the owner's table, prefixed
+with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 
 | Field | Type | Allowed values / rules |
 |---|---|---|
@@ -32,15 +32,18 @@ navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
   That is expected: an all-null dosing reads back as `null`.
 
 ## Backend
-- `Shared/DosingRules.cs`
+- `Drags.Domain/Catalog/DosingRules.cs` (pure, no dependencies)
   - `Normalize`: trims, drops fields that don't apply (value for non-numeric frequency/duration,
     text for non-custom), returns null when empty.
-  - `Validate(dosing, allowAskEye)`: returns `ErrorCodes.InvalidDosing` (`"invalidDosing"`) or null.
+  - `IsValid(dosing, allowAskEye)`: true when valid (or null); callers map false to
+    `ErrorCodes.InvalidDosing` (`"invalidDosing"`).
     `allowAskEye` accepts the `ask` eye (`DosingCodes.GroupEyes`); only group lines pass `true`.
 - Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `SaveDrugRequest.Validate()`
   checks the name, then the normalized dosing.
-- Configuration helper `AppDbContext.ConfigureDosing` sets column lengths for any owned Dosing;
-  reuse it for future owners (`OwnsOne(x => x.SomeDosing, ConfigureDosing)`).
+- Configuration helper `DosingConfiguration.Configure` (in
+  `Drags.Infrastructure/Database/Configurations/Catalog/`) sets column lengths for any owned Dosing; reuse it
+  for future owners
+  (`OwnsOne(x => x.SomeDosing, DosingConfiguration.Configure)`).
 
 ## Frontend (`src/features/dosing/`)
 - `types.ts`: code lists, `Dosing` type, and helpers that match the API rules:

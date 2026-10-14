@@ -1,5 +1,5 @@
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Domain.Catalog;
 
 namespace Drags.Api.Features.Drugs;
 
@@ -13,7 +13,8 @@ public static class DrugMappings
 
     /// <summary>Returns an <see cref="ErrorCodes"/> value, or null when the request is valid.</summary>
     public static string Validate(this SaveDrugRequest request) =>
-        ErrorCodes.ValidateName(request.Name) ?? DosingRules.Validate(DosingRules.Normalize(request.DefaultDosing));
+        ErrorCodes.ValidateName(request.Name)
+        ?? (DosingRules.IsValid(DosingRules.Normalize(request.DefaultDosing)) ? null : ErrorCodes.InvalidDosing);
 
     public static void Apply(this Drug drug, SaveDrugRequest request)
     {

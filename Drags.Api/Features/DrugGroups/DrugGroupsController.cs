@@ -1,9 +1,9 @@
 using Drags.Api.Controllers;
-using Drags.Api.Database;
-using Drags.Api.Models;
 using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
 using Drags.Api.Shared;
+using Drags.Domain.Catalog;
+using Drags.Infrastructure.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -76,7 +76,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
         context.DrugGroupItems.RemoveRange(group.Items);
         group.Items = BuildItems(items);
         // Changing only the lines is still a change to the group (the interceptor sets the time)
-        context.Entry(group).Property(g => g.UpdatedAt).IsModified = true;
+        context.Touch(group);
 
         await context.SaveChangesAsync();
         return await LoadDto(id);
@@ -109,7 +109,7 @@ public class DrugGroupsController(AppDbContext context) : BaseApiController
         if (items.Count == 0)
             return ErrorCodes.DrugsRequired;
 
-        if (items.Any(x => DosingRules.Validate(x.Dosing, allowAskEye: true) is not null))
+        if (items.Any(x => !DosingRules.IsValid(x.Dosing, allowAskEye: true)))
             return ErrorCodes.InvalidDosing;
 
         // The same drug may appear more than once only with different eyes

@@ -21,8 +21,26 @@ Drug and group **content is not translated**: it is stored once, as typed.
 ## Repository layout
 
 ```
-Drags.sln
-Drags.Api/                     ASP.NET Core API (+ serves the SPA in production)
+Drags.sln                      Domain ← Application ← Infrastructure ← Api (backend architecture:
+                               docs/design/architecture.md; Phase 3.5 step 1 done)
+Drags.Domain/                  entities and pure rules; no references (no EF Core, no ASP.NET)
+  Common/                      IClinicOwned, IHasTimestamps, FieldLimits (column lengths)
+  Catalog/                     Drug, DrugGroup (+ DrugGroupItem), Dosing (+ TaperStep, DosingCodes),
+                               DosingRules
+  Identity/                    User, OtpCode, Session (+ ContextTypes)
+  Access/                      Staff, Role (+ RolePermission, StaffRole)
+  Platform/                    Clinic (+ ClinicStatus)
+Drags.Application/             → Domain. Abstractions implemented elsewhere (use cases come in steps 2-3)
+  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext)
+  DependencyInjection.cs       AddApplication()
+Drags.Infrastructure/          → Application, Domain. EF Core + PostgreSQL
+  Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
+  Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration)
+  Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
+  Migrations/                  EF Core migrations (applied automatically on startup)
+  DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor
+Drags.Api/                     → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
+                               production)
   Controllers/BaseApiController.cs
   Features/<Feature>/          controller + DTOs per feature
   Features/Identity/           login: AuthController, MeController, OtpService, SessionService,
@@ -32,12 +50,7 @@ Drags.Api/                     ASP.NET Core API (+ serves the SPA in production)
                                (HybridCache), PermissionService, [HasPermission] + handlers,
                                PermissionsController, MembershipService, AccessSetup (DI)
   Features/Platform/           StartupSeeder (startup seed: template, super admins, dev data)
-  Models/                      EF entities (Clinic, Drug, DrugGroup, Dosing, User, OtpCode, Session, Staff, Role)
-  Database/AppDbContext.cs     EF model configuration + clinic query filter
-  Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
-  Migrations/                  EF Core migrations (applied automatically on startup)
-  Shared/                      AppSettings (+ startup validation), ErrorCodes, PagedResult, IClinicOwned,
-                               IHasTimestamps, IClinicContext (+ ClinicContext), ICurrentUser
+  Shared/                      AppSettings (+ startup validation), ErrorCodes, PagedResult, ICurrentUser
   Program.cs                   DI, middleware, migrate-on-startup, seeding
 Drags.Web/                     React SPA (Vite); builds into Drags.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
@@ -102,7 +115,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   `tooManyAttempts`, `tooManyRequests` (429), `noAccess` (403), `clinicSuspended` (403), `forbidden` (403).
   401 = missing/expired access token (no code; the SPA refreshes and retries once).
   Add new codes there **and** under `errors.*` in both locale files.
-- `Nullable` is disabled in the csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
+- `Nullable` is disabled in every csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
 - **Clinic-owned data:** a clinic's entity implements `IClinicOwned` (and `IHasTimestamps`); the
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
   with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
@@ -160,8 +173,8 @@ Drugs                       DrugGroups
 
 - Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
 - A drug appears at most once per group **per eye** (`duplicateGroupItem`).
-- `Dosing` is an EF **owned type** (`Models/Dosing.cs`), reusable on any entity via
-  `OwnsOne(..., AppDbContext.ConfigureDosing)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
+- `Dosing` is an EF **owned type** (`Drags.Domain/Catalog/Dosing.cs`), reusable on any entity via
+  `OwnsOne(..., DosingConfiguration.Configure)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
 
 ### API (`/api/v1`)
 
@@ -201,16 +214,22 @@ Swagger UI is available in Development at `/swagger`.
 - Tool: `dotnet-ef` 9.0.x. If `dotnet tool install` (or restore) fails with **401**, a private NuGet
   feed is configured on the machine; use a config that `<clear/>`s sources and adds only nuget.org:
   `dotnet tool install dotnet-ef --version 9.0.20 --tool-path <dir> --configfile <nuget.org-only config>`.
+- Migrations live in `Drags.Infrastructure`; the startup project (config, connection string) is
+  `Drags.Api`. Every EF command takes both:
+  `--project Drags.Infrastructure --startup-project Drags.Api` (shown below as `<ef args>`).
 - If the API is running from Rider, the Debug `bin` is locked: run EF commands with
   `--configuration Release`.
 - **Nothing is in production yet**, so the schema may still be reset. Once deployed, review every
   generated migration: renames/restructures must copy data (create new tables → `INSERT … SELECT`
   keeping ids → drop old), never drop-and-recreate. Test up, down to the previous migration, and
   up again on a copy of a real DB.
+- Phase 3.5 moved the migrations from `Drags.Api` to `Drags.Infrastructure` (namespace
+  `Drags.Infrastructure.Migrations`) with their ids unchanged, so existing databases are unaffected.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
   to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1) and for login
   (phase 2). From phase 3 on, migrations are **added on top** (`AddRoles`), never regenerated.
-  To reset a dev DB: `docker compose down -v && docker compose up -d`, then `dotnet ef database update`.
+  To reset a dev DB: `docker compose down -v && docker compose up -d`, then
+  `dotnet ef database update <ef args>`.
 
 ## Frontend
 
@@ -341,10 +360,18 @@ dotnet run --project Drags.Api --launch-profile http
 cd Drags.Web && npm run dev            # http://localhost:5173
 ```
 
-Migrations: add **and** apply them with the CLI (`dotnet ef migrations add <Name>`, then
-`dotnet ef database update` **without** `--no-build`: `migrations add` compiles before it writes
-the files, so a `--no-build` update would apply nothing; check with `dotnet ef migrations list`),
-even though startup also migrates.
+Migrations: add **and** apply them with the CLI, even though startup also migrates:
+
+```bash
+dotnet ef migrations add <Name> --project Drags.Infrastructure --startup-project Drags.Api
+dotnet ef database update --project Drags.Infrastructure --startup-project Drags.Api
+dotnet ef migrations list --project Drags.Infrastructure --startup-project Drags.Api
+dotnet ef migrations has-pending-model-changes --project Drags.Infrastructure --startup-project Drags.Api
+```
+
+Run `database update` **without** `--no-build` (`migrations add` compiles before it writes the files,
+so a `--no-build` update would apply nothing); check with `migrations list`. Add
+`--configuration Release` when Rider holds the Debug build.
 
 Login in Development: `Otp:Mode` is `Display`, so the code is shown on the login page (and logged
 by the API). Seeded phones (`appsettings.Development.json`): `01000000002` = "Dev Owner", Owner in
@@ -367,7 +394,7 @@ Checks before committing:
 
 ```bash
 cd Drags.Web && npx tsc -b && npx eslint src
-dotnet build Drags.Api                 # use -c Release if Rider is running the Debug build
+dotnet build Drags.sln                 # all projects; use -c Release if Rider is running the Debug build
 ```
 
 There are no automated tests yet. Verify UI changes in the browser at `http://localhost:5173`.
@@ -406,8 +433,10 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 
 ## Adding a feature: checklist
 
-1. Backend: entity in `Models/`, configuration in `AppDbContext`, `Features/<Feature>/` controller +
-   DTOs, error codes in `ErrorCodes`, migration (reviewed, data-preserving).
+1. Backend: entity in `Drags.Domain/<Module>/`, its `IEntityTypeConfiguration` in
+   `Drags.Infrastructure/Database/Configurations/<Module>/` + a `DbSet` in `AppDbContext` and
+   `IAppDbContext`, `Features/<Feature>/` controller + DTOs, error codes in `ErrorCodes`, migration
+   (reviewed, data-preserving).
 2. Frontend: `src/features/<feature>/` with `types.ts`, `api.ts` (keys + hooks), `components/`,
    `pages/`; lazy route in `App.tsx`; nav item in `AppLayout`; strings in `en.ts` **and** `ar.ts`.
 3. Check RTL (switch to Arabic) and mobile width.

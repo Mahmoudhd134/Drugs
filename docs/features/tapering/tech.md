@@ -8,11 +8,11 @@ Because it lives on the shared `Dosing` value, it works everywhere dosing does: 
 group overrides and prescription lines, with the same inheritance and conflict rules.
 
 ## Data model
-- `TaperStep` (`Models/Dosing.cs`): `DoseAmount decimal?`, `Frequency`, `FrequencyValue int?`,
+- `TaperStep` (`Drags.Domain/Catalog/Dosing.cs`): `DoseAmount decimal?`, `Frequency`, `FrequencyValue int?`,
   `DurationValue int?`, `DurationUnit`.
 - `Dosing.TaperSteps` (`List<TaperStep>`, nullable) is stored as **one JSON text column** on the
   owner table (`Drugs.DefaultDosing_TaperSteps`, `DrugGroupItems.Dosing_TaperSteps`), via an EF
-  value converter + value comparer in `AppDbContext.ConfigureDosing` (camelCase, nulls omitted).
+  value converter + value comparer in `DosingConfiguration.Configure` (camelCase, nulls omitted).
 - Why JSON and not a child table: steps are always read and written with their dosing, never
   queried on their own; a JSON column keeps the owned type flat, needs only one nullable column
   per owner, and new step fields (like the per-step dose) need no migration.
@@ -24,7 +24,7 @@ No new endpoints. `defaultDosing` (drugs) and `items[].dosing` (groups) accept a
 `taperSteps: [{ doseAmount, frequency, frequencyValue, durationValue, durationUnit }] | null`.
 Invalid schedules return 400 `invalidDosing`.
 
-## Backend (`Shared/DosingRules.cs`)
+## Backend (`Drags.Domain/Catalog/DosingRules.cs`)
 - Limits (mirrored in `taperConfig.ts`): `MaxTaperSteps = 10`, `TaperFrequencies = daily, everyHours`,
   `TaperDurationUnits = days, weeks`, `TaperLastDurationUnits` adds `continuous, untilNextVisit`.
 - `Normalize`:
@@ -32,7 +32,7 @@ Invalid schedules return 400 `invalidDosing`.
   - when steps exist, the dosing's own frequency/duration are cleared;
   - the first step's dose becomes the dosing's dose; a step dose equal to the dosing's dose is cleared;
   - a **one-step** schedule becomes a plain frequency + duration (one canonical form).
-- `Validate`: 2–10 steps; every step needs an allowed frequency with its value (1–24 times /
+- `IsValid`: 2–10 steps; every step needs an allowed frequency with its value (1–24 times /
   1–72 hours) and an allowed period with its value (1–365); open-ended periods only on the
   **last** step; step dose 0 < x ≤ 1000; no dosing-level frequency/duration next to steps.
   A step dose does not require the dosing's own unit, because a group line may inherit the unit

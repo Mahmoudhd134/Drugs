@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Domain.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 

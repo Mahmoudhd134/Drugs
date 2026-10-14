@@ -1,8 +1,11 @@
-using Drags.Api.Database;
 using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
 using Drags.Api.Features.Platform;
 using Drags.Api.Shared;
+using Drags.Application;
+using Drags.Application.Common.Abstractions;
+using Drags.Infrastructure;
+using Drags.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,13 +21,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddScoped<ClinicContext>();
-builder.Services.AddScoped<IClinicContext>(serviceProvider => serviceProvider.GetRequiredService<ClinicContext>());
-
-builder.Services.AddDbContext<AppDbContext>(options => options
-    .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-    .AddInterceptors(new ClinicAndTimestampsInterceptor())
-);
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddIdentityModule(appSettings);
 builder.Services.AddAccessModule();

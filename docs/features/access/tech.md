@@ -37,7 +37,7 @@ Migration **`AddRoles`** (on top of `Initial`; adds tables only). Existing staff
 it (so no permissions): fine while dev DBs are reset, but before the first deployment with real data a
 data step must give each clinic its default roles and each existing staff member the Owner role.
 
-**Roles** (`Models/Role.cs`, `IClinicOwned`)
+**Roles** (`Drags.Domain/Access/Role.cs`, `IClinicOwned`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -49,8 +49,9 @@ data step must give each clinic its default roles and each existing staff member
 | | | unique `(Id, ClinicId)` (target of the staff-role FK) |
 
 **RolePermissions** (`RolePermission`): `RoleId` (FK → Roles, cascade) + `Permission` varchar(100);
-PK `(RoleId, Permission)`. No `DbSet` and no clinic column: it is only reached through its (filtered)
-role. Keys no longer in the catalog are ignored when reading.
+PK `(RoleId, Permission)`. No `DbSet` (neither on `AppDbContext` nor on `IAppDbContext`) and no clinic
+column: it is only reached through its (filtered) role. Keys no longer in the catalog are ignored when
+reading.
 
 **StaffRoles** (`StaffRole`, `IClinicOwned`): `StaffId`, `RoleId`, `ClinicId`; PK `(StaffId, RoleId)`.
 Composite FKs `(StaffId, ClinicId)` → `Staff(Id, ClinicId)` and `(RoleId, ClinicId)` → `Roles(Id, ClinicId)`

@@ -1,9 +1,9 @@
 using Drags.Api.Controllers;
-using Drags.Api.Database;
-using Drags.Api.Models;
 using Drags.Api.Features.Access;
 using Drags.Api.Features.Identity;
 using Drags.Api.Shared;
+using Drags.Domain.Catalog;
+using Drags.Infrastructure.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

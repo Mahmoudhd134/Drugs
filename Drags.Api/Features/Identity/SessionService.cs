@@ -1,7 +1,8 @@
-using Drags.Api.Database;
 using Drags.Api.Features.Access;
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Domain.Identity;
+using Drags.Domain.Platform;
+using Drags.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.Identity;

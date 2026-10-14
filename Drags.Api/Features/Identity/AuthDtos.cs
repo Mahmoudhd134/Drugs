@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Drags.Api.Models;
+using Drags.Domain.Identity;
 
 namespace Drags.Api.Features.Identity;
 

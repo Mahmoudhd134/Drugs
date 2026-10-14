@@ -10,9 +10,7 @@
     <PackageReference Include="libphonenumber-csharp" Version="9.0.41" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.20" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.10.0" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.20">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -24,6 +22,14 @@
   <ItemGroup>
     <Content Remove="publish\**" />
     <None Remove="publish\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="wwwroot\assets\index-Ckzs-B6W.css" />
+    <_ContentIncludedByDefault Remove="wwwroot\assets\index-Dr7NlCCc.js" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Drags.Application\Drags.Application.csproj" />
+    <ProjectReference Include="..\Drags.Infrastructure\Drags.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,7 @@
 using Drags.Api.Features.Access;
 using Drags.Api.Shared;
+using Drags.Application.Common.Abstractions;
+using Drags.Domain.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Drags.Api.Features.Identity;
@@ -44,7 +46,7 @@ public static class IdentitySetup
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthPolicies.ClinicContext, policy => policy
                 .RequireAuthenticatedUser()
-                .RequireClaim(AuthClaims.Context, Models.ContextTypes.Clinic)
+                .RequireClaim(AuthClaims.Context, ContextTypes.Clinic)
                 .RequireClaim(AuthClaims.ClinicId)
                 // Every clinic request: the staff member and the clinic must still be active
                 .AddRequirements(new ClinicAccessRequirement()));

@@ -1,5 +1,6 @@
-using Drags.Api.Database;
-using Drags.Api.Models;
+using Drags.Domain.Access;
+using Drags.Domain.Platform;
+using Drags.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.Access;

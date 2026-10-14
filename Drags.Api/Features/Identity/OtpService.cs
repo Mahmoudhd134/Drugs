@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using Drags.Api.Database;
-using Drags.Api.Models;
 using Drags.Api.Shared;
+using Drags.Domain.Identity;
+using Drags.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 
 namespace Drags.Api.Features.Identity;

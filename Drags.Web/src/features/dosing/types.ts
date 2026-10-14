@@ -1,6 +1,6 @@
 import {MAX_TAPER_STEPS, TAPER_LAST_STEP_DURATIONS, TAPER_STEP_DURATIONS, TAPER_STEP_FREQUENCIES} from "./taperConfig.ts";
 
-// Mirrors Drags.Api/Models/Dosing.cs (DosingCodes) and Shared/DosingRules.cs.
+// Mirrors Drags.Domain/Catalog/Dosing.cs (DosingCodes) and DosingRules.cs.
 export const DOSE_UNITS = ["drop", "tablet", "capsule", "ml", "application"] as const;
 export const FREQUENCIES = ["daily", "everyHours", "bedtime", "asNeeded", "custom"] as const;
 export const DURATION_UNITS = ["days", "weeks", "months", "continuous", "untilNextVisit"] as const;

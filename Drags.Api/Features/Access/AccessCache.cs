@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using Drags.Api.Database;
+using Drags.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 
