@@ -44,8 +44,9 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
   Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
-  Common/Validation/           .WithError(error), the shared ValidName() rule
-  Common/Paging/               PagedResult<T>, Paging.Normalize
+  Common/Validation/           .WithError(error), the shared ValidName() (nameRequired, nameInvalid, nameTooLong) and
+                               ValidText() (invalidText) rules
+  Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
   Features/Catalog/DrugGroups/ same, + DrugGroupDto, DrugGroupErrors, SaveDrugGroupItem
   Features/Identity/           IdentityErrors at the root; sub-features:
@@ -53,7 +54,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
     Sessions/                  ISessionService/SessionService, SessionRules (RotationGrace, SetContext),
                                SessionIssue, AuthResult, ContextDto, ITokenService; Commands/ (RefreshSession,
                                SwitchContext, Logout), Queries/GetContexts
-    Users/                     IPhoneNormalizer/PhoneNormalizer (+ ValidPhone()), IIdentitySeeder/IdentitySeeder
+    Users/                     IPhoneNormalizer/PhoneNormalizer (+ ValidPhone(), ConfigPhones), IUserAccounts/UserAccounts
+                               (GetOrCreateAsync: the one way to find or create a user by phone), IIdentitySeeder/IdentitySeeder
                                (super admins); Queries/GetMe
   Features/Access/             AccessErrors, Permissions.cs (every permission, grouped by module with
                                [PermissionModule], + RequiresAttribute, PermissionModuleAttribute); sub-features:
@@ -62,8 +64,10 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
     Roles/                     DefaultRoles
     StaffMembers/              IMembershipService/MembershipService
   Features/Platform/Clinics/   ClinicErrors, ClinicDto (ClinicSummary, ClinicDetails), ClinicQueries (NotDeleted,
-                               Manageable, SelectDetails), ClinicScope (IClinicScope); Commands/ (RenameClinic, SuspendClinic,
-                               ActivateClinic, DeleteClinic), Queries/ (GetClinics, GetClinic)
+                               Manageable, SelectDetails), ClinicScope (IClinicScope); Commands/ (CreateClinic, RenameClinic,
+                               SuspendClinic, ActivateClinic, DeleteClinic), Queries/ (GetClinics, GetClinic)
+  Features/Platform/Provisioning/  IClinicProvisioner/ClinicProvisioner, IClinicSeeder (+ ClinicSeedContext); Seeders/
+                               (DefaultRolesSeeder, OwnerSeeder, TemplateCatalogSeeder); all internal
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
@@ -76,7 +80,8 @@ ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Identity/                    TokenService (JWT; ITokenService) + AuthClaims, JwtValidation, DisplayOtpSender, OtpLock
                                (pg_advisory_xact_lock)
   Access/AccessCache.cs        IAccessCache on HybridCache
-  Platform/StartupSeeder.cs    IStartupSeeder: template clinic, super admins (IIdentitySeeder), dev data
+  Platform/StartupSeeder.cs    IStartupSeeder: template clinic, super admins (IIdentitySeeder), dev data (template
+                               content + two clinics through CreateClinicCommand)
   DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor, TransactionRunner,
                                HybridCache, the Identity/Access implementations, StartupSeeder
 ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
@@ -127,9 +132,13 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   invalid seeded phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
-  also gets "Demo clinic" (10,000 sample drugs) and "Second demo clinic" (3 drugs + 1 group), with
-  the default roles in both, the `Platform:DevOwnerPhone` user as staff "Dev Owner" (Owner) in both, and
-  `Platform:DevAssistantPhone` as "Dev Assistant" (Assistant in the first, read-only "Viewer" in the second).
+  also gets sample **template** content (2 eye drops, Moxifloxacin and Prednisolone, and the group "After cataract
+  surgery" using both, the second line overriding its drug's dosing with a taper) and two clinics **provisioned from
+  it** through `CreateClinicCommand` (default roles, owner, a copy of the template's drugs and group): "Demo clinic"
+  (+ 10,000 sample drugs: 10,002) and "Second demo clinic" (the template copy only: 2 drugs + 1 group), the
+  `Platform:DevOwnerPhone` user as staff "Dev Owner" (Owner) in both, and `Platform:DevAssistantPhone` as "Dev
+  Assistant" (Assistant in the first, read-only "Viewer" in the second). An empty `DevOwnerPhone` skips only the demo
+  clinics (a warning: a clinic needs an owner; the template is still filled when empty).
 - **Login:** phone + one-time code; a JWT access token per context (a clinic, or the platform for a
   super admin) and a rotating refresh token in an HttpOnly cookie ([login](../features/auth/tech.md)).
 - **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
@@ -172,7 +181,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - Lists return `PagedResult<T>` = `{ items, totalCount, page, pageSize }` (page is 1-based;
   `Paging.Normalize`: page ≥ 1, pageSize 1–100).
 - Search is case-insensitive `Contains` on the name (`ToLower`). Drug search ranks names that
-  **start with** the term first.
+  **start with** the term first. `Paging.SearchTerm` trims the term and removes control characters (no name has
+  one; a NUL would fail in the database): they are dropped from the term.
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
   `IdentityErrors`, `AccessErrors`, `ClinicErrors`). Add new codes
@@ -322,6 +332,7 @@ Drugs                       DrugGroups
 | DELETE | `/drug-groups/{id}` | Delete → 204 |
 | GET | `/admin/clinics?search=&status=&page=1&pageSize=20` | Paged `ClinicSummary` (no template, no deleted), by name (prefix matches first when searching); `status` = `active` / `suspended` |
 | GET | `/admin/clinics/{id}` | `ClinicDetails` (+ `owners`) |
+| POST | `/admin/clinics` | Create `{ name, owner: { phone, fullName } }` → 201 + `ClinicDetails`, provisioned from the template (roles, owner, drugs and groups copied; all or nothing) |
 | PUT | `/admin/clinics/{id}` | Rename `{ name }` → `ClinicDetails` |
 | POST | `/admin/clinics/{id}/suspend`, `/admin/clinics/{id}/activate` | → 204 (idempotent) |
 | DELETE | `/admin/clinics/{id}` | Soft delete → 204 (final for now) |
@@ -407,7 +418,11 @@ Swagger UI is available in Development at `/swagger`.
   **not** applied by this MUI version (they render as zero); don't use them. A `dir="auto"` element
   flips its own start/end, so put `dir="auto"` on an inner span, not on the element carrying the spacing.
   Directional icons (e.g. back arrow) must be flipped manually when `dir === "rtl"`.
-- User-entered content (drug/group names) can be Arabic or English: inputs use `dir="auto"`.
+- User-entered content (drug/group names) can be Arabic or English: inputs use `dir="auto"`. A name
+  interpolated into a message is written `\u2068{{name}}\u2069` in both locale files (a bidi isolate: the quotes
+  and the text after it stay in place in either direction).
+- MUI's built-in English labels must be passed translated: e.g. `TablePagination`/`Pagination`
+  `getItemAriaLabel` from `common.pagination.*`.
 - Adding a language: add it to `LANGUAGES`, create `locales/<code>.ts` typed `Translations`,
   register it in `i18n/index.ts`.
 
@@ -539,8 +554,8 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- Users, staff and roles come only from seeding until the admin area (M1.5.2–M1.5.5). Clinics can be
-  renamed, suspended, re-activated and deleted through the admin API since M1.5.1 (no screens yet; no create yet).
+- Staff and roles come only from seeding and clinic creation until the admin area (M1.5.3–M1.5.5). Clinics can be
+  created (M1.5.2, with their owner), renamed, suspended, re-activated and deleted through the admin API (no screens yet).
 - Permission or active-flag changes made outside the (future) admin endpoints apply within 30 s
   (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
   on any 403).

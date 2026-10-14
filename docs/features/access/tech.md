@@ -105,7 +105,7 @@ endpoint checks in `ClinicHub.Api/Features/Access`.
 |---|---|---|
 | `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Groups`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("catalog")]` on every resource class. The single source of truth |
 | `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for M1.5's role editor) |
-| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); `SeedAsync(db, clinicContext, clinicId)` creates and saves them in a clinic (the clinic context must be that clinic) and returns them by name. Independent of the dev seed, for M1.5 provisioning |
+| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); names and permissions only (`Templates`). Clinic provisioning's `DefaultRolesSeeder` (M1.5.2) creates them, so every new clinic, the dev ones included, gets them |
 | `IAccessCache` / `AccessCache` | Application / Infrastructure | Singleton. The only code that knows cache keys, tags and the library (below) |
 | `IPermissionService` / `PermissionService` | Application | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or the `Error`: `AccessErrors.NoAccess`, `AccessErrors.ClinicSuspended`, `CommonErrors.Forbidden`), `GetAsync()` → `PermissionSet` |
 | `PermissionSet` | Application | `Has`, `HasAll`, `HasAny`, `IsAll`, `Keys` (expanded), `ToList()` (catalog order). `Of(keys)` adds the requirements (`WithRequirements`): a role with `drugs.update` but not `drugs.details` still gets both, so the UI never offers an action whose data it can't load |
@@ -177,6 +177,7 @@ for up to 10 min.
 | role deleted | `InvalidateRoleAsync(roleId)` + `InvalidateClinicAsync(clinicId)` | M1.5.3 |
 | clinic suspended, activated or deleted | `InvalidateClinicAsync(clinicId)` (a rename needs none) | `SuspendClinic`, `ActivateClinic`, `DeleteClinic` (M1.5.1; also when nothing changed) |
 | user-level change (e.g. super-admin flag) | `InvalidateUserAsync(userId)` | `IdentitySeeder`, for every user whose flag changes (after its own transaction) |
+| clinic created (`CreateClinicCommand`, M1.5.2) | none: its clinic, roles and staff ids are new, so no entry exists for them; an existing user who becomes the owner has no user-level change (their contexts are read from the database at login, refresh and switch) | — |
 | token issued (login, refresh, switch) | staff — and the user (see below); **not** the roles: role permission edits rely on `InvalidateRoleAsync` | `SessionService.IssueAsync`, post-commit |
 
 `SessionService.IssueAsync` (behind `ISessionService`) queues `InvalidateStaffAsync` for the issued staff **and**
@@ -228,8 +229,9 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
   and `permissionResources.*` (for M1.5's role editor), `drugs.details`, `groups.view`.
 
 ## Dev seed
-`StartupSeeder` (Infrastructure; Development, empty DB): both demo clinics get the default roles via
-`DefaultRoles.SeedAsync`; "Dev Owner" (`Platform:DevOwnerPhone`) has Owner in both. New
+`StartupSeeder` (Infrastructure; Development, empty DB): both demo clinics are created with `CreateClinicCommand`
+(M1.5.2, [platform admin](../platform-admin/tech.md#dev-seed)), so they get the default roles from provisioning;
+"Dev Owner" (`Platform:DevOwnerPhone`) is their owner (Owner in both). Then
 `Platform:DevAssistantPhone` (`+201000000003` in `appsettings.Development.json`): staff
 "Dev Assistant" with **Assistant** in "Demo clinic" (no deletes) and a custom **Viewer** role in
 "Second demo clinic" (`drugs.list`, `drugs.details`, `groups.list`, `groups.details`: read only, no

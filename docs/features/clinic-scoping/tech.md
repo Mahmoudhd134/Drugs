@@ -75,10 +75,12 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 - `StartupSeeder` (`ClinicHub.Infrastructure/Platform` since M1.4 part 3: the dev seed needs its own
   transaction and `ChangeTracker.Clear()`; resolved through Application's `IStartupSeeder`), run on every startup after migrations (idempotent):
   - ensures the template clinic ("Template clinic", `IsTemplate`) exists;
-  - Development, no non-template clinic yet: creates "Demo clinic" (10,000 "Drug number N") and
-    "Second demo clinic" (3 eye drops + group "After cataract surgery"). It sets the
-    `ClinicContext` to each clinic while inserting its rows. The dev seed runs in one transaction,
-    so a crash can't leave a half-seeded DB that later starts would skip.
+  - Development, no non-template clinic yet: fills the template (2 eye drops + group "After cataract
+    surgery"), then creates "Demo clinic" and "Second demo clinic" through `CreateClinicCommand`, so both
+    start with a copy of the template (since M1.5.2, [platform admin](../platform-admin/tech.md#dev-seed));
+    "Demo clinic" also gets 10,000 "Drug number N". It enters each clinic with `IClinicScope.Use(clinicId)`
+    while inserting its rows. The dev seed runs in one transaction, so a crash can't leave a half-seeded DB
+    that later starts would skip.
 
 - Since M1.2 the request's clinic comes from the token's `clinic_id`: `UseClinicFromToken()` in the Api's
   `Features/Identity/IdentitySetup` (reads `ICurrentUser`, whose interface is in `Application/Common/Abstractions`).

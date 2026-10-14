@@ -15,7 +15,7 @@ internal sealed class GetDrugGroupsQueryHandler(IAppDbContext db)
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var groups = db.DrugGroups.AsNoTracking();
 
-        var term = query.Search?.Trim().ToLower();
+        var term = Paging.SearchTerm(query.Search);
         if (!string.IsNullOrEmpty(term))
             groups = groups.Where(g => g.Name.ToLower().Contains(term));
 

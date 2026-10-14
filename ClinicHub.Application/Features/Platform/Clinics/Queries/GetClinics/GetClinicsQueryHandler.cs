@@ -14,11 +14,12 @@ internal sealed class GetClinicsQueryHandler(IAppDbContext db) : IQueryHandler<G
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var clinics = db.Clinics.AsNoTracking().Manageable();
 
-        var term = query.Search?.Trim().ToLower();
+        var term = Paging.SearchTerm(query.Search);
         if (!string.IsNullOrEmpty(term))
             clinics = clinics.Where(c => c.Name.ToLower().Contains(term));
 
-        var status = query.Status?.Trim().ToLower();
+        // Cleaned like a search term (a NUL can't be sent to the database); an unknown value matches nothing
+        var status = Paging.SearchTerm(query.Status);
         if (!string.IsNullOrEmpty(status))
             clinics = clinics.Where(c => c.Status == status);
 

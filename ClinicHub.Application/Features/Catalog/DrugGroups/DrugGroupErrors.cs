@@ -2,7 +2,10 @@ using ClinicHub.Application.Common.Results;
 
 namespace ClinicHub.Application.Features.Catalog.DrugGroups;
 
-/// <summary>Drug group errors. Name rules: <see cref="CommonErrors.NameRequired"/>, <see cref="CommonErrors.NameTooLong"/>.</summary>
+/// <summary>
+/// Drug group errors. Name rules: <see cref="CommonErrors.NameRequired"/>, <see cref="CommonErrors.NameInvalid"/>,
+/// <see cref="CommonErrors.NameTooLong"/>.
+/// </summary>
 public static class DrugGroupErrors
 {
     /// <summary>Code <c>notFound</c> (no group-specific code: the SPA shows "this item no longer exists").</summary>

@@ -193,6 +193,7 @@ export const DrugsPage = () => {
                             }}
                             labelRowsPerPage={t("drugs.rowsPerPage")}
                             labelDisplayedRows={({from, to, count}) => t("drugs.displayedRows", {from, to, count})}
+                            getItemAriaLabel={(type) => t(`common.pagination.${type}`)}
                         />
                     </>
                 )}

@@ -33,10 +33,19 @@ public static class CommonErrors
     public static readonly Error Unexpected =
         new("unexpected", "An unexpected error occurred.", ErrorType.Failure);
 
-    // Shared validation rules (names of drugs and groups; later roles and clinics)
+    // Shared validation rules (names of drugs, groups, clinics and staff, later roles; free text such as a drug's
+    // description)
     public static readonly Error NameRequired =
         new("nameRequired", "The name is required.", ErrorType.Validation);
 
+    /// <summary>A name with control characters (e.g. a NUL, a line break inside it) or a line/paragraph separator.</summary>
+    public static readonly Error NameInvalid =
+        new("nameInvalid", "The name contains characters that are not allowed.", ErrorType.Validation);
+
     public static readonly Error NameTooLong =
         new("nameTooLong", "The name is too long.", ErrorType.Validation);
+
+    /// <summary>Free text with a NUL (it can't be stored); line breaks and tabs are allowed.</summary>
+    public static readonly Error InvalidText =
+        new("invalidText", "The text contains characters that are not allowed.", ErrorType.Validation);
 }

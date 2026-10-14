@@ -6,11 +6,9 @@ namespace ClinicHub.Application.Features.Identity.Users;
 public interface IIdentitySeeder
 {
     /// <summary>
-    /// Every phone in <c>Platform:SuperAdminPhones</c> gets a user with <see cref="User.IsSuperAdmin"/>;
-    /// any other user loses the flag, and their sessions are revoked (they may be in a super-admin context).
+    /// Every phone in <c>Platform:SuperAdminPhones</c> gets a user (<see cref="IUserAccounts"/>) with
+    /// <see cref="User.IsSuperAdmin"/>; any other user loses the flag, and their sessions are revoked (they may be
+    /// in a super-admin context). An invalid phone is a startup error.
     /// </summary>
     Task SeedSuperAdminsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Finds or creates the user of a phone from configuration (invalid → startup error).</summary>
-    Task<User> EnsureUserAsync(string phone, string setting, CancellationToken cancellationToken = default);
 }

@@ -72,7 +72,7 @@ Paths below are the current ones (after the [layout follow-up](#part-3-follow-up
   same code `unauthorized`.
 - **Access** (`Application/Features/Access`): `IPermissionService`/`PermissionService` (returns `Error`s, not code
   strings), `MembershipService` (`StaffMembers/`), `Permissions` + `PermissionCatalog` + `RequiresAttribute`, `DefaultRoles`
-  (`SeedAsync(IAppDbContext, IClinicContext, clinicId)`), `PermissionSet`, `GetPermissionsQuery`. The Api keeps
+  (names and permissions; `DefaultRolesSeeder` creates them since M1.5.2), `PermissionSet`, `GetPermissionsQuery`. The Api keeps
   `[HasPermission]`, `PermissionHandler`, `ClinicAccessHandler`, `AccessAuthorizationResultHandler`, JWT setup
   and the clinic middleware. Failure reasons are `AccessFailureReason`s carrying the `Error`; the result handler
   passes the most specific one to `ApiProblemFactory`. `EnsureAsync`, `AccessDeniedException` and
@@ -147,8 +147,12 @@ in `permissions.ts` changed):
 - **Parallel wrong guesses** (unchanged from before): the handler reads `Attempts` before its atomic update, so
   the last of several parallel wrong guesses may answer `invalidCode` instead of `tooManyAttempts`. The limit
   itself holds (the update is conditional).
-- `DefaultRoles.SeedAsync` is ready for clinic provisioning (M1.5): it needs the clinic context set to the new
-  clinic (a command that creates a clinic sets it, or the seeding moves into the provisioning handler).
+- Since M1.5.2 the default roles are created by clinic provisioning (`DefaultRolesSeeder`, run inside
+  `IClinicScope.Use(newClinicId)`); `DefaultRoles` keeps only the names and permissions, so nothing static writes
+  to the database.
+- **Dev seed in its own transaction** (M1.5.2): the `CreateClinicCommand`s it sends join it through savepoints, so
+  their post-commit actions run at once, before the seed commits (none today: a new clinic needs no invalidation).
+  Fine while nothing it seeds is cached; don't rely on post-commit ordering there.
 - `TransactionRunner`: a nested command that fails rolls back to its savepoint but leaves the change tracker as
   is (the outer unit's entities are in it too); revisit if commands start sending commands. A nested
   `ICommitOnFailure` command releases its savepoint; the outer command still decides the commit.
@@ -184,7 +188,7 @@ ClinicHub.Api              → Application, Infrastructure
 | Project | Contains |
 |---|---|
 | **Domain** | Entities (`Drug`, `DrugGroup`, `DrugGroupItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`), field limits (`FieldLimits`) |
-| **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`, `IPostCommitActions`, `IStartupSeeder`), `IClinicScope` (implemented in `Features/Platform/Clinics`), application services that are not use cases, each behind an interface (`IPermissionService`, `IMembershipService`, `ISessionService`, `IIdentitySeeder`, `IPhoneNormalizer`), the `Permissions` constants and catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
+| **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`, `IPostCommitActions`, `IStartupSeeder`), `IClinicScope` (implemented in `Features/Platform/Clinics`), application services that are not use cases, each behind an interface (`IPermissionService`, `IMembershipService`, `ISessionService`, `IIdentitySeeder`, `IUserAccounts`, `IPhoneNormalizer`; internal: `IClinicProvisioner` and the `IClinicSeeder`s), the `Permissions` constants and catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
 | **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner` (also `IPostCommitActions`), `AccessCache` (HybridCache), `TokenService` (JWT) + `AuthClaims`, `DisplayOtpSender` (later SMS), `OtpLock` (advisory lock), `JwtValidation` (the token key and validation, read by the Api), `StartupSeeder` (`IStartupSeeder`; needs EF internals) |
 | **Api** | Thin controllers (+ the refresh cookie in `AuthController`), authentication and authorization setup, `CurrentUser` (claims reader: needs `HttpContext`), `[HasPermission]` and its handlers, the clinic middleware, the `ApiProblemFactory` and every error source, `Result` → HTTP mapping, SPA hosting (`wwwroot`), `Program.cs`, config binding and validation (`AppSettings`), `Database.MigrateAsync()` |
 
@@ -277,9 +281,10 @@ public static class DrugErrors
   frontend's `errors.<code>` translations keep working. A missing row is `notFound` (the SPA's generic
   "this item no longer exists"); `drugNotFound` is the 400 for an unknown drug inside a group.
 - The description is English, for developers and logs; the UI always translates by code.
-- Cross-cutting errors (`forbidden`, `unauthorized`, `notFound`, `conflict`, `invalidRequest`,
-  `unexpected`, `tooManyRequests`) and the shared name rules (`nameRequired`, `nameTooLong`) live in
-  `Common/Results/CommonErrors.cs`; the routing-only `methodNotAllowed` (405) lives in the Api's `ApiProblemFactory`.
+- Cross-cutting errors (`forbidden`, `unauthorized`, `notFound`, `conflict`, `invalidRequest`, `unexpected`,
+  `tooManyRequests`), the shared name rules (`nameRequired`, `nameInvalid`, `nameTooLong`) and the free-text rule
+  (`invalidText`) live in `Common/Results/CommonErrors.cs`; the routing-only `methodNotAllowed` (405) lives in the
+  Api's `ApiProblemFactory`.
 
 ### 3.4 Validation
 
@@ -408,7 +413,8 @@ ClinicHub.Application/
       ITokenService.cs
       Commands/RefreshSession/  Commands/SwitchContext/  Commands/Logout/  Queries/GetContexts/
     Users/
-      IPhoneNormalizer.cs  PhoneNormalizer.cs  PhoneValidation.cs  IIdentitySeeder.cs  IdentitySeeder.cs
+      IPhoneNormalizer.cs  PhoneNormalizer.cs  PhoneValidation.cs  ConfigPhones.cs  IIdentitySeeder.cs  IdentitySeeder.cs
+      IUserAccounts.cs  UserAccounts.cs   (GetOrCreateAsync(phone): the one way to find or create a user by phone)
       Queries/GetMe/
    Access/
     AccessErrors.cs
@@ -420,13 +426,15 @@ ClinicHub.Application/
     StaffMembers/                IMembershipService.cs  MembershipService.cs
    Platform/
     Clinics/                     ClinicErrors.cs  ClinicDto.cs  ClinicQueries.cs (NotDeleted, Manageable, SelectDetails)  ClinicScope.cs
-      Commands/RenameClinic/  Commands/SuspendClinic/  Commands/ActivateClinic/  Commands/DeleteClinic/
+      Commands/CreateClinic/  Commands/RenameClinic/  Commands/SuspendClinic/  Commands/ActivateClinic/  Commands/DeleteClinic/
       Queries/GetClinics/  Queries/GetClinic/
-                                 (M1.5.2 adds Commands/CreateClinic and the Provisioning/ sub-feature)
+    Provisioning/                IClinicProvisioner.cs  ClinicProvisioner.cs  IClinicSeeder.cs (+ ClinicSeedContext), all internal
+      Seeders/                   DefaultRolesSeeder.cs  OwnerSeeder.cs  TemplateCatalogSeeder.cs
 ```
 
 Platform has no module-wide errors class yet (only `Clinics/ClinicErrors.cs`); the Api side is
-`Api/Features/Platform/AdminClinicsController.cs`.
+`Api/Features/Platform/AdminClinicsController.cs`. The provisioner is internal: only the `CreateClinicCommand` handler
+calls it (so it always runs in that command's transaction); everyone else, the dev seed included, sends the command.
 
 - **A module root holds only `<Module>Errors.cs`** (Access also holds `Permissions.cs`, § 7.1). Everything else
   lives in a **sub-feature folder**: `Module/SubFeature/{Commands,Queries}/UseCase/`, with the sub-feature's
@@ -439,14 +447,15 @@ Platform has no module-wide errors class yet (only `Clinics/ClinicErrors.cs`); t
 - **Namespaces always follow folders**, with no exceptions.
 - **Every service and seeder is used through an interface** (even with one implementation), registered under
   that interface. Static helpers and value types are exempt (e.g. `OtpHash`, `DosingRules`, `Paging`,
-  `PermissionCatalog`, `SessionRules`, `JwtValidation`; the `PermissionSet` value; `DefaultRoles`, whose static
-  `SeedAsync` takes its `IAppDbContext` and `IClinicContext` as arguments).
+  `PermissionCatalog`, `SessionRules`, `JwtValidation`, `ConfigPhones`; the `PermissionSet` value; the `DefaultRoles`
+  constants). Nothing static writes to the database.
 - Callers never reference the concrete class (DI registration code may, e.g. `AccessCache.Expiration` in
   `AddInfrastructure`); constants and static members that callers need go on the interface or in a small static
   class next to it (`SessionRules`, Infrastructure's `JwtValidation`). An interface of an `internal` class may
   stay internal.
 - Used concretely on purpose (not services): `ClinicContext`, per-request state that readers use through
-  `IClinicContext`; only its fillers take the settable class (the clinic middleware, `ClinicScope` and `StartupSeeder`). Also EF
+  `IClinicContext`; only its fillers take the settable class (the clinic middleware and `ClinicScope`; the startup
+  seeder goes through `IClinicScope.Use` since M1.5.2). Also EF
   plumbing: `AppDbContext` inside Infrastructure where `IAppDbContext` hides what is needed, plus `Program.cs`'s
   `Database.MigrateAsync()`, and `ClinicAndTimestampsInterceptor`.
 
@@ -479,7 +488,8 @@ Platform has no module-wide errors class yet (only `Clinics/ClinicErrors.cs`); t
 - Implementations of Application abstractions: `TransactionRunner` (`ITransactionRunner` and `IPostCommitActions`, one scoped instance), `AccessCache` (HybridCache; Redis later
   as config), `TokenService` (+ the claim names, `AuthClaims`, and the key and validation, `JwtValidation`), `DisplayOtpSender`, `OtpLock`. `CurrentUser`
   is in the Api: it reads `HttpContext`, and Infrastructure has no ASP.NET reference.
-- `StartupSeeder` (`IStartupSeeder`: template clinic, super admins through Application's `IIdentitySeeder`, dev data).
+- `StartupSeeder` (`IStartupSeeder`: template clinic, super admins through Application's `IIdentitySeeder`, dev data:
+  template content, then the demo clinics through `CreateClinicCommand` (`ISender`), M1.5 design D6).
 
 ---
 

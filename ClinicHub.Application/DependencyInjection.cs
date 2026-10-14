@@ -5,6 +5,8 @@ using ClinicHub.Application.Features.Access.StaffMembers;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Identity.Users;
 using ClinicHub.Application.Features.Platform.Clinics;
+using ClinicHub.Application.Features.Platform.Provisioning;
+using ClinicHub.Application.Features.Platform.Provisioning.Seeders;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,7 +53,14 @@ public static class DependencyInjection
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IIdentitySeeder, IdentitySeeder>();
+        services.AddScoped<IUserAccounts, UserAccounts>();
         services.AddSingleton<IPhoneNormalizer, PhoneNormalizer>();
+
+        // Clinic provisioning (design D5): the seeders run in their Order
+        services.AddScoped<IClinicProvisioner, ClinicProvisioner>();
+        services.AddScoped<IClinicSeeder, DefaultRolesSeeder>();
+        services.AddScoped<IClinicSeeder, OwnerSeeder>();
+        services.AddScoped<IClinicSeeder, TemplateCatalogSeeder>();
         return services;
     }
 }

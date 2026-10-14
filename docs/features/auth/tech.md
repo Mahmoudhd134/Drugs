@@ -91,7 +91,7 @@ action also needs its permission, and the staff member and clinic must still be 
 ## Backend
 Use cases in `ClinicHub.Application/Features/Identity/` (M1.4 part 3; [architecture](../../design/architecture.md)),
 grouped by sub-feature: `Login/` (OTP request and verify, `GetOtpMode`), `Sessions/` (refresh, switch, logout,
-`GetContexts`, the session service), `Users/` (`GetMe`, phone normalizing, the seeder);
+`GetContexts`, the session service), `Users/` (`GetMe`, phone normalizing, users by phone, the seeder);
 implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `ClinicHub.Api/Features/Identity/`.
 
 | Use case | Endpoint | Notes |
@@ -107,6 +107,14 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **`IPhoneNormalizer` / `PhoneNormalizer`** (singleton): `libphonenumber-csharp` parse with `Platform:DefaultRegion` (EG), valid
   numbers only, formatted E.164; otherwise null. The request and verify validators get it injected and use the
   `ValidPhone(normalizer, region)` rule (`PhoneValidation`): null → 400 `invalidPhone` (`field: "phone"`). (Not named `PhoneNumbers`: that is the library's namespace.)
+  Phones from configuration go through `ConfigPhones.Normalize(normalizer, phone, region, setting)`: invalid → startup
+  error naming the setting.
+- **`IUserAccounts` / `UserAccounts`** (scoped, M1.5.2): `GetOrCreateAsync(phone)`, the **one way to find or create a
+  user by phone** (an already normalized E.164 phone): finds the user or adds and saves a new one (the caller's
+  transaction).
+  Used by the super-admin seeding, clinic provisioning (the owner) and the dev seed; M1.5.3's "add staff" will use it
+  too. Login never creates users. Accepted (M1.5 design D5): two requests creating the same new phone at the same
+  moment hit the unique index; one fails with a 500 and works when sent again.
 - **Request** (`RequestOtpCommandHandler`): deletes codes older than a day; then takes
   `IOtpLock` for the phone (`OtpLock`: `pg_advisory_xact_lock(hashtext(phone))`, held until the command's
   transaction ends; it throws outside a transaction), so parallel requests for one phone can't pass the
@@ -184,10 +192,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **Seeding** (every start, idempotent): Infrastructure's `Platform/StartupSeeder` (`IStartupSeeder`) ensures the
   template clinic, then calls Application's `Features/Identity/Users/IIdentitySeeder` (on `IAppDbContext` +
   `ITransactionRunner`; cache invalidated after the commit): every `Platform:SuperAdminPhones` entry
-  (normalized; invalid → startup error) gets a user with `IsSuperAdmin`; any other user loses the flag and
-  their sessions are revoked. Development, no non-template clinic yet: a user for `Platform:DevOwnerPhone`
-  (`IIdentitySeeder.EnsureUserAsync`) becomes staff "Dev Owner" in **both** demo clinics (inside the
-  dev seed transaction).
+  (normalized; invalid → startup error) gets a user (`IUserAccounts`) with `IsSuperAdmin`; any other user loses the
+  flag and their sessions are revoked. Development, no non-template clinic yet: `Platform:DevOwnerPhone` becomes
+  staff "Dev Owner" (Owner) in **both** demo clinics, which the dev seed creates with `CreateClinicCommand` (the
+  owner's user through `IUserAccounts`), and `Platform:DevAssistantPhone` "Dev Assistant" (`IUserAccounts` too), all
+  inside the dev seed transaction ([platform admin](../platform-admin/tech.md#dev-seed)). Invalid dev phones →
+  startup error; an empty `DevOwnerPhone` skips only the demo clinics (warning; the template is still filled when empty).
 
 ### Configuration
 
@@ -265,8 +275,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - `Otp:Mode = Sms` has no sender, so a deployed server runs only with `Otp__Mode=Display`
   (a demo/staging setup, not real patients' data: anyone can log in as any phone).
 - Per-IP rate limiting of `/auth/otp/*` is M3.2.
-- The template clinic is still empty (filled in M1.5).
-- No user/staff management UI or API yet: users exist only through seeding (M1.5).
+- Outside Development the template starts empty (dev seed: sample content, M1.5.2).
+- Users are created only by seeding and `POST /admin/clinics` (owner); staff management is M1.5.3.
 
 ## Testing notes
 Verified manually on a reset DB (API on :5000 in Development, Vite on :5173). With a Python script

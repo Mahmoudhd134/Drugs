@@ -182,7 +182,16 @@ export const DrugGroupsPage = () => {
                     </Box>
                     {pageCount > 1 && (
                         <Stack sx={{alignItems: "center", mt: 3}}>
-                            <Pagination count={pageCount} page={page} onChange={(_, p) => setPage(p)} color="primary"/>
+                            <Pagination
+                                count={pageCount} page={page} onChange={(_, p) => setPage(p)} color="primary"
+                                getItemAriaLabel={(type, itemPage, selected) => {
+                                    if (type === "page")
+                                        return t(selected ? "common.pagination.page" : "common.pagination.goToPage", {page: itemPage});
+                                    if (type === "start-ellipsis" || type === "end-ellipsis")
+                                        return t("common.pagination.morePages");
+                                    return t(`common.pagination.${type}`);
+                                }}
+                            />
                         </Stack>
                     )}
                 </>

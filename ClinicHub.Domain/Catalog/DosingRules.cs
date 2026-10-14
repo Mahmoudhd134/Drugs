@@ -129,7 +129,8 @@ public static class DosingRules
     {
         "daily" => value is >= 1 and <= 24,
         "everyHours" => value is >= 1 and <= 72,
-        "custom" => text is { Length: <= MaxFrequencyTextLength },
+        // A NUL can't be stored
+        "custom" => text is { Length: <= MaxFrequencyTextLength } && !text.Contains('\0'),
         _ => true
     };
 

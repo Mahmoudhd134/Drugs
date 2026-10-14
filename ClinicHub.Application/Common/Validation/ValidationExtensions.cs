@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClinicHub.Application.Common.Results;
 using ClinicHub.Domain.Common;
 using FluentValidation;
@@ -14,9 +15,25 @@ public static class ValidationExtensions
         this IRuleBuilderOptions<T, TProperty> rule, Error error) =>
         rule.WithErrorCode(error.Code).WithMessage(error.Description);
 
-    /// <summary>Not blank, and at most <see cref="FieldLimits.NameMaxLength"/> characters once trimmed.</summary>
+    /// <summary>
+    /// Not blank (only spaces or invisible format characters such as a zero-width space count as blank), no
+    /// control characters nor line/paragraph separators once trimmed (a NUL can't be stored; a line break would
+    /// end up in the Word copy), and at most <see cref="FieldLimits.NameMaxLength"/> characters once trimmed.
+    /// </summary>
     public static IRuleBuilderOptions<T, string> ValidName<T>(this IRuleBuilder<T, string> rule) =>
         rule
-            .Must(name => !string.IsNullOrWhiteSpace(name)).WithError(CommonErrors.NameRequired)
+            .Must(name => !IsBlank(name)).WithError(CommonErrors.NameRequired)
+            .Must(name => IsBlank(name) || !name.Trim().Any(IsLineOrControl)).WithError(CommonErrors.NameInvalid)
             .Must(name => name is null || name.Trim().Length <= FieldLimits.NameMaxLength).WithError(CommonErrors.NameTooLong);
+
+    /// <summary>Optional free text (e.g. a drug's description): no NUL (it can't be stored); line breaks and tabs are
+    /// fine.</summary>
+    public static IRuleBuilderOptions<T, string> ValidText<T>(this IRuleBuilder<T, string> rule) =>
+        rule.Must(text => text is null || !text.Contains('\0')).WithError(CommonErrors.InvalidText);
+
+    private static bool IsBlank(string name) =>
+        name is null || name.All(c => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) == UnicodeCategory.Format);
+
+    private static bool IsLineOrControl(char c) =>
+        char.IsControl(c) || char.GetUnicodeCategory(c) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 }

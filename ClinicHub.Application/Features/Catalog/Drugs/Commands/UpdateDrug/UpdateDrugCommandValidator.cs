@@ -4,12 +4,13 @@ using FluentValidation;
 
 namespace ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
 
-/// <summary>In the order the errors are reported: name, then dosing.</summary>
+/// <summary>In the order the errors are reported: name, description, then dosing.</summary>
 internal sealed class UpdateDrugCommandValidator : AbstractValidator<UpdateDrugCommand>
 {
     public UpdateDrugCommandValidator()
     {
         RuleFor(x => x.Name).ValidName();
+        RuleFor(x => x.Description).ValidText();
         RuleFor(x => x.DefaultDosing)
             .Must(dosing => DosingRules.IsValid(DosingRules.Normalize(dosing)))
             .WithError(DrugErrors.InvalidDosing);

@@ -376,6 +376,16 @@ transaction, ordered `IClinicSeeder` steps:
 
 Any failure rolls back everything. New modules add a seeder (e.g. the default registration form).
 
+*(Built in M1.5.2, [design D5](m1.5-platform-admin.md#d5-provisioning-iclinicprovisioner--ordered-iclinicseeders):
+`POST /admin/clinics` → `CreateClinicCommand` (one transaction through `TransactionBehavior`) → the internal
+`IClinicProvisioner.ProvisionAsync(name, ownerPhone, ownerName)` (`Application/Features/Platform/Provisioning`): it
+inserts the clinic itself (no `ClinicSeeder`), then, inside `IClinicScope.Use(newClinicId)`, runs the
+`IClinicSeeder`s by `Order`: `DefaultRolesSeeder` (10, creates the `DefaultRoles`), `OwnerSeeder` (20, the user through
+`IUserAccounts.GetOrCreateAsync(phone)`, the one way to find or create a user by phone, + `Staff` with the Owner role),
+`TemplateCatalogSeeder` (30, reads the template across clinics, read only, and inserts new drugs, then new groups and
+items with the drug ids remapped and new `Dosing` instances), and returns `ClinicDetails`. The provisioner never
+deals with transactions. A copy: later template edits don't change existing clinics.)*
+
 ### 7.4 Startup seeding
 
 Every start (idempotent): ensure the template clinic exists; ensure every phone in
@@ -387,11 +397,23 @@ demo clinic" (a few drugs + one group, for isolation checks) are created directl
 transaction, with the `DevOwnerPhone` user as staff "Dev Owner" in both (no roles yet). Owner roles
 and provisioning come with M1.3–M1.5.
 
+*(Since M1.5.2, [design D6](m1.5-platform-admin.md#d6-dev-seed-goes-through-provisioning-the-template-gets-sample-content):
+the dev seed goes through provisioning. On an empty dev DB, in its own all-or-nothing transaction (the commands it
+sends join it through savepoints), it fills the **template** with the smallest content that proves the copy (two drugs
+and the group "After cataract surgery" using both, one line overriding its drug's dosing; skipped when the template
+already has drugs), then sends `CreateClinicCommand` (`ISender`) for "Demo clinic" (owner `DevOwnerPhone`, "Dev
+Owner"; then 10,000 bulk drugs and `DevAssistantPhone` as Assistant are added directly) and "Second demo clinic" (same
+owner; then the read-only "Viewer" role and the assistant as Viewer; its catalog is the template copy). An empty
+`DevOwnerPhone` skips only the demo clinics with a warning (the template is still filled when empty). Outside
+Development: unchanged (template ensured, empty; super admins seeded).)*
+
 ### 7.5 Editing the template
 
 The super admin picks the "Template clinic" context, then uses the normal drugs/groups screens.
 The token has `clinic_id` = template and every permission. This is the only clinic a super
 admin can enter in the MVP (support access to real clinics comes with the audit log).
+*(M1.5.2: new clinics get a **copy** of its drugs and groups when they are created (7.3); editing the template
+later changes no existing clinic. In Development it starts with sample content (7.4).)*
 
 ### 7.6 Suspending a clinic / removing staff
 
@@ -495,7 +517,9 @@ The template clinic is not reachable here (404); it is edited through its contex
 M1.5.1: `GET /admin/clinics`, `GET /admin/clinics/{id}`, `PUT /admin/clinics/{id}`, `POST …/suspend`,
 `POST …/activate`, and `DELETE /admin/clinics/{id}` (soft delete, new), policy `PlatformAdmin`; `Clinic` is
 `ClinicDetails` with `owners: { staffId, fullName, phone }[]` instead of `ownerNames`. Missing, deleted or template
-ids → 404 `notFound`. Create, roles and staff come in M1.5.2–M1.5.3; `/admin/permissions` is dropped (D8).)*
+ids → 404 `notFound`. Built in M1.5.2: `POST /admin/clinics` → `201 ClinicDetails` + `Location` (validation:
+`nameRequired`, `nameInvalid`, `nameTooLong` for the clinic name and the owner's `fullName`, `invalidPhone`; a missing `owner` →
+`invalidRequest`). Roles and staff come in M1.5.3; `/admin/permissions` is dropped (D8).)*
 
 ```ts
 type ClinicSummary = { id: number; name: string; status: "active" | "suspended"; staffCount: number; createdAt: string };
@@ -582,7 +606,7 @@ implementation session and validated before the next (terms in the [status](#hig
 
 | Milestone | Steps | Status |
 |---|---|---|
-| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **M1.5 in progress** (M1.5.1 built) |
+| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **M1.5 in progress** (M1.5.1–M1.5.2 built) |
 | **M2 Patients** | M2.1 dynamic forms · M2.2 patients · M2.3 patient portal | not started |
 | **M3 Production readiness** | M3.1 frontend enhancements ([12.1](#121-enhancements-m31)) · M3.2 hardening → **launch** | not started |
 
@@ -594,7 +618,7 @@ implementation session and validated before the next (terms in the [status](#hig
 | M1.2 | **Login** (was "phase 2, identity"): users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until M1.3 |
 | M1.3 | **Access** (was "phase 3"): staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (M1.5's role editor) |
 | M1.4 | **Architecture refactor** (was "phase 3.5"; pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | ✅ **Done** (2026-10-14) in three parts plus a layout follow-up; the same endpoints and responses verified manually after each |
-| M1.5 | **In progress** ([design](m1.5-platform-admin.md), five sub-steps; M1.5.1 admin foundations + clinic lifecycle API built). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; the template is still **empty**: M1.5 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
+| M1.5 | **In progress** ([design](m1.5-platform-admin.md), five sub-steps; M1.5.1 admin foundations + clinic lifecycle API built; M1.5.2 provisioning, `POST /admin/clinics` and the dev seed through it, with sample template content, built). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; in Development the template gets sample drugs/groups since M1.5.2, copied by provisioning). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
 | M1.6 | **Test foundation**: automated tests for M1.1–M1.5 (see NFR-7) | Tests green in one command; isolation, permissions, auth and the error contract covered |
 
 ### M2 Patients

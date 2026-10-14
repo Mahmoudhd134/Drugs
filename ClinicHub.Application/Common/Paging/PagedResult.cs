@@ -16,4 +16,11 @@ public static class Paging
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
         return (Math.Clamp(page, 1, int.MaxValue / pageSize), pageSize);
     }
+
+    /// <summary>
+    /// A list's search term: trimmed, lower case, control characters removed (no name has one, and a NUL can't be
+    /// sent to the database); null or empty means no filter.
+    /// </summary>
+    public static string SearchTerm(string search) =>
+        search is null ? null : new string(search.Where(c => !char.IsControl(c)).ToArray()).Trim().ToLower();
 }

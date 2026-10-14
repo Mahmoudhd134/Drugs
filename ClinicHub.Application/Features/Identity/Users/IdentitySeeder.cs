@@ -1,7 +1,6 @@
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Application.Features.Access.Authorization;
-using ClinicHub.Domain.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Identity.Users;
@@ -15,6 +14,7 @@ public sealed class IdentitySeeder(
     IAppDbContext db,
     ITransactionRunner transactions,
     IAccessCache accessCache,
+    IUserAccounts userAccounts,
     IPhoneNormalizer phoneNormalizer,
     PlatformSettings platform) : IIdentitySeeder
 {
@@ -22,20 +22,16 @@ public sealed class IdentitySeeder(
     {
         var phones = platform.SuperAdminPhones
             .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => NormalizeConfigPhone(p, "Platform:SuperAdminPhones"))
+            .Select(p => ConfigPhones.Normalize(phoneNormalizer, p, platform.DefaultRegion, "Platform:SuperAdminPhones"))
             .Distinct()
             .ToList();
 
-        // Existing users whose flag changes: their cached access (template context) is stale
+        // Users whose flag changes: their cached access (template context) is stale
         var changed = await transactions.RunAsync(async token =>
         {
+            foreach (var phone in phones)
+                await userAccounts.GetOrCreateAsync(phone, token);
             var users = await db.Users.Where(u => u.IsSuperAdmin || phones.Contains(u.Phone)).ToListAsync(token);
-            foreach (var phone in phones.Where(p => users.All(u => u.Phone != p)))
-            {
-                var user = new User { Phone = phone };
-                users.Add(user);
-                db.Users.Add(user);
-            }
 
             var demoted = new List<int>();
             var changedIds = new List<int>();
@@ -44,7 +40,7 @@ public sealed class IdentitySeeder(
                 var isSuperAdmin = phones.Contains(user.Phone);
                 if (user.IsSuperAdmin && !isSuperAdmin)
                     demoted.Add(user.Id);
-                if (user.Id != 0 && user.IsSuperAdmin != isSuperAdmin)
+                if (user.IsSuperAdmin != isSuperAdmin)
                     changedIds.Add(user.Id);
                 user.IsSuperAdmin = isSuperAdmin;
             }
@@ -60,20 +56,4 @@ public sealed class IdentitySeeder(
         foreach (var userId in changed)
             await accessCache.InvalidateUserAsync(userId, cancellationToken);
     }
-
-    public async Task<User> EnsureUserAsync(string phone, string setting, CancellationToken cancellationToken = default)
-    {
-        var normalized = NormalizeConfigPhone(phone, setting);
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Phone == normalized, cancellationToken);
-        if (user is not null)
-            return user;
-        user = new User { Phone = normalized };
-        db.Users.Add(user);
-        await db.SaveChangesAsync(cancellationToken);
-        return user;
-    }
-
-    private string NormalizeConfigPhone(string phone, string setting) =>
-        phoneNormalizer.Normalize(phone, platform.DefaultRegion)
-        ?? throw new InvalidOperationException($"{setting}: '{phone}' is not a valid phone number.");
 }

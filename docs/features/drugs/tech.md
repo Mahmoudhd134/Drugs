@@ -31,7 +31,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 |---|---|---|---|---|
 | GET | `/drugs?search=&page=1&pageSize=20` | query | `PagedResult<DrugDto>` | |
 | GET | `/drugs/{id}` | | `DrugDto` | 404 `notFound` |
-| POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` (+ `Location`) | 400 `nameRequired`, `nameTooLong`, `invalidDosing` (all that apply, in this order) |
+| POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `invalidText`, `invalidDosing` (all that apply, in this order) |
 | PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | 400 (as above, checked first), 404 `notFound` |
 | GET | `/drugs/{id}/groups` | | `string[]` group names using the drug (empty for an unknown drug) | |
 | DELETE | `/drugs/{id}` | | 204 | 404 `notFound` |
@@ -50,9 +50,13 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 | `DeleteDrugCommand(id)` | `Commands/DeleteDrug` | → `NotFound` or success (cascade removes its group lines) |
 
 - `DrugDto` (+ `ToDto()`) and `DrugErrors` (`NotFound` = `notFound`, `InvalidDosing`) at the feature root;
-  `nameRequired`/`nameTooLong` are `CommonErrors` (shared `ValidName()` rule).
-- Validators (create and update, one each): `ValidName()` (required, ≤ 256 after trim), then
-  `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`, field `defaultDosing`).
+  `nameRequired`/`nameInvalid`/`nameTooLong` (shared `ValidName()` rule) and `invalidText` (`ValidText()`) are
+  `CommonErrors`.
+- Validators (create and update, one each): `ValidName()` (required: not only spaces or invisible format
+  characters; no control characters such as a NUL nor line/paragraph separators → `nameInvalid`; ≤ 256 after
+  trim), then `ValidText()` on the description (a NUL → `invalidText`, field `description`; line breaks and tabs are
+  fine), then `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`, field
+  `defaultDosing`; a custom frequency text with a NUL is invalid too).
   Every failing rule is returned; the first is the response's `code`.
 - The handlers trim name and description (blank description → `null`) and normalize the dosing (an
   all-empty dosing is stored as `null`). Commands run in one transaction (`TransactionBehavior`).
@@ -60,7 +64,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   - no search: by `Name`, then `Id`
   - search: names starting with the term first, then `Name`, then `Id`
 - Page size clamped to 1–100 (`Paging.Normalize`).
-- Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic".
+- Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic", next to the 2 drugs copied from the template (10,002).
 
 ## Frontend (`src/features/drugs/`)
 - **Page** `pages/DrugsPage.tsx` at `/drugs`: search (debounced 300 ms, resets to page 0),
@@ -81,7 +85,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   `drugKeys.all` **and** `drugGroupKeys.all` (groups embed drug data).
 - Delete confirmation first calls `fetchDrugGroupNames` and lists the groups that will lose the
   drug (`drugs.usedInGroups`); if the lookup fails the dialog still opens.
-- i18n namespace: `drugs.*` (+ `dosing.*`, `errors.nameRequired`, `errors.nameTooLong`, `errors.invalidDosing`).
+- i18n namespace: `drugs.*` (+ `dosing.*`, `errors.nameRequired`, `errors.nameInvalid`, `errors.nameTooLong`, `errors.invalidText`,
+  `errors.invalidDosing`).
 
 ## Edge cases & limitations
 - Deleting the last row on a page steps back one page.

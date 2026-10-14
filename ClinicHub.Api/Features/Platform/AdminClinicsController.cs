@@ -4,6 +4,7 @@ using ClinicHub.Api.Features.Identity;
 using ClinicHub.Application.Common.Paging;
 using ClinicHub.Application.Features.Platform.Clinics;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.ActivateClinic;
+using ClinicHub.Application.Features.Platform.Clinics.Commands.CreateClinic;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.DeleteClinic;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.RenameClinic;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.SuspendClinic;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicHub.Api.Features.Platform;
 
+public record CreateClinicRequest(string Name, CreateClinicOwner Owner);
 public record RenameClinicRequest(string Name);
 
 /// <summary>
@@ -33,6 +35,13 @@ public class AdminClinicsController(ISender sender) : BaseApiController
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ClinicDetails>> GetById(int id, CancellationToken cancellationToken) =>
         (await sender.Send(new GetClinicQuery(id), cancellationToken)).ToOk();
+
+    /// <summary>A clinic provisioned from the template, with its owner (all or nothing).</summary>
+    [HttpPost]
+    public async Task<ActionResult<ClinicDetails>> Create([FromBody] CreateClinicRequest request,
+        CancellationToken cancellationToken) =>
+        (await sender.Send(new CreateClinicCommand(request.Name, request.Owner), cancellationToken))
+        .ToCreated(nameof(GetById), clinic => new { id = clinic.Id });
 
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ClinicDetails>> Rename(int id, [FromBody] RenameClinicRequest request,

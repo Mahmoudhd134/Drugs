@@ -2,7 +2,10 @@ using ClinicHub.Application.Common.Results;
 
 namespace ClinicHub.Application.Features.Platform.Clinics;
 
-/// <summary>Clinic errors (admin). Name rules: <see cref="CommonErrors.NameRequired"/>, <see cref="CommonErrors.NameTooLong"/>.</summary>
+/// <summary>
+/// Clinic errors (admin). Name rules: <see cref="CommonErrors.NameRequired"/>, <see cref="CommonErrors.NameInvalid"/>,
+/// <see cref="CommonErrors.NameTooLong"/>.
+/// </summary>
 public static class ClinicErrors
 {
     /// <summary>

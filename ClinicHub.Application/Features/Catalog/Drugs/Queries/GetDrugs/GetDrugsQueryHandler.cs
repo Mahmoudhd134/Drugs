@@ -13,7 +13,7 @@ internal sealed class GetDrugsQueryHandler(IAppDbContext db) : IQueryHandler<Get
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var drugs = db.Drugs.AsNoTracking();
 
-        var term = query.Search?.Trim().ToLower();
+        var term = Paging.SearchTerm(query.Search);
         if (!string.IsNullOrEmpty(term))
             drugs = drugs.Where(d => d.Name.ToLower().Contains(term));
 
