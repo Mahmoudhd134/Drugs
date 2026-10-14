@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Builds the Drags app into a single self-contained package ready for IIS.
+    Builds the ClinicHub app into a single self-contained package ready for IIS.
 
 .DESCRIPTION
-    1. Builds the React/Vite frontend -> Drags.Api/wwwroot
+    1. Builds the React/Vite frontend -> ClinicHub.Api/wwwroot
     2. Publishes the ASP.NET Core backend (self-contained, win-x64) -> ./publish
        The backend serves the frontend from wwwroot and the API from /api/v1,
        so the whole app is ONE website / ONE origin on IIS.
@@ -22,11 +22,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root      = $PSScriptRoot
-$webDir    = Join-Path $root "Drags.Web"
-$apiProj   = Join-Path $root "Drags.Api\Drags.Api.csproj"
+$webDir    = Join-Path $root "ClinicHub.Web"
+$apiProj   = Join-Path $root "ClinicHub.Api\ClinicHub.Api.csproj"
 $publishDir = Join-Path $root "publish"
 
-Write-Host "==> 1/3  Building frontend (Vite -> Drags.Api/wwwroot)" -ForegroundColor Cyan
+Write-Host "==> 1/3  Building frontend (Vite -> ClinicHub.Api/wwwroot)" -ForegroundColor Cyan
 Push-Location $webDir
 try {
     if (-not (Test-Path (Join-Path $webDir "node_modules"))) {

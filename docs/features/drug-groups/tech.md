@@ -9,7 +9,7 @@ conflict with lines already in the prescription.
 Dosing flows: drug default → **group override** → prescription line (see [dosing](../dosing/tech.md)).
 
 ## Data model
-- `DrugGroups` (`Drags.Domain/Catalog/DrugGroup.cs`): `Id`, `Name` (required, max 256).
+- `DrugGroups` (`ClinicHub.Domain/Catalog/DrugGroup.cs`): `Id`, `Name` (required, max 256).
 - `DrugGroupItems`: `Id`, `DrugGroupId` (FK, cascade), `DrugId` (FK, cascade), `Order` (0-based),
   `Dosing_*` (owned `Dosing`, nullable) = the group override.
 - Both tables also have `ClinicId` (FK → `Clinics`, restrict; an item's FKs to its group and drug

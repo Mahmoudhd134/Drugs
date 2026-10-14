@@ -5,8 +5,13 @@ reusable **groups** (treatment templates), and lets staff build a **prescription
 (plain or formatted for Word). The interface is in **English and Arabic** (right-to-left).
 Drug and group **content is not translated**: it is stored once, as typed.
 
-> The code base and solution are still named `Drags` (an old typo). The domain, API and UI use
-> **Drug**. Don't rename the projects/solution: deploy scripts and IIS setup depend on them.
+> `ClinicHub` is the neutral code name of the code base (solution, projects, namespaces). It was
+> renamed from `Drags` (an old typo) on 2026-10-14; the commercial brand will only touch UI strings,
+> the logo and the domain. Legacy names kept on purpose: the PostgreSQL database and user `drags`, and
+> the Docker Compose project `drags` (container `drags-postgres`, volume `drags_drags-pgdata`), so
+> existing data is kept. The migration designer files and snapshot keep their old CLR name strings
+> (`Drags.Api.Models.*`). The new JWT issuer/audience and refresh cookie name (`clinichub_refresh`)
+> logged out every session once; an old `drags_refresh` cookie is ignored until it expires.
 
 ## Stack
 
@@ -21,25 +26,25 @@ Drug and group **content is not translated**: it is stored once, as typed.
 ## Repository layout
 
 ```
-Drags.sln                      Domain ← Application ← Infrastructure ← Api (backend architecture:
+ClinicHub.sln                  Domain ← Application ← Infrastructure ← Api (backend architecture:
                                docs/design/architecture.md; Phase 3.5 step 1 done)
-Drags.Domain/                  entities and pure rules; no references (no EF Core, no ASP.NET)
+ClinicHub.Domain/              entities and pure rules; no references (no EF Core, no ASP.NET)
   Common/                      IClinicOwned, IHasTimestamps, FieldLimits (column lengths)
   Catalog/                     Drug, DrugGroup (+ DrugGroupItem), Dosing (+ TaperStep, DosingCodes),
                                DosingRules
   Identity/                    User, OtpCode, Session (+ ContextTypes)
   Access/                      Staff, Role (+ RolePermission, StaffRole)
   Platform/                    Clinic (+ ClinicStatus)
-Drags.Application/             → Domain. Abstractions implemented elsewhere (use cases come in steps 2-3)
+ClinicHub.Application/         → Domain. Abstractions implemented elsewhere (use cases come in steps 2-3)
   Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext)
   DependencyInjection.cs       AddApplication()
-Drags.Infrastructure/          → Application, Domain. EF Core + PostgreSQL
+ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
   Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration)
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Migrations/                  EF Core migrations (applied automatically on startup)
   DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor
-Drags.Api/                     → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
+ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
                                production)
   Controllers/BaseApiController.cs
   Features/<Feature>/          controller + DTOs per feature
@@ -52,7 +57,7 @@ Drags.Api/                     → Application, Infrastructure. ASP.NET Core API
   Features/Platform/           StartupSeeder (startup seed: template, super admins, dev data)
   Shared/                      AppSettings (+ startup validation), ErrorCodes, PagedResult, ICurrentUser
   Program.cs                   DI, middleware, migrate-on-startup, seeding
-Drags.Web/                     React SPA (Vite); builds into Drags.Api/wwwroot
+ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
   src/api/                     axios client, error → message, shared API types
   src/components/common/       reusable UI (SearchField, SearchableList, SortableList, …)
@@ -74,7 +79,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   API with the relative base URL `/api/v1`. `MapFallbackToFile("index.html")` serves client routes.
 - **Development:** Vite dev server on `http://localhost:5173`; API on `http://localhost:5000`
   (launch profile `http`, usually run from Rider). Vite **proxies `/api`** to the API
-  (`vite.config.ts`) and `Drags.Web/.env.development` sets `VITE_API_BASE_URL=/api/v1`, so the SPA
+  (`vite.config.ts`) and `ClinicHub.Web/.env.development` sets `VITE_API_BASE_URL=/api/v1`, so the SPA
   and API share one origin, as in production (the refresh cookie is `SameSite=Strict`).
   `AllowedOrigins` (CORS) in `appsettings.json` is no longer needed by the SPA.
 - **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
@@ -173,7 +178,7 @@ Drugs                       DrugGroups
 
 - Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
 - A drug appears at most once per group **per eye** (`duplicateGroupItem`).
-- `Dosing` is an EF **owned type** (`Drags.Domain/Catalog/Dosing.cs`), reusable on any entity via
+- `Dosing` is an EF **owned type** (`ClinicHub.Domain/Catalog/Dosing.cs`), reusable on any entity via
   `OwnsOne(..., DosingConfiguration.Configure)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
 
 ### API (`/api/v1`)
@@ -214,17 +219,17 @@ Swagger UI is available in Development at `/swagger`.
 - Tool: `dotnet-ef` 9.0.x. If `dotnet tool install` (or restore) fails with **401**, a private NuGet
   feed is configured on the machine; use a config that `<clear/>`s sources and adds only nuget.org:
   `dotnet tool install dotnet-ef --version 9.0.20 --tool-path <dir> --configfile <nuget.org-only config>`.
-- Migrations live in `Drags.Infrastructure`; the startup project (config, connection string) is
-  `Drags.Api`. Every EF command takes both:
-  `--project Drags.Infrastructure --startup-project Drags.Api` (shown below as `<ef args>`).
+- Migrations live in `ClinicHub.Infrastructure`; the startup project (config, connection string) is
+  `ClinicHub.Api`. Every EF command takes both:
+  `--project ClinicHub.Infrastructure --startup-project ClinicHub.Api` (shown below as `<ef args>`).
 - If the API is running from Rider, the Debug `bin` is locked: run EF commands with
   `--configuration Release`.
 - **Nothing is in production yet**, so the schema may still be reset. Once deployed, review every
   generated migration: renames/restructures must copy data (create new tables → `INSERT … SELECT`
   keeping ids → drop old), never drop-and-recreate. Test up, down to the previous migration, and
   up again on a copy of a real DB.
-- Phase 3.5 moved the migrations from `Drags.Api` to `Drags.Infrastructure` (namespace
-  `Drags.Infrastructure.Migrations`) with their ids unchanged, so existing databases are unaffected.
+- Phase 3.5 moved the migrations from the Api project to `ClinicHub.Infrastructure` (namespace
+  `ClinicHub.Infrastructure.Migrations`) with their ids unchanged, so existing databases are unaffected.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
   to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1) and for login
   (phase 2). From phase 3 on, migrations are **added on top** (`AddRoles`), never regenerated.
@@ -333,7 +338,7 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 | `prescription.selection` | Legacy (pre-dosing) list of drugs; migrated the same way, then removed |
 
 Not in storage: the access token (memory only). The refresh token is an `HttpOnly` cookie
-(`drags_refresh`, path `/api/v1/auth`) that scripts cannot read.
+(`clinichub_refresh`, path `/api/v1/auth`) that scripts cannot read.
 
 ### Code conventions
 
@@ -353,20 +358,20 @@ Not in storage: the access token (memory only). The refresh token is an `HttpOnl
 
 ```bash
 # PostgreSQL for local dev (required before starting the API)
-docker compose up -d                   # localhost:5432, db/user/password: drags
-# API (or run Drags.Api from Rider, profile "http")
-dotnet run --project Drags.Api --launch-profile http
+docker compose up -d                   # localhost:5432, db/user/password: drags (legacy names, kept)
+# API (or run ClinicHub.Api from Rider, profile "http")
+dotnet run --project ClinicHub.Api --launch-profile http
 # Frontend
-cd Drags.Web && npm run dev            # http://localhost:5173
+cd ClinicHub.Web && npm run dev        # http://localhost:5173
 ```
 
 Migrations: add **and** apply them with the CLI, even though startup also migrates:
 
 ```bash
-dotnet ef migrations add <Name> --project Drags.Infrastructure --startup-project Drags.Api
-dotnet ef database update --project Drags.Infrastructure --startup-project Drags.Api
-dotnet ef migrations list --project Drags.Infrastructure --startup-project Drags.Api
-dotnet ef migrations has-pending-model-changes --project Drags.Infrastructure --startup-project Drags.Api
+dotnet ef migrations add <Name> --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
+dotnet ef database update --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
+dotnet ef migrations list --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
+dotnet ef migrations has-pending-model-changes --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
 ```
 
 Run `database update` **without** `--no-build` (`migrations add` compiles before it writes the files,
@@ -393,8 +398,8 @@ Secrets: dev values are in `appsettings.Development.json`; any other environment
 Checks before committing:
 
 ```bash
-cd Drags.Web && npx tsc -b && npx eslint src
-dotnet build Drags.sln                 # all projects; use -c Release if Rider is running the Debug build
+cd ClinicHub.Web && npx tsc -b && npx eslint src
+dotnet build ClinicHub.sln             # all projects; use -c Release if Rider is running the Debug build
 ```
 
 There are no automated tests yet. Verify UI changes in the browser at `http://localhost:5173`.
@@ -433,8 +438,8 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 
 ## Adding a feature: checklist
 
-1. Backend: entity in `Drags.Domain/<Module>/`, its `IEntityTypeConfiguration` in
-   `Drags.Infrastructure/Database/Configurations/<Module>/` + a `DbSet` in `AppDbContext` and
+1. Backend: entity in `ClinicHub.Domain/<Module>/`, its `IEntityTypeConfiguration` in
+   `ClinicHub.Infrastructure/Database/Configurations/<Module>/` + a `DbSet` in `AppDbContext` and
    `IAppDbContext`, `Features/<Feature>/` controller + DTOs, error codes in `ErrorCodes`, migration
    (reviewed, data-preserving).
 2. Frontend: `src/features/<feature>/` with `types.ts`, `api.ts` (keys + hooks), `components/`,

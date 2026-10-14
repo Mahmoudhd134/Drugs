@@ -1,5 +1,9 @@
 # Local development database (PostgreSQL). Start: docker compose up -d   Stop: docker compose down
 # Connection string: Host=localhost;Port=5432;Database=drags;Username=drags;Password=drags
+# Legacy names: the code base was renamed from Drags to ClinicHub on 2026-10-14, but the project,
+# container, volume, database and user keep "drags" so existing data is kept. The project name is
+# pinned because it prefixes the volume (drags_drags-pgdata); otherwise it would follow the folder name.
+name: drags
 services:
   postgres:
     image: postgres:17

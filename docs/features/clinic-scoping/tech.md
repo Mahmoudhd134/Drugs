@@ -8,7 +8,7 @@ automatic: an EF Core global query filter limits every query to the request's cl
 exists, a temporary middleware chooses the clinic. API contracts are unchanged.
 
 ## Data model
-**Clinics** (`Drags.Domain/Platform/Clinic.cs`, Platform module)
+**Clinics** (`ClinicHub.Domain/Platform/Clinic.cs`, Platform module)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -44,14 +44,14 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 | `GET /drugs/{id}/groups` for another clinic's drug | `[]` |
 
 ## Backend
-- `IClinicOwned` (`ClinicId`), `IHasTimestamps` (`CreatedAt`, `UpdatedAt`) in `Drags.Domain/Common`;
-  `IClinicContext` (`int? ClinicId`, scoped) in `Drags.Application/Common/Abstractions`. `ClinicContext`
+- `IClinicOwned` (`ClinicId`), `IHasTimestamps` (`CreatedAt`, `UpdatedAt`) in `ClinicHub.Domain/Common`;
+  `IClinicContext` (`int? ClinicId`, scoped) in `ClinicHub.Application/Common/Abstractions`. `ClinicContext`
   is the settable implementation, registered scoped (`AddApplication`) and exposed as `IClinicContext`.
-- `AppDbContext` (`Drags.Infrastructure/Database`) takes `IClinicContext` and exposes `ClinicId`. For
+- `AppDbContext` (`ClinicHub.Infrastructure/Database`) takes `IClinicContext` and exposes `ClinicId`. For
   every non-owned entity type implementing `IClinicOwned` it adds the FK to `Clinics` (restrict) and the filter
   `ClinicId != null && e.ClinicId == ClinicId`: **fails closed**, no clinic = no rows.
   `IgnoreQueryFilters()` is reserved for Platform code.
-- `ClinicAndTimestampsInterceptor` (`Drags.Infrastructure/Database`; one singleton, added in
+- `ClinicAndTimestampsInterceptor` (`ClinicHub.Infrastructure/Database`; one singleton, added in
   `AddInfrastructure`), before every save:
   - `IClinicOwned` (added, modified or deleted): no clinic in context → `InvalidOperationException`.
     New rows with `ClinicId == 0` get the context's clinic; a row whose `ClinicId` differs from the

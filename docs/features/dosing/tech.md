@@ -9,7 +9,7 @@ Dosing flows down three levels, each pre-filling the next:
 drug default → group override (empty parts inherit) → prescription line (edited per patient).
 
 ## Data model
-`Drags.Domain/Catalog/Dosing.cs`: an EF **owned type**, stored as columns on the owner's table, prefixed
+`ClinicHub.Domain/Catalog/Dosing.cs`: an EF **owned type**, stored as columns on the owner's table, prefixed
 with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields optional.
 
 | Field | Type | Allowed values / rules |
@@ -32,7 +32,7 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
   That is expected: an all-null dosing reads back as `null`.
 
 ## Backend
-- `Drags.Domain/Catalog/DosingRules.cs` (pure, no dependencies)
+- `ClinicHub.Domain/Catalog/DosingRules.cs` (pure, no dependencies)
   - `Normalize`: trims, drops fields that don't apply (value for non-numeric frequency/duration,
     text for non-custom), returns null when empty.
   - `IsValid(dosing, allowAskEye)`: true when valid (or null); callers map false to
@@ -41,7 +41,7 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 - Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `SaveDrugRequest.Validate()`
   checks the name, then the normalized dosing.
 - Configuration helper `DosingConfiguration.Configure` (in
-  `Drags.Infrastructure/Database/Configurations/Catalog/`) sets column lengths for any owned Dosing; reuse it
+  `ClinicHub.Infrastructure/Database/Configurations/Catalog/`) sets column lengths for any owned Dosing; reuse it
   for future owners
   (`OwnsOne(x => x.SomeDosing, DosingConfiguration.Configure)`).
 

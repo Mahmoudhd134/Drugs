@@ -1,4 +1,4 @@
-# Deploying Drags to IIS (single website)
+# Deploying ClinicHub to IIS (single website)
 
 The app ships as **one ASP.NET Core site**. The backend serves:
 
@@ -10,16 +10,19 @@ runs on one origin — no CORS, no second site, no port juggling in production.
 
 ---
 
+IIS names below (`ClinicHub` site, `ClinicHubPool`, `C:\inetpub\ClinicHub`) are suggestions; any
+names work. A server set up before the rename (2026-10-14) may still use `Drags`/`DragsPool`.
+
 ## 1. Build the package (on your dev machine)
 
-From the solution root (`D:\Drags`):
+From the solution root (`D:\ClinicHub`):
 
 ```powershell
 .\deploy.ps1
 ```
 
-This builds the frontend into `Drags.Api\wwwroot`, publishes the backend, and
-produces a ready-to-copy folder: **`D:\Drags\publish`**.
+This builds the frontend into `ClinicHub.Api\wwwroot`, publishes the backend, and
+produces a ready-to-copy folder: **`D:\ClinicHub\publish`**.
 
 > The build is **self-contained** (the .NET runtime is bundled), so the old
 > laptop does not need a matching .NET 9 runtime installed — only the IIS module
@@ -42,25 +45,25 @@ produces a ready-to-copy folder: **`D:\Drags\publish`**.
 
 ## 3. Deploy the app
 
-1. **Copy** the `publish` folder to the laptop, e.g. `C:\inetpub\Drags`.
+1. **Copy** the `publish` folder to the laptop, e.g. `C:\inetpub\ClinicHub`.
 
 2. **Create an App Pool** (IIS Manager → *Application Pools* → *Add…*):
-   - Name: `DragsPool`
+   - Name: `ClinicHubPool`
    - .NET CLR version: **No Managed Code**  ← required (the app runs out-of-CLR via the module)
 
 3. **Create the Website** (IIS Manager → *Sites* → *Add Website…*):
-   - Site name: `Drags`
-   - Application pool: `DragsPool`
-   - Physical path: `C:\inetpub\Drags`
+   - Site name: `ClinicHub`
+   - Application pool: `ClinicHubPool`
+   - Physical path: `C:\inetpub\ClinicHub`
    - Binding: **http**, port `80` (or any free port, e.g. `8080`)
 
 4. **Grant write permission** for logs:
-   - Right-click `C:\inetpub\Drags` → *Properties* → *Security* → *Edit* → *Add…*
-   - Enter `IIS AppPool\DragsPool`, give it **Modify**.
+   - Right-click `C:\inetpub\ClinicHub` → *Properties* → *Security* → *Edit* → *Add…*
+   - Enter `IIS AppPool\ClinicHubPool`, give it **Modify**.
 
    Or via admin PowerShell:
    ```powershell
-   icacls "C:\inetpub\Drags" /grant "IIS AppPool\DragsPool:(OI)(CI)M" /T
+   icacls "C:\inetpub\ClinicHub" /grant "IIS AppPool\ClinicHubPool:(OI)(CI)M" /T
    ```
 
 5. **Browse** to `http://localhost` (on the laptop) or `http://<laptop-ip>` from
@@ -86,7 +89,7 @@ The schema is created automatically on first run via EF Core migrations; it star
 ## Updating later
 
 1. Run `.\deploy.ps1` again on your dev machine.
-2. In IIS Manager, **Stop** the `Drags` site (releases the running `.exe`).
+2. In IIS Manager, **Stop** the `ClinicHub` site (releases the running `.exe`).
 3. Copy the new `publish` contents over the server folder (data lives in PostgreSQL, not the folder).
 4. **Start** the site.
 
@@ -100,4 +103,4 @@ The schema is created automatically on first run via EF Core migrations; it star
   create a `logs` folder in the site, restart, and read `logs\stdout*.log`.
 - **Database errors** — check the PostgreSQL connection string and that the server can reach it.
 - **Reach it from other PCs** — allow the port through Windows Firewall
-  (`New-NetFirewallRule -DisplayName "Drags" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow`).
+  (`New-NetFirewallRule -DisplayName "ClinicHub" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow`).

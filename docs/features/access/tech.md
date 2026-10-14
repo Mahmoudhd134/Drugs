@@ -17,7 +17,7 @@ clinic-context policy; several attributes = all required). For a check inside co
 `await permissionService.EnsureAsync(Permissions.X.Y)` (throws → 403 `forbidden`).
 
 **Add a permission**: one constant in `Features/Access/Permissions.cs` (`[Requires(...)]` for the
-permissions it needs), the same key in `Drags.Web/src/features/access/permissions.ts`, and its label
+permissions it needs), the same key in `ClinicHub.Web/src/features/access/permissions.ts`, and its label
 under `permissions.<resource>.<action>` in `en.ts` and `ar.ts`. Decide whether the default roles get it
 (`DefaultRoles`: Doctor gets everything, Assistant everything except the deletes). A new resource also
 needs `permissionResources.<resource>`.
@@ -37,7 +37,7 @@ Migration **`AddRoles`** (on top of `Initial`; adds tables only). Existing staff
 it (so no permissions): fine while dev DBs are reset, but before the first deployment with real data a
 data step must give each clinic its default roles and each existing staff member the Owner role.
 
-**Roles** (`Drags.Domain/Access/Role.cs`, `IClinicOwned`)
+**Roles** (`ClinicHub.Domain/Access/Role.cs`, `IClinicOwned`)
 
 | Column | Type | Rules |
 |---|---|---|

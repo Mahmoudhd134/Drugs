@@ -77,7 +77,7 @@ module through its services, never by writing its tables.
 ```mermaid
 flowchart LR
   SPA["React SPA<br/>/login · clinic app · /admin"] -->|"/api/v1 (JWT)"| API
-  subgraph API["Drags.Api (modular monolith)"]
+  subgraph API["ClinicHub.Api (modular monolith)"]
     Identity --> Access
     Platform --> Access
     Platform --> Catalog
@@ -98,7 +98,7 @@ flowchart LR
 ### 3.1 Backend layout
 
 ```
-Drags.Api/
+ClinicHub.Api/
   Features/
     Identity/      AuthController, MeController, OtpService, SessionService, TokenService, PhoneNormalizer
     Access/        MembershipService (built in phase 2), PermissionService, Permissions.cs, DefaultRoles.cs, HasPermissionAttribute + handler
@@ -503,7 +503,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 ```jsonc
 {
   "Auth": {
-    "Jwt": { "Issuer": "drags", "Audience": "drags", "SigningKey": "<secret ≥ 32 bytes, env var in prod>" },
+    "Jwt": { "Issuer": "clinichub", "Audience": "clinichub", "SigningKey": "<secret ≥ 32 bytes, env var in prod>" },
     "AccessTokenMinutes": 15,
     "RefreshTokenDays": 30,
     "PlatformSessionHours": 12
@@ -560,7 +560,7 @@ Agreed improvements, done once phases 1–5 are complete:
 
 | Enhancement | What | Why |
 |---|---|---|
-| **Generated frontend permissions** | A script exports the backend `PermissionCatalog` (e.g. `dotnet run --project Drags.Api -- export-permissions`) and generates `Drags.Web/src/features/access/permissions.ts`; wired into the build so it can't go stale | One source of truth: a renamed or removed permission becomes a TypeScript compile error instead of a hand-synced list |
+| **Generated frontend permissions** | A script exports the backend `PermissionCatalog` (e.g. `dotnet run --project ClinicHub.Api -- export-permissions`) and generates `ClinicHub.Web/src/features/access/permissions.ts`; wired into the build so it can't go stale | One source of truth: a renamed or removed permission becomes a TypeScript compile error instead of a hand-synced list |
 | **Permission-aware prefetch** | A route table maps each page to its `import()` and `permission`; when the browser is idle (`requestIdleCallback`), the chunks of pages the user may open are preloaded (optionally on nav hover). The admin area and the Quill editor stay on demand | First navigation to each page is instant; users never download code they can't use |
 | **Vendor chunk split** | `build.rollupOptions.output.manualChunks`: React, MUI, router in their own chunks | They rarely change, so they stay cached across deploys (main chunk is ~197 kB gzipped today) |
 

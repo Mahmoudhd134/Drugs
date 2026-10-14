@@ -8,7 +8,7 @@ Because it lives on the shared `Dosing` value, it works everywhere dosing does: 
 group overrides and prescription lines, with the same inheritance and conflict rules.
 
 ## Data model
-- `TaperStep` (`Drags.Domain/Catalog/Dosing.cs`): `DoseAmount decimal?`, `Frequency`, `FrequencyValue int?`,
+- `TaperStep` (`ClinicHub.Domain/Catalog/Dosing.cs`): `DoseAmount decimal?`, `Frequency`, `FrequencyValue int?`,
   `DurationValue int?`, `DurationUnit`.
 - `Dosing.TaperSteps` (`List<TaperStep>`, nullable) is stored as **one JSON text column** on the
   owner table (`Drugs.DefaultDosing_TaperSteps`, `DrugGroupItems.Dosing_TaperSteps`), via an EF
@@ -24,7 +24,7 @@ No new endpoints. `defaultDosing` (drugs) and `items[].dosing` (groups) accept a
 `taperSteps: [{ doseAmount, frequency, frequencyValue, durationValue, durationUnit }] | null`.
 Invalid schedules return 400 `invalidDosing`.
 
-## Backend (`Drags.Domain/Catalog/DosingRules.cs`)
+## Backend (`ClinicHub.Domain/Catalog/DosingRules.cs`)
 - Limits (mirrored in `taperConfig.ts`): `MaxTaperSteps = 10`, `TaperFrequencies = daily, everyHours`,
   `TaperDurationUnits = days, weeks`, `TaperLastDurationUnits` adds `continuous, untilNextVisit`.
 - `Normalize`:

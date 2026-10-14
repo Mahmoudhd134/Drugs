@@ -7,7 +7,7 @@ directly in this structure. Until it is done, the code follows `docs/tech/overvi
 Phase 3.5 is done in three steps:
 
 1. **Project split (done):** the four projects; Domain and data access moved (§ 1, § 2, § 4). Services,
-   controllers and auth stay in `Drags.Api`. See [carry-over](#carry-over-to-step-2).
+   controllers and auth stay in `ClinicHub.Api`. See [carry-over](#carry-over-to-step-2).
 2. Use cases, `Result`/`Error`, MediatR, validation and the Application services (§ 3).
 3. API layer: thin controllers, `ApiProblemFactory`, ProblemDetails everywhere (§ 5, § 6), permissions
    (§ 7.1).
@@ -22,12 +22,12 @@ What step 1 could not move cleanly, and why:
   `pg_advisory_xact_lock` → a purpose-built interface, e.g. `IOtpLock`), `ChangeTracker.Clear()`
   (`StartupSeeder`'s batched dev seed) and `Database.MigrateAsync()` (`Program.cs`; stays in
   Infrastructure/Api). Switch each to `IAppDbContext` as it moves.
-- **`ErrorCodes.ValidateName`** stays in `Drags.Api/Shared` (it returns an API error code); only its limit
+- **`ErrorCodes.ValidateName`** stays in `ClinicHub.Api/Shared` (it returns an API error code); only its limit
   moved to `Domain.Common.FieldLimits`. It becomes FluentValidation rules with
   `.WithErrorCode(...)` in the validators.
 - **`DosingRules.IsValid`** (Domain) returns `bool`; the callers (`DrugMappings.Validate`,
   `DrugGroupsController.Validate`) map `false` to `invalidDosing`. Same for the validators in step 2.
-- Still in `Drags.Api`, to move per § 1:
+- Still in `ClinicHub.Api`, to move per § 1:
   - to Application: `ICurrentUser`, `IAccessCache`, `IOtpSender`, `PermissionService`, `SessionService`,
     `OtpService`, `MembershipService`, `Permissions` + `PermissionCatalog`, `DefaultRoles`, `IdentitySeeder`,
     `StartupSeeder`, `ErrorCodes` (→ per-feature error classes), `PagedResult`;
@@ -36,10 +36,10 @@ What step 1 could not move cleanly, and why:
 - `RolePermission` has **no** `DbSet` on `IAppDbContext` (decided in step 1, § 3.6): it is not clinic-owned,
   so a set of its own would be read unfiltered; it is only reached through its (filtered) role.
 - The migrations' designer files and snapshot keep the old CLR names as strings
-  (`"Drags.Api.Models.Drug"`). EF compares the relational model, so this is harmless
-  (`has-pending-model-changes` reports none); the next `migrations add` rewrites the snapshot with the
-  new names. Historic designer files stay as they are.
-- `Drags.Application` references `Microsoft.EntityFrameworkCore` (for `DbSet<T>` in `IAppDbContext`), as
+  (`"Drags.Api.Models.Drug"`, from before the moves and the ClinicHub rename). EF compares the
+  relational model, so this is harmless (`has-pending-model-changes` reports none); the next
+  `migrations add` rewrites the snapshot with the new names. Historic designer files stay as they are.
+- `ClinicHub.Application` references `Microsoft.EntityFrameworkCore` (for `DbSet<T>` in `IAppDbContext`), as
   § 3.6 intends; it has no ASP.NET or Npgsql dependency.
 
 What does **not** change: endpoints, routes, request and response shapes (except error responses gaining
@@ -50,14 +50,14 @@ module boundaries (Catalog, Identity, Access, Platform) from the [platform HLD](
 
 ## 1. Layers
 
-Four projects in `Drags.sln`. Layers split the code by technical concern; **module folders inside each
+Four projects in `ClinicHub.sln`. Layers split the code by technical concern; **module folders inside each
 layer** split it by feature, so no layer becomes one big bag of files.
 
 ```
-Drags.Domain           ← no references (no EF Core, no ASP.NET)
-Drags.Application      → Domain
-Drags.Infrastructure   → Application, Domain
-Drags.Api              → Application, Infrastructure
+ClinicHub.Domain           ← no references (no EF Core, no ASP.NET)
+ClinicHub.Application      → Domain
+ClinicHub.Infrastructure   → Application, Domain
+ClinicHub.Api              → Application, Infrastructure
 ```
 
 | Project | Contains |
@@ -69,7 +69,7 @@ Drags.Api              → Application, Infrastructure
 
 Each layer registers itself: `AddApplication()`, `AddInfrastructure(configuration)`, `AddApi()`.
 
-The solution and project names keep the historic `Drags` prefix (deploy scripts depend on it).
+The solution and projects use the code name `ClinicHub` (renamed from `Drags` on 2026-10-14, after step 1).
 
 ---
 
@@ -215,7 +215,7 @@ public interface IAppDbContext
 ### 3.7 Folder structure and naming
 
 ```
-Drags.Application/
+ClinicHub.Application/
   Common/                      Result, Error, ErrorType, CommonErrors, MediatR abstractions,
                                behaviors, abstractions (IAppDbContext, ICurrentUser…)
   Catalog/
@@ -257,13 +257,13 @@ Drags.Application/
   `OnModelCreating`. The generic clinic setup (FK to `Clinics` + query filter for every `IClinicOwned`) stays
   in `AppDbContext`.
 - The clinic/timestamps interceptor moves as is.
-- **Migrations move to `Drags.Infrastructure`** with their ids unchanged, so existing databases are
+- **Migrations move to `ClinicHub.Infrastructure`** with their ids unchanged, so existing databases are
   unaffected. They are **never regenerated**: new ones are added on top, and both adding and applying use
   the CLI:
 
   ```bash
-  dotnet ef migrations add <Name> --project Drags.Infrastructure --startup-project Drags.Api
-  dotnet ef database update --project Drags.Infrastructure --startup-project Drags.Api
+  dotnet ef migrations add <Name> --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
+  dotnet ef database update --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
   ```
 
 - Implementations of Application abstractions: `TransactionRunner`, `AccessCache` (HybridCache; Redis later

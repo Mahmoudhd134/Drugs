@@ -5,7 +5,7 @@ CRUD for drugs (name + optional description + optional **default dosing**). Drug
 prescriptions. Content is stored once, as typed (not translated).
 
 ## Data model
-`Drugs` (`Drags.Domain/Catalog/Drug.cs`)
+`Drugs` (`ClinicHub.Domain/Catalog/Drug.cs`)
 
 | Column | Type | Rules |
 |---|---|---|

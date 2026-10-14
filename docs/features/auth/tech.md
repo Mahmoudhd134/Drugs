@@ -13,7 +13,7 @@ A minimal `Staff` table says which clinics a user may enter (roles: phase 3, [ac
 Migration: the single PostgreSQL `Initial` was regenerated (nothing in production; dev DB reset
 with `docker compose down -v && docker compose up -d`). All tables have `CreatedAt`/`UpdatedAt`.
 
-**Users** (`Drags.Domain/Identity/User.cs`)
+**Users** (`ClinicHub.Domain/Identity/User.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -22,7 +22,7 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | IsSuperAdmin | boolean | set only by the startup seeder |
 | LastLoginAt | timestamptz null | set on each successful verify |
 
-**OtpCodes** (`Drags.Domain/Identity/OtpCode.cs`)
+**OtpCodes** (`ClinicHub.Domain/Identity/OtpCode.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -33,7 +33,7 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | Attempts | int | wrong guesses; at `Otp:MaxAttempts` the code is dead |
 | ConsumedAt | timestamptz null | single use |
 
-**Sessions** (`Drags.Domain/Identity/Session.cs`)
+**Sessions** (`ClinicHub.Domain/Identity/Session.cs`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -48,7 +48,7 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | LastUsedAt | timestamptz | |
 | RevokedAt | timestamptz null | logout, lost access, super admin demoted |
 
-**Staff** (`Drags.Domain/Access/Staff.cs`, Access module, `IClinicOwned`)
+**Staff** (`ClinicHub.Domain/Access/Staff.cs`, Access module, `IClinicOwned`)
 
 | Column | Type | Rules |
 |---|---|---|
@@ -74,7 +74,7 @@ code; 403 from a policy has `forbidden`).
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
 | GET | `/me` | access token | — | `Me` | 401 |
 
-Shapes (`Features/Identity/AuthDtos.cs`, `Drags.Web/src/features/auth/types.ts`) follow HLD 8.1:
+Shapes (`Features/Identity/AuthDtos.cs`, `ClinicHub.Web/src/features/auth/types.ts`) follow HLD 8.1:
 `AuthResult { accessToken, expiresAt, context | null, contexts[] }`;
 `Context` = `{ type: "clinic", clinicId, clinicName, isTemplate, roles: string[] }` or `{ type: "platform" }`;
 `Me { user: { id, phone, isSuperAdmin }, context, staff: { id, fullName } | null, permissions }`.
@@ -136,7 +136,7 @@ action also needs its permission, and the staff member and clinic must still be 
   - Every issue rotates the refresh token and slides `ExpiresAt`: `RefreshTokenDays` (30) for staff;
     `PlatformSessionHours` (12) for **every session of a super admin**, whatever the context (they can
     switch to the platform at any time without a new code).
-- **`AuthController`** (`api/v1/auth`), **`MeController`** (`api/v1/me`, builds `Me` itself). Cookie `drags_refresh`:
+- **`AuthController`** (`api/v1/auth`), **`MeController`** (`api/v1/me`, builds `Me` itself). Cookie `clinichub_refresh`:
   `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, `Expires` = session expiry. Browsers accept
   `Secure` cookies on `http://localhost`, so dev works over http; **any other host needs HTTPS**
   (on plain http the browser drops the cookie: every reload asks for a new login).
@@ -165,7 +165,7 @@ action also needs its permission, and the staff member and clinic must still be 
 
 | Key | Default (`appsettings.json`) | Development | Production |
 |---|---|---|---|
-| `Auth:Jwt:Issuer` / `Audience` | `drags` | | |
+| `Auth:Jwt:Issuer` / `Audience` | `clinichub` | | |
 | `Auth:Jwt:SigningKey` | — | dev key | env `Auth__Jwt__SigningKey` (≥ 32 bytes) |
 | `Auth:AccessTokenMinutes` / `RefreshTokenDays` / `PlatformSessionHours` | 15 / 30 / 12 | | |
 | `Otp:Mode` | `Sms` (refused until an SMS sender exists) | `Display` | env `Otp__Mode=Display` for a demo/staging server (startup warning; anyone can log in) |
