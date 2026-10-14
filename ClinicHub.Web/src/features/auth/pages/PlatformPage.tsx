@@ -5,7 +5,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import {useTranslation} from "react-i18next";
 import {useAuth} from "../useAuth.ts";
 
-/** TEMPORARY placeholder for the platform context; the admin area (clinics, staff, roles) is phase 4. */
+/** TEMPORARY placeholder for the platform context; the admin area (clinics, staff, roles) is M1.5. */
 export const PlatformPage = () => {
     const {t} = useTranslation();
     const navigate = useNavigate();

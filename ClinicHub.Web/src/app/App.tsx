@@ -50,7 +50,7 @@ export const App = () => (
                     <Route element={<RequireAuth/>}>
                         <Route path="select-clinic" element={<SelectClinicPage/>}/>
                     </Route>
-                    {/* TEMPORARY placeholder until the admin area (phase 4) */}
+                    {/* TEMPORARY placeholder until the admin area (M1.5) */}
                     <Route element={<RequireAuth context="platform"/>}>
                         <Route path="platform" element={<PlatformPage/>}/>
                     </Route>

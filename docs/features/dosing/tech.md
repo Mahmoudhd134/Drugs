@@ -3,7 +3,7 @@
 ## Summary
 A reusable **Dosing** value (dose + unit, frequency, duration, eye) that turns into one Arabic
 prescription sentence. Today it is used as a drug's **default dosing** and on each **prescription
-line**, and as a **group line override** (Feature 2). Saved prescriptions (Phase 2) can reuse it.
+line**, and as a **group line override** (Feature 2). Saved prescriptions (a possible later feature) can reuse it.
 
 Dosing flows down three levels, each pre-filling the next:
 drug default → group override (empty parts inherit) → prescription line (edited per patient).

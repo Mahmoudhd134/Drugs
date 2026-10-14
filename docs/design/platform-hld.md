@@ -1,14 +1,21 @@
 # High-level design: multi-clinic platform (MVP)
 
-Status: **agreed design; Phase 1 (Foundations), Phase 2 (Identity) and Phase 3 (Access) implemented**
-([clinic scoping](../features/clinic-scoping/tech.md), [login](../features/auth/tech.md),
-[access](../features/access/tech.md)).
+Status: **agreed design; the MVP (Phase 1) is in progress**: M1.1 clinic isolation, M1.2 login, M1.3 access and
+M1.4 architecture refactor are done ([clinic scoping](../features/clinic-scoping/tech.md),
+[login](../features/auth/tech.md), [access](../features/access/tech.md), [architecture](architecture.md));
+next is M1.5 platform admin. See [Delivery](#12-delivery-phase-1-mvp).
 Decided in discussion on 2026-10-11.
-When each phase is built it gets its own `docs/features/<feature>/` (tech + business) and the
+When each step is built it gets its own `docs/features/<feature>/` (tech + business) and the
 overviews are updated; this file stays the big picture.
 
-The MVP is the base of the full product, **not a throwaway**: everything here is built so later
-features (patients, forms, portal, audit) are additions, not rewrites. See [Future](#11-future-not-in-the-mvp).
+The MVP covers the clinic platform, **patients** (with dynamic forms) and the **patient portal**. It is
+the base of the full product, **not a throwaway**: later features (audit, support access, owners
+managing their own staff…) are additions, not rewrites. See [Designed ahead](#11-designed-ahead).
+
+**Delivery terms:** a **phase** is a product stage (Phase 1 = the MVP, up to its first launch); a
+**milestone** (M1, M2…) is a demoable part of a phase; a **step** (M1.5…) is one unit of work, built in
+one implementation session and validated before the next. Older commits say "phase 1–5"; they map to
+M1.1–M1.3 (phases 1–3), M1.4 (phase 3.5), M1.5 (phase 4) and M3.2 (phase 5).
 
 ---
 
@@ -20,7 +27,7 @@ features (patients, forms, portal, audit) are additions, not rewrites. See [Futu
 |---|---|
 | FR-1 | The platform hosts **many clinics**. Each clinic has its own drugs, groups, staff and roles; a clinic never sees another clinic's data. |
 | FR-2 | **Login is phone number + one-time code (OTP)** for everyone. No passwords. |
-| FR-3 | In the MVP the OTP is **displayed** (alert on the login page, code auto-filled and submitted; also printed to the server log). Sending by SMS/WhatsApp comes later as a config switch. |
+| FR-3 | Until M3.2 the OTP is **displayed** (alert on the login page, code auto-filled and submitted; also printed to the server log). Sending by SMS/WhatsApp comes later as a config switch. |
 | FR-4 | A user (phone) can be staff in **one or more clinics**. With several, they pick a clinic after login and can switch later. One clinic → entered automatically. |
 | FR-5 | **Roles belong to one clinic** (no global roles). A staff member can have **several roles**; their permissions are the union. |
 | FR-6 | **Permissions** are fixed in code, one per action (`drugs.create`, `drugs.delete`, …). Roles are sets of permissions. Every API action checks a permission. |
@@ -32,6 +39,9 @@ features (patients, forms, portal, audit) are additions, not rewrites. See [Futu
 | FR-12 | Default drugs and groups live in a hidden **template clinic** that the super admin edits with the normal drugs/groups screens. Later template edits don't change existing clinics. |
 | FR-13 | Drugs, groups and the prescription builder work as today, **inside the selected clinic**, gated by permissions. |
 | FR-14 | The UI stays English + Arabic (RTL), including login and admin screens. |
+| FR-15 | **Dynamic forms** (M2.1): a generic module to build, version and fill forms (RJSF; [POC](#11-designed-ahead)), usable by any feature. Its first user is patient info, but it must not depend on patients. Designed when M2.1 starts. |
+| FR-16 | **Patients** (M2.2): staff register a patient by phone in their clinic; the patient's info is a dynamic form. One person (phone) can be a patient of several clinics, each with its own record. |
+| FR-17 | **Patient portal** (M2.3): a patient logs in with the same phone + OTP and sees the clinics they belong to. |
 
 ### 1.2 Non-functional
 
@@ -43,13 +53,14 @@ features (patients, forms, portal, audit) are additions, not rewrites. See [Futu
 | NFR-4 | Display OTP mode is **opt-in by config** (startup warning outside Development); hard-blocked again in Production once an SMS sender exists. |
 | NFR-5 | All times stored in UTC (`timestamptz`). Every table has `CreatedAt`/`UpdatedAt`. |
 | NFR-6 | One deployable (API + SPA), one PostgreSQL database. Production requires HTTPS. |
-| NFR-7 | No automated tests in the MVP: each phase is verified manually (API calls + browser). Integration tests (isolation, permissions, auth; real PostgreSQL) come after the MVP. |
+| NFR-7 | Up to M1.5 every step is verified manually (API calls + browser). **M1.6** adds the test foundation for everything built so far (integration tests on a real PostgreSQL for isolation, permissions, auth and the error contract; unit tests for pure rules and validators; a few end-to-end browser flows); from then on each step adds tests with its feature. |
+| NFR-8 | The SMS/WhatsApp OTP sender, rate limits per IP and the Display-mode block in Production land in M3.2, before launch. |
 
 ### 1.3 Out of the MVP (designed for, not built)
 
-Patients, dynamic registration forms, patient portal, audit log, super admin entering a normal
-clinic ("support access"), SMS/WhatsApp provider, clinic self sign-up, owners managing their own
-staff/roles, changing a user's phone, deleting a clinic, clinic chains (organizations).
+Audit log, super admin entering a normal clinic ("support access"), clinic self sign-up, owners
+managing their own staff/roles (the M1.5 screens are built reusable for it), per-clinic feature
+entitlements/plans, changing a user's phone, deleting a clinic, clinic chains (organizations).
 
 ---
 
@@ -97,14 +108,14 @@ flowchart LR
 
 ### 3.1 Backend layout
 
-*(Phase 3.5 replaced this layout with four projects and per-module use cases: see
+*(M1.4 replaced this layout with four projects and per-module use cases: see
 [backend architecture](architecture.md) and `docs/tech/overview.md`. Kept as the original plan.)*
 
 ```
 ClinicHub.Api/
   Features/
     Identity/      AuthController, MeController, OtpService, SessionService, TokenService, PhoneNormalizer
-    Access/        MembershipService (built in phase 2), PermissionService, Permissions.cs, DefaultRoles.cs, HasPermissionAttribute + handler
+    Access/        MembershipService (built in M1.2), PermissionService, Permissions.cs, DefaultRoles.cs, HasPermissionAttribute + handler
     Platform/      Admin*Controllers, ClinicProvisioningService, Seeders/ (IClinicSeeder implementations)
     Drugs/, DrugGroups/   (existing; become the Catalog module)
   Shared/          IClinicContext, ICurrentUser, IClinicOwned, IHasTimestamps, ErrorCodes, PagedResult
@@ -112,7 +123,7 @@ ClinicHub.Api/
 ```
 
 The current `Features/<Feature>` convention stays; a module may span several feature folders.
-(Superseded from Phase 3.5 by the layered projects in [backend architecture](architecture.md).)
+(Superseded from M1.4 by the layered projects in [backend architecture](architecture.md).)
 
 ---
 
@@ -140,7 +151,7 @@ The current `Features/<Feature>` convention stays; a module may span several fea
 - `[HasPermission(Permissions.DrugsUpdate)]` on actions → policy handler asks
   `PermissionService.GetPermissions(staffId)`.
 - Permissions are **not** in the token. `PermissionService` loads the staff's roles + clinic status
-  and caches it in memory for 60 s; any change to that clinic's roles/staff clears the cache. *(Built in phase 3 with HybridCache: 10 min expiry, 30 s local, invalidated by tag; see [access](../features/access/tech.md).)*
+  and caches it in memory for 60 s; any change to that clinic's roles/staff clears the cache. *(Built in M1.3 with HybridCache: 10 min expiry, 30 s local, invalidated by tag; see [access](../features/access/tech.md).)*
 - Owner role → all permissions. Inactive staff or suspended clinic → 403 (`noAccess` /
   `clinicSuspended`).
 - Admin endpoints: `[Authorize(Policy = "SuperAdmin")]` requires a platform-context token.
@@ -217,7 +228,7 @@ Old rows are deleted by a cleanup on each request (older than 1 day).
 | RefreshTokenHash | varchar(100) | **unique**; rotated on every refresh |
 | ContextType | varchar(20) null | `clinic` / `platform` / null (not chosen yet) |
 | ClinicId | int null | FK → Clinics; set when `ContextType = clinic` |
-| ExpiresAt | timestamptz | sliding: 30 days (12 h for every super-admin session, as built in phase 2) |
+| ExpiresAt | timestamptz | sliding: 30 days (12 h for every super-admin session, as built in M1.2) |
 | LastUsedAt | timestamptz | |
 | RevokedAt | timestamptz null | logout, staff removed, clinic suspended |
 
@@ -247,7 +258,7 @@ Old rows are deleted by a cleanup on each request (older than 1 day).
 Values must be in `Permissions.All` (`unknownPermission`). Owner roles have no rows (implicit all).
 
 **StaffRoles**: `StaffId` (FK, cascade) + `RoleId` (FK, cascade), PK `(StaffId, RoleId)`.
-The role must belong to the staff's clinic (checked in `AccessService`; the filter hides other clinics' roles anyway). *(Built in phase 3: `StaffRoles` also has `ClinicId`, with composite FKs to `Staff(Id, ClinicId)` and `Roles(Id, ClinicId)`, so the database enforces it.)*
+The role must belong to the staff's clinic (checked in `AccessService`; the filter hides other clinics' roles anyway). *(Built in M1.3: `StaffRoles` also has `ClinicId`, with composite FKs to `Staff(Id, ClinicId)` and `Roles(Id, ClinicId)`, so the database enforces it.)*
 
 ### 5.3 Platform
 
@@ -365,11 +376,11 @@ Any failure rolls back everything. New modules add a seeder (e.g. the default re
 Every start (idempotent): ensure the template clinic exists; ensure every phone in
 `Platform:SuperAdminPhones` has a `User` with `IsSuperAdmin = true` (and no other user has it).
 Development only, on an empty DB: provision a "Demo clinic" owned by `Platform:DevOwnerPhone`.
-Built so far (phases 1–2): the template is ensured; super admins are seeded from config (others lose
+Built so far (M1.1–M1.2): the template is ensured; super admins are seeded from config (others lose
 the flag and their sessions); on an empty dev DB "Demo clinic" (10,000 sample drugs) and "Second
 demo clinic" (a few drugs + one group, for isolation checks) are created directly, in one
 transaction, with the `DevOwnerPhone` user as staff "Dev Owner" in both (no roles yet). Owner roles
-and provisioning come with phases 3–4.
+and provisioning come with M1.3–M1.5.
 
 ### 7.5 Editing the template
 
@@ -416,11 +427,11 @@ type Me = {
   user: { id: number; phone: string; isSuperAdmin: boolean };
   context: Context | null;
   staff: { id: number; fullName: string } | null;
-  permissions: string[];                       // expanded keys (phase 3: every key for Owner / template access, not "*")
+  permissions: string[];                       // expanded keys (M1.3: every key for Owner / template access, not "*")
 };
 ```
 
-**Built in phase 2 (deviations from the table above)** — see [login tech](../features/auth/tech.md):
+**Built in M1.2 (deviations from the table above)** — see [login tech](../features/auth/tech.md):
 - `GET /auth/otp/mode` (anonymous) → `{ mode }`, so the login page shows the display-mode banner up front.
 - `/auth/refresh` and `/auth/context` return 409 when a parallel call rotated the cookie < 30 s ago
   (cookie kept); `/auth/context` also requires the session's refresh cookie (401 otherwise).
@@ -481,7 +492,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 
 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`, `tooManyRequests`, `noAccess`,
 `clinicSuspended`, `forbidden`, `roleNameTaken`, `unknownPermission`, `roleLocked`, `roleInUse`,
-`rolesRequired`, `staffExists`, `lastOwner`. Each goes in its feature's error class (`<Feature>Errors`, Phase 3.5) and `errors.*` in both locales.
+`rolesRequired`, `staffExists`, `lastOwner`. Each goes in its feature's error class (`<Feature>Errors`, M1.4) and `errors.*` in both locales.
 
 ---
 
@@ -530,36 +541,63 @@ environment variables in production, never `appsettings.json`.
 
 ---
 
-## 11. Future (not in the MVP)
+## 11. Designed ahead
 
-How the MVP leaves room, so these are additions:
+How the platform (M1) leaves room for what comes next, so these are additions. Rows marked with a
+step are in the MVP and get their full design when that step starts; the others come after the MVP.
 
-| Feature | Fits by |
-|---|---|
-| **Patients** | `Patients(Id, UserId, ClinicId, FullName, FileNo, FormVersionId, FormData jsonb)`, unique `(UserId, ClinicId)`; the phone is the only shared data. Clinic data references `Patients.Id`, never `UserId`. Assistant registers by phone (find/create `User`). |
-| **Patient portal** | A new context type `patient`; `GET /me/clinics`. Same OTP login. |
-| **Dynamic forms** | `FormDefinitions` (global, built by the super admin, versioned, stores `Fields` + generated JSON Schema), `ClinicForms` assignment, RJSF renderer from the POC, server validation with JsonSchema.Net; a provisioning seeder assigns the default form. |
-| **OTP by SMS/WhatsApp** | `IOtpSender` implementation + `Otp:Mode = Sms`. |
-| **Audit + support access** | `AuditLogs`; super admin may then pick any clinic as context (`impersonating`, banner). |
-| **Owners manage staff/roles** | Permissions `staff.manage`/`roles.manage` + clinic-side screens reusing the admin services. |
-| **Custom clinic chains** | `Organizations` above `Clinics`; `ClinicId` stays the isolation key. |
+| Feature | When | Fits by |
+|---|---|---|
+| **Dynamic forms** | M2.1 | A generic module, not coupled to patients (any feature can use it). Starting point: the RJSF form builder POC at `C:\Users\mahmoud.nasser\Projects\SideProjects\POCs\DynamicFormBuilderUsingReact` (`FieldInstance[]` → JSON Schema through a control registry; versioned definitions; server-side validation). **Not designed yet**: decided when M2.1 starts. |
+| **Patients** | M2.2 | Sketch: `Patients(Id, UserId, ClinicId, FullName, FileNo, …)` + the patient info as a dynamic form, unique `(UserId, ClinicId)`; the phone is the only shared data. Clinic data references `Patients.Id`, never `UserId`. Staff register by phone (find/create `User`). |
+| **Patient portal** | M2.3 | A new context type `patient`; `GET /me/clinics`. Same OTP login. |
+| **OTP by SMS/WhatsApp** | M3.2 | `IOtpSender` implementation + `Otp:Mode = Sms`. |
+| **Audit + support access** | after MVP | `AuditLogs`; super admin may then pick any clinic as context (`impersonating`, banner). |
+| **Owners manage staff/roles** | after MVP | Permissions `staff.*`/`roles.*` + clinic-side routes mounting the reusable M1.5 role/staff components and calling the same commands. |
+| **Custom clinic chains** | after MVP | `Organizations` above `Clinics`; `ClinicId` stays the isolation key. |
 
 ---
 
-## 12. Delivery phases
+## 12. Delivery: Phase 1 (MVP)
 
-| # | Phase | Done when |
+Phase 1 is the MVP, up to its first launch. It has three milestones; each step is built in one
+implementation session and validated before the next (terms in the [status](#high-level-design-multi-clinic-platform-mvp) note).
+
+| Milestone | Steps | Status |
 |---|---|---|
-| 1 | **Foundations**: `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
-| 2 | **Identity**: users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until phase 3 |
-| 3 | **Access**: staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (phase 4's role editor) |
-| 3.5 | **Architecture refactor** (pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | Same endpoints and responses verified manually; Phase 4 is written in the new structure. Step 1 (project split) ✅ done 2026-10-14 |
-| 4 | **Platform**: clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since phase 1; the template is still **empty**: phase 4 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it) | Super admin creates a clinic and its owner logs in to a copied catalog |
-| 5 | **Hardening**: rate limits, display-mode guard for real production once an SMS sender exists (relaxed to a config choice in phase 2), docs (features + overviews, both languages) | Checks green; RTL verified |
+| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **next: M1.5** |
+| **M2 Patients** | M2.1 dynamic forms · M2.2 patients · M2.3 patient portal | not started |
+| **M3 Production readiness** | M3.1 frontend enhancements ([12.1](#121-enhancements-m31)) · M3.2 hardening → **launch** | not started |
 
-### 12.1 Enhancements (after all phases)
+### M1 Clinic platform
 
-Agreed improvements, done once phases 1–5 are complete:
+| Step | Scope | Done when |
+|---|---|---|
+| M1.1 | **Clinic isolation** (was "phase 1, foundations"): `IClinicOwned`, `IClinicContext`, query filter, timestamps | ✅ **Done** (2026-10-11): verified manually with two seeded clinics, neither sees the other's data |
+| M1.2 | **Login** (was "phase 2, identity"): users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until M1.3 |
+| M1.3 | **Access** (was "phase 3"): staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (M1.5's role editor) |
+| M1.4 | **Architecture refactor** (was "phase 3.5"; pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | ✅ **Done** (2026-10-14) in three parts plus a layout follow-up; the same endpoints and responses verified manually after each |
+| M1.5 | **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; the template is still **empty**: M1.5 must fill it, e.g. dev seed puts the sample drugs/groups in the template, before provisioning copies from it). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
+| M1.6 | **Test foundation**: automated tests for M1.1–M1.5 (see NFR-7) | Tests green in one command; isolation, permissions, auth and the error contract covered |
+
+### M2 Patients
+
+| Step | Scope | Done when |
+|---|---|---|
+| M2.1 | **Dynamic forms**: generic, decoupled module (FR-15); design decided when it starts | Defined when designed |
+| M2.2 | **Patients**: registration by phone, patient info through a dynamic form (FR-16) | Defined when designed |
+| M2.3 | **Patient portal**: `patient` context, same OTP login (FR-17) | Defined when designed |
+
+### M3 Production readiness
+
+| Step | Scope | Done when |
+|---|---|---|
+| M3.1 | **Frontend enhancements** ([12.1](#121-enhancements-m31)) | Listed items done |
+| M3.2 | **Hardening** (was "phase 5"): SMS/WhatsApp OTP sender, rate limits, display-mode block in Production once an SMS sender exists (relaxed to a config choice in M1.2), docs (features + overviews, both languages) | Checks green; RTL verified; ready to launch |
+
+### 12.1 Enhancements (M3.1)
+
+Agreed improvements, done in M3.1 (after M2):
 
 | Enhancement | What | Why |
 |---|---|---|

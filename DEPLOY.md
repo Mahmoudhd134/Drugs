@@ -76,12 +76,12 @@ produces a ready-to-copy folder: **`D:\ClinicHub\publish`**.
 `MediatR__LicenseKey` (free community license for companies under $5M yearly revenue, from
 luckypennysoftware.com).
 
-**Login (phase 2) — the app won't start without these** (environment variables, never in `appsettings.json`):
+**Login (M1.2) — the app won't start without these** (environment variables, never in `appsettings.json`):
 `Auth__Jwt__SigningKey` and `Otp__HashKey` (random secrets, at least 32 bytes each) and the super
 admins' phones `Platform__SuperAdminPhones__0`, `Platform__SuperAdminPhones__1`, … Note: outside
 Development the app starts only with **`Otp__Mode=Display`** (there is no SMS sender yet): login codes
 are shown on screen, so anyone can log in as any phone. Fine for a demo or staging server, not for
-real data. That includes the super admins' phones (today: the template clinic; after phase 4: the whole
+real data. That includes the super admins' phones (today: the template clinic; after M1.5: the whole
 admin area, creating clinics and managing staff), so on a demo server use **throwaway super-admin
 numbers** and no real data. Login also needs **HTTPS** (the refresh cookie is `Secure`): the http binding below is not
 enough once login is deployed.

@@ -27,7 +27,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 ```
 ClinicHub.sln                  Domain ← Application ← Infrastructure ← Api (backend architecture:
-                               docs/design/architecture.md; Phase 3.5 done)
+                               docs/design/architecture.md; M1.4 done)
 ClinicHub.Domain/              entities and pure rules; no references (no EF Core, no ASP.NET)
   Common/                      IClinicOwned, IHasTimestamps, FieldLimits (column lengths)
   Catalog/                     Drug, DrugGroup (+ DrugGroupItem), Dosing (+ TaperStep, DosingCodes),
@@ -330,11 +330,11 @@ Swagger UI is available in Development at `/swagger`.
   generated migration: renames/restructures must copy data (create new tables → `INSERT … SELECT`
   keeping ids → drop old), never drop-and-recreate. Test up, down to the previous migration, and
   up again on a copy of a real DB.
-- Phase 3.5 moved the migrations from the Api project to `ClinicHub.Infrastructure` (namespace
+- M1.4 moved the migrations from the Api project to `ClinicHub.Infrastructure` (namespace
   `ClinicHub.Infrastructure.Migrations`) with their ids unchanged, so existing databases are unaffected.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
-  to PostgreSQL; `Initial` was regenerated again for clinic scoping (platform phase 1) and for login
-  (phase 2). From phase 3 on, migrations are **added on top** (`AddRoles`), never regenerated.
+  to PostgreSQL; `Initial` was regenerated again for clinic scoping (M1.1) and for login
+  (M1.2). From M1.3 on, migrations are **added on top** (`AddRoles`), never regenerated.
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`.
 
@@ -518,13 +518,13 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- Users, staff and roles come only from seeding until the admin area (phase 4).
+- Users, staff and roles come only from seeding until the admin area (M1.5).
 - Permission or active-flag changes made outside the (future) admin endpoints apply within 30 s
   (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
   on any 403).
 - No SMS sender yet: a deployed server must run with `Otp__Mode=Display` (code on screen; anyone can
   log in as any phone), so it suits a demo/staging server only.
-- No per-IP limit on OTP requests yet (phase 5): one person can request codes for many numbers
+- No per-IP limit on OTP requests yet (M3.2): one person can request codes for many numbers
   (costly once SMS is real).
 - `AllowedOrigins` (CORS) is no longer used (dev goes through the Vite proxy, production is
   same-origin); it can be removed.
@@ -532,7 +532,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
   and staff deactivation are checked per request through the access cache (within 30 s).
 - **HTTPS is now required** outside localhost: the login refresh cookie is `Secure`, so on the
   plain-http LAN setup every reload would ask for a new login. Moving the deployment to HTTPS is a
-  prerequisite for phase 2 in production.
+  prerequisite for M1.2 in production.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
 - No automated database backups yet.

@@ -5,7 +5,7 @@ using ClinicHub.Domain.Access;
 namespace ClinicHub.Application.Features.Access.Roles;
 
 /// <summary>
-/// The roles every clinic starts with (HLD 6). Used by the dev seed and, in phase 4, by clinic
+/// The roles every clinic starts with (HLD 6). Used by the dev seed and, in M1.5, by clinic
 /// provisioning. Role names are clinic data (not translated), like drug names.
 /// </summary>
 public static class DefaultRoles

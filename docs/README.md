@@ -13,14 +13,14 @@ docs/
 ├── business/
 │   └── overview.md            ← (عربي) what the system supports today
 ├── design/
-│   ├── platform-hld.md        ← multi-clinic platform: requirements, data model, API, phases
-│   └── architecture.md        ← backend layers, MediatR use cases, Result/Error, ProblemDetails (Phase 3.5)
+│   ├── platform-hld.md        ← multi-clinic platform: requirements, data model, API, delivery (MVP milestones and steps)
+│   └── architecture.md        ← backend layers, MediatR use cases, Result/Error, ProblemDetails (M1.4)
 └── features/
     ├── _template/             ← copy this folder for every new feature
     │   ├── tech.md
     │   └── business.md
-    ├── clinic-scoping/        ← clinics + automatic per-clinic data isolation (platform phase 1)
-    ├── auth/                  ← phone + OTP login, sessions, clinic contexts (platform phase 2)
+    ├── clinic-scoping/        ← clinics + automatic per-clinic data isolation (M1.1)
+    ├── auth/                  ← phone + OTP login, sessions, clinic contexts (M1.2)
     ├── dosing/                ← structured dosing (shared by drugs, groups, prescriptions)
     ├── tapering/              ← tapering schedules (steps inside a dosing)
     ├── drugs/                 ← drug catalog

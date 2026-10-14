@@ -1,13 +1,13 @@
 # Login (phone + OTP): technical
 
 ## Summary
-Phase 2 (Identity) of the [multi-clinic platform](../../design/platform-hld.md). Everyone logs in
+M1.2 (Identity) of the [multi-clinic platform](../../design/platform-hld.md). Everyone logs in
 with a phone number and a one-time code (no passwords). A login creates a **session** (one per
 device) holding a rotating refresh token and the current **context**: a clinic (as staff, or the
 template clinic for a super admin) or the platform (super admin). The API issues a short-lived JWT
 access token per context; the request's clinic (`IClinicContext`) now comes only from that token's
-`clinic_id`, which replaces phase 1's `TemporaryClinicMiddleware` and the `X-Dev-Clinic-Id` header.
-A minimal `Staff` table says which clinics a user may enter (roles: phase 3, [access](../access/tech.md)).
+`clinic_id`, which replaces M1.1's `TemporaryClinicMiddleware` and the `X-Dev-Clinic-Id` header.
+A minimal `Staff` table says which clinics a user may enter (roles: M1.3, [access](../access/tech.md)).
 
 ## Data model
 Migration: the single PostgreSQL `Initial` was regenerated (nothing in production; dev DB reset
@@ -81,15 +81,15 @@ Shapes (`Application/Features/Identity/Sessions/AuthResult.cs`, `ContextDto.cs`,
 `Context` = `{ type: "clinic", clinicId, clinicName, isTemplate, roles: string[] }` or `{ type: "platform" }`;
 `Me { user: { id, phone, isSuperAdmin }, context, staff: { id, fullName } | null, permissions }`.
 `roles` lists the user's role names in that clinic and `permissions` the expanded permission keys in a
-clinic context (`[]` otherwise), both since phase 3 ([access](../access/tech.md)).
+clinic context (`[]` otherwise), both since M1.3 ([access](../access/tech.md)).
 
 Catalog endpoints (`/drugs`, `/drug-groups`) carry `[Authorize(Policy = AuthPolicies.ClinicContext)]`:
-no/expired/invalid token → 401; a platform or no-context token → 403 `forbidden`. Since phase 3 each
+no/expired/invalid token → 401; a platform or no-context token → 403 `forbidden`. Since M1.3 each
 action also needs its permission, and the staff member and clinic must still be active
 ([access](../access/tech.md)).
 
 ## Backend
-Use cases in `ClinicHub.Application/Features/Identity/` (Phase 3.5 step 3; [architecture](../../design/architecture.md)),
+Use cases in `ClinicHub.Application/Features/Identity/` (M1.4 part 3; [architecture](../../design/architecture.md)),
 grouped by sub-feature: `Login/` (OTP request and verify, `GetOtpMode`), `Sessions/` (refresh, switch, logout,
 `GetContexts`, the session service), `Users/` (`GetMe`, phone normalizing, the seeder);
 implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `ClinicHub.Api/Features/Identity/`.
@@ -251,7 +251,7 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 
 ## Edge cases & limitations
 - Access tokens stay valid until they expire (≤ 15 min) after logout; refresh and context switches
-  re-check access. *(Phase 3: suspension and staff deactivation are checked on every clinic request
+  re-check access. *(M1.3: suspension and staff deactivation are checked on every clinic request
   through the access cache; every issued token invalidates the user's cached access entries.)*
 - The context is per session (per browser), not per tab: switching clinic in one tab moves the
   other tabs' next refresh to that clinic too.
@@ -262,9 +262,9 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   LAN setup in `DEPLOY.md` must move to HTTPS before this is deployed (HLD NFR-6).
 - `Otp:Mode = Sms` has no sender, so a deployed server runs only with `Otp__Mode=Display`
   (a demo/staging setup, not real patients' data: anyone can log in as any phone).
-- Per-IP rate limiting of `/auth/otp/*` is phase 5.
-- The template clinic is still empty (filled in phase 4).
-- No user/staff management UI or API yet: users exist only through seeding (phase 4).
+- Per-IP rate limiting of `/auth/otp/*` is M3.2.
+- The template clinic is still empty (filled in M1.5).
+- No user/staff management UI or API yet: users exist only through seeding (M1.5).
 
 ## Testing notes
 Verified manually on a reset DB (API on :5000 in Development, Vite on :5173). With a Python script
@@ -297,7 +297,7 @@ against the API:
   refresh 401, `/drugs` redirects to login. Super admin: platform page, `/drugs` redirects to
   `/platform`, template clinic with banner, drug edited. Mobile width (375 px): no horizontal scroll.
   Only `language` and `prescription.lines.*` are in `localStorage`.
-- Phase 3.5 step 3 (use cases): the same 83 calls (every endpoint above, the 401/403/409 cases, cookies,
+- M1.4 part 3 (use cases): the same 83 calls (every endpoint above, the 401/403/409 cases, cookies,
   parallel refreshes, the catalog smoke test, the suspended clinic, losing every context) recorded before and
   after on `:5055` with `Otp:MaxAttempts=3`, `ResendSeconds=60`: statuses, codes, cookies and `Retry-After`
   identical; only the English `detail`/`description` texts (from `IdentityErrors`), `field: "phone"` on

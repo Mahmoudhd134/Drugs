@@ -1,27 +1,27 @@
 # Backend architecture
 
-Status: **agreed, implemented** (steps 1–3 done). Decided in discussion on 2026-10-12. Built in **Phase 3.5**,
-a pure refactor between Phase 3 (Access) and Phase 4 (Platform), so the Phase 4 admin code is written
+Status: **agreed, implemented** (M1.4 parts 1–3 and the layout follow-up done). Decided in discussion on 2026-10-12. Built in **M1.4**,
+a pure refactor between M1.3 (Access) and M1.5 (Platform), so the M1.5 admin code is written
 directly in this structure. `docs/tech/overview.md` describes the code as it is now.
 
-Phase 3.5 is done in three steps:
+M1.4 was done in three parts:
 
 1. **Project split (done):** the four projects; Domain and data access moved (§ 1, § 2, § 4). Services,
    controllers and auth stay in `ClinicHub.Api`.
 2. **Application foundations + Catalog (done):** MediatR abstractions, `Result`/`Error`, FluentValidation, the
    pipeline behaviors and `ITransactionRunner` (§ 3); `ApiProblemFactory` with every error source and the
    `Result` → HTTP helpers (§ 5, § 6); the Catalog module (Drugs, DrugGroups) as commands/queries with thin
-   controllers. The app works end to end after this step.
+   controllers. The app works end to end after this part.
 3. **Identity, Access, Platform + permission structure (done):** the remaining services move to Application on top
    of the abstractions (purpose-built interfaces for what `IAppDbContext` hides), their use cases and
    Infrastructure implementations, Access 403s through `ApiProblemFactory`, and the permission constants
    grouped by module with `[PermissionModule]` (§ 7.1). Then the module layout was regrouped (sub-feature
-   folders, an interface for every service, one `Permissions` class; see [layout follow-up](#step-3-follow-up-module-layout)).
-   See [carry-over](#carry-over-to-phase-4).
+   folders, an interface for every service, one `Permissions` class; see [layout follow-up](#part-3-follow-up-module-layout)).
+   See [carry-over](#carry-over-to-m15).
 
-Module by module, so every step ends with a working app.
+Module by module, so every part ended with a working app.
 
-### Step 2: what was done
+### Part 2: what was done
 
 - Packages in `ClinicHub.Application`: MediatR 13.1 (license from `MediatR:LicenseKey`; `AppSettings.Validate`
   stops the app outside Development when it is empty), FluentValidation 12 + its DI extensions,
@@ -47,9 +47,9 @@ Module by module, so every step ends with a working app.
 - `Application/Features/Access/AccessErrors` (`noAccess`, `clinicSuspended`), so the Access 403s have
   descriptions; the Api's Access 403 handlers file is now `AccessDenied.cs`.
 
-### Step 3: what was done
+### Part 3: what was done
 
-Paths below are the current ones (after the [layout follow-up](#step-3-follow-up-module-layout)).
+Paths below are the current ones (after the [layout follow-up](#part-3-follow-up-module-layout)).
 
 - **Identity** (`Application/Features/Identity`): `Commands/` `RequestOtp`, `VerifyOtp` (login), `RefreshSession`,
   `SwitchContext`, `Logout`; `Queries/` `GetOtpMode`, `GetContexts`, `GetMe`. `OtpService` became the
@@ -57,7 +57,7 @@ Paths below are the current ones (after the [layout follow-up](#step-3-follow-up
   cases share (contexts, `IssueAsync`, `TrySaveAsync`) and is internal. `PhoneNormalizer` moved as is; phone
   validation is a FluentValidation rule, `ValidPhone()` (`.WithError(IdentityErrors.InvalidPhone)`), shared by both OTP validators. (The use cases first sat
   directly under `Features/Identity/Commands|Queries`; they are now grouped by sub-feature, see the
-  [layout follow-up](#step-3-follow-up-module-layout).)
+  [layout follow-up](#part-3-follow-up-module-layout).)
 - Abstractions in Application: `ICurrentUser` (`Common/Abstractions`), `ITokenService` (`Features/Identity/Sessions`),
   `IOtpSender`, `IOtpLock` (`Features/Identity/Login`), `IAccessCache` (`Features/Access/Authorization`). Implementations in Infrastructure: `TokenService`,
   `DisplayOtpSender`, `OtpLock` (`pg_advisory_xact_lock`; throws outside a transaction), `AccessCache` + the
@@ -91,20 +91,20 @@ Paths below are the current ones (after the [layout follow-up](#step-3-follow-up
   `RequestOtpCommand` doesn't need it: its only failure is the 429, whose only write is the cleanup of day-old
   codes, which the next request redoes.
 - **Permissions** (§ 7.1): `[PermissionModule]` on every resource class (first as a partial class, one file per
-  module; merged into one class in the [layout follow-up](#step-3-follow-up-module-layout)); `PermissionDefinition.Module`, returned by
+  module; merged into one class in the [layout follow-up](#part-3-follow-up-module-layout)); `PermissionDefinition.Module`, returned by
   `/permissions`; the catalog is built in `AddApplication` (startup validation: module present, key prefix =
   class). Keys and `[Requires]` unchanged.
 - **Settings**: `AuthSettings`, `OtpSettings` (+ `OtpModes`), `PlatformSettings` → `Application/Common/Settings`;
   the Api's `AppSettings` stays the root (binding, `Validate`, `AllowedOrigins`, `MediatR`) and registers each
   validated section as a singleton. `TimeProvider.System` is registered by `AddApplication`. Config keys unchanged.
-- **Fixes from the step 2 validation**: outside Development the 400 `invalidRequest` keeps each `field` but uses
+- **Fixes from the part 2 validation**: outside Development the 400 `invalidRequest` keeps each `field` but uses
   the generic description (no parser messages or CLR type names); lowercase URLs for generated links
   (`Location: /api/v1/drugs/5`).
 - Packages: `libphonenumber-csharp` → Application; `Microsoft.Extensions.Caching.Hybrid` and
   `Microsoft.IdentityModel.JsonWebTokens` → Infrastructure; the Api keeps JwtBearer.
 - Verified with a contract recording of 83 calls before and after ([login testing notes](../features/auth/tech.md#testing-notes)).
 
-### Step 3 follow-up: module layout
+### Part 3 follow-up: module layout
 
 A pure refactor that applies the rules in § 3.7 (no behavior, API or schema change; on the frontend only the comment
 in `permissions.ts` changed):
@@ -126,12 +126,12 @@ in `permissions.ts` changed):
   `PrescriptionPermissions.cs` and the empty `Features/Prescription` folder are gone. Keys, `[Requires]`,
   modules and the `/permissions` output (items and order) are unchanged.
 
-### Carry-over to Phase 4
+### Carry-over to M1.5
 
 - **Permissions on endpoints only** (§ 7, option A): use cases sent outside HTTP are not permission-checked; move
   to option B when background jobs arrive.
 - **OTP send inside the transaction**: `RequestOtp` calls `IOtpSender` before the commit, holding the phone's
-  advisory lock. Fine for display mode; an SMS sender (Phase 5) should send after the commit (or through an
+  advisory lock. Fine for display mode; an SMS sender (M3.2) should send after the commit (or through an
   outbox) so a slow provider doesn't hold the lock and a failed commit doesn't send an unusable code.
 - **Housekeeping deletes inside command transactions**: `RequestOtp` deletes day-old codes and `VerifyOtp` week-old
   sessions; these used to commit on their own, now their row locks last until the command commits, so two
@@ -146,7 +146,7 @@ in `permissions.ts` changed):
 - **Parallel wrong guesses** (unchanged from before): the handler reads `Attempts` before its atomic update, so
   the last of several parallel wrong guesses may answer `invalidCode` instead of `tooManyAttempts`. The limit
   itself holds (the update is conditional).
-- `DefaultRoles.SeedAsync` is ready for clinic provisioning (Phase 4): it needs the clinic context set to the new
+- `DefaultRoles.SeedAsync` is ready for clinic provisioning (M1.5): it needs the clinic context set to the new
   clinic (a command that creates a clinic sets it, or the seeding moves into the provisioning handler).
 - `TransactionRunner`: a nested command that fails rolls back to its savepoint but leaves the change tracker as
   is (the outer unit's entities are in it too); revisit if commands start sending commands. A nested
@@ -188,7 +188,7 @@ ClinicHub.Api              → Application, Infrastructure
 
 Each layer registers itself: `AddApplication(configuration)`, `AddInfrastructure(configuration)`, `AddApi()`.
 
-The solution and projects use the code name `ClinicHub` (renamed from `Drags` on 2026-10-14, after step 1).
+The solution and projects use the code name `ClinicHub` (renamed from `Drags` on 2026-10-14, after part 1).
 
 ---
 
@@ -510,7 +510,7 @@ All error sources go through **one `ApiProblemFactory`**:
 | 400 malformed JSON / wrong types | `ApiBehaviorOptions.InvalidModelStateResponseFactory` (`invalidRequest`) |
 | 404/405 with no body | `UseStatusCodePages` |
 | 500 unexpected exception | `IExceptionHandler` (`unexpected`; no stack trace outside Development) |
-| 429 | a `TooManyRequestsError` `Result` (the OTP limits); Phase 5 (planned): rate limiter `OnRejected` |
+| 429 | a `TooManyRequestsError` `Result` (the OTP limits); M3.2 (planned): rate limiter `OnRejected` |
 
 `AddProblemDetails(o => o.CustomizeProblemDetails = …)` adds `code`, `errors` and `traceId` as a safety net
 for anything not listed (e.g. MVC's `Problem()`, `Unauthorized()`): `ApiProblemFactory.Complete` derives the code from
@@ -530,7 +530,7 @@ names CLR types); elsewhere the generic description. The `field` is always kept.
 ## 7. Permissions
 
 **Decision: option A (for now).** Permissions stay **on the endpoints**: `[HasPermission(...)]` on controller
-actions (Phase 3), checked by ASP.NET authorization with `IPermissionService` / `IAccessCache`. Session-level
+actions (M1.3), checked by ASP.NET authorization with `IPermissionService` / `IAccessCache`. Session-level
 checks (authenticated, clinic context, staff and clinic still active) also stay in the ASP.NET pipeline.
 Use cases sent from outside HTTP are not permission-checked.
 
@@ -546,22 +546,22 @@ background jobs, one handler calling another):
   caller that the behavior lets through. Jobs need the clinic part anyway (the clinic filter fails closed),
   so this adds no per-job work, and a job run on behalf of a staff member can be checked as that staff.
 
-Deferred because the MVP has no background jobs; moving later is mechanical (attribute from action to
+Deferred because nothing runs background jobs yet; moving later is mechanical (attribute from action to
 request, add the behavior). The frontend is unaffected either way.
 
 ### 7.1 Permission constants
 
-**Kept from Phase 3:** permissions are `const string` keys named `resource.action` (they must be constants:
+**Kept from M1.3:** permissions are `const string` keys named `resource.action` (they must be constants:
 attributes such as `[HasPermission(...)]` only accept compile-time constants), dependencies are declared with
 `[Requires(...)]`, and `PermissionCatalog` is built from them by reflection and validated at startup. The keys are
 the single source of truth for the catalog, `/permissions`, the seeded roles and (later) the generated
 frontend `permissions.ts`. Keys are stored in the database, so they never change once deployed.
 
-**Changed in Phase 3.5 (step 3, done), so it scales to hundreds of permissions:**
+**Changed in M1.4 (part 3, done), so it scales to hundreds of permissions:**
 
 1. **`Permissions` is one class in `Access/Permissions.cs`**, its resource classes grouped by module with
    `[PermissionModule]`, one `// --- <module> ---` section per module (catalog, then prescription; Access's own
-   resources join in Phase 4). Usage is unchanged (`Permissions.Drugs.Create`).
+   resources join in M1.5). Usage is unchanged (`Permissions.Drugs.Create`).
 
    ```cs
    // Application/Features/Access/Permissions.cs
@@ -591,7 +591,7 @@ frontend `permissions.ts`. Keys are stored in the database, so they never change
 Not done on purpose: permission objects (unusable in attributes), three-part keys, and descriptions in C#
 (labels and descriptions are translated in the SPA locales under `permissions.<key>`).
 
-**Requirements are honored** (Phase 4): when a role is saved, its permissions are completed with everything they
+**Requirements are honored** (M1.5): when a role is saved, its permissions are completed with everything they
 require (`PermissionCatalog.WithRequirements`), so a role can never hold `drugs.update` without `drugs.details`.
 
 ---

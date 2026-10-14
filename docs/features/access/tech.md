@@ -1,14 +1,14 @@
 # Access (roles and permissions): technical
 
 ## Summary
-Phase 3 (Access) of the [multi-clinic platform](../../design/platform-hld.md). Every catalog action
+M1.3 (Access) of the [multi-clinic platform](../../design/platform-hld.md). Every catalog action
 is checked against the caller's permissions, on the API and in the SPA. Roles belong to one clinic;
 a staff member can have several and gets the union of their permissions. The **Owner** role has every
 permission implicitly. Permissions are fixed in code (one per action) and are **never in the access
 token**: the API reads them per request from a cache (HybridCache), and the SPA reads them from `/me`.
 The same per-request check makes sure the staff member and the clinic are still active, which closes
-phase 2's "token valid ≤ 15 min after deactivation/suspension" gap (bounded now by the cache, see below).
-Roles come only from seeding in this phase; managing them is phase 4.
+M1.2's "token valid ≤ 15 min after deactivation/suspension" gap (bounded now by the cache, see below).
+Roles come only from seeding in this step; managing them is M1.5.
 
 ## How to…
 
@@ -72,7 +72,7 @@ through the change tracker so it propagates.
 
 | Method | Route | Auth | Response |
 |---|---|---|---|
-| GET | `/permissions` | any access token | `[{ key, module, resource, action, requires[] }]` (catalog order; `module` since Phase 3.5, for the role editor's sections; labels are translated in the SPA) |
+| GET | `/permissions` | any access token | `[{ key, module, resource, action, requires[] }]` (catalog order; `module` since M1.4, for the role editor's sections; labels are translated in the SPA) |
 | GET | `/me` | access token | `permissions`: the expanded keys in a clinic context (Owner/template = all keys), `[]` on the platform or without a context |
 
 `Context.roles` (login, refresh, switch, `/auth/contexts`) now lists the user's role names in each
@@ -103,8 +103,8 @@ endpoint checks in `ClinicHub.Api/Features/Access`.
 | Piece | Layer | Role |
 |---|---|---|
 | `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Groups`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("catalog")]` on every resource class. The single source of truth |
-| `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for phase 4's role editor) |
-| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); `SeedAsync(db, clinicContext, clinicId)` creates and saves them in a clinic (the clinic context must be that clinic) and returns them by name. Independent of the dev seed, for phase 4 provisioning |
+| `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for M1.5's role editor) |
+| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); `SeedAsync(db, clinicContext, clinicId)` creates and saves them in a clinic (the clinic context must be that clinic) and returns them by name. Independent of the dev seed, for M1.5 provisioning |
 | `IAccessCache` / `AccessCache` | Application / Infrastructure | Singleton. The only code that knows cache keys, tags and the library (below) |
 | `IPermissionService` / `PermissionService` | Application | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or the `Error`: `AccessErrors.NoAccess`, `AccessErrors.ClinicSuspended`, `CommonErrors.Forbidden`), `GetAsync()` → `PermissionSet` |
 | `PermissionSet` | Application | `Has`, `HasAll`, `HasAny`, `IsAll`, `Keys` (expanded), `ToList()` (catalog order). `Of(keys)` adds the requirements (`WithRequirements`): a role with `drugs.update` but not `drugs.details` still gets both, so the UI never offers an action whose data it can't load |
@@ -160,7 +160,7 @@ Lifetimes: `Expiration` **10 min** (safety net if an invalidation is missed), `L
 cache, so an entry is reloaded at most every **30 s**: a change made directly in the database (psql)
 is seen within 30 s even without an invalidation.
 
-**Invalidation** (each one `RemoveByTagAsync`). Phase 4 must call these on every change:
+**Invalidation** (each one `RemoveByTagAsync`). M1.5 must call these on every change:
 
 | Change | Invalidate |
 |---|---|
@@ -211,7 +211,7 @@ one, and their still-valid older token points at the lost clinic's staff entry, 
   - Prescription: `CatalogPanel` shows the Groups tab with `groups.list` and the Drugs tab with
     `drugs.list` (each picker `enabled` only then; the visible one gets the focus); neither → a short message.
 - i18n: `access.*` (no-permission page, tooltip, `nothingToPick`), `permissions.<resource>.<action>`
-  and `permissionResources.*` (for phase 4's role editor), `drugs.details`, `groups.view`.
+  and `permissionResources.*` (for M1.5's role editor), `drugs.details`, `groups.view`.
 
 ## Dev seed
 `StartupSeeder` (Infrastructure; Development, empty DB): both demo clinics get the default roles via
@@ -222,28 +222,28 @@ one, and their still-valid older token points at the lost clinic's staff entry, 
 prescription page).
 
 ## Edge cases & limitations
-- Cache staleness: with no invalidation (direct DB edits, until phase 4 adds the admin endpoints),
+- Cache staleness: with no invalidation (direct DB edits, until M1.5 adds the admin endpoints),
   a change applies within 30 s (in-memory cache), at the latest 10 min with a distributed cache.
   The user's next token refresh applies staff changes (roles given or taken, active flag) and clinic
   status at once, but **not** edits to a role's permissions (those need `InvalidateRoleAsync`).
 - The SPA's `/me` is cached 5 min per context: permission changes show in the UI after that, after a
   reload/switch, or right after the first 403.
 - Owner roles have no rows, so `RolePermissions` can't express "Owner minus X" (by design: Owner is locked).
-- `[Requires]` is applied when reading (above), not stored. **Phase 4's role editor must save the
+- `[Requires]` is applied when reading (above), not stored. **M1.5's role editor must save the
   closure** (`PermissionCatalog.WithRequirements`) so `RolePermissions` stays truthful, and can warn about
   what it added.
 - `RolePermission` has no clinic filter of its own; never add a `DbSet` for it or query it directly.
 - `PermissionCatalog` order is reflection order (declaration order in practice).
-- Platform context: `/me` permissions are `[]` (platform permissions come with phase 4's admin area).
+- Platform context: `/me` permissions are `[]` (platform permissions come with M1.5's admin area).
 - A 403 from a page query shows both the toast and the page's own error state (accepted: the toast
   says why).
 - The disabled Delete in the group editor is not keyboard-focusable, so its tooltip is mouse/touch only.
 - The sidebar is empty for a moment after a context switch, while `/me` loads.
-- (Older than phase 3) `/groups/999` shows "This item no longer exists" with a Retry that can't help,
+- (Older than M1.3) `/groups/999` shows "This item no longer exists" with a Retry that can't help,
   and deleting from the group editor refetches the deleted group once (a 404 in the console).
 
 ## Testing notes
-Verified manually (no automated tests in the MVP), API in Development on a reset DB (`docker compose
+Verified manually (no automated tests before M1.6), API in Development on a reset DB (`docker compose
 down -v`, `docker compose up -d`, `dotnet ef database update`: `Initial` + `AddRoles`; also reverted
 to `Initial` and re-applied):
 - Seed: 3 roles per demo clinic (+ Viewer in the second), Owner with 0 permission rows, Doctor 11,
@@ -276,7 +276,7 @@ to `Initial` and re-applied):
   Delete disabled with the Arabic tooltip. Removing `groups.list` from the Assistant role in psql: the
   next groups request → 403 → Arabic "forbidden" toast, `/me` reloaded, Groups gone from the nav and the
   no-permission page shown. No console errors.
-- Phase 3.5 step 3 (Access moved to Application/Infrastructure): the 403s (`forbidden` for a missing
+- M1.4 part 3 (Access moved to Application/Infrastructure): the 403s (`forbidden` for a missing
   permission or a no-context token, `noAccess`, `clinicSuspended`, the Assistant's delete, the Viewer's
   create) answer exactly as before (contract diff in [login testing notes](../auth/tech.md#testing-notes));
   `/permissions` gains `module` (`catalog` ×10, `prescription` ×1), same keys and order.
