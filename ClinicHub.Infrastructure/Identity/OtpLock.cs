@@ -1,4 +1,4 @@
-using ClinicHub.Application.Features.Identity;
+using ClinicHub.Application.Features.Identity.Login;
 using ClinicHub.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 

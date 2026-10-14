@@ -1,7 +1,7 @@
 using ClinicHub.Api.Features.Identity;
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Results;
-using ClinicHub.Application.Features.Access;
+using ClinicHub.Application.Features.Access.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace ClinicHub.Api.Features.Access;

@@ -1,7 +1,9 @@
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Behaviors;
-using ClinicHub.Application.Features.Access;
-using ClinicHub.Application.Features.Identity;
+using ClinicHub.Application.Features.Access.Authorization;
+using ClinicHub.Application.Features.Access.StaffMembers;
+using ClinicHub.Application.Features.Identity.Sessions;
+using ClinicHub.Application.Features.Identity.Users;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,10 +44,11 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly, includeInternalTypes: true);
 
         // Application services shared by use cases (and the Api's authorization handlers)
-        services.AddScoped<MembershipService>();
+        services.AddScoped<IMembershipService, MembershipService>();
         services.AddScoped<IPermissionService, PermissionService>();
-        services.AddScoped<SessionService>();
-        services.AddScoped<IdentitySeeder>();
+        services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<IIdentitySeeder, IdentitySeeder>();
+        services.AddSingleton<IPhoneNormalizer, PhoneNormalizer>();
         return services;
     }
 }

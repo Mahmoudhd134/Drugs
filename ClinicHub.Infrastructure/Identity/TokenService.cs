@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using ClinicHub.Application.Common.Settings;
-using ClinicHub.Application.Features.Identity;
+using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Domain.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -12,21 +12,7 @@ namespace ClinicHub.Infrastructure.Identity;
 public sealed class TokenService(AuthSettings settings, TimeProvider clock) : ITokenService
 {
     private static readonly JsonWebTokenHandler Handler = new();
-    private readonly SigningCredentials signingCredentials = new(SigningKey(settings), SecurityAlgorithms.HmacSha256);
-
-    private static SymmetricSecurityKey SigningKey(AuthSettings settings) =>
-        new(Encoding.UTF8.GetBytes(settings.Jwt.SigningKey));
-
-    /// <summary>Validation used by the Api's JwtBearer handler.</summary>
-    public static TokenValidationParameters ValidationParameters(AuthSettings settings) => new()
-    {
-        ValidIssuer = settings.Jwt.Issuer,
-        ValidAudience = settings.Jwt.Audience,
-        IssuerSigningKey = SigningKey(settings),
-        ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
-        ClockSkew = TimeSpan.FromSeconds(30),
-        NameClaimType = AuthClaims.UserId,
-    };
+    private readonly SigningCredentials signingCredentials = new(JwtValidation.SigningKey(settings), SecurityAlgorithms.HmacSha256);
 
     public (string Token, DateTime ExpiresAt) CreateAccessToken(User user, Session session, int? staffId)
     {

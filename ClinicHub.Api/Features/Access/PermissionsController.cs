@@ -1,7 +1,7 @@
 using ClinicHub.Api.Controllers;
 using ClinicHub.Api.Errors;
-using ClinicHub.Application.Features.Access;
-using ClinicHub.Application.Features.Access.Queries.GetPermissions;
+using ClinicHub.Application.Features.Access.Authorization;
+using ClinicHub.Application.Features.Access.Authorization.Queries.GetPermissions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

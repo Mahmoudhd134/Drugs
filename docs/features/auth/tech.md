@@ -75,7 +75,7 @@ descriptions are in `IdentityErrors` (+ `AccessErrors` for the 403s, `TooManyReq
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
 | GET | `/me` | access token | — | `Me` | 401 |
 
-Shapes (`Application/Features/Identity/AuthResult.cs`, `ContextDto.cs`, `…/Queries/GetMe/MeDto.cs`,
+Shapes (`Application/Features/Identity/Sessions/AuthResult.cs`, `ContextDto.cs`, `…/Users/Queries/GetMe/MeDto.cs`,
 `ClinicHub.Web/src/features/auth/types.ts`) follow HLD 8.1:
 `AuthResult { accessToken, expiresAt, context | null, contexts[] }`;
 `Context` = `{ type: "clinic", clinicId, clinicName, isTemplate, roles: string[] }` or `{ type: "platform" }`;
@@ -90,6 +90,8 @@ action also needs its permission, and the staff member and clinic must still be 
 
 ## Backend
 Use cases in `ClinicHub.Application/Features/Identity/` (Phase 3.5 step 3; [architecture](../../design/architecture.md)),
+grouped by sub-feature: `Login/` (OTP request and verify, `GetOtpMode`), `Sessions/` (refresh, switch, logout,
+`GetContexts`, the session service), `Users/` (`GetMe`, phone normalizing, the seeder);
 implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `ClinicHub.Api/Features/Identity/`.
 
 | Use case | Endpoint | Notes |
@@ -102,9 +104,9 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 | `LogoutCommand` | `POST logout` | always succeeds |
 | `GetContextsQuery`, `GetMeQuery` | `GET contexts`, `GET /me` | 401 `unauthorized` when the token's user no longer exists |
 
-- **`PhoneNormalizer`**: `libphonenumber-csharp` parse with `Platform:DefaultRegion` (EG), valid
-  numbers only, formatted E.164; otherwise null. The request and verify validators use the `ValidPhone()`
-  rule (`PhoneValidation`): null → 400 `invalidPhone` (`field: "phone"`). (Not named `PhoneNumbers`: that is the library's namespace.)
+- **`IPhoneNormalizer` / `PhoneNormalizer`** (singleton): `libphonenumber-csharp` parse with `Platform:DefaultRegion` (EG), valid
+  numbers only, formatted E.164; otherwise null. The request and verify validators get it injected and use the
+  `ValidPhone(normalizer, region)` rule (`PhoneValidation`): null → 400 `invalidPhone` (`field: "phone"`). (Not named `PhoneNumbers`: that is the library's namespace.)
 - **Request** (`RequestOtpCommandHandler`): deletes codes older than a day; then takes
   `IOtpLock` for the phone (`OtpLock`: `pg_advisory_xact_lock(hashtext(phone))`, held until the command's
   transaction ends; it throws outside a transaction), so parallel requests for one phone can't pass the
@@ -123,16 +125,18 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **`IOtpSender`** / **`DisplayOtpSender`** (Infrastructure): display mode logs the code (warning) and sets
   `RevealsCode`, so the API returns `devCode`. `Otp:Mode = Sms` has no sender yet: `AppSettings.Validate`
   stops the app.
-- **`ITokenService`** / **`TokenService`** (Infrastructure, with the claim names in `AuthClaims`): JWT via
+- **`ITokenService`** / **`TokenService`** (Infrastructure; claim names in `AuthClaims`; the signing key and the
+  `TokenValidationParameters` used by the Api's JwtBearer setup in `JwtValidation`): JWT via
   `JsonWebTokenHandler`, HS256, `Auth:AccessTokenMinutes` (15), issuer and audience from config, clock skew
   30 s. Claims: `sub`, `sid`, `ctx` (when chosen), `clinic_id`, `staff_id` (clinic context with a staff row;
   none in the template), `super_admin: "true"` (platform only). Refresh tokens are 32 random bytes
   (base64url); only their SHA-256 is stored.
-- **`Features/Access/MembershipService`** (Access module): a user's active memberships in active,
+- **`IMembershipService` / `MembershipService`** (`Features/Access/StaffMembers`, Access module): a user's active memberships in active,
   non-template clinics, their staff id in a clinic, and "is active member". These are the only reads of
   `Staff` across clinics, so they use `IgnoreQueryFilters()` (read only); Identity calls the service.
-- **`SessionService`** (shared by the session use cases)
-  - `GetContextsAsync`: each clinic from `MembershipService` (by name), then for a super admin the
+- **`ISessionService` / `SessionService`** (shared by the session use cases; `SessionRules` holds
+  `RotationGrace` and `SetContext`)
+  - `GetContextsAsync`: each clinic from `IMembershipService` (by name), then for a super admin the
     template clinic and `platform`.
   - `IssueAsync`: rotates the refresh token, slides `ExpiresAt` (`RefreshTokenDays` (30) for staff;
     `PlatformSessionHours` (12) for **every session of a super admin**, whatever the context: they can
@@ -175,12 +179,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   before an SMS provider exists; outside Development a startup warning is logged, and the login page always
   shows the display-mode banner. This deliberately drops HLD NFR-4 ("never in Production") until a sender
   exists: in display mode anyone can log in as any phone, so use it only where that is acceptable.
-- **Seeding** (every start, idempotent): Infrastructure's `Platform/StartupSeeder` ensures the template
-  clinic, then calls Application's `Features/Identity/IdentitySeeder` (on `IAppDbContext` +
+- **Seeding** (every start, idempotent): Infrastructure's `Platform/StartupSeeder` (`IStartupSeeder`) ensures the
+  template clinic, then calls Application's `Features/Identity/Users/IIdentitySeeder` (on `IAppDbContext` +
   `ITransactionRunner`; cache invalidated after the commit): every `Platform:SuperAdminPhones` entry
   (normalized; invalid → startup error) gets a user with `IsSuperAdmin`; any other user loses the flag and
   their sessions are revoked. Development, no non-template clinic yet: a user for `Platform:DevOwnerPhone`
-  (`IdentitySeeder.EnsureUserAsync`) becomes staff "Dev Owner" in **both** demo clinics (inside the
+  (`IIdentitySeeder.EnsureUserAsync`) becomes staff "Dev Owner" in **both** demo clinics (inside the
   dev seed transaction).
 
 ### Configuration

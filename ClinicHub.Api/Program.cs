@@ -3,10 +3,10 @@ using ClinicHub.Api.Features.Access;
 using ClinicHub.Api.Features.Identity;
 using ClinicHub.Api.Shared;
 using ClinicHub.Application;
+using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Infrastructure;
 using ClinicHub.Infrastructure.Database;
-using ClinicHub.Infrastructure.Platform;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -67,7 +67,7 @@ app.MapFallbackToFile("{*path:regex(^(?!api(/|$))):nonfile}", "index.html");
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
-    await scope.ServiceProvider.GetRequiredService<StartupSeeder>().SeedAsync(app.Environment.IsDevelopment());
+    await scope.ServiceProvider.GetRequiredService<IStartupSeeder>().SeedAsync(app.Environment.IsDevelopment());
 }
 
 app.Run();

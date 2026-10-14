@@ -33,7 +33,7 @@ public static class IdentitySetup
             {
                 // Keep "sub", "sid", "ctx"… as they are in the token
                 options.MapInboundClaims = false;
-                options.TokenValidationParameters = TokenService.ValidationParameters(auth);
+                options.TokenValidationParameters = JwtValidation.ValidationParameters(auth);
                 options.Events = new JwtBearerEvents
                 {
                     // ProblemDetails bodies (ApiProblemFactory), like every other API error

@@ -1,4 +1,4 @@
-using ClinicHub.Application.Features.Access;
+using ClinicHub.Application.Features.Access.Authorization;
 using ClinicHub.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -8,7 +8,7 @@ namespace ClinicHub.Infrastructure.Access;
 
 /// <summary>
 /// Reads bypass the clinic query filter on purpose (read only, by id, like
-/// Access's <c>MembershipService</c>): they decide whether the request's clinic may be used at all.
+/// Access's <c>IMembershipService</c>): they decide whether the request's clinic may be used at all.
 /// Each miss loads in its own DI scope (its own <see cref="AppDbContext"/>): concurrent requests wait
 /// on one shared load, which must not depend on the first caller's request staying alive.
 /// </summary>

@@ -36,7 +36,8 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Access/                      Staff, Role (+ RolePermission, StaffRole)
   Platform/                    Clinic (+ ClinicStatus)
 ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
-  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner
+  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner,
+                               IStartupSeeder
   Common/Messaging/            ICommand, ICommand<T>, IQuery<T> (+ ICommandBase, ICommitOnFailure) and their
                                handler interfaces
   Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
@@ -46,15 +47,19 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Paging/               PagedResult<T>, Paging.Normalize
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
   Features/Catalog/DrugGroups/ same, + DrugGroupDto, DrugGroupErrors, SaveDrugGroupItem
-  Features/Catalog/CatalogPermissions.cs   Permissions.Drugs, Permissions.Groups ([PermissionModule("catalog")])
-  Features/Prescription/       PrescriptionPermissions.cs (Permissions.Prescriptions)
-  Features/Identity/           login and sessions: Commands/ (RequestOtp, VerifyOtp, RefreshSession,
-                               SwitchContext, Logout), Queries/ (GetOtpMode, GetContexts, GetMe), IdentityErrors,
-                               AuthResult, ContextDto, SessionIssue, SessionService, PhoneNormalizer (+ ValidPhone()), OtpHash,
-                               ITokenService, IOtpSender, IOtpLock, IdentitySeeder (super admins)
-  Features/Access/             Permissions (partial) + RequiresAttribute + PermissionModuleAttribute,
-                               PermissionCatalog, PermissionSet, IPermissionService/PermissionService,
-                               MembershipService, IAccessCache, DefaultRoles, AccessErrors, Queries/GetPermissions
+  Features/Identity/           IdentityErrors at the root; sub-features:
+    Login/                     IOtpLock, IOtpSender, OtpHash; Commands/ (RequestOtp, VerifyOtp), Queries/GetOtpMode
+    Sessions/                  ISessionService/SessionService, SessionRules (RotationGrace, SetContext),
+                               SessionIssue, AuthResult, ContextDto, ITokenService; Commands/ (RefreshSession,
+                               SwitchContext, Logout), Queries/GetContexts
+    Users/                     IPhoneNormalizer/PhoneNormalizer (+ ValidPhone()), IIdentitySeeder/IdentitySeeder
+                               (super admins); Queries/GetMe
+  Features/Access/             AccessErrors, Permissions.cs (every permission, grouped by module with
+                               [PermissionModule], + RequiresAttribute, PermissionModuleAttribute); sub-features:
+    Authorization/             PermissionCatalog, PermissionSet, IPermissionService/PermissionService, IAccessCache;
+                               Queries/GetPermissions
+    Roles/                     DefaultRoles
+    StaffMembers/              IMembershipService/MembershipService
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
@@ -63,10 +68,10 @@ ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints)
   Migrations/                  EF Core migrations (applied automatically on startup)
-  Identity/                    TokenService (JWT; ITokenService) + AuthClaims, DisplayOtpSender, OtpLock
+  Identity/                    TokenService (JWT; ITokenService) + AuthClaims, JwtValidation, DisplayOtpSender, OtpLock
                                (pg_advisory_xact_lock)
   Access/AccessCache.cs        IAccessCache on HybridCache
-  Platform/StartupSeeder.cs    startup seed: template clinic, super admins (IdentitySeeder), dev data
+  Platform/StartupSeeder.cs    IStartupSeeder: template clinic, super admins (IIdentitySeeder), dev data
   DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor, TransactionRunner,
                                HybridCache, the Identity/Access implementations, StartupSeeder
 ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
@@ -82,7 +87,7 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
                                (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
                                PermissionsController, AccessSetup (DI)
   Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
-  Program.cs                   settings, DI, middleware, migrate-on-startup, seeding
+  Program.cs                   settings, DI, middleware, migrate-on-startup, seeding (IStartupSeeder)
 ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
   src/api/                     axios client, error → message, shared API types
@@ -134,10 +139,13 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 
 - Layers and rules: [backend architecture](../design/architecture.md). In short: **one use case = one
   command or query** (+ handler, + validator) in its own folder under
-  `ClinicHub.Application/Features/<Module>/<Feature>/Commands|Queries/<UseCase>/`, files named after it
-  (`CreateDrugCommand.cs`, `CreateDrugCommandHandler.cs`, `CreateDrugCommandValidator.cs`). DTOs and the
-  feature's error class (`DrugErrors`) sit at the feature root. No shared interfaces or base validators
-  between create and update.
+  `ClinicHub.Application/Features/<Module>/<SubFeature>/Commands|Queries/<UseCase>/`, files named after it
+  (`CreateDrugCommand.cs`, `CreateDrugCommandHandler.cs`, `CreateDrugCommandValidator.cs`). DTOs, services and
+  the sub-feature's error class (`DrugErrors`) sit at the sub-feature root; a module root only holds
+  `<Module>Errors.cs` (and Access's `Permissions.cs`). Sub-feature folder names never equal a type name (`StaffMembers`, not
+  `Staff`); namespaces follow folders. Every service and seeder is used through an interface and registered under it
+  (exemptions in [architecture § 3.7](../design/architecture.md#37-folder-structure-and-naming)).
+  No shared interfaces or base validators between create and update.
 - **Controllers are thin** (`ClinicHub.Api/Features/<Feature>/`, Identity and Access included): build the command/query, `sender.Send` it,
   map the `Result` with `ToOk()`, `ToCreated(nameof(GetById), d => new { id = d.Id })` or `ToNoContent()`
   (`Api/Errors/ResultHttpExtensions`). Request records (`SaveDrugRequest`) live next to the controller.
@@ -174,9 +182,9 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   token whose staff member and clinic are still active; platform tokens get 403). Read the caller from
   `ICurrentUser` (claims), never from the body.
 - **Permissions:** every clinic action carries `[HasPermission(Permissions.X.Y)]` (implies the clinic
-  policy). Adding a permission is one constant in the module's `<Module>Permissions.cs` (a part of the
-  `Permissions` partial class, e.g. `Application/Features/Catalog/CatalogPermissions.cs`; a new resource class
-  needs `[PermissionModule("…")]`) (+ the SPA mirror and labels). Changes to staff, roles, clinics or
+  policy). Adding a permission is one constant in `Application/Features/Access/Permissions.cs` (one class, its
+  resource classes grouped by module; a new resource class needs `[PermissionModule("…")]`) (+ the SPA mirror
+  and labels). Changes to staff, roles, clinics or
   users must call the `IAccessCache.Invalidate*` method from the
   [invalidation table](../features/access/tech.md#cache-accesscache).
 

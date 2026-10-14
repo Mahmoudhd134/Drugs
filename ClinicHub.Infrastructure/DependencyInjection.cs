@@ -1,6 +1,7 @@
 using ClinicHub.Application.Common.Abstractions;
-using ClinicHub.Application.Features.Access;
-using ClinicHub.Application.Features.Identity;
+using ClinicHub.Application.Features.Access.Authorization;
+using ClinicHub.Application.Features.Identity.Login;
+using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Infrastructure.Access;
 using ClinicHub.Infrastructure.Database;
 using ClinicHub.Infrastructure.Identity;
@@ -37,7 +38,7 @@ public static class DependencyInjection
         services.AddSingleton<IOtpSender, DisplayOtpSender>();
         services.AddScoped<IOtpLock, OtpLock>();
 
-        services.AddScoped<StartupSeeder>();
+        services.AddScoped<IStartupSeeder, StartupSeeder>();
         return services;
     }
 }

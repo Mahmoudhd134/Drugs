@@ -72,7 +72,7 @@ No new endpoints, no contract changes. Behavior inside a clinic:
   accepted. Phase 2 deletes it and fills the
   context from the token's `clinic_id`.
 - `StartupSeeder` (`ClinicHub.Infrastructure/Platform` since Phase 3.5 step 3: the dev seed needs its own
-  transaction and `ChangeTracker.Clear()`), run on every startup after migrations (idempotent):
+  transaction and `ChangeTracker.Clear()`; resolved through Application's `IStartupSeeder`), run on every startup after migrations (idempotent):
   - ensures the template clinic ("Template clinic", `IsTemplate`) exists;
   - Development, no non-template clinic yet: creates "Demo clinic" (10,000 "Drug number N") and
     "Second demo clinic" (3 eye drops + group "After cataract surgery"). It sets the

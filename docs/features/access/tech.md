@@ -17,9 +17,8 @@ clinic-context policy; several attributes = all required). Checks inside use cas
 `AuthorizationBehavior` (architecture § 7, option B); until then a handler can read
 `IPermissionService.GetAsync()` and return `CommonErrors.Forbidden`.
 
-**Add a permission**: one constant in the module's file of the `Permissions` partial class
-(`Application/Features/Catalog/CatalogPermissions.cs`, `…/Prescription/PrescriptionPermissions.cs`, a new
-`<Module>Permissions.cs` for a new module), with `[Requires(...)]` for the permissions it needs. A new
+**Add a permission**: one constant in the `Permissions` class (`Application/Features/Access/Permissions.cs`,
+resource classes grouped by module under a `// --- <module> ---` divider), with `[Requires(...)]` for the permissions it needs. A new
 resource is a nested class with `[PermissionModule("<module>")]` named after the resource (`Drugs` holds
 only `drugs.*`): the catalog refuses to start otherwise. Then the same key in `ClinicHub.Web/src/features/access/permissions.ts`, and its label
 under `permissions.<resource>.<action>` in `en.ts` and `ar.ts`. Decide whether the default roles get it
@@ -96,21 +95,23 @@ context), `clinicSuspended`. When several apply the most specific wins (`clinicS
 
 ## Backend
 
-Rules and use cases in `ClinicHub.Application/Features/Access` (Phase 3.5 step 3), the cache in
-`ClinicHub.Infrastructure/Access`, the endpoint checks in `ClinicHub.Api/Features/Access`.
+Rules and use cases in `ClinicHub.Application/Features/Access`: `Permissions.cs` and `AccessErrors` at the root,
+then `Authorization/` (catalog, permission set and service, cache interface, `Queries/GetPermissions`), `Roles/`
+(`DefaultRoles`) and `StaffMembers/` (memberships). The cache is in `ClinicHub.Infrastructure/Access`, the
+endpoint checks in `ClinicHub.Api/Features/Access`.
 
 | Piece | Layer | Role |
 |---|---|---|
-| `Permissions` | Application | `public static partial class`, one file per module (`Features/Catalog/CatalogPermissions.cs`: `Drugs`, `Groups`; `Features/Prescription/PrescriptionPermissions.cs`: `Prescriptions`; all in the `Features.Access` namespace). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("catalog")]` on every resource class. The single source of truth |
+| `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Groups`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("catalog")]` on every resource class. The single source of truth |
 | `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for phase 4's role editor) |
 | `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); `SeedAsync(db, clinicContext, clinicId)` creates and saves them in a clinic (the clinic context must be that clinic) and returns them by name. Independent of the dev seed, for phase 4 provisioning |
 | `IAccessCache` / `AccessCache` | Application / Infrastructure | Singleton. The only code that knows cache keys, tags and the library (below) |
 | `IPermissionService` / `PermissionService` | Application | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or the `Error`: `AccessErrors.NoAccess`, `AccessErrors.ClinicSuspended`, `CommonErrors.Forbidden`), `GetAsync()` → `PermissionSet` |
 | `PermissionSet` | Application | `Has`, `HasAll`, `HasAny`, `IsAll`, `Keys` (expanded), `ToList()` (catalog order). `Of(keys)` adds the requirements (`WithRequirements`): a role with `drugs.update` but not `drugs.details` still gets both, so the UI never offers an action whose data it can't load |
-| `MembershipService` | Application | A user's memberships across clinics (used by Identity; see [login](../auth/tech.md#backend)) |
+| `IMembershipService` / `MembershipService` | Application | Scoped. A user's memberships across clinics (used by Identity; see [login](../auth/tech.md#backend)) |
 | `GetPermissionsQuery` | Application | `GET /api/v1/permissions` (`PermissionsController` in the Api) |
 | `HasPermissionAttribute` | Api | `AuthorizeAttribute` + `IAuthorizationRequirementData` (.NET 8+, no policy provider): sets `Policy = ClinicContext` and adds a `PermissionRequirement`. Unknown keys throw when the endpoints are built (first request) |
-| `PermissionHandler` | Api | Succeeds when `PermissionService.GetAsync()` has the key; else fails with an `AccessFailureReason(CommonErrors.Forbidden)` |
+| `PermissionHandler` | Api | Succeeds when `IPermissionService.GetAsync()` has the key; else fails with an `AccessFailureReason(CommonErrors.Forbidden)` |
 | `ClinicAccessRequirement` + `ClinicAccessHandler` | Api | Part of the `ClinicContext` policy (`IdentitySetup`), so **every** clinic request checks that staff and clinic are active, permission-gated or not; fails with an `AccessFailureReason` carrying `CheckClinicAccessAsync()`'s `Error` |
 | `AccessAuthorizationResultHandler` | Api | `IAuthorizationMiddlewareResultHandler` (`AccessDenied.cs`): a denied request answers 403 ProblemDetails (`ApiProblemFactory`) with the most specific `Error` of its `AccessFailureReason`s; otherwise the default (JwtBearer's 403 `forbidden`, or 401 `unauthorized`) |
 | `AccessSetup.AddAccessModule()` | Api | DI for the authorization handlers and the result handler (the services are registered by `AddApplication`, the cache by `AddInfrastructure`) |
@@ -170,7 +171,7 @@ is seen within 30 s even without an invalidation.
 | user-level change (e.g. super-admin flag; `IdentitySeeder` does it for every user whose flag changes) | `InvalidateUserAsync(userId)` |
 | token issued (login, refresh, switch) | staff — and the user (see below); **not** the roles: role permission edits rely on `InvalidateRoleAsync` |
 
-`SessionService.IssueAsync` calls `InvalidateStaffAsync` for the issued staff **and**
+`SessionService.IssueAsync` (behind `ISessionService`) calls `InvalidateStaffAsync` for the issued staff **and**
 `InvalidateUserAsync` for the user: a refresh can move a user out of a clinic they lost into another
 one, and their still-valid older token points at the lost clinic's staff entry, which must be dropped too.
 

@@ -15,7 +15,9 @@ Phase 3.5 is done in three steps:
 3. **Identity, Access, Platform + permission structure (done):** the remaining services move to Application on top
    of the abstractions (purpose-built interfaces for what `IAppDbContext` hides), their use cases and
    Infrastructure implementations, Access 403s through `ApiProblemFactory`, and the permission constants
-   split per module with `[PermissionModule]` (§ 7.1). See [carry-over](#carry-over-to-phase-4).
+   grouped by module with `[PermissionModule]` (§ 7.1). Then the module layout was regrouped (sub-feature
+   folders, an interface for every service, one `Permissions` class; see [layout follow-up](#step-3-follow-up-module-layout)).
+   See [carry-over](#carry-over-to-phase-4).
 
 Module by module, so every step ends with a working app.
 
@@ -47,14 +49,17 @@ Module by module, so every step ends with a working app.
 
 ### Step 3: what was done
 
+Paths below are the current ones (after the [layout follow-up](#step-3-follow-up-module-layout)).
+
 - **Identity** (`Application/Features/Identity`): `Commands/` `RequestOtp`, `VerifyOtp` (login), `RefreshSession`,
   `SwitchContext`, `Logout`; `Queries/` `GetOtpMode`, `GetContexts`, `GetMe`. `OtpService` became the
   `RequestOtp` and `VerifyOtp` handlers (+ the shared `OtpHash`); `SessionService` keeps what the session use
   cases share (contexts, `IssueAsync`, `TrySaveAsync`) and is internal. `PhoneNormalizer` moved as is; phone
-  validation is a FluentValidation rule, `ValidPhone()` (`.WithError(IdentityErrors.InvalidPhone)`), shared by both OTP validators. Identity is one feature, so
-  its use cases sit directly under `Features/Identity/Commands|Queries` (no extra feature folder).
-- Abstractions in Application: `ICurrentUser` (`Common/Abstractions`), `ITokenService`, `IOtpSender`, `IOtpLock`
-  (`Features/Identity`), `IAccessCache` (`Features/Access`). Implementations in Infrastructure: `TokenService`,
+  validation is a FluentValidation rule, `ValidPhone()` (`.WithError(IdentityErrors.InvalidPhone)`), shared by both OTP validators. (The use cases first sat
+  directly under `Features/Identity/Commands|Queries`; they are now grouped by sub-feature, see the
+  [layout follow-up](#step-3-follow-up-module-layout).)
+- Abstractions in Application: `ICurrentUser` (`Common/Abstractions`), `ITokenService` (`Features/Identity/Sessions`),
+  `IOtpSender`, `IOtpLock` (`Features/Identity/Login`), `IAccessCache` (`Features/Access/Authorization`). Implementations in Infrastructure: `TokenService`,
   `DisplayOtpSender`, `OtpLock` (`pg_advisory_xact_lock`; throws outside a transaction), `AccessCache` + the
   HybridCache registration. `CurrentUser` stays in the Api (it reads `HttpContext`).
 - **`AuthClaims` moved to Infrastructure** (`Infrastructure/Identity`), not kept in the Api: `TokenService`
@@ -66,14 +71,14 @@ Module by module, so every step ends with a working app.
   every other failure (`RefreshTokenRejected` 401, 403, 409). The two 401s are distinct `Error`s with the
   same code `unauthorized`.
 - **Access** (`Application/Features/Access`): `IPermissionService`/`PermissionService` (returns `Error`s, not code
-  strings), `MembershipService`, `Permissions` + `PermissionCatalog` + `RequiresAttribute`, `DefaultRoles`
+  strings), `MembershipService` (`StaffMembers/`), `Permissions` + `PermissionCatalog` + `RequiresAttribute`, `DefaultRoles`
   (`SeedAsync(IAppDbContext, IClinicContext, clinicId)`), `PermissionSet`, `GetPermissionsQuery`. The Api keeps
   `[HasPermission]`, `PermissionHandler`, `ClinicAccessHandler`, `AccessAuthorizationResultHandler`, JWT setup
   and the clinic middleware. Failure reasons are `AccessFailureReason`s carrying the `Error`; the result handler
   passes the most specific one to `ApiProblemFactory`. `EnsureAsync`, `AccessDeniedException` and
   `AccessExceptionHandler` had no callers and are gone (and with them the .NET 9 "logged at Error" note).
 - **Platform**: `StartupSeeder` → `Infrastructure/Platform` (its dev seed needs its own transaction and
-  `ChangeTracker.Clear()`), a scoped service. `IdentitySeeder` → `Application/Features/Identity`, a service
+  `ChangeTracker.Clear()`), a scoped service. `IdentitySeeder` → `Application/Features/Identity/Users`, a service
   (not a use case: it runs before the app serves requests) on `IAppDbContext` + `ITransactionRunner` only, so
   it fits Application; it invalidates the cache after the commit. `Database.MigrateAsync()` stays in `Program.cs`.
 - **Errors**: `IdentityErrors` (`invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`, and the session
@@ -85,9 +90,8 @@ Module by module, so every step ends with a working app.
 - **Commit on failure** (§ 3.5): `ICommitOnFailure` on `VerifyOtpCommand` and `RefreshSessionCommand` only.
   `RequestOtpCommand` doesn't need it: its only failure is the 429, whose only write is the cleanup of day-old
   codes, which the next request redoes.
-- **Permissions** (§ 7.1): `Permissions` is partial, one file per module (`Features/Catalog/CatalogPermissions.cs`,
-  `Features/Prescription/PrescriptionPermissions.cs`, both in the `Features.Access` namespace, which a partial
-  class needs); `[PermissionModule]` on every resource class; `PermissionDefinition.Module`, returned by
+- **Permissions** (§ 7.1): `[PermissionModule]` on every resource class (first as a partial class, one file per
+  module; merged into one class in the [layout follow-up](#step-3-follow-up-module-layout)); `PermissionDefinition.Module`, returned by
   `/permissions`; the catalog is built in `AddApplication` (startup validation: module present, key prefix =
   class). Keys and `[Requires]` unchanged.
 - **Settings**: `AuthSettings`, `OtpSettings` (+ `OtpModes`), `PlatformSettings` → `Application/Common/Settings`;
@@ -99,6 +103,28 @@ Module by module, so every step ends with a working app.
 - Packages: `libphonenumber-csharp` → Application; `Microsoft.Extensions.Caching.Hybrid` and
   `Microsoft.IdentityModel.JsonWebTokens` → Infrastructure; the Api keeps JwtBearer.
 - Verified with a contract recording of 83 calls before and after ([login testing notes](../features/auth/tech.md#testing-notes)).
+
+### Step 3 follow-up: module layout
+
+A pure refactor that applies the rules in § 3.7 (no behavior, API or schema change; on the frontend only the comment
+in `permissions.ts` changed):
+
+- **Sub-feature folders**: Identity → `Login/`, `Sessions/`, `Users/`; Access → `Authorization/`, `Roles/`,
+  `StaffMembers/`. Module roots keep only `IdentityErrors`, `AccessErrors` and Access's `Permissions.cs`.
+  Files moved with `git mv`; namespaces follow the folders. The Api and Infrastructure folders have no flat roots
+  (Api: `Features/Drugs`, `DrugGroups`, `Identity`, `Access`; Infrastructure: `Database`, `Identity`, `Access`,
+  `Platform`) and kept their layout.
+- **An interface for every service and seeder**: `ISessionService`, `IMembershipService` (both internal, with
+  their classes), `IPermissionService` (now its own file), `IIdentitySeeder`, `IPhoneNormalizer` (`PhoneNormalizer`
+  became an injected singleton; the `ValidPhone(normalizer, region)` rule takes it) and `IStartupSeeder`
+  (`Common/Abstractions`; implemented by Infrastructure's `StartupSeeder`, resolved by `Program.cs`). Each is
+  registered under its interface with its previous lifetime (scoped; the normalizer singleton). `SessionService`'s
+  statics moved to `SessionRules` (`RotationGrace`, `SetContext`); `MemberClinic` moved next to `IMembershipService`;
+  `TokenService.ValidationParameters` (read by the Api's JwtBearer setup) and the signing key moved to
+  Infrastructure's `JwtValidation`, so the Api no longer touches `TokenService`.
+- **One `Permissions` class** (§ 7.1) in `Features/Access/Permissions.cs`; `CatalogPermissions.cs`,
+  `PrescriptionPermissions.cs` and the empty `Features/Prescription` folder are gone. Keys, `[Requires]`,
+  modules and the `/permissions` output (items and order) are unchanged.
 
 ### Carry-over to Phase 4
 
@@ -113,9 +139,10 @@ Module by module, so every step ends with a working app.
   them to a background job when one exists.
 - **An exception after a consumed code** (e.g. the database fails while the session is saved) now rolls the
   consumption back too, so the code stays usable; before, it was already committed. Only on a 500.
-- **Catalog order**: `PermissionCatalog.All` follows the nested types' metadata order, i.e. the order the compiler
-  sees the partial files (Catalog, then Prescription today). `/permissions` and `DefaultRoles` don't depend on
-  it for correctness; the role editor sorts by module if that ever changes.
+- **Catalog order**: `PermissionCatalog.All` follows `GetNestedTypes()`, which in practice returns the resource
+  classes in their declaration order in `Permissions.cs` (catalog, then prescription). .NET doesn't guarantee that
+  order: `/permissions` and `DefaultRoles` don't depend on it for correctness, and the role editor can sort by
+  module if it ever changes.
 - **Parallel wrong guesses** (unchanged from before): the handler reads `Attempts` before its atomic update, so
   the last of several parallel wrong guesses may answer `invalidCode` instead of `tooManyAttempts`. The limit
   itself holds (the update is conditional).
@@ -129,6 +156,8 @@ Module by module, so every step ends with a working app.
 - The migrations' designer files and snapshot keep the old CLR names as strings (`"Drags.Api.Models.Drug"`);
   harmless (`has-pending-model-changes` reports none); the next `migrations add` rewrites the snapshot.
 - `RolePermission` still has **no** `DbSet` on `IAppDbContext` (§ 3.6), on purpose.
+- `Common/Paging` holds `PagedResult<T>` and the `Paging` class (both in `PagedResult.cs`): a folder named like a type, older than the § 3.7 rule (no clash in
+  practice). Rename the folder (e.g. `Common/Pagination`) the next time it is touched.
 - Npgsql's execution strategy has no retries configured; `TransactionRunner` is ready for
   `EnableRetryOnFailure` (each retried attempt clears the change tracker and reruns the handler).
 
@@ -153,8 +182,8 @@ ClinicHub.Api              → Application, Infrastructure
 | Project | Contains |
 |---|---|
 | **Domain** | Entities (`Drug`, `DrugGroup`, `DrugGroupItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`), field limits (`FieldLimits`) |
-| **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`), application services that are not use cases (`PermissionService`, `MembershipService`, `SessionService`, `IdentitySeeder`), the permission catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
-| **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner`, `AccessCache` (HybridCache), `TokenService` (JWT) + `AuthClaims`, `DisplayOtpSender` (later SMS), `OtpLock` (advisory lock), `StartupSeeder` (needs EF internals) |
+| **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`, `IStartupSeeder`), application services that are not use cases, each behind an interface (`IPermissionService`, `IMembershipService`, `ISessionService`, `IIdentitySeeder`, `IPhoneNormalizer`), the `Permissions` constants and catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
+| **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner`, `AccessCache` (HybridCache), `TokenService` (JWT) + `AuthClaims`, `DisplayOtpSender` (later SMS), `OtpLock` (advisory lock), `JwtValidation` (the token key and validation, read by the Api), `StartupSeeder` (`IStartupSeeder`; needs EF internals) |
 | **Api** | Thin controllers (+ the refresh cookie in `AuthController`), authentication and authorization setup, `CurrentUser` (claims reader: needs `HttpContext`), `[HasPermission]` and its handlers, the clinic middleware, the `ApiProblemFactory` and every error source, `Result` → HTTP mapping, SPA hosting (`wwwroot`), `Program.cs`, config binding and validation (`AppSettings`), `Database.MigrateAsync()` |
 
 Each layer registers itself: `AddApplication(configuration)`, `AddInfrastructure(configuration)`, `AddApi()`.
@@ -322,7 +351,7 @@ public interface IAppDbContext
 ```
 ClinicHub.Application/
   Common/                      Result, Error, ErrorType, CommonErrors, MediatR abstractions,
-                               behaviors, abstractions (IAppDbContext, ICurrentUser…)
+                               behaviors, abstractions (IAppDbContext, ICurrentUser, IStartupSeeder…)
   Features/
    Catalog/
     Drugs/
@@ -341,17 +370,56 @@ ClinicHub.Application/
         GetDrugGroupNames/
           GetDrugGroupNamesQuery.cs
           GetDrugGroupNamesQueryHandler.cs   (returns List<string>; a type used by one use case only would live here)
-      DrugDto.cs                  ← shared by several use cases: lives at the feature root
+      DrugDto.cs                  ← shared by several use cases: lives at the sub-feature root
       DrugErrors.cs
     DrugGroups/ …
-   Identity/                    one feature: Commands/<UseCase>/, Queries/<UseCase>/, IdentityErrors…
-   Access/ …                    PermissionCatalog, PermissionService…, Queries/GetPermissions/
-   Prescription/                PrescriptionPermissions.cs (no use cases yet)
+   Identity/
+    IdentityErrors.cs            ← the only file at a module root (Access also has Permissions.cs)
+    Login/                       phone + OTP → session start
+      IOtpLock.cs  IOtpSender.cs  OtpHash.cs
+      Commands/RequestOtp/  Commands/VerifyOtp/  Queries/GetOtpMode/
+    Sessions/
+      ISessionService.cs  SessionService.cs  SessionRules.cs  SessionIssue.cs  AuthResult.cs  ContextDto.cs
+      ITokenService.cs
+      Commands/RefreshSession/  Commands/SwitchContext/  Commands/Logout/  Queries/GetContexts/
+    Users/
+      IPhoneNormalizer.cs  PhoneNormalizer.cs  PhoneValidation.cs  IIdentitySeeder.cs  IdentitySeeder.cs
+      Queries/GetMe/
+   Access/
+    AccessErrors.cs
+    Permissions.cs               every permission (one class) + RequiresAttribute + PermissionModuleAttribute
+    Authorization/
+      PermissionCatalog.cs  PermissionSet.cs  IPermissionService.cs  PermissionService.cs  IAccessCache.cs
+      Queries/GetPermissions/
+    Roles/                       DefaultRoles.cs
+    StaffMembers/                IMembershipService.cs  MembershipService.cs
 ```
+
+- **A module root holds only `<Module>Errors.cs`** (Access also holds `Permissions.cs`, § 7.1). Everything else
+  lives in a **sub-feature folder**: `Module/SubFeature/{Commands,Queries}/UseCase/`, with the sub-feature's
+  shared types (DTOs, services, interfaces, helpers) at the sub-feature root.
+- **Sub-feature folder names never equal a type name.** Namespaces follow folders, so a namespace
+  `…Access.Staff` would clash with the `Staff` entity, and `…Access.Permissions` with the `Permissions` class. Use
+  plural or descriptive names (`Drugs` vs `Drug`, `StaffMembers` vs `Staff`, `Authorization` vs `Permissions`).
+  This is about top-level types: the nested resource classes of `Permissions` (`Permissions.Drugs`) are always
+  qualified and must be named after their resource (§ 7.1), so they may share a folder's name.
+- **Namespaces always follow folders**, with no exceptions.
+- **Every service and seeder is used through an interface** (even with one implementation), registered under
+  that interface. Static helpers and value types are exempt (e.g. `OtpHash`, `DosingRules`, `Paging`,
+  `PermissionCatalog`, `SessionRules`, `JwtValidation`; the `PermissionSet` value; `DefaultRoles`, whose static
+  `SeedAsync` takes its `IAppDbContext` and `IClinicContext` as arguments).
+- Callers never reference the concrete class (DI registration code may, e.g. `AccessCache.Expiration` in
+  `AddInfrastructure`); constants and static members that callers need go on the interface or in a small static
+  class next to it (`SessionRules`, Infrastructure's `JwtValidation`). An interface of an `internal` class may
+  stay internal.
+- Used concretely on purpose (not services): `ClinicContext`, per-request state that readers use through
+  `IClinicContext`; only its fillers take the settable class (the clinic middleware and `StartupSeeder`). Also EF
+  plumbing: `AppDbContext` inside Infrastructure where `IAppDbContext` hides what is needed, plus `Program.cs`'s
+  `Database.MigrateAsync()`, and `ClinicAndTimestampsInterceptor`.
 
 - Folders and files in PascalCase; **files and classes are named after the use case**
   (`CreateDrugCommand.cs`, not `Command.cs`), so search, editor tabs and stack traces stay readable.
-- A type lives next to its only user and moves up to the feature root when a second use case needs it.
+- A type lives next to its only user and moves up to the sub-feature root when a second use case needs it.
 - Modules live under `Features/` (`Features/Catalog/Drugs`…); namespaces follow the folders
   (`ClinicHub.Application.Features.Catalog.Drugs.Commands.CreateDrug`).
 - No shared interfaces or base validators between create and update: each use case has its own validator
@@ -376,9 +444,9 @@ ClinicHub.Application/
   ```
 
 - Implementations of Application abstractions: `TransactionRunner`, `AccessCache` (HybridCache; Redis later
-  as config), `TokenService` (+ the claim names, `AuthClaims`), `DisplayOtpSender`, `OtpLock`. `CurrentUser`
+  as config), `TokenService` (+ the claim names, `AuthClaims`, and the key and validation, `JwtValidation`), `DisplayOtpSender`, `OtpLock`. `CurrentUser`
   is in the Api: it reads `HttpContext`, and Infrastructure has no ASP.NET reference.
-- `StartupSeeder` (template clinic, super admins through Application's `IdentitySeeder`, dev data).
+- `StartupSeeder` (`IStartupSeeder`: template clinic, super admins through Application's `IIdentitySeeder`, dev data).
 
 ---
 
@@ -491,16 +559,16 @@ frontend `permissions.ts`. Keys are stored in the database, so they never change
 
 **Changed in Phase 3.5 (step 3, done), so it scales to hundreds of permissions:**
 
-1. `Permissions` becomes a **`partial` class split per module**: each module declares its resources in its own
-   file next to its use cases (`Application/Features/Catalog/CatalogPermissions.cs`,
-   `Application/Features/Prescription/PrescriptionPermissions.cs`; Access gets `AccessPermissions.cs` with its
-   own resources in Phase 4). Every part is in the `ClinicHub.Application.Features.Access` namespace (a partial
-   class needs one). Usage is unchanged (`Permissions.Drugs.Create`).
+1. **`Permissions` is one class in `Access/Permissions.cs`**, its resource classes grouped by module with
+   `[PermissionModule]`, one `// --- <module> ---` section per module (catalog, then prescription; Access's own
+   resources join in Phase 4). Usage is unchanged (`Permissions.Drugs.Create`).
 
    ```cs
-   // Application/Features/Catalog/CatalogPermissions.cs
-   public static partial class Permissions
+   // Application/Features/Access/Permissions.cs
+   public static class Permissions
    {
+       // --- catalog ---
+
        [PermissionModule("catalog")]
        public static class Drugs
        {

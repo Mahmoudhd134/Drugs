@@ -1,6 +1,6 @@
 using ClinicHub.Api.Controllers;
 using ClinicHub.Api.Errors;
-using ClinicHub.Application.Features.Identity.Queries.GetMe;
+using ClinicHub.Application.Features.Identity.Users.Queries.GetMe;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

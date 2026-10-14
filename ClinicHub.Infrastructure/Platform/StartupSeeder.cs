@@ -1,7 +1,8 @@
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Application.Features.Access;
-using ClinicHub.Application.Features.Identity;
+using ClinicHub.Application.Features.Access.Roles;
+using ClinicHub.Application.Features.Identity.Users;
 using ClinicHub.Domain.Access;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Identity;
@@ -18,8 +19,8 @@ namespace ClinicHub.Infrastructure.Platform;
 public sealed class StartupSeeder(
     AppDbContext db,
     ClinicContext clinicContext,
-    IdentitySeeder identitySeeder,
-    PlatformSettings platform)
+    IIdentitySeeder identitySeeder,
+    PlatformSettings platform) : IStartupSeeder
 {
     public const string TemplateClinicName = "Template clinic";
     public const string DevOwnerName = "Dev Owner";
