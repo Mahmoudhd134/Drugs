@@ -35,11 +35,11 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 - `ClinicHub.Domain/Catalog/DosingRules.cs` (pure, no dependencies)
   - `Normalize`: trims, drops fields that don't apply (value for non-numeric frequency/duration,
     text for non-custom), returns null when empty.
-  - `IsValid(dosing, allowAskEye)`: true when valid (or null); callers map false to
-    `ErrorCodes.InvalidDosing` (`"invalidDosing"`).
+  - `IsValid(dosing, allowAskEye)`: true when valid (or null); the validators map false to
+    `invalidDosing` (`DrugErrors.InvalidDosing`, `DrugGroupErrors.InvalidDosing`).
     `allowAskEye` accepts the `ask` eye (`DosingCodes.GroupEyes`); only group lines pass `true`.
-- Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `SaveDrugRequest.Validate()`
-  checks the name, then the normalized dosing.
+- Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `CreateDrugCommandValidator` /
+  `UpdateDrugCommandValidator` check the name, then the normalized dosing.
 - Configuration helper `DosingConfiguration.Configure` (in
   `ClinicHub.Infrastructure/Database/Configurations/Catalog/`) sets column lengths for any owned Dosing; reuse it
   for future owners

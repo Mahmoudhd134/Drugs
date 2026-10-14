@@ -17,7 +17,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 | Layer | Tech |
 |---|---|
-| Backend | ASP.NET Core 9 (controllers), EF Core 9, PostgreSQL (Npgsql), JWT bearer auth, HybridCache, libphonenumber-csharp |
+| Backend | ASP.NET Core 9 (controllers), MediatR 13, FluentValidation 12, EF Core 9, PostgreSQL (Npgsql), JWT bearer auth, HybridCache, libphonenumber-csharp |
 | Frontend | React 18, TypeScript 5.8, Vite 6, MUI 7 (+ icons), TanStack Query 5, React Router 6 |
 | i18n | i18next + react-i18next + browser language detector; MUI RTL via emotion + `@mui/stylis-plugin-rtl` |
 | Other UI libs | dnd-kit (drag-to-reorder), react-quill (rich-text editor), react-hot-toast |
@@ -27,7 +27,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 ```
 ClinicHub.sln                  Domain ← Application ← Infrastructure ← Api (backend architecture:
-                               docs/design/architecture.md; Phase 3.5 step 1 done)
+                               docs/design/architecture.md; Phase 3.5 steps 1-2 done)
 ClinicHub.Domain/              entities and pure rules; no references (no EF Core, no ASP.NET)
   Common/                      IClinicOwned, IHasTimestamps, FieldLimits (column lengths)
   Catalog/                     Drug, DrugGroup (+ DrugGroupItem), Dosing (+ TaperStep, DosingCodes),
@@ -35,27 +35,39 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Identity/                    User, OtpCode, Session (+ ContextTypes)
   Access/                      Staff, Role (+ RolePermission, StaffRole)
   Platform/                    Clinic (+ ClinicStatus)
-ClinicHub.Application/         → Domain. Abstractions implemented elsewhere (use cases come in steps 2-3)
-  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext)
-  DependencyInjection.cs       AddApplication()
+ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
+  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ITransactionRunner
+  Common/Messaging/            ICommand, ICommand<T>, IQuery<T> (+ ICommandBase) and their handler interfaces
+  Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors
+  Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
+  Common/Validation/           .WithError(error), the shared ValidName() rule
+  Common/Paging/               PagedResult<T>, Paging.Normalize
+  Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
+  Features/Catalog/DrugGroups/ same, + DrugGroupDto, DrugGroupErrors, SaveDrugGroupItem
+  Features/Access/             AccessErrors (noAccess, clinicSuspended); the rest moves in step 3
+  DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
   Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration)
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
+  Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints)
   Migrations/                  EF Core migrations (applied automatically on startup)
-  DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor
+  DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor, TransactionRunner
 ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
                                production)
   Controllers/BaseApiController.cs
-  Features/<Feature>/          controller + DTOs per feature
+  Errors/                      ApiProblemFactory, Result → HTTP helpers, UnexpectedExceptionHandler
+  DependencyInjection.cs       AddApi(): controllers, invalid-body 400, ProblemDetails safety net, 500 handler
+  Features/Drugs, DrugGroups/  thin controllers (+ their request records)
   Features/Identity/           login: AuthController, MeController, OtpService, SessionService,
                                TokenService, PhoneNormalizer, IOtpSender, CurrentUser, IdentitySeeder,
                                IdentitySetup (DI + middleware)
   Features/Access/             permissions: Permissions + PermissionCatalog, DefaultRoles, AccessCache
-                               (HybridCache), PermissionService, [HasPermission] + handlers,
-                               PermissionsController, MembershipService, AccessSetup (DI)
+                               (HybridCache), PermissionService, [HasPermission] + handlers, the 403
+                               answers (AccessDenied.cs), PermissionsController, MembershipService,
+                               AccessSetup (DI)
   Features/Platform/           StartupSeeder (startup seed: template, super admins, dev data)
-  Shared/                      AppSettings (+ startup validation), ErrorCodes, PagedResult, ICurrentUser
+  Shared/                      AppSettings (+ startup validation), ErrorCodes (Identity/Access only), ICurrentUser
   Program.cs                   DI, middleware, migrate-on-startup, seeding
 ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
@@ -76,7 +88,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 ## Runtime architecture
 
 - **Production:** one origin. The API serves `wwwroot` (SPA) and `/api/v1/*`. The SPA calls the
-  API with the relative base URL `/api/v1`. `MapFallbackToFile("index.html")` serves client routes.
+  API with the relative base URL `/api/v1`. `MapFallbackToFile` serves `index.html` for client routes, except under `/api` (an unknown API route
+  is a 404 ProblemDetails).
 - **Development:** Vite dev server on `http://localhost:5173`; API on `http://localhost:5000`
   (launch profile `http`, usually run from Rider). Vite **proxies `/api`** to the API
   (`vite.config.ts`) and `ClinicHub.Web/.env.development` sets `VITE_API_BASE_URL=/api/v1`, so the SPA
@@ -85,8 +98,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
   container from `docker-compose.yml` (set in `appsettings.Development.json`); production must set
   the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
-  `Program.cs` validates the settings (missing/short secrets, `Otp:Mode = Sms` (no sender yet), or an
-  invalid seeded phone stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
+  `Program.cs` validates the settings (missing/short secrets, `Otp:Mode = Sms` (no sender yet), an
+  invalid seeded phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
   also gets "Demo clinic" (10,000 sample drugs) and "Second demo clinic" (3 drugs + 1 group), with
@@ -105,22 +118,36 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 
 ### Conventions
 
-- One folder per feature under `Features/` with a controller and a `*Dtos.cs` file
-  (records + mapping extension methods). Controllers inherit `BaseApiController`:
-  - route `api/v1/[controller]` (override with `[Route]` for kebab-case, e.g. `api/v1/drug-groups`)
-  - `ApiError(code)` returns a `ProblemDetails` with a `code` extension
-  - `NormalizePaging(page, pageSize)`: page ≥ 1, pageSize 1–100
+- Layers and rules: [backend architecture](../design/architecture.md). In short: **one use case = one
+  command or query** (+ handler, + validator) in its own folder under
+  `ClinicHub.Application/Features/<Module>/<Feature>/Commands|Queries/<UseCase>/`, files named after it
+  (`CreateDrugCommand.cs`, `CreateDrugCommandHandler.cs`, `CreateDrugCommandValidator.cs`). DTOs and the
+  feature's error class (`DrugErrors`) sit at the feature root. No shared interfaces or base validators
+  between create and update.
+- **Controllers are thin** (`ClinicHub.Api/Features/<Feature>/`): build the command/query, `sender.Send` it,
+  map the `Result` with `ToOk()`, `ToCreated(nameof(GetById), d => new { id = d.Id })` or `ToNoContent()`
+  (`Api/Errors/ResultHttpExtensions`). Request records (`SaveDrugRequest`) live next to the controller.
+  Controllers inherit `BaseApiController` (route `api/v1/[controller]`; override with `[Route]` for kebab-case,
+  e.g. `api/v1/drug-groups`).
+- **Handlers** use `IAppDbContext` (never `AppDbContext`), take the `CancellationToken`, and return a `Result`:
+  expected failures are `Error`s from the feature's error class (implicit conversion: `return DrugErrors.NotFound;`),
+  never exceptions. Commands run in one transaction (`TransactionBehavior`): a failed `Result` or an exception
+  rolls back everything the handler saved. Queries never write and use `AsNoTracking()`.
+- **Validation** is FluentValidation, one validator per command: every rule ends with
+  `.WithError(XErrors.Y)` (code + description), and rules are declared in the order the errors are reported
+  (the first failure is the response's `code`; `errors` lists them all). Checks that read the database
+  (e.g. `drugNotFound`) are done in the handler, after validation.
 - Entities never leave the API; always return DTOs (avoids JSON cycles and over-posting).
-- Lists return `PagedResult<T>` = `{ items, totalCount, page, pageSize }` (page is 1-based).
+- Lists return `PagedResult<T>` = `{ items, totalCount, page, pageSize }` (page is 1-based;
+  `Paging.Normalize`: page ≥ 1, pageSize 1–100).
 - Search is case-insensitive `Contains` on the name (`ToLower`). Drug search ranks names that
   **start with** the term first.
-- Validation errors return **400** with a machine-readable code. The frontend translates codes.
-  Codes live in `Shared/ErrorCodes.cs`: `nameRequired`, `nameTooLong`, `drugsRequired`, `drugNotFound`,
-  `invalidDosing`, `duplicateGroupItem`, and for login `invalidPhone`, `invalidCode`, `codeExpired`,
-  `tooManyAttempts`, `tooManyRequests` (429), `noAccess` (403), `clinicSuspended` (403), `forbidden` (403).
-  401 = missing/expired access token (no code; the SPA refreshes and retries once).
-  Add new codes there **and** under `errors.*` in both locale files.
-- `Nullable` is disabled in every csproj. Unhandled exceptions return ProblemDetails (`UseExceptionHandler`).
+- **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
+  API contracts: declared once in the feature's error class (Catalog: `CommonErrors`, `DrugErrors`,
+  `DrugGroupErrors`; Identity/Access still in `Api/Shared/ErrorCodes.cs` until Phase 3.5 step 3). Add new codes
+  there **and** under `errors.*` in both locale files. The transport codes (`unauthorized`, `invalidRequest`,
+  `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them.
+- `Nullable` is disabled in every csproj.
 - **Clinic-owned data:** a clinic's entity implements `IClinicOwned` (and `IHasTimestamps`); the
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
   with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
@@ -134,6 +161,54 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   `Features/Access/Permissions.cs` (+ the SPA mirror and labels). Changes to staff, roles, clinics or
   users must call the `IAccessCache.Invalidate*` method from the
   [invalidation table](../features/access/tech.md#cache-accesscache).
+
+### Errors (ProblemDetails)
+
+Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/ApiProblemFactory`
+(`application/problem+json`):
+
+```json
+{
+  "type": "https://httpstatuses.io/400", "title": "Validation failed", "status": 400,
+  "detail": "The name is required.", "instance": "/api/v1/drugs",
+  "code": "nameRequired",
+  "errors": [
+    { "code": "nameRequired", "description": "The name is required.", "field": "name" },
+    { "code": "invalidDosing", "description": "The default dosing is not valid.", "field": "defaultDosing" }
+  ],
+  "traceId": "00-…-01"
+}
+```
+
+- `code` = the first error's code (what the SPA translates); `errors` = all of them (`field` in camelCase, e.g.
+  `items[0].dosing`, when known); `detail` = the first description (English, for developers); `traceId` finds the
+  request in the logs.
+- Status from the first error's `ErrorType`: Validation 400, Unauthorized 401, Forbidden 403, NotFound 404,
+  Conflict 409, Failure 500; `tooManyRequests` 429 and `methodNotAllowed` 405 by code.
+
+| Source | Hook | Code |
+|---|---|---|
+| Use case failure (`Result`) | `ToOk` / `ToCreated` / `ToNoContent` | the handler's or validator's |
+| No/invalid/expired token | JwtBearer `OnChallenge` | `unauthorized` (401; the SPA refreshes by status) |
+| Permission / context | `AccessAuthorizationResultHandler`, JwtBearer `OnForbidden` | `forbidden`, `noAccess`, `clinicSuspended` |
+| Malformed JSON, wrong types, empty body | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error) |
+| Unknown route / wrong method | `UseProblemStatusCodePages` | `notFound` 404 / `methodNotAllowed` 405 |
+| Unhandled exception | `UnexpectedExceptionHandler` (after `AccessExceptionHandler`) | `unexpected` 500; message and stack only in Development |
+| Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
+
+A missing drug or group answers `notFound` (the SPA shows "this item no longer exists").
+`/api/*` paths never fall back to the SPA's `index.html`.
+
+### Adding a use case
+
+1. Folder `ClinicHub.Application/Features/<Module>/<Feature>/Commands/<Name>/` (or `Queries/<Name>/`).
+2. `<Name>Command : ICommand<TData>` (or `ICommand` / `<Name>Query : IQuery<TData>`), a record with the inputs.
+3. `<Name>CommandHandler(IAppDbContext db) : ICommandHandler<<Name>Command, TData>` (`internal sealed`),
+   returning data or an `Error` from `<Feature>Errors`.
+4. `<Name>CommandValidator : AbstractValidator<<Name>Command>` (`internal sealed`), each rule ending with
+   `.WithError(...)`, in report order. New codes: in `<Feature>Errors` + `errors.*` in `en.ts` and `ar.ts`.
+5. Controller action: `[HasPermission(...)]`, `(await sender.Send(new <Name>Command(...), ct)).ToOk()`.
+   Handlers and validators are found by assembly scanning; nothing to register.
 
 ### Data model
 
@@ -206,7 +281,7 @@ Drugs                       DrugGroups
 | PUT | `/drug-groups/{id}` | Replace name and items (order + overrides) → group |
 | DELETE | `/drug-groups/{id}` | Delete → 204 |
 
-Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
+Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
 (`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
 permission (e.g. `drugs.delete`, [table](../features/access/tech.md#api)), else 403 `forbidden`;
 inactive staff → 403 `noAccess`, suspended clinic → 403 `clinicSuspended`. Auth contracts:
@@ -303,8 +378,11 @@ Swagger UI is available in Development at `/swagger`.
 - Queries retry once, and only on network/5xx errors. Any 403 reloads `/me` (permissions may have
   changed); a 403 from a query also toasts the translated reason.
   Drug mutations also invalidate group queries (groups embed drug names).
-- `api/errors.ts` → `getErrorMessage(error)`: maps the API `code` to `errors.<code>`, 404 to
-  `errors.notFound`, no response to `errors.network`, else `errors.generic`.
+- `api/errors.ts` is the one place that reads error responses (the refresh interceptor uses it too): `toApiError(error)` parses the API's
+  ProblemDetails into a typed `ApiError { status, code, errors, traceId }` (null without an HTTP response);
+  `getErrorMessage(error)` maps `code` to `errors.<code>`, else 404 to `errors.notFound`, no response to
+  `errors.network`, else `errors.generic`. Status checks (403 → reload `/me`, retries, the refresh's 401/409) use
+  `toApiError(error)?.status`.
 
 ### Shared components (`components/common`)
 
@@ -393,7 +471,9 @@ curl -s localhost:5000/api/v1/drugs -H "Authorization: Bearer <accessToken>"
 
 A new code for the same phone needs 60 s (5 per hour); in dev, `DELETE FROM "OtpCodes"` resets it.
 Secrets: dev values are in `appsettings.Development.json`; any other environment must set
-`Auth__Jwt__SigningKey` and `Otp__HashKey` (≥ 32 bytes) as environment variables, or the app won't start.
+`Auth__Jwt__SigningKey` and `Otp__HashKey` (≥ 32 bytes) and `MediatR__LicenseKey` (MediatR community license,
+luckypennysoftware.com) as environment variables, or the app won't start. In Development the MediatR key may
+be empty (MediatR only logs a warning).
 
 Checks before committing:
 
@@ -440,7 +520,8 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 
 1. Backend: entity in `ClinicHub.Domain/<Module>/`, its `IEntityTypeConfiguration` in
    `ClinicHub.Infrastructure/Database/Configurations/<Module>/` + a `DbSet` in `AppDbContext` and
-   `IAppDbContext`, `Features/<Feature>/` controller + DTOs, error codes in `ErrorCodes`, migration
+   `IAppDbContext`, use cases in `ClinicHub.Application/Features/<Module>/<Feature>/` ([Adding a use case](#adding-a-use-case)),
+   a thin controller in `ClinicHub.Api/Features/<Feature>/`, errors in `<Feature>Errors`, migration
    (reviewed, data-preserving).
 2. Frontend: `src/features/<feature>/` with `types.ts`, `api.ts` (keys + hooks), `components/`,
    `pages/`; lazy route in `App.tsx`; nav item in `AppLayout`; strings in `en.ts` **and** `ar.ts`.

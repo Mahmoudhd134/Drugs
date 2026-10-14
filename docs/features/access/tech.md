@@ -103,8 +103,8 @@ context), `clinicSuspended`. When several apply the most specific wins (`clinicS
 | `HasPermissionAttribute` | `AuthorizeAttribute` + `IAuthorizationRequirementData` (.NET 8+, no policy provider): sets `Policy = ClinicContext` and adds a `PermissionRequirement`. Unknown keys throw when the endpoints are built (first request) |
 | `PermissionHandler` | Succeeds when `PermissionService.GetAsync()` has the key; else fails with reason `forbidden` |
 | `ClinicAccessRequirement` + `ClinicAccessHandler` | Part of the `ClinicContext` policy (`IdentitySetup`), so **every** clinic request checks that staff and clinic are active, permission-gated or not |
-| `AccessAuthorizationResultHandler` | `IAuthorizationMiddlewareResultHandler`: a denied request answers 403 ProblemDetails with the failure reason's code; otherwise the default (JwtBearer's 403 `forbidden`, or 401) |
-| `AccessExceptionHandler` | `IExceptionHandler`: `AccessDeniedException` (from `EnsureAsync`) → 403 with its code |
+| `AccessAuthorizationResultHandler` | `IAuthorizationMiddlewareResultHandler` (`AccessDenied.cs`): a denied request answers 403 ProblemDetails (`ApiProblemFactory`, errors from `Application/Features/Access/AccessErrors` and `CommonErrors.Forbidden`) with the failure reason's code; otherwise the default (JwtBearer's 403 `forbidden`, or 401 `unauthorized`) |
+| `AccessExceptionHandler` | `IExceptionHandler` (`AccessDenied.cs`): `AccessDeniedException` (from `EnsureAsync`) → 403 with its code; registered before the API's `UnexpectedExceptionHandler` |
 | `PermissionsController` | `GET /api/v1/permissions` |
 | `AccessSetup.AddAccessModule()` | DI for all of the above (+ `MembershipService`, moved here from `IdentitySetup`) |
 

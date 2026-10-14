@@ -1,6 +1,8 @@
+using ClinicHub.Api.Errors;
 using ClinicHub.Api.Features.Access;
 using ClinicHub.Api.Shared;
 using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Common.Results;
 using ClinicHub.Domain.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -28,18 +30,15 @@ public static class IdentitySetup
                 options.TokenValidationParameters = TokenService.ValidationParameters(settings);
                 options.Events = new JwtBearerEvents
                 {
-                    // ProblemDetails bodies, like every other API error
-                    OnChallenge = async context =>
+                    // ProblemDetails bodies (ApiProblemFactory), like every other API error
+                    OnChallenge = context =>
                     {
                         context.HandleResponse();
-                        await Results.Problem(statusCode: StatusCodes.Status401Unauthorized)
-                            .ExecuteAsync(context.HttpContext);
+                        return ApiProblemFactory.WriteAsync(context.HttpContext,
+                            ApiProblemFactory.Create(context.HttpContext, CommonErrors.Unauthorized));
                     },
-                    OnForbidden = context => Results.Problem(
-                            title: ErrorCodes.Forbidden,
-                            statusCode: StatusCodes.Status403Forbidden,
-                            extensions: new Dictionary<string, object> { ["code"] = ErrorCodes.Forbidden })
-                        .ExecuteAsync(context.HttpContext),
+                    OnForbidden = context => ApiProblemFactory.WriteAsync(context.HttpContext,
+                        ApiProblemFactory.Create(context.HttpContext, CommonErrors.Forbidden)),
                 };
             });
 

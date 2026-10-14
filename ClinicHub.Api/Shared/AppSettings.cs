@@ -8,9 +8,10 @@ public class AppSettings
     public AuthSettings Auth { get; set; } = new();
     public OtpSettings Otp { get; set; } = new();
     public PlatformSettings Platform { get; set; } = new();
+    public MediatRSettings MediatR { get; set; } = new();
 
-    /// <summary>Stops the app at startup on missing secrets or an unusable OTP mode.</summary>
-    public void Validate()
+    /// <summary>Stops the app at startup on missing secrets, an unusable OTP mode or (outside Development) no MediatR license.</summary>
+    public void Validate(bool isDevelopment)
     {
         const int minKeyBytes = 32;
         if (Encoding.UTF8.GetByteCount(Auth.Jwt.SigningKey ?? "") < minKeyBytes)
@@ -35,7 +36,17 @@ public class AppSettings
                 "Otp: Length must be 4-9; MaxAttempts, ExpiryMinutes and MaxPerPhonePerHour at least 1; ResendSeconds not negative.");
         if (Auth.AccessTokenMinutes < 1 || Auth.RefreshTokenDays < 1 || Auth.PlatformSessionHours < 1)
             throw new InvalidOperationException("Auth: token and session lifetimes must be positive.");
+        // Read by AddApplication; MediatR works without it but is licensed commercially
+        if (!isDevelopment && string.IsNullOrWhiteSpace(MediatR.LicenseKey))
+            throw new InvalidOperationException(
+                "MediatR:LicenseKey is missing (set env var MediatR__LicenseKey; free community license at luckypennysoftware.com).");
     }
+}
+
+public class MediatRSettings
+{
+    /// <summary>Required outside Development (environment variable); may be empty in Development.</summary>
+    public string LicenseKey { get; set; }
 }
 
 public class AuthSettings

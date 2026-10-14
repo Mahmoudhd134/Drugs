@@ -60,15 +60,16 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 | | | **unique `(ClinicId, UserId)`** |
 
 ## API
-All under `/api/v1`. Errors are ProblemDetails with `code` (the 401 from the JWT handler has no
-code; 403 from a policy has `forbidden`).
+All under `/api/v1`. Errors are [ProblemDetails](../../tech/overview.md#errors-problemdetails) with `code`
+(the 401 from the JWT handler: `unauthorized`; 403 from a policy: `forbidden`). Until Phase 3.5 step 3 the
+login errors have a generic `detail` per status.
 
 | Method | Route | Auth | Request | Response | Errors (codes) |
 |---|---|---|---|---|---|
 | GET | `/auth/otp/mode` | anonymous | — | `{ mode: "Display" \| "Sms" }` (not in HLD 8.1: lets the login page show the display-mode banner up front) | — |
 | POST | `/auth/otp/request` | anonymous | `{ phone }` | `{ expiresInSeconds, resendAfterSeconds, devCode? }` | 400 `invalidPhone`; 429 `tooManyRequests` (+ `Retry-After`) |
 | POST | `/auth/otp/verify` | anonymous | `{ phone, code }` | `AuthResult` + refresh cookie | 400 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`; 403 `noAccess` |
-| POST | `/auth/refresh` | refresh cookie | — | `AuthResult`, cookie rotated | 401 (cookie cleared); 409 the cookie was rotated by a parallel call less than 30 s ago (cookie kept, no tokens) |
+| POST | `/auth/refresh` | refresh cookie | — | `AuthResult`, cookie rotated | 401 `unauthorized` (cookie cleared); 409 `conflict` the cookie was rotated by a parallel call less than 30 s ago (cookie kept, no tokens) |
 | POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `noAccess`, `clinicSuspended`; 401 session gone, or cookie missing/of another session (cookie kept); 409 as above |
 | GET | `/auth/contexts` | access token | — | `Context[]` | 401 |
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
@@ -140,7 +141,7 @@ action also needs its permission, and the staff member and clinic must still be 
   `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, `Expires` = session expiry. Browsers accept
   `Secure` cookies on `http://localhost`, so dev works over http; **any other host needs HTTPS**
   (on plain http the browser drops the cookie: every reload asks for a new login).
-- **`IdentitySetup`**: DI, JwtBearer (`MapInboundClaims = false`; 401/403 written as ProblemDetails),
+- **`IdentitySetup`**: DI, JwtBearer (`MapInboundClaims = false`; 401/403 written through `ApiProblemFactory`),
   the `ClinicContext` policy (`ctx = clinic` + `clinic_id`), and `UseClinicFromToken()` (after
   `UseAuthentication`, before `UseAuthorization`): sets `ClinicContext.ClinicId = ICurrentUser.ClinicId`,
   so no token = no clinic = the catalog filter matches nothing.

@@ -1,6 +1,5 @@
 import {type ReactNode, useMemo} from "react";
 import {MutationCache, QueryCache, QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import axios from "axios";
 import toast from "react-hot-toast";
 import {CacheProvider} from "@emotion/react";
 import createCache from "@emotion/cache";
@@ -11,10 +10,10 @@ import {Toaster} from "react-hot-toast";
 import {createAppTheme} from "./theme.ts";
 import {useLanguage} from "../hooks/useLanguage.ts";
 import {AuthProvider} from "../features/auth/AuthProvider.tsx";
-import {getErrorMessage} from "../api/errors.ts";
+import {getErrorMessage, toApiError} from "../api/errors.ts";
 import {authKeys} from "../features/auth/api.ts";
 
-const isForbidden = (error: unknown) => axios.isAxiosError(error) && error.response?.status === 403;
+const isForbidden = (error: unknown) => toApiError(error)?.status === 403;
 
 /**
  * A 403 means the permissions shown are out of date (changed by an admin, staff deactivated, clinic
@@ -39,7 +38,7 @@ const queryClient: QueryClient = new QueryClient({
             staleTime: 30_000,
             // Once, and only when it may help: a 4xx (e.g. 403, 404) answers the same again
             retry: (failureCount, error) =>
-                failureCount < 1 && !(axios.isAxiosError(error) && (error.response?.status ?? 500) < 500),
+                failureCount < 1 && (toApiError(error)?.status ?? 500) >= 500,
             refetchOnWindowFocus: false,
         },
     },

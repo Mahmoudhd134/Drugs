@@ -1,3 +1,5 @@
+using ClinicHub.Api.Errors;
+using ClinicHub.Api.Features.Access;
 using ClinicHub.Api.Shared;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,16 +9,16 @@ namespace ClinicHub.Api.Controllers;
 [Route("api/v1/[controller]")]
 public class BaseApiController : ControllerBase
 {
-    private const int MaxPageSize = 100;
-
-    /// <summary>A ProblemDetails response carrying an <see cref="ErrorCodes"/> value in "code".</summary>
+    /// <summary>
+    /// A ProblemDetails carrying an <see cref="ErrorCodes"/> value in "code", for the controllers that
+    /// do not send use cases yet (login; Phase 3.5 step 3). Use cases return a Result instead.
+    /// </summary>
     protected ObjectResult ApiError(string code, int statusCode = StatusCodes.Status400BadRequest)
     {
-        var problem = new ProblemDetails { Status = statusCode, Title = code };
-        problem.Extensions["code"] = code;
-        return StatusCode(statusCode, problem);
+        // Access codes have their own descriptions; the others get their status's until step 3
+        var error = statusCode == StatusCodes.Status403Forbidden
+            ? AccessProblem.ToError(code)
+            : ApiProblemFactory.ErrorForStatus(statusCode) with { Code = code };
+        return ApiProblemFactory.ToActionResult(ApiProblemFactory.Create(HttpContext, error, statusCode));
     }
-
-    protected static (int Page, int PageSize) NormalizePaging(int page, int pageSize) =>
-        (Math.Max(page, 1), Math.Clamp(pageSize, 1, MaxPageSize));
 }

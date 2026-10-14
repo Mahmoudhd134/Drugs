@@ -1,17 +1,17 @@
 # Backend architecture
 
-Status: **agreed, being implemented.** Decided in discussion on 2026-10-12. Built in **Phase 3.5**,
+Status: **agreed, being implemented** (steps 1 and 2 done). Decided in discussion on 2026-10-12. Built in **Phase 3.5**,
 a pure refactor between Phase 3 (Access) and Phase 4 (Platform), so the Phase 4 admin code is written
 directly in this structure. Until it is done, the code follows `docs/tech/overview.md`.
 
 Phase 3.5 is done in three steps:
 
 1. **Project split (done):** the four projects; Domain and data access moved (§ 1, § 2, § 4). Services,
-   controllers and auth stay in `ClinicHub.Api`. See [carry-over](#carry-over-to-step-2).
-2. **Application foundations + Catalog:** MediatR abstractions, `Result`/`Error`, FluentValidation, the
+   controllers and auth stay in `ClinicHub.Api`.
+2. **Application foundations + Catalog (done):** MediatR abstractions, `Result`/`Error`, FluentValidation, the
    pipeline behaviors and `ITransactionRunner` (§ 3); `ApiProblemFactory` with every error source and the
    `Result` → HTTP helpers (§ 5, § 6); the Catalog module (Drugs, DrugGroups) as commands/queries with thin
-   controllers. The app works end to end after this step.
+   controllers. The app works end to end after this step. See [carry-over](#carry-over-to-step-3).
 3. **Identity, Access, Platform + permission structure:** the remaining services move to Application on top
    of the abstractions (purpose-built interfaces for what `IAppDbContext` hides), their use cases and
    Infrastructure implementations, Access 403s through `ApiProblemFactory`, and the permission constants
@@ -19,35 +19,65 @@ Phase 3.5 is done in three steps:
 
 Module by module, so every step ends with a working app.
 
-### Carry-over to step 2
+### Step 2: what was done
 
-What step 1 could not move cleanly, and why:
+- Packages in `ClinicHub.Application`: MediatR 13.1 (license from `MediatR:LicenseKey`; `AppSettings.Validate`
+  stops the app outside Development when it is empty), FluentValidation 12 + its DI extensions,
+  `Microsoft.Extensions.Configuration.Abstractions` (for `AddApplication(configuration)`).
+- `Application/Common`: `Messaging/` (§ 3.1), `Results/` (`Result`, `Error`, `ErrorType`, `CommonErrors`),
+  `Behaviors/` (§ 3.5), `Validation/` (`.WithError(error)` = `.WithErrorCode(code)` + the description; the shared
+  `ValidName()` rule), `Paging/` (`PagedResult`, `Paging.Normalize`), `Abstractions/ITransactionRunner`.
+- `TransactionRunner` (Infrastructure): EF execution strategy + one transaction; commits only a successful
+  `Result`; on a failed one it rolls back and clears the change tracker; inside an existing transaction it
+  uses a savepoint (released on success, rolled back to on failure).
+- Catalog (`Application/Features/Catalog/Drugs`, `…/DrugGroups`): one folder per use case. Create and update
+  each have their own validator and handler (no shared interface or base validator: a few repeated lines
+  are simpler). `SaveDrugGroupItem.Normalize` is the one shared helper (validators + handlers).
+- `ErrorCodes.ValidateName` became `ValidName()`; `DosingRules.IsValid` → `invalidDosing` is a `.Must(...)`
+  rule. The group's `drugNotFound` reads the database, so the handlers check it after validation (same
+  precedence as before: it is only reported when everything else is valid).
+- **404 code:** an unknown drug or group answers `code: "notFound"` (`DrugErrors.NotFound`,
+  `DrugGroupErrors.NotFound`), not `drugNotFound`: before, the 404 had no code and the SPA showed
+  `errors.notFound`; `drugNotFound` stays the 400 for an unknown drug *inside* a group.
+- API: `Errors/ApiProblemFactory` (+ `ResultHttpExtensions`, `UnexpectedExceptionHandler`), `AddApi()`,
+  `UseProblemStatusCodePages()`; the SPA fallback no longer answers `/api/*` (an unknown API route is a 404
+  ProblemDetails instead of `index.html`).
+- `Application/Features/Access/AccessErrors` (`noAccess`, `clinicSuspended`), so the Access 403s have
+  descriptions; the Api's Access 403 handlers file is now `AccessDenied.cs`.
 
-- **Controllers and services still inject the concrete `AppDbContext`**, not `IAppDbContext`. Some need
-  members the interface deliberately hides: transactions (`OtpService`, `IdentitySeeder`, `StartupSeeder`:
-  `Database.BeginTransactionAsync` → `ITransactionRunner`), raw SQL (`OtpService`'s per-phone
-  `pg_advisory_xact_lock` → a purpose-built interface, e.g. `IOtpLock`), `ChangeTracker.Clear()`
-  (`StartupSeeder`'s batched dev seed) and `Database.MigrateAsync()` (`Program.cs`; stays in
-  Infrastructure/Api). Switch each to `IAppDbContext` as it moves.
-- **`ErrorCodes.ValidateName`** stays in `ClinicHub.Api/Shared` (it returns an API error code); only its limit
-  moved to `Domain.Common.FieldLimits`. It becomes FluentValidation rules with
-  `.WithErrorCode(...)` in the validators.
-- **`DosingRules.IsValid`** (Domain) returns `bool`; the callers (`DrugMappings.Validate`,
-  `DrugGroupsController.Validate`) map `false` to `invalidDosing`. Same for the validators in step 2.
-- Still in `ClinicHub.Api`, to move per § 1:
-  - to Application: `ICurrentUser`, `IAccessCache`, `IOtpSender`, `PermissionService`, `SessionService`,
-    `OtpService`, `MembershipService`, `Permissions` + `PermissionCatalog`, `DefaultRoles`, `IdentitySeeder`,
-    `StartupSeeder`, `ErrorCodes` (→ per-feature error classes), `PagedResult`;
-  - to Infrastructure: `AccessCache`, `TokenService`, `DisplayOtpSender`, `CurrentUser`;
-  - stays in Api: `AppSettings` (+ validation), auth setup, `[HasPermission]` and its handlers.
-- `RolePermission` has **no** `DbSet` on `IAppDbContext` (decided in step 1, § 3.6): it is not clinic-owned,
-  so a set of its own would be read unfiltered; it is only reached through its (filtered) role.
-- The migrations' designer files and snapshot keep the old CLR names as strings
-  (`"Drags.Api.Models.Drug"`, from before the moves and the ClinicHub rename). EF compares the
-  relational model, so this is harmless (`has-pending-model-changes` reports none); the next
-  `migrations add` rewrites the snapshot with the new names. Historic designer files stay as they are.
-- `ClinicHub.Application` references `Microsoft.EntityFrameworkCore` (for `DbSet<T>` in `IAppDbContext`), as
-  § 3.6 intends; it has no ASP.NET or Npgsql dependency.
+### Carry-over to step 3
+
+- **Identity, Access and Platform still live in `ClinicHub.Api`** and inject the concrete `AppDbContext`:
+  `OtpService`, `SessionService`, `MembershipService`, `PermissionService`, `IdentitySeeder`, `StartupSeeder`,
+  `AccessCache`, `TokenService`, `DisplayOtpSender`, `CurrentUser`, `Permissions` + `PermissionCatalog`,
+  `DefaultRoles`, `ICurrentUser`, `IAccessCache`, `IOtpSender`. Move them per § 1, switching to
+  `IAppDbContext`: transactions (`OtpService`, `IdentitySeeder`, `StartupSeeder`) → `ITransactionRunner` (it
+  exists now), raw SQL (`OtpService`'s `pg_advisory_xact_lock`) → a purpose-built interface (e.g. `IOtpLock`),
+  `ChangeTracker.Clear()` (`StartupSeeder`'s batched seed) and `Database.MigrateAsync()` stay in
+  Infrastructure/Api.
+- **`ErrorCodes`** (`ClinicHub.Api/Shared`) still holds the Identity/Access codes (`invalidPhone`, `invalidCode`,
+  `codeExpired`, `tooManyAttempts`, `tooManyRequests`, `noAccess`, `clinicSuspended`, `forbidden`); the services
+  return them as strings and `AuthController` answers with `BaseApiController.ApiError(code, status)`, which goes
+  through `ApiProblemFactory` but only has a generic description per status (the 403 codes use `AccessErrors`).
+  Turn them into `IdentityErrors` / `AccessErrors` and `Result`s; then remove `ApiError` and `ErrorCodes`.
+- **Access 403s**: `AccessAuthorizationResultHandler` and `AccessExceptionHandler` already answer through
+  `ApiProblemFactory`, but map failure-reason *strings* to `Error`s (`AccessProblem.ToError`); once the codes are
+  `Error`s, pass the `Error` itself.
+- **Permissions**: split `Permissions` per module with `[PermissionModule]` (§ 7.1).
+- `EnsureAsync`'s `AccessDeniedException` → 403 is logged at Error by .NET 9's exception middleware (before
+  any `IExceptionHandler` runs; unchanged from before). Returning a `Result` with `ErrorType.Forbidden` instead of
+  throwing (once Access is in Application) removes it.
+- `TransactionRunner`: a nested command that fails rolls back to its savepoint but leaves the change tracker as
+  is (the outer unit's entities are in it too); revisit if commands start sending commands.
+- 429: `tooManyRequests` gets its status by code in `ApiProblemFactory.StatusOf` (there is no `ErrorType` for
+  it); the OTP 429 still sets `Retry-After` in `AuthController`.
+- An unknown `/api` route with a non-GET method answers **405** (not 404): the SPA fallback's route matches the
+  path for the method check before its constraint rules it out. Harmless; revisit if the fallback changes.
+- The migrations' designer files and snapshot keep the old CLR names as strings (`"Drags.Api.Models.Drug"`);
+  harmless (`has-pending-model-changes` reports none); the next `migrations add` rewrites the snapshot.
+- `RolePermission` still has **no** `DbSet` on `IAppDbContext` (§ 3.6), on purpose.
+- Npgsql's execution strategy has no retries configured; `TransactionRunner` is ready for
+  `EnableRetryOnFailure` (each retried attempt clears the change tracker and reruns the handler).
 
 What does **not** change: endpoints, routes, request and response shapes (except error responses gaining
 fields, see [ProblemDetails](#6-errors-problemdetails)), the database schema, the frontend, and the
@@ -74,7 +104,7 @@ ClinicHub.Api              → Application, Infrastructure
 | **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner`, `AccessCache` (HybridCache), `TokenService` (JWT), `DisplayOtpSender` (later SMS), `CurrentUser` (claims reader) |
 | **Api** | Thin controllers, authentication and authorization setup, `[HasPermission]` and its handler, the `ApiProblemFactory` and every error source, `Result` → HTTP mapping, SPA hosting (`wwwroot`), `Program.cs`, config validation |
 
-Each layer registers itself: `AddApplication()`, `AddInfrastructure(configuration)`, `AddApi()`.
+Each layer registers itself: `AddApplication(configuration)`, `AddInfrastructure(configuration)`, `AddApi()`.
 
 The solution and projects use the code name `ClinicHub` (renamed from `Drags` on 2026-10-14, after step 1).
 
@@ -151,20 +181,26 @@ Every error is declared once, in one static class per feature, next to its use c
 public static class DrugErrors
 {
     public static readonly Error NotFound =
-        new("drugNotFound", "The drug does not exist in this clinic.", ErrorType.NotFound);
+        new("notFound", "The drug does not exist in this clinic.", ErrorType.NotFound);
+
+    public static readonly Error InvalidDosing =
+        new("invalidDosing", "The default dosing is not valid.", ErrorType.Validation);
 }
 ```
 
 - **Codes stay exactly as today** (`nameRequired`, `drugNotFound`, `invalidDosing`, `noAccess`…), so the
-  frontend's `errors.<code>` translations keep working.
+  frontend's `errors.<code>` translations keep working. A missing row is `notFound` (the SPA's generic
+  "this item no longer exists"); `drugNotFound` is the 400 for an unknown drug inside a group.
 - The description is English, for developers and logs; the UI always translates by code.
-- Cross-cutting errors (`forbidden`, `unauthorized`, `invalidRequest`, `unexpected`, `tooManyRequests`) live in
-  `Common/CommonErrors.cs`.
+- Cross-cutting errors (`forbidden`, `unauthorized`, `notFound`, `conflict`, `invalidRequest`,
+  `unexpected`, `tooManyRequests`) and the shared name rules (`nameRequired`, `nameTooLong`) live in
+  `Common/Results/CommonErrors.cs`; the routing-only `methodNotAllowed` (405) lives in the Api's `ApiProblemFactory`.
 
 ### 3.4 Validation
 
 **FluentValidation.** One validator per command (queries only when they take input worth checking).
-Every rule sets its code: `.WithErrorCode(DrugErrors.NameRequired.Code)`. The `ValidationBehavior` runs all
+Every rule sets its code: `.WithError(DrugErrors.InvalidDosing)` (= `.WithErrorCode(code)` + the description).
+Rules are declared in the order the errors should be reported: the first failure is the response's `code`. The `ValidationBehavior` runs all
 validators of the request and returns **every** failure as `Error(code, message, Validation, propertyName)`.
 Today's rules and codes are kept exactly.
 
@@ -225,7 +261,8 @@ public interface IAppDbContext
 ClinicHub.Application/
   Common/                      Result, Error, ErrorType, CommonErrors, MediatR abstractions,
                                behaviors, abstractions (IAppDbContext, ICurrentUser…)
-  Catalog/
+  Features/
+   Catalog/
     Drugs/
       Commands/
         CreateDrug/
@@ -241,19 +278,22 @@ ClinicHub.Application/
         GetDrug/ …
         GetDrugGroupNames/
           GetDrugGroupNamesQuery.cs
-          GetDrugGroupNamesQueryHandler.cs
-          DrugGroupNameDto.cs     ← used by this use case only: lives in its folder
+          GetDrugGroupNamesQueryHandler.cs   (returns List<string>; a type used by one use case only would live here)
       DrugDto.cs                  ← shared by several use cases: lives at the feature root
       DrugErrors.cs
     DrugGroups/ …
-  Identity/ …
-  Access/ …
-  Platform/ …
+   Identity/ …
+   Access/ …
+   Platform/ …
 ```
 
 - Folders and files in PascalCase; **files and classes are named after the use case**
   (`CreateDrugCommand.cs`, not `Command.cs`), so search, editor tabs and stack traces stay readable.
 - A type lives next to its only user and moves up to the feature root when a second use case needs it.
+- Modules live under `Features/` (`Features/Catalog/Drugs`…); namespaces follow the folders
+  (`ClinicHub.Application.Features.Catalog.Drugs.Commands.CreateDrug`).
+- No shared interfaces or base validators between create and update: each use case has its own validator
+  and handler, even if a few lines repeat.
 
 ---
 
@@ -285,12 +325,15 @@ action is a thin wrapper: build the request, `Send` it, map the `Result`.
 
 ```cs
 [HttpPost, HasPermission(Permissions.Drugs.Create)]
-public async Task<IActionResult> Create(SaveDrugRequest request, CancellationToken ct) =>
-    (await sender.Send(new CreateDrugCommand(request), ct)).ToCreated(nameof(GetById), d => new { id = d.Id });
+public async Task<ActionResult<DrugDto>> Create([FromBody] SaveDrugRequest request, CancellationToken ct) =>
+    (await sender.Send(new CreateDrugCommand(request.Name, request.Description, request.DefaultDosing), ct))
+    .ToCreated(nameof(GetById), drug => new { id = drug.Id });
 ```
 
 `Result` → HTTP helpers (one place): `ToOk()`, `ToCreated(...)`, `ToNoContent()`; a failure always becomes
 ProblemDetails through `ApiProblemFactory`.
+
+Request records (`SaveDrugRequest`) stay in the Api, next to their controller; the command carries the fields.
 
 **Success responses are plain data** (`200` + JSON, `201` + JSON, `204`): no envelope.
 
@@ -299,7 +342,7 @@ ProblemDetails through `ApiProblemFactory`.
 ## 6. Errors: ProblemDetails
 
 **Every error response, whatever produces it, has one shape** (RFC 9457), so the frontend handles errors in
-one place (the axios response interceptor → a typed `ApiError { status, code, errors, traceId }`).
+one place (`toApiError(error)` in `src/api/errors.ts` → a typed `ApiError { status, code, errors, traceId }`).
 
 ```json
 {
@@ -311,7 +354,7 @@ one place (the axios response interceptor → a typed `ApiError { status, code, 
   "code": "nameRequired",
   "errors": [
     { "code": "nameRequired", "description": "The name is required.", "field": "name" },
-    { "code": "invalidDosing", "description": "The dosing is not valid.", "field": "defaultDosing" }
+    { "code": "invalidDosing", "description": "The default dosing is not valid.", "field": "defaultDosing" }
   ],
   "traceId": "00-4bf9…-01"
 }
@@ -331,14 +374,17 @@ All error sources go through **one `ApiProblemFactory`**:
 |---|---|
 | Handler / validation `Result` failure | `Result` → HTTP helpers |
 | 401 (no or expired token) | JwtBearer `OnChallenge` |
-| 403 (permission or context) | `IAuthorizationMiddlewareResultHandler` |
+| 403 (permission or context) | `IAuthorizationMiddlewareResultHandler`, JwtBearer `OnForbidden`, `AccessExceptionHandler` (`EnsureAsync`) |
 | 400 malformed JSON / wrong types | `ApiBehaviorOptions.InvalidModelStateResponseFactory` (`invalidRequest`) |
 | 404/405 with no body | `UseStatusCodePages` |
 | 500 unexpected exception | `IExceptionHandler` (`unexpected`; no stack trace outside Development) |
-| 429 (Phase 5 rate limits) | rate limiter `OnRejected` |
+| 429 | today: the OTP limit in `AuthController` (`ApiError(..., 429)`); Phase 5 (planned): rate limiter `OnRejected` |
 
 `AddProblemDetails(o => o.CustomizeProblemDetails = …)` adds `code`, `errors` and `traceId` as a safety net
-for anything not listed.
+for anything not listed (e.g. MVC's `Problem()`, `Unauthorized()`): `ApiProblemFactory.Complete` derives the code from
+the status. Bare statuses map to `unauthorized` 401, `forbidden` 403, `notFound` 404, `methodNotAllowed` 405,
+`conflict` 409, `tooManyRequests` 429, `unexpected` 5xx, `invalidRequest` otherwise. In Development the 500 also
+carries the exception (`detail` = message, `exception` = full text).
 
 ---
 
@@ -375,11 +421,11 @@ frontend `permissions.ts`. Keys are stored in the database, so they never change
 **Changed in Phase 3.5, so it scales to hundreds of permissions:**
 
 1. `Permissions` becomes a **`partial` class split per module**: each module declares its resources in its own
-   file next to its use cases (`Application/Catalog/CatalogPermissions.cs`, `Application/Access/AccessPermissions.cs`…).
+   file next to its use cases (`Application/Features/Catalog/CatalogPermissions.cs`, `Application/Features/Access/AccessPermissions.cs`…).
    Usage is unchanged (`Permissions.Drugs.Create`) and the reflection catalog needs no change.
 
    ```cs
-   // Application/Catalog/CatalogPermissions.cs
+   // Application/Features/Catalog/CatalogPermissions.cs
    public static partial class Permissions
    {
        [PermissionModule("catalog")]

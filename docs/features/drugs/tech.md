@@ -22,28 +22,44 @@ Every query is scoped to the current clinic: another clinic's drug is 404 (see
 Relationship: `Drug.GroupItems` → `DrugGroupItems.DrugId` with **cascade delete** (deleting a drug
 removes it from all groups).
 
-## API (`Features/Drugs/DrugsController.cs`, route `api/v1/drugs`)
+## API (`ClinicHub.Api/Features/Drugs/DrugsController.cs`, route `api/v1/drugs`)
+
+Thin controller: each action sends one use case (below) and maps its `Result`. Errors are
+[ProblemDetails](../../tech/overview.md#errors-problemdetails); the table lists their `code`.
 
 | Method | Route | Request | Response | Errors |
 |---|---|---|---|---|
 | GET | `/drugs?search=&page=1&pageSize=20` | query | `PagedResult<DrugDto>` | |
-| GET | `/drugs/{id}` | | `DrugDto` | 404 |
-| POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` | 400 `nameRequired`, `nameTooLong`, `invalidDosing` |
-| PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | 400 (as above), 404 |
-| GET | `/drugs/{id}/groups` | | `string[]` group names using the drug | |
-| DELETE | `/drugs/{id}` | | 204 | 404 |
+| GET | `/drugs/{id}` | | `DrugDto` | 404 `notFound` |
+| POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` (+ `Location`) | 400 `nameRequired`, `nameTooLong`, `invalidDosing` (all that apply, in this order) |
+| PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | 400 (as above, checked first), 404 `notFound` |
+| GET | `/drugs/{id}/groups` | | `string[]` group names using the drug (empty for an unknown drug) | |
+| DELETE | `/drugs/{id}` | | 204 | 404 `notFound` |
 
 `DrugDto = { id, name, description, defaultDosing }` (`defaultDosing` is null when not set).
 
-## Backend
-- Validation: `SaveDrugRequest.Validate()`: `ErrorCodes.ValidateName` (required, ≤ 256 after trim),
-  then `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`).
-- `DrugMappings.Apply` trims name and description; blank description → `null`; dosing is normalized
-  (an all-empty dosing is stored as `null`).
+## Backend (`ClinicHub.Application/Features/Catalog/Drugs/`)
+
+| Use case | Folder | Notes |
+|---|---|---|
+| `GetDrugsQuery(search, page, pageSize)` | `Queries/GetDrugs` | → `PagedResult<DrugDto>` |
+| `GetDrugQuery(id)` | `Queries/GetDrug` | → `DrugDto` or `DrugErrors.NotFound` |
+| `GetDrugGroupNamesQuery(drugId)` | `Queries/GetDrugGroupNames` | → `List<string>` (distinct, by name) |
+| `CreateDrugCommand(name, description, defaultDosing)` | `Commands/CreateDrug` | + validator → `DrugDto` |
+| `UpdateDrugCommand(id, name, description, defaultDosing)` | `Commands/UpdateDrug` | + validator → `DrugDto` or `NotFound` |
+| `DeleteDrugCommand(id)` | `Commands/DeleteDrug` | → `NotFound` or success (cascade removes its group lines) |
+
+- `DrugDto` (+ `ToDto()`) and `DrugErrors` (`NotFound` = `notFound`, `InvalidDosing`) at the feature root;
+  `nameRequired`/`nameTooLong` are `CommonErrors` (shared `ValidName()` rule).
+- Validators (create and update, one each): `ValidName()` (required, ≤ 256 after trim), then
+  `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`, field `defaultDosing`).
+  Every failing rule is returned; the first is the response's `code`.
+- The handlers trim name and description (blank description → `null`) and normalize the dosing (an
+  all-empty dosing is stored as `null`). Commands run in one transaction (`TransactionBehavior`).
 - List: optional search = case-insensitive `Contains` on `Name`. Ordering:
   - no search: by `Name`, then `Id`
   - search: names starting with the term first, then `Name`, then `Id`
-- Page size clamped to 1–100 (`NormalizePaging`).
+- Page size clamped to 1–100 (`Paging.Normalize`).
 - Dev seed (`Features/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic".
 
 ## Frontend (`src/features/drugs/`)

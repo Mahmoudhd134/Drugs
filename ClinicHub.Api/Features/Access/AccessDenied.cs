@@ -1,4 +1,7 @@
+using ClinicHub.Api.Errors;
 using ClinicHub.Api.Shared;
+using ClinicHub.Application.Common.Results;
+using ClinicHub.Application.Features.Access;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Diagnostics;
@@ -28,7 +31,7 @@ public sealed class AccessAuthorizationResultHandler : IAuthorizationMiddlewareR
         {
             var messages = failure.FailureReasons.Select(r => r.Message).ToHashSet();
             if (CodesByPriority.FirstOrDefault(messages.Contains) is { } code)
-                return AccessProblem.Write(context, code);
+                return AccessProblem.WriteAsync(context, code);
         }
         return defaultHandler.HandleAsync(next, context, policy, authorizeResult);
     }
@@ -41,17 +44,21 @@ public sealed class AccessExceptionHandler : IExceptionHandler
     {
         if (exception is not AccessDeniedException denied)
             return false;
-        await AccessProblem.Write(context, denied.Code);
+        await AccessProblem.WriteAsync(context, denied.Code);
         return true;
     }
 }
 
+/// <summary>The 403 answer for an Access code (<c>noAccess</c>, <c>clinicSuspended</c>, else <c>forbidden</c>).</summary>
 internal static class AccessProblem
 {
-    public static Task Write(HttpContext context, string code) =>
-        Results.Problem(
-                title: code,
-                statusCode: StatusCodes.Status403Forbidden,
-                extensions: new Dictionary<string, object> { ["code"] = code })
-            .ExecuteAsync(context);
+    public static Task WriteAsync(HttpContext context, string code) =>
+        ApiProblemFactory.WriteAsync(context, ApiProblemFactory.Create(context, ToError(code)));
+
+    public static Error ToError(string code) => code switch
+    {
+        ErrorCodes.NoAccess => AccessErrors.NoAccess,
+        ErrorCodes.ClinicSuspended => AccessErrors.ClinicSuspended,
+        _ => CommonErrors.Forbidden with { Code = code },
+    };
 }

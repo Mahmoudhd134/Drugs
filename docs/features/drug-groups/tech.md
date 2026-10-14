@@ -28,26 +28,46 @@ Dosing flows: drug default → **group override** → prescription line (see [do
 - Migrations: introduced as `Combos`/`ComboDrags` (`AddCombos`), renamed in `RenameToDrugs`,
   override columns added in `AddGroupItemDosing` (nullable; existing lines = no override).
 
-## API (`Features/DrugGroups/DrugGroupsController.cs`, route `api/v1/drug-groups`)
+## API (`ClinicHub.Api/Features/DrugGroups/DrugGroupsController.cs`, route `api/v1/drug-groups`)
+
+Thin controller: each action sends one use case (below) and maps its `Result`. Errors are
+[ProblemDetails](../../tech/overview.md#errors-problemdetails); the table lists their `code`.
 
 | Method | Route | Request | Response | Errors |
 |---|---|---|---|---|
 | GET | `/drug-groups?search=&page=1&pageSize=20` | query | `PagedResult<DrugGroupDto>` | |
-| GET | `/drug-groups/{id}` | | `DrugGroupDto` | 404 |
-| POST | `/drug-groups` | `SaveDrugGroupRequest` | 201 `DrugGroupDto` | 400 `nameRequired`, `nameTooLong`, `drugsRequired`, `invalidDosing`, `duplicateGroupItem`, `drugNotFound` |
-| PUT | `/drug-groups/{id}` | `SaveDrugGroupRequest` | `DrugGroupDto` | 400 (as above), 404 |
-| DELETE | `/drug-groups/{id}` | | 204 | 404 |
+| GET | `/drug-groups/{id}` | | `DrugGroupDto` | 404 `notFound` |
+| POST | `/drug-groups` | `SaveDrugGroupRequest` | 201 `DrugGroupDto` (+ `Location`) | 400 `nameRequired`, `nameTooLong`, `drugsRequired`, `invalidDosing`, `duplicateGroupItem`, `drugNotFound` |
+| PUT | `/drug-groups/{id}` | `SaveDrugGroupRequest` | `DrugGroupDto` | 400 (as above, checked first), 404 `notFound` |
+| DELETE | `/drug-groups/{id}` | | 204 | 404 `notFound` |
 
 - `DrugGroupDto = { id, name, items: [{ drug: DrugDto, dosing: Dosing | null }] }`, items in `Order`.
   `drug` includes its `defaultDosing`, so the client can merge.
 - `SaveDrugGroupRequest = { name, items: [{ drugId, dosing }] }`; list position becomes `Order`.
 
-## Backend
-- `DrugGroupMappings.Normalize` normalizes each item's dosing (`DosingRules.Normalize`).
-- Validation order: name → at least one item → each dosing valid with `allowAskEye: true` →
-  no duplicate `(drugId, override eye)` → all drugs exist.
-- Update **replaces** all lines (remove + insert) and the name.
-- List/detail include items → drug (`Include/ThenInclude`); ordered by `Name`, then `Id`.
+## Backend (`ClinicHub.Application/Features/Catalog/DrugGroups/`)
+
+| Use case | Folder | Notes |
+|---|---|---|
+| `GetDrugGroupsQuery(search, page, pageSize)` | `Queries/GetDrugGroups` | → `PagedResult<DrugGroupDto>` |
+| `GetDrugGroupQuery(id)` | `Queries/GetDrugGroup` | → `DrugGroupDto` or `DrugGroupErrors.NotFound` |
+| `CreateDrugGroupCommand(name, items)` | `Commands/CreateDrugGroup` | + validator → `DrugGroupDto` |
+| `UpdateDrugGroupCommand(id, name, items)` | `Commands/UpdateDrugGroup` | + validator → `DrugGroupDto` or `NotFound` |
+| `DeleteDrugGroupCommand(id)` | `Commands/DeleteDrugGroup` | → `NotFound` or success |
+
+- Feature root: `DrugGroupDto`/`DrugGroupItemDto` (+ `ToDto()`, `WithItems()` = `Include/ThenInclude` items → drug),
+  `DrugGroupErrors` (`NotFound` = `notFound`, `DrugsRequired`, `InvalidDosing`, `DuplicateItem` =
+  `duplicateGroupItem`, `DrugNotFound`), `SaveDrugGroupItem(drugId, dosing)` with `Normalize(items)` (drops null
+  items, normalizes each dosing, keeps the order), used by the validators and the handlers.
+- Validators (create and update, one each), in report order: name (`ValidName()`) → at least one non-null item
+  (`drugsRequired`, field `items`) → each item's dosing valid with `allowAskEye: true` (`invalidDosing`, field
+  `items[i].dosing`) → no duplicate `(drugId, override eye)` (`duplicateGroupItem`, field `items`). All failures are
+  returned.
+- The handlers then check that every drug exists in the clinic (`drugNotFound`, 400): it reads the database,
+  so it is only reported when the request is otherwise valid, and (update) before an unknown group's 404.
+- Update **replaces** all lines (remove + insert) and the name, and touches the group's `UpdatedAt`.
+  Create and update reload the group with its drugs for the response. Each command is one transaction.
+- List/detail include items → drug; ordered by `Name`, then `Id`.
 - `GET /drugs/{id}/groups` (drugs controller) lists the groups using a drug, for the delete warning.
 
 ## Frontend (`src/features/drugGroups/`)

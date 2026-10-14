@@ -72,6 +72,10 @@ produces a ready-to-copy folder: **`D:\ClinicHub\publish`**.
 **Database:** PostgreSQL. Set the connection string on the server, e.g. an environment variable
 `ConnectionStrings__DefaultConnection` (in `web.config` under `<environmentVariables>`).
 
+**MediatR license — the app won't start without it** outside Development: environment variable
+`MediatR__LicenseKey` (free community license for companies under $5M yearly revenue, from
+luckypennysoftware.com).
+
 **Login (phase 2) — the app won't start without these** (environment variables, never in `appsettings.json`):
 `Auth__Jwt__SigningKey` and `Otp__HashKey` (random secrets, at least 32 bytes each) and the super
 admins' phones `Platform__SuperAdminPhones__0`, `Platform__SuperAdminPhones__1`, … Note: outside

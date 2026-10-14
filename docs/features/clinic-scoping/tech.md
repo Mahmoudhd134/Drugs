@@ -60,9 +60,9 @@ No new endpoints, no contract changes. Behavior inside a clinic:
     only (`CreatedAt` is never overwritten). A change to an owned value (e.g. only a drug's
     `DefaultDosing`) counts as a change to its owner (owners found with one key lookup, so bulk
     saves stay linear).
-- `DrugGroupsController.Update` marks the group's `UpdatedAt` modified, so replacing only the
-  lines also moves the group's `UpdatedAt`.
-- Controllers use `FirstOrDefaultAsync(x => x.Id == id)` instead of `FindAsync` (which can return
+- `UpdateDrugGroupCommandHandler` marks the group's `UpdatedAt` modified (`IAppDbContext.Touch`), so
+  replacing only the lines also moves the group's `UpdatedAt`.
+- Handlers use `FirstOrDefaultAsync(x => x.Id == id)` instead of `FindAsync` (which can return
   a tracked entity without going through the filter).
 - *(Replaced in phase 2 by the token's `clinic_id`, see [login](../auth/tech.md); kept for history.)*
   **Temporary** `Features/Platform/TemporaryClinicMiddleware` (after CORS, before controllers):

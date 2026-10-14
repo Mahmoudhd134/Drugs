@@ -1,4 +1,5 @@
 import axios, {type InternalAxiosRequestConfig} from "axios";
+import {toApiError} from "./errors.ts";
 
 // The SPA and the API share one origin: in production the API serves the SPA (wwwroot); in
 // development Vite proxies /api to the API (vite.config.ts). Same origin keeps the refresh cookie
@@ -44,7 +45,7 @@ api.interceptors.request.use(config => {
 // 401 = missing or expired access token: refresh once and retry. If the session is gone the store
 // becomes anonymous and the routes send the user to /login.
 api.interceptors.response.use(undefined, async (error: unknown) => {
-    if (!axios.isAxiosError(error) || error.response?.status !== 401 || !error.config || !authHandlers) throw error;
+    if (!axios.isAxiosError(error) || toApiError(error)?.status !== 401 || !error.config || !authHandlers) throw error;
     const config = error.config as RetriableConfig;
     if (config._retried || skipsRefresh(config.url)) throw error;
 

@@ -1,7 +1,8 @@
-using ClinicHub.Api.Features.Drugs;
+using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Domain.Catalog;
+using Microsoft.EntityFrameworkCore;
 
-namespace ClinicHub.Api.Features.DrugGroups;
+namespace ClinicHub.Application.Features.Catalog.DrugGroups;
 
 /// <summary>
 /// A drug in a group with the group's dosing override. Empty override fields mean
@@ -12,12 +13,9 @@ public record DrugGroupItemDto(DrugDto Drug, Dosing Dosing);
 /// <summary>A group with its items in order.</summary>
 public record DrugGroupDto(int Id, string Name, List<DrugGroupItemDto> Items);
 
-public record SaveDrugGroupItem(int DrugId, Dosing Dosing);
-
-public record SaveDrugGroupRequest(string Name, List<SaveDrugGroupItem> Items);
-
 public static class DrugGroupMappings
 {
+    /// <summary>Needs the items and their drugs loaded (<see cref="WithItems"/>).</summary>
     public static DrugGroupDto ToDto(this DrugGroup group) => new(
         group.Id,
         group.Name,
@@ -26,10 +24,7 @@ public static class DrugGroupMappings
             .Select(x => new DrugGroupItemDto(x.Drug.ToDto(), x.Dosing))
             .ToList());
 
-    /// <summary>Normalizes each item's dosing, keeping the given order.</summary>
-    public static List<SaveDrugGroupItem> Normalize(this IEnumerable<SaveDrugGroupItem> items) =>
-        (items ?? [])
-        .Where(x => x is not null)
-        .Select(x => x with { Dosing = DosingRules.Normalize(x.Dosing) })
-        .ToList();
+    /// <summary>Loads each group's items and their drugs, as <see cref="ToDto"/> needs.</summary>
+    public static IQueryable<DrugGroup> WithItems(this IQueryable<DrugGroup> query) =>
+        query.Include(g => g.Items).ThenInclude(i => i.Drug);
 }

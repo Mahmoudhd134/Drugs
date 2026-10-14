@@ -1,5 +1,5 @@
-import axios from "axios";
 import {api, setAuthHandlers} from "../../api/client.ts";
+import {toApiError} from "../../api/errors.ts";
 import {type AuthResult, contextKey} from "./types.ts";
 
 /**
@@ -59,7 +59,7 @@ const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
     return result;
 };
 
-const status = (error: unknown) => (axios.isAxiosError(error) ? error.response?.status : undefined);
+const status = (error: unknown) => toApiError(error)?.status;
 
 /** Calls made while holding the cross-tab lock must not hang forever on a stalled API. */
 const AUTH_TIMEOUT = {timeout: 15_000};

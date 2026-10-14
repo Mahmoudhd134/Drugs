@@ -15,6 +15,7 @@ public static class DependencyInjection
             .UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
             .AddInterceptors(serviceProvider.GetRequiredService<ClinicAndTimestampsInterceptor>()));
         services.AddScoped<IAppDbContext>(serviceProvider => serviceProvider.GetRequiredService<AppDbContext>());
+        services.AddScoped<ITransactionRunner, TransactionRunner>();
         return services;
     }
 }
