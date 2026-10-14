@@ -1,10 +1,14 @@
 using System.Security.Claims;
-using ClinicHub.Api.Shared;
+using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Domain.Identity;
+using ClinicHub.Infrastructure.Identity;
 
 namespace ClinicHub.Api.Features.Identity;
 
-/// <summary><see cref="ICurrentUser"/> from the claims of the request's access token.</summary>
+/// <summary>
+/// <see cref="ICurrentUser"/> from the claims of the request's access token. In the Api: it reads the
+/// <see cref="HttpContext"/>, which Infrastructure must not know.
+/// </summary>
 public class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICurrentUser
 {
     private ClaimsPrincipal Principal => httpContextAccessor.HttpContext?.User;

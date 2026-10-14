@@ -1,12 +1,12 @@
 using ClinicHub.Api;
 using ClinicHub.Api.Features.Access;
 using ClinicHub.Api.Features.Identity;
-using ClinicHub.Api.Features.Platform;
 using ClinicHub.Api.Shared;
 using ClinicHub.Application;
-using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Common.Settings;
 using ClinicHub.Infrastructure;
 using ClinicHub.Infrastructure.Database;
+using ClinicHub.Infrastructure.Platform;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,7 +14,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Secrets (Auth:Jwt:SigningKey, Otp:HashKey) come from environment variables outside Development
 var appSettings = builder.Configuration.Get<AppSettings>() ?? new AppSettings();
 appSettings.Validate(builder.Environment.IsDevelopment());
-builder.Services.AddSingleton(appSettings);
+// The validated sections, for Application and Infrastructure
+builder.Services.AddSingleton(appSettings.Auth);
+builder.Services.AddSingleton(appSettings.Otp);
+builder.Services.AddSingleton(appSettings.Platform);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -22,9 +25,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 
-builder.Services.AddIdentityModule(appSettings);
+builder.Services.AddIdentityModule(appSettings.Auth);
 builder.Services.AddAccessModule();
-// Last: its exception handler runs after the modules' ones
 builder.Services.AddApi();
 
 var app = builder.Build();
@@ -64,11 +66,8 @@ app.MapFallbackToFile("{*path:regex(^(?!api(/|$))):nonfile}", "index.html");
 
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await context.Database.MigrateAsync();
-    await StartupSeeder.SeedAsync(context, scope.ServiceProvider.GetRequiredService<ClinicContext>(),
-        scope.ServiceProvider.GetRequiredService<IAccessCache>(),
-        appSettings.Platform, app.Environment.IsDevelopment());
+    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<StartupSeeder>().SeedAsync(app.Environment.IsDevelopment());
 }
 
 app.Run();

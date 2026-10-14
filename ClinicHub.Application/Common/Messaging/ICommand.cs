@@ -12,5 +12,12 @@ public interface ICommand : IRequest<Result>, ICommandBase;
 /// <summary>A use case that changes state and returns <typeparamref name="TData"/>. Runs in one transaction.</summary>
 public interface ICommand<TData> : IRequest<Result<TData>>, ICommandBase;
 
+/// <summary>
+/// Opt-in for a command whose failures must keep what it wrote (e.g. a wrong login code counts as an
+/// attempt): the transaction commits whatever the <c>Result</c>. An exception still rolls back. Only for
+/// commands that need it; each one says why.
+/// </summary>
+public interface ICommitOnFailure : ICommandBase;
+
 /// <summary>A use case that only reads: never changes state, never opens a transaction.</summary>
 public interface IQuery<TData> : IRequest<Result<TData>>;

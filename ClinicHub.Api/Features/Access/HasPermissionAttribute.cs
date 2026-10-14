@@ -1,5 +1,7 @@
 using ClinicHub.Api.Features.Identity;
-using ClinicHub.Api.Shared;
+using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Common.Results;
+using ClinicHub.Application.Features.Access;
 using Microsoft.AspNetCore.Authorization;
 
 namespace ClinicHub.Api.Features.Access;
@@ -35,7 +37,7 @@ public sealed class PermissionHandler(IPermissionService permissions) : Authoriz
         if ((await permissions.GetAsync()).Has(requirement.Permission))
             context.Succeed(requirement);
         else
-            context.Fail(new AuthorizationFailureReason(this, ErrorCodes.Forbidden));
+            context.Fail(new AccessFailureReason(this, CommonErrors.Forbidden));
     }
 }
 
@@ -54,7 +56,7 @@ public sealed class ClinicAccessHandler(IPermissionService permissions, ICurrent
         if (!currentUser.IsClinic)
             return;
         if (await permissions.CheckClinicAccessAsync() is { } error)
-            context.Fail(new AuthorizationFailureReason(this, error));
+            context.Fail(new AccessFailureReason(this, error));
         else
             context.Succeed(requirement);
     }

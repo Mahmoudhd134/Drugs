@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClinicHub.Application.Common.Results;
 using Microsoft.AspNetCore.Mvc;
 
@@ -25,11 +26,19 @@ public static class ResultHttpExtensions
 
     public static ActionResult ToProblem(this Result result) => new ProblemResult(result.Errors);
 
-    /// <summary>Builds the problem when executed, when the <see cref="HttpContext"/> is known.</summary>
+    /// <summary>
+    /// Builds the problem when executed, when the <see cref="HttpContext"/> is known. A
+    /// <see cref="TooManyRequestsError"/> also sets <c>Retry-After</c> (seconds).
+    /// </summary>
     private sealed class ProblemResult(IReadOnlyList<Error> errors) : ActionResult
     {
-        public override Task ExecuteResultAsync(ActionContext context) =>
-            ApiProblemFactory.ToActionResult(ApiProblemFactory.Create(context.HttpContext, errors))
+        public override Task ExecuteResultAsync(ActionContext context)
+        {
+            if (errors[0] is TooManyRequestsError tooMany)
+                context.HttpContext.Response.Headers.RetryAfter =
+                    tooMany.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+            return ApiProblemFactory.ToActionResult(ApiProblemFactory.Create(context.HttpContext, errors))
                 .ExecuteResultAsync(context);
+        }
     }
 }

@@ -60,7 +60,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   - no search: by `Name`, then `Id`
   - search: names starting with the term first, then `Name`, then `Id`
 - Page size clamped to 1–100 (`Paging.Normalize`).
-- Dev seed (`Features/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic".
+- Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic".
 
 ## Frontend (`src/features/drugs/`)
 - **Page** `pages/DrugsPage.tsx` at `/drugs`: search (debounced 300 ms, resets to page 0),

@@ -1,6 +1,7 @@
 /**
  * Every permission, one per action (`resource.action`). Mirrors the backend catalog:
- * keep in sync with ClinicHub.Api/Features/Access/Permissions.cs. Labels: `permissions.<key>` in the locales.
+ * keep in sync with the `Permissions` partial class (ClinicHub.Application, one `<Module>Permissions.cs`
+ * per module, e.g. Features/Catalog/CatalogPermissions.cs). Labels: `permissions.<key>` in the locales.
  */
 export const PERMISSIONS = {
     drugs: {

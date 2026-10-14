@@ -1,8 +1,11 @@
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Behaviors;
+using ClinicHub.Application.Features.Access;
+using ClinicHub.Application.Features.Identity;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ClinicHub.Application;
 
@@ -11,11 +14,19 @@ public static class DependencyInjection
     /// <summary>Config key of the MediatR license (environment variable <c>MediatR__LicenseKey</c> outside Development).</summary>
     public const string MediatRLicenseKey = "MediatR:LicenseKey";
 
+    /// <summary>
+    /// The use cases and the services they share. The settings (<c>AuthSettings</c>, <c>OtpSettings</c>,
+    /// <c>PlatformSettings</c>) are registered by the Api, which validates them.
+    /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
+        // Builds and validates the permission catalog now: a bad declaration stops the app at startup
+        _ = PermissionCatalog.All;
+
         // Filled per request by the clinic middleware (and by the startup seeder)
         services.AddScoped<ClinicContext>();
         services.AddScoped<IClinicContext>(serviceProvider => serviceProvider.GetRequiredService<ClinicContext>());
+        services.TryAddSingleton(TimeProvider.System);
 
         services.AddMediatR(options =>
         {
@@ -29,6 +40,12 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly, includeInternalTypes: true);
+
+        // Application services shared by use cases (and the Api's authorization handlers)
+        services.AddScoped<MembershipService>();
+        services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<SessionService>();
+        services.AddScoped<IdentitySeeder>();
         return services;
     }
 }

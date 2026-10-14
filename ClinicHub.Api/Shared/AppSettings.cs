@@ -1,7 +1,12 @@
 using System.Text;
+using ClinicHub.Application.Common.Settings;
 
 namespace ClinicHub.Api.Shared;
 
+/// <summary>
+/// The whole configuration, bound and validated at startup. Its sections are Application settings
+/// (<see cref="AuthSettings"/>, <see cref="OtpSettings"/>, <see cref="PlatformSettings"/>), registered on their own.
+/// </summary>
 public class AppSettings
 {
     public List<string> AllowedOrigins { get; set; }
@@ -47,60 +52,4 @@ public class MediatRSettings
 {
     /// <summary>Required outside Development (environment variable); may be empty in Development.</summary>
     public string LicenseKey { get; set; }
-}
-
-public class AuthSettings
-{
-    public JwtSettings Jwt { get; set; } = new();
-    public int AccessTokenMinutes { get; set; } = 15;
-    /// <summary>Sliding session lifetime for users who are not super admins.</summary>
-    public int RefreshTokenDays { get; set; } = 30;
-    /// <summary>Sliding lifetime of every super-admin session, whatever its context.</summary>
-    public int PlatformSessionHours { get; set; } = 12;
-}
-
-public class JwtSettings
-{
-    public string Issuer { get; set; }
-    public string Audience { get; set; }
-    /// <summary>HS256 key, at least 32 bytes. A secret: environment variable in production.</summary>
-    public string SigningKey { get; set; }
-}
-
-public class OtpSettings
-{
-    /// <summary>One of <see cref="OtpModes"/>.</summary>
-    public string Mode { get; set; } = OtpModes.Sms;
-    public int Length { get; set; } = 6;
-    public int ExpiryMinutes { get; set; } = 5;
-    public int MaxAttempts { get; set; } = 5;
-    public int ResendSeconds { get; set; } = 60;
-    public int MaxPerPhonePerHour { get; set; } = 5;
-    /// <summary>HMAC key for stored codes, at least 32 bytes. A secret: environment variable in production.</summary>
-    public string HashKey { get; set; }
-}
-
-public static class OtpModes
-{
-    /// <summary>
-    /// The code is returned by the API and logged, and the login page shows a banner. Any environment
-    /// may use it (a startup warning is logged outside Development): anyone can log in as any phone.
-    /// </summary>
-    public const string Display = "Display";
-    /// <summary>The code is sent by SMS (no sender yet: the app refuses to start in this mode).</summary>
-    public const string Sms = "Sms";
-}
-
-public class PlatformSettings
-{
-    /// <summary>Region for phone numbers typed without a country code.</summary>
-    public string DefaultRegion { get; set; } = "EG";
-    public List<string> SuperAdminPhones { get; set; } = [];
-    /// <summary>Development seed only: staff with the Owner role in both demo clinics.</summary>
-    public string DevOwnerPhone { get; set; }
-    /// <summary>
-    /// Development seed only: Assistant in "Demo clinic" (no deletes) and "Viewer" (read only) in
-    /// "Second demo clinic".
-    /// </summary>
-    public string DevAssistantPhone { get; set; }
 }

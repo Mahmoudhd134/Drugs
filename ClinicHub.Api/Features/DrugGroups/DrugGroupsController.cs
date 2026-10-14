@@ -3,6 +3,7 @@ using ClinicHub.Api.Errors;
 using ClinicHub.Api.Features.Access;
 using ClinicHub.Api.Features.Identity;
 using ClinicHub.Application.Common.Paging;
+using ClinicHub.Application.Features.Access;
 using ClinicHub.Application.Features.Catalog.DrugGroups;
 using ClinicHub.Application.Features.Catalog.DrugGroups.Commands.CreateDrugGroup;
 using ClinicHub.Application.Features.Catalog.DrugGroups.Commands.DeleteDrugGroup;

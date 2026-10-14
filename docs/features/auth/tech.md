@@ -61,8 +61,8 @@ with `docker compose down -v && docker compose up -d`). All tables have `Created
 
 ## API
 All under `/api/v1`. Errors are [ProblemDetails](../../tech/overview.md#errors-problemdetails) with `code`
-(the 401 from the JWT handler: `unauthorized`; 403 from a policy: `forbidden`). Until Phase 3.5 step 3 the
-login errors have a generic `detail` per status.
+(the 401 from the JWT handler: `unauthorized`; 403 from a policy: `forbidden`). The codes and their English
+descriptions are in `IdentityErrors` (+ `AccessErrors` for the 403s, `TooManyRequestsError` for the 429).
 
 | Method | Route | Auth | Request | Response | Errors (codes) |
 |---|---|---|---|---|---|
@@ -75,7 +75,8 @@ login errors have a generic `detail` per status.
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
 | GET | `/me` | access token | — | `Me` | 401 |
 
-Shapes (`Features/Identity/AuthDtos.cs`, `ClinicHub.Web/src/features/auth/types.ts`) follow HLD 8.1:
+Shapes (`Application/Features/Identity/AuthResult.cs`, `ContextDto.cs`, `…/Queries/GetMe/MeDto.cs`,
+`ClinicHub.Web/src/features/auth/types.ts`) follow HLD 8.1:
 `AuthResult { accessToken, expiresAt, context | null, contexts[] }`;
 `Context` = `{ type: "clinic", clinicId, clinicName, isTemplate, roles: string[] }` or `{ type: "platform" }`;
 `Me { user: { id, phone, isSuperAdmin }, context, staff: { id, fullName } | null, permissions }`.
@@ -88,77 +89,97 @@ action also needs its permission, and the staff member and clinic must still be 
 ([access](../access/tech.md)).
 
 ## Backend
-`Features/Identity/`:
+Use cases in `ClinicHub.Application/Features/Identity/` (Phase 3.5 step 3; [architecture](../../design/architecture.md)),
+implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `ClinicHub.Api/Features/Identity/`.
+
+| Use case | Endpoint | Notes |
+|---|---|---|
+| `GetOtpModeQuery` | `GET otp/mode` | reads `OtpSettings.Mode` |
+| `RequestOtpCommand` | `POST otp/request` | 429 → rolled back (only the day-old cleanup is lost; the next request redoes it) |
+| `VerifyOtpCommand` | `POST otp/verify` | login; `ICommitOnFailure` (wrong codes stay counted, a used code consumed) |
+| `RefreshSessionCommand` | `POST refresh` | `ICommitOnFailure` (a session revoked for losing every context stays revoked) |
+| `SwitchContextCommand` | `POST context` | writes only on success: a plain command |
+| `LogoutCommand` | `POST logout` | always succeeds |
+| `GetContextsQuery`, `GetMeQuery` | `GET contexts`, `GET /me` | 401 `unauthorized` when the token's user no longer exists |
 
 - **`PhoneNormalizer`**: `libphonenumber-csharp` parse with `Platform:DefaultRegion` (EG), valid
-  numbers only, formatted E.164; otherwise null → `invalidPhone`. (Not named `PhoneNumbers`: that
-  is the library's namespace.)
-- **`OtpService`**
-  - Request: deletes codes older than a day; then, in a transaction holding
-    `pg_advisory_xact_lock(hashtext(phone))` (parallel requests for one phone can't pass the
-    limits together), refuses with `tooManyRequests` if the last code is younger than
-    `ResendSeconds` or the phone had `MaxPerPhonePerHour` codes in the last hour; else stores a new
-    random code (`RandomNumberGenerator`) and calls `IOtpSender`. A code is created for **any valid
-    phone**, user or not (no account probing).
-  - Verify: only the phone's **latest** code counts. Order: none/consumed → `invalidCode`;
-    attempts used up → `tooManyAttempts`; expired → `codeExpired`; wrong → atomic
-    `Attempts + 1` (`ExecuteUpdate … WHERE Attempts < Max`) and `invalidCode`, or
-    `tooManyAttempts` on the last allowed try; right → atomic consume (`WHERE ConsumedAt IS NULL`).
-    Hashes are compared with `FixedTimeEquals`. Codes typed with Arabic-Indic digits are accepted.
-- **`IOtpSender`** / **`DisplayOtpSender`**: display mode logs the code (warning) and sets
+  numbers only, formatted E.164; otherwise null. The request and verify validators use the `ValidPhone()`
+  rule (`PhoneValidation`): null → 400 `invalidPhone` (`field: "phone"`). (Not named `PhoneNumbers`: that is the library's namespace.)
+- **Request** (`RequestOtpCommandHandler`): deletes codes older than a day; then takes
+  `IOtpLock` for the phone (`OtpLock`: `pg_advisory_xact_lock(hashtext(phone))`, held until the command's
+  transaction ends; it throws outside a transaction), so parallel requests for one phone can't pass the
+  limits together; refuses with a `TooManyRequestsError` (429 `tooManyRequests` + `Retry-After` seconds) if
+  the last code is younger than `ResendSeconds` or the phone had `MaxPerPhonePerHour` codes in the last hour;
+  else stores a new random code (`RandomNumberGenerator`, HMAC via `OtpHash`) and calls `IOtpSender` (inside
+  the transaction: a sender that throws leaves no stored code). A code is created for **any valid phone**,
+  user or not (no account probing).
+- **Verify** (`VerifyOtpCommandHandler`): only the phone's **latest** code counts. Order: none/consumed →
+  `invalidCode`; attempts used up → `tooManyAttempts`; expired → `codeExpired`; wrong → atomic
+  `Attempts + 1` (`ExecuteUpdate … WHERE Attempts < Max`) and `invalidCode`, or `tooManyAttempts` on the
+  last allowed try; right → atomic consume (`WHERE ConsumedAt IS NULL`). Hashes are compared with
+  `FixedTimeEquals`. Codes typed with Arabic-Indic digits are accepted. Then: unknown phone or no context →
+  403 `noAccess` (no session, no cookie; the code stays consumed); otherwise a new session, exactly one
+  context → chosen automatically; also deletes sessions that ended a week ago.
+- **`IOtpSender`** / **`DisplayOtpSender`** (Infrastructure): display mode logs the code (warning) and sets
   `RevealsCode`, so the API returns `devCode`. `Otp:Mode = Sms` has no sender yet: `AppSettings.Validate`
   stops the app.
-- **`TokenService`**: JWT via `JsonWebTokenHandler`, HS256, `Auth:AccessTokenMinutes` (15), issuer
-  and audience from config, clock skew 30 s. Claims: `sub`, `sid`, `ctx` (when chosen), `clinic_id`,
-  `staff_id` (clinic context with a staff row; none in the template), `super_admin: "true"` (platform
-  only). Refresh tokens are 32 random bytes (base64url); only their SHA-256 is stored.
+- **`ITokenService`** / **`TokenService`** (Infrastructure, with the claim names in `AuthClaims`): JWT via
+  `JsonWebTokenHandler`, HS256, `Auth:AccessTokenMinutes` (15), issuer and audience from config, clock skew
+  30 s. Claims: `sub`, `sid`, `ctx` (when chosen), `clinic_id`, `staff_id` (clinic context with a staff row;
+  none in the template), `super_admin: "true"` (platform only). Refresh tokens are 32 random bytes
+  (base64url); only their SHA-256 is stored.
 - **`Features/Access/MembershipService`** (Access module): a user's active memberships in active,
   non-template clinics, their staff id in a clinic, and "is active member". These are the only reads of
   `Staff` across clinics, so they use `IgnoreQueryFilters()` (read only); Identity calls the service.
-- **`SessionService`** (methods return a `SessionOutcome`: the issue, or a status + error code)
+- **`SessionService`** (shared by the session use cases)
   - `GetContextsAsync`: each clinic from `MembershipService` (by name), then for a super admin the
     template clinic and `platform`.
-  - `StartAsync` (after verify): no contexts → 403 `noAccess` (no session, no cookie). Otherwise a
-    new session; exactly one context → chosen automatically. Also deletes sessions that ended a
-    week ago.
-  - `RefreshAsync`: live session (not revoked, not expired) by token hash; re-checks the context
-    against current contexts (lost → cleared, or replaced if only one is left; none left → session
-    revoked, 401). Every rotation keeps the old hash as `PreviousRefreshTokenHash` + `RotatedAt`:
-    a token that matches it within **30 s** (a parallel call won the race, before or after its commit;
-    the hash is also an EF concurrency token) gets **409**, no tokens, and its cookie is **not**
-    cleared (the winner's `Set-Cookie` is the valid one). Older tokens → 401.
-  - `SwitchAsync`: needs the session's **current refresh cookie** besides the access token
-    (missing or another session's → 401 without clearing the cookie; just rotated → 409), so a stolen
-    access token alone can't obtain a refresh token. The requested context must be in the user's
-    contexts; otherwise `clinicSuspended` (a clinic the user could enter, but suspended) or `noAccess`.
-  - `RevokeAsync` (logout): finds the session by token hash (current, or previous within 30 s) and
-    revokes it **by id** with `ExecuteUpdate` (no concurrency check), so a refresh rotating the token
-    meanwhile can't undo it.
-  - Every issue rotates the refresh token and slides `ExpiresAt`: `RefreshTokenDays` (30) for staff;
-    `PlatformSessionHours` (12) for **every session of a super admin**, whatever the context (they can
-    switch to the platform at any time without a new code).
-- **`AuthController`** (`api/v1/auth`), **`MeController`** (`api/v1/me`, builds `Me` itself). Cookie `clinichub_refresh`:
-  `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, `Expires` = session expiry. Browsers accept
-  `Secure` cookies on `http://localhost`, so dev works over http; **any other host needs HTTPS**
-  (on plain http the browser drops the cookie: every reload asks for a new login).
-- **`IdentitySetup`**: DI, JwtBearer (`MapInboundClaims = false`; 401/403 written through `ApiProblemFactory`),
-  the `ClinicContext` policy (`ctx = clinic` + `clinic_id`), and `UseClinicFromToken()` (after
-  `UseAuthentication`, before `UseAuthorization`): sets `ClinicContext.ClinicId = ICurrentUser.ClinicId`,
+  - `IssueAsync`: rotates the refresh token, slides `ExpiresAt` (`RefreshTokenDays` (30) for staff;
+    `PlatformSessionHours` (12) for **every session of a super admin**, whatever the context: they can
+    switch to the platform at any time without a new code), saves (the hash is an EF concurrency token:
+    a lost race → `RefreshTokenRotated`, 409), invalidates the access cache and builds the access token.
+    Returns a `SessionIssue`: the `AuthResult` body plus the refresh token and its expiry (`[JsonIgnore]`),
+    which only the controller reads, for the cookie.
+- **Refresh**: live session (not revoked, not expired) by token hash; re-checks the context
+  against current contexts (lost → cleared, or replaced if only one is left; none left → session
+  revoked, 401). Every rotation keeps the old hash as `PreviousRefreshTokenHash` + `RotatedAt`:
+  a token that matches it within **30 s** (a parallel call won the race, before or after its commit)
+  gets **409**, no tokens, and its cookie is **not** cleared (the winner's `Set-Cookie` is the valid one).
+  Older tokens → 401. A reused old token does **not** revoke the session (no reuse detection).
+- **Switch**: needs the session's **current refresh cookie** besides the access token
+  (missing or another session's → 401 `RefreshTokenRejected`, cookie kept; just rotated → 409), so a stolen
+  access token alone can't obtain a refresh token. The requested context must be in the user's
+  contexts; otherwise `clinicSuspended` (a clinic the user could enter, but suspended) or `noAccess`.
+- **Logout**: finds the session by token hash (current, or previous within 30 s) and
+  revokes it **by id** with `ExecuteUpdate` (no concurrency check), so a refresh rotating the token
+  meanwhile can't undo it.
+- **`AuthController`** (`api/v1/auth`), **`MeController`** (`api/v1/me`): thin, they send the use cases.
+  The refresh cookie stays in `AuthController`: it passes the cookie's value to the commands and, from the
+  `Result`, sets the rotated cookie on success, **clears** it on `IdentityErrors.SessionEnded` (401: no live
+  session) and on logout, and leaves it for every other failure (`RefreshTokenRejected` 401, 403, 409).
+  Cookie `clinichub_refresh`: `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, `Expires` = session
+  expiry. Browsers accept `Secure` cookies on `http://localhost`, so dev works over http; **any other host
+  needs HTTPS** (on plain http the browser drops the cookie: every reload asks for a new login).
+- **`IdentitySetup`** (Api): `ICurrentUser`, JwtBearer (`MapInboundClaims = false`; 401/403 written through
+  `ApiProblemFactory`), the `ClinicContext` policy (`ctx = clinic` + `clinic_id`), and `UseClinicFromToken()`
+  (after `UseAuthentication`, before `UseAuthorization`): sets `ClinicContext.ClinicId = ICurrentUser.ClinicId`,
   so no token = no clinic = the catalog filter matches nothing.
-- `Shared/ICurrentUser` (implemented by `Features/Identity/CurrentUser`, scoped, from
-  `HttpContext.User`): `IsAuthenticated`, `UserId`, `SessionId`, `ClinicId`, `StaffId`, `IsClinic`,
-  `IsPlatform`, `IsSuperAdmin` (platform tokens only).
-- `Shared/AppSettings` now binds `Auth`, `Otp`, `Platform` and `Validate()`s them in `Program.cs`
-  before anything starts: signing key and OTP hash key ≥ 32 bytes, issuer/audience set, sane limits,
-  and `Sms` refused (no sender yet). **Display mode is allowed in any environment, by config**
-  (`Otp__Mode=Display`), so a staging server or a demo for doctors can run before an SMS provider
-  exists; outside Development a startup warning is logged, and the login page always shows the
-  display-mode banner. This deliberately drops HLD NFR-4 ("never in Production") until a sender exists:
-  in display mode anyone can log in as any phone, so use it only where that is acceptable.
-- **Seeding** (every start, idempotent): `Features/Platform/StartupSeeder` ensures the template clinic,
-  then calls `Features/Identity/IdentitySeeder`: every `Platform:SuperAdminPhones` entry (normalized;
-  invalid → startup error) gets a user with `IsSuperAdmin`; any other user loses the flag and their
-  sessions are revoked. Development, no non-template clinic yet: a user for `Platform:DevOwnerPhone`
+- `Application/Common/Abstractions/ICurrentUser` (implemented by the Api's `Features/Identity/CurrentUser`,
+  scoped, from `HttpContext.User`): `IsAuthenticated`, `UserId`, `SessionId`, `ClinicId`, `StaffId`,
+  `IsClinic`, `IsPlatform`, `IsSuperAdmin` (platform tokens only).
+- Settings: `AuthSettings`, `OtpSettings`, `PlatformSettings` live in `Application/Common/Settings`; the Api's
+  `Shared/AppSettings` binds them (sections `Auth`, `Otp`, `Platform`), `Validate()`s them in `Program.cs`
+  before anything starts and registers each section as a singleton: signing key and OTP hash key ≥ 32
+  bytes, issuer/audience set, sane limits, and `Sms` refused (no sender yet). **Display mode is allowed in
+  any environment, by config** (`Otp__Mode=Display`), so a staging server or a demo for doctors can run
+  before an SMS provider exists; outside Development a startup warning is logged, and the login page always
+  shows the display-mode banner. This deliberately drops HLD NFR-4 ("never in Production") until a sender
+  exists: in display mode anyone can log in as any phone, so use it only where that is acceptable.
+- **Seeding** (every start, idempotent): Infrastructure's `Platform/StartupSeeder` ensures the template
+  clinic, then calls Application's `Features/Identity/IdentitySeeder` (on `IAppDbContext` +
+  `ITransactionRunner`; cache invalidated after the commit): every `Platform:SuperAdminPhones` entry
+  (normalized; invalid → startup error) gets a user with `IsSuperAdmin`; any other user loses the flag and
+  their sessions are revoked. Development, no non-template clinic yet: a user for `Platform:DevOwnerPhone`
   (`IdentitySeeder.EnsureUserAsync`) becomes staff "Dev Owner" in **both** demo clinics (inside the
   dev seed transaction).
 
@@ -272,3 +293,10 @@ against the API:
   refresh 401, `/drugs` redirects to login. Super admin: platform page, `/drugs` redirects to
   `/platform`, template clinic with banner, drug edited. Mobile width (375 px): no horizontal scroll.
   Only `language` and `prescription.lines.*` are in `localStorage`.
+- Phase 3.5 step 3 (use cases): the same 83 calls (every endpoint above, the 401/403/409 cases, cookies,
+  parallel refreshes, the catalog smoke test, the suspended clinic, losing every context) recorded before and
+  after on `:5055` with `Otp:MaxAttempts=3`, `ResendSeconds=60`: statuses, codes, cookies and `Retry-After`
+  identical; only the English `detail`/`description` texts (from `IdentityErrors`), `field: "phone"` on
+  `invalidPhone`, `module` on `/permissions` and the lowercase `Location` differ. In the DB: wrong codes still
+  count (1, then 3), a right code for an unknown phone stays consumed, losing every context revokes the
+  session; 8 parallel requests for one phone → 1×200 + 7×429; 8 parallel wrong guesses leave `Attempts` at 3.

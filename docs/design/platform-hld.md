@@ -97,6 +97,9 @@ flowchart LR
 
 ### 3.1 Backend layout
 
+*(Phase 3.5 replaced this layout with four projects and per-module use cases: see
+[backend architecture](architecture.md) and `docs/tech/overview.md`. Kept as the original plan.)*
+
 ```
 ClinicHub.Api/
   Features/
@@ -478,7 +481,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 
 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`, `tooManyRequests`, `noAccess`,
 `clinicSuspended`, `forbidden`, `roleNameTaken`, `unknownPermission`, `roleLocked`, `roleInUse`,
-`rolesRequired`, `staffExists`, `lastOwner`. Each goes in `ErrorCodes.cs` and `errors.*` in both locales.
+`rolesRequired`, `staffExists`, `lastOwner`. Each goes in its feature's error class (`<Feature>Errors`, Phase 3.5) and `errors.*` in both locales.
 
 ---
 

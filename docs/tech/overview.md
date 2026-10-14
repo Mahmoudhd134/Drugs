@@ -27,7 +27,7 @@ Drug and group **content is not translated**: it is stored once, as typed.
 
 ```
 ClinicHub.sln                  Domain ← Application ← Infrastructure ← Api (backend architecture:
-                               docs/design/architecture.md; Phase 3.5 steps 1-2 done)
+                               docs/design/architecture.md; Phase 3.5 done)
 ClinicHub.Domain/              entities and pure rules; no references (no EF Core, no ASP.NET)
   Common/                      IClinicOwned, IHasTimestamps, FieldLimits (column lengths)
   Catalog/                     Drug, DrugGroup (+ DrugGroupItem), Dosing (+ TaperStep, DosingCodes),
@@ -36,39 +36,53 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Access/                      Staff, Role (+ RolePermission, StaffRole)
   Platform/                    Clinic (+ ClinicStatus)
 ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
-  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ITransactionRunner
-  Common/Messaging/            ICommand, ICommand<T>, IQuery<T> (+ ICommandBase) and their handler interfaces
-  Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors
+  Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner
+  Common/Messaging/            ICommand, ICommand<T>, IQuery<T> (+ ICommandBase, ICommitOnFailure) and their
+                               handler interfaces
+  Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
+  Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
   Common/Validation/           .WithError(error), the shared ValidName() rule
   Common/Paging/               PagedResult<T>, Paging.Normalize
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
   Features/Catalog/DrugGroups/ same, + DrugGroupDto, DrugGroupErrors, SaveDrugGroupItem
-  Features/Access/             AccessErrors (noAccess, clinicSuspended); the rest moves in step 3
-  DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators
+  Features/Catalog/CatalogPermissions.cs   Permissions.Drugs, Permissions.Groups ([PermissionModule("catalog")])
+  Features/Prescription/       PrescriptionPermissions.cs (Permissions.Prescriptions)
+  Features/Identity/           login and sessions: Commands/ (RequestOtp, VerifyOtp, RefreshSession,
+                               SwitchContext, Logout), Queries/ (GetOtpMode, GetContexts, GetMe), IdentityErrors,
+                               AuthResult, ContextDto, SessionIssue, SessionService, PhoneNormalizer (+ ValidPhone()), OtpHash,
+                               ITokenService, IOtpSender, IOtpLock, IdentitySeeder (super admins)
+  Features/Access/             Permissions (partial) + RequiresAttribute + PermissionModuleAttribute,
+                               PermissionCatalog, PermissionSet, IPermissionService/PermissionService,
+                               MembershipService, IAccessCache, DefaultRoles, AccessErrors, Queries/GetPermissions
+  DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
+                               the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
   Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration)
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints)
   Migrations/                  EF Core migrations (applied automatically on startup)
-  DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor, TransactionRunner
+  Identity/                    TokenService (JWT; ITokenService) + AuthClaims, DisplayOtpSender, OtpLock
+                               (pg_advisory_xact_lock)
+  Access/AccessCache.cs        IAccessCache on HybridCache
+  Platform/StartupSeeder.cs    startup seed: template clinic, super admins (IdentitySeeder), dev data
+  DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor, TransactionRunner,
+                               HybridCache, the Identity/Access implementations, StartupSeeder
 ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API (+ serves the SPA in
                                production)
   Controllers/BaseApiController.cs
   Errors/                      ApiProblemFactory, Result → HTTP helpers, UnexpectedExceptionHandler
-  DependencyInjection.cs       AddApi(): controllers, invalid-body 400, ProblemDetails safety net, 500 handler
+  DependencyInjection.cs       AddApi(): lowercase URLs, controllers, invalid-body 400, ProblemDetails safety
+                               net, 500 handler
   Features/Drugs, DrugGroups/  thin controllers (+ their request records)
-  Features/Identity/           login: AuthController, MeController, OtpService, SessionService,
-                               TokenService, PhoneNormalizer, IOtpSender, CurrentUser, IdentitySeeder,
-                               IdentitySetup (DI + middleware)
-  Features/Access/             permissions: Permissions + PermissionCatalog, DefaultRoles, AccessCache
-                               (HybridCache), PermissionService, [HasPermission] + handlers, the 403
-                               answers (AccessDenied.cs), PermissionsController, MembershipService,
-                               AccessSetup (DI)
-  Features/Platform/           StartupSeeder (startup seed: template, super admins, dev data)
-  Shared/                      AppSettings (+ startup validation), ErrorCodes (Identity/Access only), ICurrentUser
-  Program.cs                   DI, middleware, migrate-on-startup, seeding
+  Features/Identity/           AuthController (+ the refresh cookie), MeController, CurrentUser (ICurrentUser
+                               from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
+  Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, the 403 answers
+                               (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
+                               PermissionsController, AccessSetup (DI)
+  Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
+  Program.cs                   settings, DI, middleware, migrate-on-startup, seeding
 ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot
   src/app/                     App (routes), AppProviders, theme
   src/api/                     axios client, error → message, shared API types
@@ -124,7 +138,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   (`CreateDrugCommand.cs`, `CreateDrugCommandHandler.cs`, `CreateDrugCommandValidator.cs`). DTOs and the
   feature's error class (`DrugErrors`) sit at the feature root. No shared interfaces or base validators
   between create and update.
-- **Controllers are thin** (`ClinicHub.Api/Features/<Feature>/`): build the command/query, `sender.Send` it,
+- **Controllers are thin** (`ClinicHub.Api/Features/<Feature>/`, Identity and Access included): build the command/query, `sender.Send` it,
   map the `Result` with `ToOk()`, `ToCreated(nameof(GetById), d => new { id = d.Id })` or `ToNoContent()`
   (`Api/Errors/ResultHttpExtensions`). Request records (`SaveDrugRequest`) live next to the controller.
   Controllers inherit `BaseApiController` (route `api/v1/[controller]`; override with `[Route]` for kebab-case,
@@ -132,7 +146,10 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Handlers** use `IAppDbContext` (never `AppDbContext`), take the `CancellationToken`, and return a `Result`:
   expected failures are `Error`s from the feature's error class (implicit conversion: `return DrugErrors.NotFound;`),
   never exceptions. Commands run in one transaction (`TransactionBehavior`): a failed `Result` or an exception
-  rolls back everything the handler saved. Queries never write and use `AsNoTracking()`.
+  rolls back everything the handler saved, except for an `ICommitOnFailure` command (failures that must keep
+  their writes, e.g. a wrong login code counted; [architecture § 3.5](../design/architecture.md#35-pipeline-behaviors)).
+  Queries never write and use `AsNoTracking()`. Raw SQL goes behind a purpose-built interface implemented in
+  Infrastructure (e.g. `IOtpLock`).
 - **Validation** is FluentValidation, one validator per command: every rule ends with
   `.WithError(XErrors.Y)` (code + description), and rules are declared in the order the errors are reported
   (the first failure is the response's `code`; `errors` lists them all). Checks that read the database
@@ -143,8 +160,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - Search is case-insensitive `Contains` on the name (`ToLower`). Drug search ranks names that
   **start with** the term first.
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
-  API contracts: declared once in the feature's error class (Catalog: `CommonErrors`, `DrugErrors`,
-  `DrugGroupErrors`; Identity/Access still in `Api/Shared/ErrorCodes.cs` until Phase 3.5 step 3). Add new codes
+  API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
+  `IdentityErrors`, `AccessErrors`). Add new codes
   there **and** under `errors.*` in both locale files. The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them.
 - `Nullable` is disabled in every csproj.
@@ -157,8 +174,9 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   token whose staff member and clinic are still active; platform tokens get 403). Read the caller from
   `ICurrentUser` (claims), never from the body.
 - **Permissions:** every clinic action carries `[HasPermission(Permissions.X.Y)]` (implies the clinic
-  policy); checks inside code use `IPermissionService.EnsureAsync`. Adding a permission is one constant in
-  `Features/Access/Permissions.cs` (+ the SPA mirror and labels). Changes to staff, roles, clinics or
+  policy). Adding a permission is one constant in the module's `<Module>Permissions.cs` (a part of the
+  `Permissions` partial class, e.g. `Application/Features/Catalog/CatalogPermissions.cs`; a new resource class
+  needs `[PermissionModule("…")]`) (+ the SPA mirror and labels). Changes to staff, roles, clinics or
   users must call the `IAccessCache.Invalidate*` method from the
   [invalidation table](../features/access/tech.md#cache-accesscache).
 
@@ -184,16 +202,17 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
   `items[0].dosing`, when known); `detail` = the first description (English, for developers); `traceId` finds the
   request in the logs.
 - Status from the first error's `ErrorType`: Validation 400, Unauthorized 401, Forbidden 403, NotFound 404,
-  Conflict 409, Failure 500; `tooManyRequests` 429 and `methodNotAllowed` 405 by code.
+  Conflict 409, Failure 500; `tooManyRequests` 429 and `methodNotAllowed` 405 by code. A `TooManyRequestsError`
+  (e.g. the OTP limits) also sets `Retry-After`.
 
 | Source | Hook | Code |
 |---|---|---|
 | Use case failure (`Result`) | `ToOk` / `ToCreated` / `ToNoContent` | the handler's or validator's |
 | No/invalid/expired token | JwtBearer `OnChallenge` | `unauthorized` (401; the SPA refreshes by status) |
 | Permission / context | `AccessAuthorizationResultHandler`, JwtBearer `OnForbidden` | `forbidden`, `noAccess`, `clinicSuspended` |
-| Malformed JSON, wrong types, empty body | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error) |
+| Malformed JSON, wrong types, empty body | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error, with its `field`; the parser's message only in Development) |
 | Unknown route / wrong method | `UseProblemStatusCodePages` | `notFound` 404 / `methodNotAllowed` 405 |
-| Unhandled exception | `UnexpectedExceptionHandler` (after `AccessExceptionHandler`) | `unexpected` 500; message and stack only in Development |
+| Unhandled exception | `UnexpectedExceptionHandler` | `unexpected` 500; message and stack only in Development |
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
 
 A missing drug or group answers `notFound` (the SPA shows "this item no longer exists").
@@ -268,7 +287,7 @@ Drugs                       DrugGroups
 | GET | `/auth/contexts` | Contexts the user can pick |
 | POST | `/auth/logout` | Revokes the session, clears the cookie → 204 |
 | GET | `/me` | User, context, staff, permissions (expanded keys in a clinic context) |
-| GET | `/permissions` | The permission catalog `[{ key, resource, action, requires }]` (any access token) |
+| GET | `/permissions` | The permission catalog `[{ key, module, resource, action, requires }]` (any access token) |
 | GET | `/drugs?search=&page=1&pageSize=20` | Paged drugs, ordered by name (prefix matches first when searching) |
 | GET | `/drugs/{id}` | One drug |
 | POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |

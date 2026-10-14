@@ -4,7 +4,7 @@ namespace ClinicHub.Application.Features.Access;
 
 /// <summary>
 /// 403 reasons of the per-request clinic access check (besides <see cref="CommonErrors.Forbidden"/>).
-/// The Access module itself moves here in Phase 3.5 step 3.
+/// Used by the Api's authorization handlers and by login (<c>noAccess</c>).
 /// </summary>
 public static class AccessErrors
 {

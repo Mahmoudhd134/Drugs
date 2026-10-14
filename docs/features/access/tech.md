@@ -13,11 +13,15 @@ Roles come only from seeding in this phase; managing them is phase 4.
 ## How to…
 
 **Gate a new endpoint**: put `[HasPermission(Permissions.X.Y)]` on the action (it implies the
-clinic-context policy; several attributes = all required). For a check inside code,
-`await permissionService.EnsureAsync(Permissions.X.Y)` (throws → 403 `forbidden`).
+clinic-context policy; several attributes = all required). Checks inside use cases come with the
+`AuthorizationBehavior` (architecture § 7, option B); until then a handler can read
+`IPermissionService.GetAsync()` and return `CommonErrors.Forbidden`.
 
-**Add a permission**: one constant in `Features/Access/Permissions.cs` (`[Requires(...)]` for the
-permissions it needs), the same key in `ClinicHub.Web/src/features/access/permissions.ts`, and its label
+**Add a permission**: one constant in the module's file of the `Permissions` partial class
+(`Application/Features/Catalog/CatalogPermissions.cs`, `…/Prescription/PrescriptionPermissions.cs`, a new
+`<Module>Permissions.cs` for a new module), with `[Requires(...)]` for the permissions it needs. A new
+resource is a nested class with `[PermissionModule("<module>")]` named after the resource (`Drugs` holds
+only `drugs.*`): the catalog refuses to start otherwise. Then the same key in `ClinicHub.Web/src/features/access/permissions.ts`, and its label
 under `permissions.<resource>.<action>` in `en.ts` and `ar.ts`. Decide whether the default roles get it
 (`DefaultRoles`: Doctor gets everything, Assistant everything except the deletes). A new resource also
 needs `permissionResources.<resource>`.
@@ -69,7 +73,7 @@ through the change tracker so it propagates.
 
 | Method | Route | Auth | Response |
 |---|---|---|---|
-| GET | `/permissions` | any access token | `[{ key, resource, action, requires[] }]` (catalog order; labels are translated in the SPA) |
+| GET | `/permissions` | any access token | `[{ key, module, resource, action, requires[] }]` (catalog order; `module` since Phase 3.5, for the role editor's sections; labels are translated in the SPA) |
 | GET | `/me` | access token | `permissions`: the expanded keys in a clinic context (Owner/template = all keys), `[]` on the platform or without a context |
 
 `Context.roles` (login, refresh, switch, `/auth/contexts`) now lists the user's role names in each
@@ -90,23 +94,26 @@ Catalog permissions (HLD 8.2):
 `noAccess` (staff row gone or inactive, or a staff-less token that is not the super admin's template
 context), `clinicSuspended`. When several apply the most specific wins (`clinicSuspended` > `noAccess` > `forbidden`).
 
-## Backend (`Features/Access`)
+## Backend
 
-| Piece | Role |
-|---|---|
-| `Permissions` | Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs. The single source of truth |
-| `PermissionCatalog` | `All` (`PermissionDefinition(Key, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known). `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for phase 4's role editor) |
-| `DefaultRoles` | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); `SeedAsync(db, clinicId)` creates and saves them in a clinic (the clinic context must be that clinic) and returns them by name. Independent of the dev seed, for phase 4 provisioning |
-| `IAccessCache` / `AccessCache` | Singleton. The only code that knows cache keys, tags and the library (below) |
-| `IPermissionService` / `PermissionService` | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or an error code), `GetAsync()` → `PermissionSet`, `EnsureAsync(key)` |
-| `PermissionSet` | `Has`, `HasAll`, `HasAny`, `IsAll`, `Keys` (expanded), `ToList()` (catalog order). `Of(keys)` adds the requirements (`WithRequirements`): a role with `drugs.update` but not `drugs.details` still gets both, so the UI never offers an action whose data it can't load |
-| `HasPermissionAttribute` | `AuthorizeAttribute` + `IAuthorizationRequirementData` (.NET 8+, no policy provider): sets `Policy = ClinicContext` and adds a `PermissionRequirement`. Unknown keys throw when the endpoints are built (first request) |
-| `PermissionHandler` | Succeeds when `PermissionService.GetAsync()` has the key; else fails with reason `forbidden` |
-| `ClinicAccessRequirement` + `ClinicAccessHandler` | Part of the `ClinicContext` policy (`IdentitySetup`), so **every** clinic request checks that staff and clinic are active, permission-gated or not |
-| `AccessAuthorizationResultHandler` | `IAuthorizationMiddlewareResultHandler` (`AccessDenied.cs`): a denied request answers 403 ProblemDetails (`ApiProblemFactory`, errors from `Application/Features/Access/AccessErrors` and `CommonErrors.Forbidden`) with the failure reason's code; otherwise the default (JwtBearer's 403 `forbidden`, or 401 `unauthorized`) |
-| `AccessExceptionHandler` | `IExceptionHandler` (`AccessDenied.cs`): `AccessDeniedException` (from `EnsureAsync`) → 403 with its code; registered before the API's `UnexpectedExceptionHandler` |
-| `PermissionsController` | `GET /api/v1/permissions` |
-| `AccessSetup.AddAccessModule()` | DI for all of the above (+ `MembershipService`, moved here from `IdentitySetup`) |
+Rules and use cases in `ClinicHub.Application/Features/Access` (Phase 3.5 step 3), the cache in
+`ClinicHub.Infrastructure/Access`, the endpoint checks in `ClinicHub.Api/Features/Access`.
+
+| Piece | Layer | Role |
+|---|---|---|
+| `Permissions` | Application | `public static partial class`, one file per module (`Features/Catalog/CatalogPermissions.cs`: `Drugs`, `Groups`; `Features/Prescription/PrescriptionPermissions.cs`: `Prescriptions`; all in the `Features.Access` namespace). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("catalog")]` on every resource class. The single source of truth |
+| `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for phase 4's role editor) |
+| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); `SeedAsync(db, clinicContext, clinicId)` creates and saves them in a clinic (the clinic context must be that clinic) and returns them by name. Independent of the dev seed, for phase 4 provisioning |
+| `IAccessCache` / `AccessCache` | Application / Infrastructure | Singleton. The only code that knows cache keys, tags and the library (below) |
+| `IPermissionService` / `PermissionService` | Application | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or the `Error`: `AccessErrors.NoAccess`, `AccessErrors.ClinicSuspended`, `CommonErrors.Forbidden`), `GetAsync()` → `PermissionSet` |
+| `PermissionSet` | Application | `Has`, `HasAll`, `HasAny`, `IsAll`, `Keys` (expanded), `ToList()` (catalog order). `Of(keys)` adds the requirements (`WithRequirements`): a role with `drugs.update` but not `drugs.details` still gets both, so the UI never offers an action whose data it can't load |
+| `MembershipService` | Application | A user's memberships across clinics (used by Identity; see [login](../auth/tech.md#backend)) |
+| `GetPermissionsQuery` | Application | `GET /api/v1/permissions` (`PermissionsController` in the Api) |
+| `HasPermissionAttribute` | Api | `AuthorizeAttribute` + `IAuthorizationRequirementData` (.NET 8+, no policy provider): sets `Policy = ClinicContext` and adds a `PermissionRequirement`. Unknown keys throw when the endpoints are built (first request) |
+| `PermissionHandler` | Api | Succeeds when `PermissionService.GetAsync()` has the key; else fails with an `AccessFailureReason(CommonErrors.Forbidden)` |
+| `ClinicAccessRequirement` + `ClinicAccessHandler` | Api | Part of the `ClinicContext` policy (`IdentitySetup`), so **every** clinic request checks that staff and clinic are active, permission-gated or not; fails with an `AccessFailureReason` carrying `CheckClinicAccessAsync()`'s `Error` |
+| `AccessAuthorizationResultHandler` | Api | `IAuthorizationMiddlewareResultHandler` (`AccessDenied.cs`): a denied request answers 403 ProblemDetails (`ApiProblemFactory`) with the most specific `Error` of its `AccessFailureReason`s; otherwise the default (JwtBearer's 403 `forbidden`, or 401 `unauthorized`) |
+| `AccessSetup.AddAccessModule()` | Api | DI for the authorization handlers and the result handler (the services are registered by `AddApplication`, the cache by `AddInfrastructure`) |
 
 `PermissionService` rules, from the token's `clinic_id`, `staff_id` and `sub`:
 - not a clinic token → no permissions (`forbidden`);
@@ -118,13 +125,13 @@ context), `clinicSuspended`. When several apply the most specific wins (`clinicS
   `noAccess`; any Owner role → all; else the union of each role's cached permissions (read in
   parallel), merged in memory.
 
-`MeController` returns `PermissionSet.ToList()` in a clinic context. Controllers keep
+`GetMeQuery` (`/me`) returns `PermissionSet.ToList()` in a clinic context. Controllers keep
 `[Authorize(Policy = AuthPolicies.ClinicContext)]` at class level, so an action added without
 `[HasPermission]` is still clinic- and active-checked (but not permission-checked).
 
 ### Cache (`AccessCache`)
 
-.NET 9 `HybridCache` (`Microsoft.Extensions.Caching.Hybrid` 9.10.0), registered in `AddAccessModule`:
+.NET 9 `HybridCache` (`Microsoft.Extensions.Caching.Hybrid` 9.10.0), registered in `AddInfrastructure`:
 in memory now; for several servers, register a distributed cache (e.g. `AddStackExchangeRedisCache`)
 and HybridCache uses it as its second level with no code change. Every read is `GetOrCreateAsync`:
 a miss runs **one** query (concurrent misses of a key share it, no stampede), in its **own DI scope
@@ -171,7 +178,7 @@ one, and their still-valid older token points at the lost clinic's staff entry, 
 
 | Piece | Use |
 |---|---|
-| `permissions.ts` | `PERMISSIONS.drugs.create`… (mirrors `Permissions.cs`; keep in sync), `Permission` union type, `PermissionRule` (`permission` / `anyOf` / `allOf`, all must hold) |
+| `permissions.ts` | `PERMISSIONS.drugs.create`… (mirrors the backend `Permissions` class; keep in sync), `Permission` union type, `PermissionRule` (`permission` / `anyOf` / `allOf`, all must hold) |
 | `usePermissions()` | `{ can, canAll, canAny, allows(rule), ready, failed, retry }` from `useAuth().me` (a `Set`); re-renders on a context switch (`/me` is cached per context). `ready` = `/me` answered; `failed` = it failed (network/5xx) |
 | `components/Can.tsx` | `<Can permission… fallback?>` renders children only when allowed |
 | `withPermission.tsx` | `withPermission(Component)` adds the rule props + `whenDenied: "hide" \| "disable"` (default hide); disabled controls get the `access.noPermissionTooltip` tooltip on a wrapping `span` (a disabled button has no mouse events), which also takes the ref, so an outer `Tooltip` anchors on it (its own title is then replaced by "no permission") |
@@ -206,7 +213,7 @@ one, and their still-valid older token points at the lost clinic's staff entry, 
   and `permissionResources.*` (for phase 4's role editor), `drugs.details`, `groups.view`.
 
 ## Dev seed
-`StartupSeeder` (Development, empty DB): both demo clinics get the default roles via
+`StartupSeeder` (Infrastructure; Development, empty DB): both demo clinics get the default roles via
 `DefaultRoles.SeedAsync`; "Dev Owner" (`Platform:DevOwnerPhone`) has Owner in both. New
 `Platform:DevAssistantPhone` (`+201000000003` in `appsettings.Development.json`): staff
 "Dev Assistant" with **Assistant** in "Demo clinic" (no deletes) and a custom **Viewer** role in
@@ -268,3 +275,7 @@ to `Initial` and re-applied):
   Delete disabled with the Arabic tooltip. Removing `groups.list` from the Assistant role in psql: the
   next groups request → 403 → Arabic "forbidden" toast, `/me` reloaded, Groups gone from the nav and the
   no-permission page shown. No console errors.
+- Phase 3.5 step 3 (Access moved to Application/Infrastructure): the 403s (`forbidden` for a missing
+  permission or a no-context token, `noAccess`, `clinicSuspended`, the Assistant's delete, the Viewer's
+  create) answer exactly as before (contract diff in [login testing notes](../auth/tech.md#testing-notes));
+  `/permissions` gains `module` (`catalog` ×10, `prescription` ×1), same keys and order.

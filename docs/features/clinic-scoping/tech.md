@@ -71,12 +71,16 @@ No new endpoints, no contract changes. Behavior inside a clinic:
   it; an id that is not a clinic (or not a number) → 400 ProblemDetails. The template clinic is
   accepted. Phase 2 deletes it and fills the
   context from the token's `clinic_id`.
-- `Features/Platform/StartupSeeder`, run on every startup after migrations (idempotent):
+- `StartupSeeder` (`ClinicHub.Infrastructure/Platform` since Phase 3.5 step 3: the dev seed needs its own
+  transaction and `ChangeTracker.Clear()`), run on every startup after migrations (idempotent):
   - ensures the template clinic ("Template clinic", `IsTemplate`) exists;
   - Development, no non-template clinic yet: creates "Demo clinic" (10,000 "Drug number N") and
     "Second demo clinic" (3 eye drops + group "After cataract surgery"). It sets the
     `ClinicContext` to each clinic while inserting its rows. The dev seed runs in one transaction,
     so a crash can't leave a half-seeded DB that later starts would skip.
+
+- Since phase 2 the request's clinic comes from the token's `clinic_id`: `UseClinicFromToken()` in the Api's
+  `Features/Identity/IdentitySetup` (reads `ICurrentUser`, whose interface is in `Application/Common/Abstractions`).
 
 ## Frontend
 No changes. The SPA never sends a clinic; the API decides it.
