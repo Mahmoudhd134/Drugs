@@ -39,13 +39,15 @@ internal sealed class PermissionService(ICurrentUser currentUser, IAccessCache c
         {
             var user = await cache.GetUserAsync(userId, cancellationToken);
             var clinic = await cache.GetClinicAsync(clinicId, cancellationToken);
-            if (user is not { IsSuperAdmin: true } || clinic is not { IsTemplate: true })
+            // Deleted → noAccess, never clinicSuspended (that would reveal the clinic); checked first
+            if (user is not { IsSuperAdmin: true } || clinic is not { IsTemplate: true } || clinic.IsDeleted)
                 return NoAccess;
             return clinic.Status == ClinicStatus.Active ? new Check(PermissionSet.All, null) : Suspended;
         }
 
         var staff = await cache.GetStaffAsync(staffId, userId, clinicId, cancellationToken);
-        if (staff is null)
+        // A deleted clinic → noAccess whatever its status (clinicSuspended would reveal it)
+        if (staff is null || staff.IsClinicDeleted)
             return NoAccess;
         // The clinic first: the more specific reason when both apply
         if (staff.ClinicStatus != ClinicStatus.Active)

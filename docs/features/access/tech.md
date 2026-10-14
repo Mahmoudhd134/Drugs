@@ -90,8 +90,9 @@ Catalog permissions (HLD 8.2):
 | `POST /drug-groups` / `PUT /drug-groups/{id}` / `DELETE /drug-groups/{id}` | `groups.create` / `groups.update` / `groups.delete` |
 
 403 codes on every clinic request: `forbidden` (missing permission, or not a clinic token),
-`noAccess` (staff row gone or inactive, or a staff-less token that is not the super admin's template
-context), `clinicSuspended`. When several apply the most specific wins (`clinicSuspended` > `noAccess` > `forbidden`).
+`noAccess` (staff row gone or inactive, the clinic **deleted** (M1.5.1), or a staff-less token that is not the
+super admin's template context), `clinicSuspended`. When several apply the most specific wins (`clinicSuspended` > `noAccess` > `forbidden`), except a deleted clinic:
+always `noAccess` (even when it is also suspended).
 
 ## Backend
 
@@ -113,6 +114,7 @@ endpoint checks in `ClinicHub.Api/Features/Access`.
 | `HasPermissionAttribute` | Api | `AuthorizeAttribute` + `IAuthorizationRequirementData` (.NET 8+, no policy provider): sets `Policy = ClinicContext` and adds a `PermissionRequirement`. Unknown keys throw when the endpoints are built (first request) |
 | `PermissionHandler` | Api | Succeeds when `IPermissionService.GetAsync()` has the key; else fails with an `AccessFailureReason(CommonErrors.Forbidden)` |
 | `ClinicAccessRequirement` + `ClinicAccessHandler` | Api | Part of the `ClinicContext` policy (`IdentitySetup`), so **every** clinic request checks that staff and clinic are active, permission-gated or not; fails with an `AccessFailureReason` carrying `CheckClinicAccessAsync()`'s `Error` |
+| `PlatformAdminRequirement` + `PlatformAdminHandler` | Api | Part of the `PlatformAdmin` policy (M1.5.1, every `/admin/*` endpoint, `PlatformAdminHandler.cs`): a platform token whose user is still a super admin per `IAccessCache.GetUserAsync`, else an `AccessFailureReason(CommonErrors.Forbidden)` (403 `forbidden`) |
 | `AccessAuthorizationResultHandler` | Api | `IAuthorizationMiddlewareResultHandler` (`AccessDenied.cs`): a denied request answers 403 ProblemDetails (`ApiProblemFactory`) with the most specific `Error` of its `AccessFailureReason`s; otherwise the default (JwtBearer's 403 `forbidden`, or 401 `unauthorized`) |
 | `AccessSetup.AddAccessModule()` | Api | DI for the authorization handlers and the result handler (the services are registered by `AddApplication`, the cache by `AddInfrastructure`) |
 
@@ -121,7 +123,9 @@ endpoint checks in `ClinicHub.Api/Features/Access`.
 - no `staff_id` → the super admin's template context: allowed with **all** permissions only if the
   cached user is a super admin and the cached clinic is the template, else `noAccess`;
 - (template context: a suspended template → `clinicSuspended`)
-- staff entry missing (or its user/clinic don't match the token) → `noAccess`; clinic not active →
+- (template context: the clinic deleted → `noAccess`, before the status; the template can't be deleted)
+- staff entry missing (or its user/clinic don't match the token) → `noAccess`; clinic **deleted** →
+  `noAccess` whatever its status (never `clinicSuspended`, which would reveal it); clinic not active →
   `clinicSuspended` (checked before the active flag: the more specific reason); staff inactive →
   `noAccess`; any Owner role → all; else the union of each role's cached permissions (read in
   parallel), merged in memory.
@@ -143,10 +147,10 @@ filter on purpose (read only, by id), like `MembershipService`. Cached records a
 
 | Method | Key | Tags | Value |
 |---|---|---|---|
-| `GetStaffAsync(staffId, userId, clinicId)` | `access:staff:{staffId}:{userId}:{clinicId}` | `staff:{staffId}`, `user:{userId}`, `clinic:{clinicId}` | `StaffAccess { StaffId, UserId, ClinicId, FullName, IsActive, ClinicStatus, IsOwner, RoleIds }` or null |
+| `GetStaffAsync(staffId, userId, clinicId)` | `access:staff:{staffId}:{userId}:{clinicId}` | `staff:{staffId}`, `user:{userId}`, `clinic:{clinicId}` | `StaffAccess { StaffId, UserId, ClinicId, FullName, IsActive, ClinicStatus, IsClinicDeleted, IsOwner, RoleIds }` or null |
 | `GetRolePermissionsAsync(roleId, clinicId)` | `access:role:{roleId}:{clinicId}` | `role:{roleId}`, `clinic:{clinicId}` | `RoleAccess { RoleId, ClinicId, Permissions }` or null |
-| `GetUserAsync(userId)` | `access:user:{userId}` | `user:{userId}` | `UserAccess { UserId, IsSuperAdmin }` (template context only) |
-| `GetClinicAsync(clinicId)` | `access:clinic:{clinicId}` | `clinic:{clinicId}` | `ClinicAccess { ClinicId, Status, IsTemplate }` (template context only) |
+| `GetUserAsync(userId)` | `access:user:{userId}` | `user:{userId}` | `UserAccess { UserId, IsSuperAdmin }` (template context, and the `PlatformAdmin` policy) |
+| `GetClinicAsync(clinicId)` | `access:clinic:{clinicId}` | `clinic:{clinicId}` | `ClinicAccess { ClinicId, Status, IsTemplate, IsDeleted }` (template context only) |
 
 The user and clinic ids passed with a staff/role id come from the token. They are the entry's tags
 (HybridCache takes tags before the value is loaded) **and part of its key** (a deviation from the HLD's
@@ -160,20 +164,30 @@ Lifetimes: `Expiration` **10 min** (safety net if an invalidation is missed), `L
 cache, so an entry is reloaded at most every **30 s**: a change made directly in the database (psql)
 is seen within 30 s even without an invalidation.
 
-**Invalidation** (each one `RemoveByTagAsync`). M1.5 must call these on every change:
+**Invalidation** (each one `RemoveByTagAsync`), always **after the commit**: use cases queue it through
+`IPostCommitActions.AddAsync` (M1.5.1, [architecture § 3.5](../../design/architecture.md#35-pipeline-behaviors)),
+which `TransactionRunner` runs when the command's outermost transaction ends (committed or rolled back; at once
+outside a transaction of the runner's own, e.g. inside the seed's). Inside the transaction, a concurrent request could reload the old rows and cache them
+for up to 10 min.
 
-| Change | Invalidate |
-|---|---|
-| staff roles or active flag | `InvalidateStaffAsync(staffId)` |
-| role permissions | `InvalidateRoleAsync(roleId)` (a rename needs nothing: role names aren't cached) |
-| role deleted | `InvalidateRoleAsync(roleId)` + `InvalidateClinicAsync(clinicId)` |
-| clinic status | `InvalidateClinicAsync(clinicId)` |
-| user-level change (e.g. super-admin flag; `IdentitySeeder` does it for every user whose flag changes) | `InvalidateUserAsync(userId)` |
-| token issued (login, refresh, switch) | staff — and the user (see below); **not** the roles: role permission edits rely on `InvalidateRoleAsync` |
+| Change | Invalidate | Called by |
+|---|---|---|
+| staff roles or active flag | `InvalidateStaffAsync(staffId)` | M1.5.3 staff use cases |
+| role permissions | `InvalidateRoleAsync(roleId)` (a rename needs nothing: role names aren't cached) | M1.5.3 role use cases |
+| role deleted | `InvalidateRoleAsync(roleId)` + `InvalidateClinicAsync(clinicId)` | M1.5.3 |
+| clinic suspended, activated or deleted | `InvalidateClinicAsync(clinicId)` (a rename needs none) | `SuspendClinic`, `ActivateClinic`, `DeleteClinic` (M1.5.1; also when nothing changed) |
+| user-level change (e.g. super-admin flag) | `InvalidateUserAsync(userId)` | `IdentitySeeder`, for every user whose flag changes (after its own transaction) |
+| token issued (login, refresh, switch) | staff — and the user (see below); **not** the roles: role permission edits rely on `InvalidateRoleAsync` | `SessionService.IssueAsync`, post-commit |
 
-`SessionService.IssueAsync` (behind `ISessionService`) calls `InvalidateStaffAsync` for the issued staff **and**
+`SessionService.IssueAsync` (behind `ISessionService`) queues `InvalidateStaffAsync` for the issued staff **and**
 `InvalidateUserAsync` for the user: a refresh can move a user out of a clinic they lost into another
 one, and their still-valid older token points at the lost clinic's staff entry, which must be dropped too.
+The dev seed calls no invalidation (nothing it seeds is cached yet); `IdentitySeeder` invalidates directly after its own `RunAsync`.
+
+**Deleted clinics** (M1.5.1, `Clinics.DeletedAt`): the staff entry carries `IsClinicDeleted` and the clinic entry
+`IsDeleted`; `PermissionService` answers `noAccess` for them before looking at the status. `MembershipService`
+skips deleted clinics (so they leave the login contexts, refresh and switch), and the switch's "is it suspended?"
+check answers `noAccess` for a deleted clinic whatever its `Status`.
 
 ## Frontend (`src/features/access`)
 
@@ -222,7 +236,7 @@ one, and their still-valid older token points at the lost clinic's staff entry, 
 prescription page).
 
 ## Edge cases & limitations
-- Cache staleness: with no invalidation (direct DB edits, until M1.5 adds the admin endpoints),
+- Cache staleness: with no invalidation (direct DB edits; the admin endpoints invalidate since M1.5.1),
   a change applies within 30 s (in-memory cache), at the latest 10 min with a distributed cache.
   The user's next token refresh applies staff changes (roles given or taken, active flag) and clinic
   status at once, but **not** edits to a role's permissions (those need `InvalidateRoleAsync`).
@@ -234,7 +248,8 @@ prescription page).
   what it added.
 - `RolePermission` has no clinic filter of its own; never add a `DbSet` for it or query it directly.
 - `PermissionCatalog` order is reflection order (declaration order in practice).
-- Platform context: `/me` permissions are `[]` (platform permissions come with M1.5's admin area).
+- Platform context: `/me` permissions are `[]`. The admin endpoints use the `PlatformAdmin` policy instead of
+  permissions (M1.5 design D1; platform permission keys may come later).
 - A 403 from a page query shows both the toast and the page's own error state (accepted: the toast
   says why).
 - The disabled Delete in the group editor is not keyboard-focusable, so its tooltip is mouse/touch only.
@@ -276,6 +291,10 @@ to `Initial` and re-applied):
   Delete disabled with the Arabic tooltip. Removing `groups.list` from the Assistant role in psql: the
   next groups request → 403 → Arabic "forbidden" toast, `/me` reloaded, Groups gone from the nav and the
   no-permission page shown. No console errors.
+- M1.5.1 (clinic lifecycle, smoke test on `:5055`, [platform admin](../platform-admin/tech.md#testing-notes)):
+  suspending a clinic → its owner's and assistant's next catalog request 403 `clinicSuspended`, activating → 200
+  again, deleting (even while suspended) → 403 `noAccess` and the clinic leaves `/auth/contexts`; all without
+  waiting for the 30 s cache, through the post-commit invalidation.
 - M1.4 part 3 (Access moved to Application/Infrastructure): the 403s (`forbidden` for a missing
   permission or a no-context token, `noAccess`, `clinicSuspended`, the Assistant's delete, the Viewer's
   create) answer exactly as before (contract diff in [login testing notes](../auth/tech.md#testing-notes));

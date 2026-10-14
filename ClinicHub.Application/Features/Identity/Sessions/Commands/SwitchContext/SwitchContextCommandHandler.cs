@@ -49,14 +49,17 @@ internal sealed class SwitchContextCommandHandler(
         return await sessions.IssueAsync(session, session.User, contexts, cancellationToken);
     }
 
-    /// <summary>True when the requested clinic is one the user could enter, but it is suspended.</summary>
+    /// <summary>
+    /// True when the requested clinic is one the user could enter, but it is suspended. A deleted clinic is
+    /// never "suspended" (→ <c>noAccess</c>, whatever its status: answering otherwise would reveal it).
+    /// </summary>
     private async Task<bool> IsSuspendedClinicOfAsync(User user, SwitchContextCommand command,
         CancellationToken cancellationToken)
     {
         if (command.Type != ContextTypes.Clinic || command.ClinicId is not { } clinicId)
             return false;
         var clinic = await db.Clinics.AsNoTracking().FirstOrDefaultAsync(c => c.Id == clinicId, cancellationToken);
-        if (clinic is not { Status: ClinicStatus.Suspended })
+        if (clinic is not { Status: ClinicStatus.Suspended, DeletedAt: null })
             return false;
         return clinic.IsTemplate
             ? user.IsSuperAdmin

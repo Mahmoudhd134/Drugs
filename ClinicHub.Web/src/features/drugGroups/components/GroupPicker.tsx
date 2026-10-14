@@ -18,7 +18,8 @@ type Props = {
 export const GroupPicker = ({onSelect, autoFocus, maxHeight, enabled = true}: Props) => {
     const {t} = useTranslation();
     const [search, setSearch] = useState("");
-    const query = useDrugGroupPicker(useDebouncedValue(search.trim()), {enabled});
+    const term = useDebouncedValue(search.trim());
+    const query = useDrugGroupPicker(term, {enabled});
     const items = query.data?.pages.flatMap(p => p.items) ?? [];
 
     return (
@@ -58,7 +59,8 @@ export const GroupPicker = ({onSelect, autoFocus, maxHeight, enabled = true}: Pr
             hasMore={query.hasNextPage}
             isLoadingMore={query.isFetchingNextPage}
             onLoadMore={() => void query.fetchNextPage()}
-            emptyText={t("groups.noResults")}
+            // No term and no results = the clinic has no groups (placeholder data is an older term's result)
+            emptyText={term || query.isPlaceholderData ? t("groups.noResults") : t("groups.pickerEmpty")}
             autoFocus={autoFocus}
             maxHeight={maxHeight}
         />

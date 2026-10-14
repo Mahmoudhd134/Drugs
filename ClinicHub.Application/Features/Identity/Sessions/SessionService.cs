@@ -18,6 +18,7 @@ internal sealed class SessionService(
     ITokenService tokens,
     IMembershipService memberships,
     IAccessCache accessCache,
+    IPostCommitActions postCommit,
     TimeProvider clock) : ISessionService
 {
     public DateTime Now => clock.GetUtcNow().UtcDateTime;
@@ -67,10 +68,12 @@ internal sealed class SessionService(
         // A new token starts from fresh access data (roles, active flags, clinic status). The staff
         // entry by its own tag (always right, whoever loaded it), plus every entry of the user: a
         // refresh that moved them out of a clinic they lost must also drop that clinic's entry, which
-        // their older access token still points to
-        if (staffId is not null)
-            await accessCache.InvalidateStaffAsync(staffId.Value, cancellationToken);
-        await accessCache.InvalidateUserAsync(user.Id, cancellationToken);
+        // their older access token still points to. After the commit (IPostCommitActions), so a
+        // concurrent request can't cache the rows this transaction is still changing
+        if (staffId is { } issuedStaffId)
+            await postCommit.AddAsync(token => accessCache.InvalidateStaffAsync(issuedStaffId, token));
+        var userId = user.Id;
+        await postCommit.AddAsync(token => accessCache.InvalidateUserAsync(userId, token));
         var (accessToken, expiresAt) = tokens.CreateAccessToken(user, session, staffId);
         return new SessionIssue(new AuthResult(accessToken, expiresAt, context, contexts), refreshToken, session.ExpiresAt);
     }

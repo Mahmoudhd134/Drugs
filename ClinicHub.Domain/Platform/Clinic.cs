@@ -11,8 +11,16 @@ public class Clinic : IHasTimestamps
     public string Status { get; set; } = ClinicStatus.Active;
     /// <summary>The hidden clinic holding the default drugs/groups copied to new clinics (only one).</summary>
     public bool IsTemplate { get; set; }
+    /// <summary>
+    /// Set = soft deleted: hidden everywhere and nobody can enter it; its rows are kept. <see cref="Status"/>
+    /// is left as it was, so a future restore only clears this.
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>Soft deletes the clinic (once: an already deleted clinic keeps its first time).</summary>
+    public void Delete(DateTime now) => DeletedAt ??= now;
 }
 
 public static class ClinicStatus

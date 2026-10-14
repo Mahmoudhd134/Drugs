@@ -7,8 +7,8 @@ public interface IPermissionService
 {
     /// <summary>
     /// Null when the caller may act in the request's clinic; otherwise <see cref="AccessErrors.NoAccess"/>
-    /// (staff gone or inactive), <see cref="AccessErrors.ClinicSuspended"/>, or <see cref="CommonErrors.Forbidden"/>
-    /// (not a clinic context).
+    /// (staff gone or inactive, or the clinic deleted), <see cref="AccessErrors.ClinicSuspended"/>, or
+    /// <see cref="CommonErrors.Forbidden"/> (not a clinic context).
     /// </summary>
     Task<Error> CheckClinicAccessAsync(CancellationToken cancellationToken = default);
 

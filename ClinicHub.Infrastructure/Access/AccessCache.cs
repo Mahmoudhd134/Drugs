@@ -29,11 +29,13 @@ public sealed class AccessCache(HybridCache cache, IServiceScopeFactory scopes) 
         await cache.GetOrCreateAsync($"access:staff:{staffId}:{userId}:{clinicId}", (scopes, staffId, userId, clinicId),
             static (state, token) => LoadAsync(state.scopes, db => db.Staff.IgnoreQueryFilters().AsNoTracking()
                     .Where(s => s.Id == state.staffId && s.UserId == state.userId && s.ClinicId == state.clinicId)
-                    .Select(s => new StaffAccess(
-                        s.Id, s.UserId, s.ClinicId, s.FullName, s.IsActive,
-                        db.Clinics.Where(c => c.Id == s.ClinicId).Select(c => c.Status).First(),
-                        s.Roles.Any(r => r.Role.IsOwner),
-                        s.Roles.OrderBy(r => r.RoleId).Select(r => r.RoleId).ToList()))
+                    .Join(db.Clinics, s => s.ClinicId, c => c.Id, (s, c) => new { Staff = s, Clinic = c })
+                    .Select(x => new StaffAccess(
+                        x.Staff.Id, x.Staff.UserId, x.Staff.ClinicId, x.Staff.FullName, x.Staff.IsActive,
+                        x.Clinic.Status,
+                        x.Clinic.DeletedAt != null,
+                        x.Staff.Roles.Any(r => r.Role.IsOwner),
+                        x.Staff.Roles.OrderBy(r => r.RoleId).Select(r => r.RoleId).ToList()))
                     .FirstOrDefaultAsync(token)),
             tags: [StaffTag(staffId), UserTag(userId), ClinicTag(clinicId)],
             cancellationToken: cancellationToken);
@@ -61,7 +63,7 @@ public sealed class AccessCache(HybridCache cache, IServiceScopeFactory scopes) 
         await cache.GetOrCreateAsync($"access:clinic:{clinicId}", (scopes, clinicId),
             static (state, token) => LoadAsync(state.scopes, db => db.Clinics.AsNoTracking()
                 .Where(c => c.Id == state.clinicId)
-                .Select(c => new ClinicAccess(c.Id, c.Status, c.IsTemplate))
+                .Select(c => new ClinicAccess(c.Id, c.Status, c.IsTemplate, c.DeletedAt != null))
                 .FirstOrDefaultAsync(token)),
             tags: [ClinicTag(clinicId)],
             cancellationToken: cancellationToken);

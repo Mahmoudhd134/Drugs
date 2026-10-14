@@ -4,6 +4,7 @@ using ClinicHub.Application.Features.Access.Authorization;
 using ClinicHub.Application.Features.Access.StaffMembers;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Identity.Users;
+using ClinicHub.Application.Features.Platform.Clinics;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,9 +26,11 @@ public static class DependencyInjection
         // Builds and validates the permission catalog now: a bad declaration stops the app at startup
         _ = PermissionCatalog.All;
 
-        // Filled per request by the clinic middleware (and by the startup seeder)
+        // Filled per request by the clinic middleware (or IClinicScope, and by the startup seeder)
         services.AddScoped<ClinicContext>();
         services.AddScoped<IClinicContext>(serviceProvider => serviceProvider.GetRequiredService<ClinicContext>());
+        // Sets it where the token doesn't: the admin clinic endpoints, provisioning
+        services.AddScoped<IClinicScope, ClinicScope>();
         services.TryAddSingleton(TimeProvider.System);
 
         services.AddMediatR(options =>

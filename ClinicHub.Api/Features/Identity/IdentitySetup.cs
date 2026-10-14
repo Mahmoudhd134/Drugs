@@ -18,6 +18,13 @@ public static class AuthPolicies
     /// Implied by <c>[HasPermission]</c>.
     /// </summary>
     public const string ClinicContext = "ClinicContext";
+
+    /// <summary>
+    /// Every <c>/admin/*</c> endpoint: an access token in the platform context whose user is <b>still</b> a
+    /// super admin (cached check, <c>Access.PlatformAdminRequirement</c>: removing a phone from
+    /// <c>Platform:SuperAdminPhones</c> locks it out on the next request). Anything else → 403 <c>forbidden</c>.
+    /// </summary>
+    public const string PlatformAdmin = "PlatformAdmin";
 }
 
 /// <summary>DI and middleware for the caller, access tokens and the request's clinic (the use cases are in Application).</summary>
@@ -54,7 +61,11 @@ public static class IdentitySetup
                 .RequireClaim(AuthClaims.Context, ContextTypes.Clinic)
                 .RequireClaim(AuthClaims.ClinicId)
                 // Every clinic request: the staff member and the clinic must still be active
-                .AddRequirements(new ClinicAccessRequirement()));
+                .AddRequirements(new ClinicAccessRequirement()))
+            .AddPolicy(AuthPolicies.PlatformAdmin, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim(AuthClaims.Context, ContextTypes.Platform)
+                .AddRequirements(new PlatformAdminRequirement()));
 
         return services;
     }

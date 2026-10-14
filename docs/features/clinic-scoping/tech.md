@@ -16,6 +16,7 @@ exists, a temporary middleware chooses the clinic. API contracts are unchanged.
 | Name | varchar(256) | required |
 | Status | varchar(20) | `active` / `suspended` (`ClinicStatus`); only used to pick the default clinic so far *(M1.2: suspended clinics are left out of login contexts → `clinicSuspended`)* |
 | IsTemplate | boolean | only one template: partial unique index `WHERE "IsTemplate"` |
+| DeletedAt | timestamptz null | *(M1.5.1)* set = soft deleted: hidden everywhere, nobody can enter it (`noAccess`); no EF query filter, checked explicitly ([platform admin](../platform-admin/tech.md#data-model)) |
 | CreatedAt, UpdatedAt | timestamptz | UTC |
 
 **Catalog changes**

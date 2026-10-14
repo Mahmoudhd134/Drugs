@@ -132,7 +132,8 @@ in `permissions.ts` changed):
   to option B when background jobs arrive.
 - **OTP send inside the transaction**: `RequestOtp` calls `IOtpSender` before the commit, holding the phone's
   advisory lock. Fine for display mode; an SMS sender (M3.2) should send after the commit (or through an
-  outbox) so a slow provider doesn't hold the lock and a failed commit doesn't send an unusable code.
+  outbox) so a slow provider doesn't hold the lock and a failed commit doesn't send an unusable code
+  (`IPostCommitActions`, § 3.5, can run it after the commit; it does not retry).
 - **Housekeeping deletes inside command transactions**: `RequestOtp` deletes day-old codes and `VerifyOtp` week-old
   sessions; these used to commit on their own, now their row locks last until the command commits, so two
   requests that both find rows just past the cutoff wait for each other (briefly; never a wrong answer). Move
@@ -153,8 +154,9 @@ in `permissions.ts` changed):
   `ICommitOnFailure` command releases its savepoint; the outer command still decides the commit.
 - An unknown `/api` route with a non-GET method answers **405** (not 404): the SPA fallback's route matches the
   path for the method check before its constraint rules it out. Harmless; revisit if the fallback changes.
-- The migrations' designer files and snapshot keep the old CLR names as strings (`"Drags.Api.Models.Drug"`);
-  harmless (`has-pending-model-changes` reports none); the next `migrations add` rewrites the snapshot.
+- The migrations' designer files keep the old CLR names as strings (`"Drags.Api.Models.Drug"`); harmless
+  (`has-pending-model-changes` reports none). The snapshot was rewritten with the `ClinicHub.Domain.*` names by
+  M1.5.1's `migrations add AddClinicDeletedAt`.
 - `RolePermission` still has **no** `DbSet` on `IAppDbContext` (§ 3.6), on purpose.
 - `Common/Paging` holds `PagedResult<T>` and the `Paging` class (both in `PagedResult.cs`): a folder named like a type, older than the § 3.7 rule (no clash in
   practice). Rename the folder (e.g. `Common/Pagination`) the next time it is touched.
@@ -182,8 +184,8 @@ ClinicHub.Api              → Application, Infrastructure
 | Project | Contains |
 |---|---|
 | **Domain** | Entities (`Drug`, `DrugGroup`, `DrugGroupItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`), field limits (`FieldLimits`) |
-| **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`, `IStartupSeeder`), application services that are not use cases, each behind an interface (`IPermissionService`, `IMembershipService`, `ISessionService`, `IIdentitySeeder`, `IPhoneNormalizer`), the `Permissions` constants and catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
-| **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner`, `AccessCache` (HybridCache), `TokenService` (JWT) + `AuthClaims`, `DisplayOtpSender` (later SMS), `OtpLock` (advisory lock), `JwtValidation` (the token key and validation, read by the Api), `StartupSeeder` (`IStartupSeeder`; needs EF internals) |
+| **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`, `IPostCommitActions`, `IStartupSeeder`), `IClinicScope` (implemented in `Features/Platform/Clinics`), application services that are not use cases, each behind an interface (`IPermissionService`, `IMembershipService`, `ISessionService`, `IIdentitySeeder`, `IPhoneNormalizer`), the `Permissions` constants and catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
+| **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner` (also `IPostCommitActions`), `AccessCache` (HybridCache), `TokenService` (JWT) + `AuthClaims`, `DisplayOtpSender` (later SMS), `OtpLock` (advisory lock), `JwtValidation` (the token key and validation, read by the Api), `StartupSeeder` (`IStartupSeeder`; needs EF internals) |
 | **Api** | Thin controllers (+ the refresh cookie in `AuthController`), authentication and authorization setup, `CurrentUser` (claims reader: needs `HttpContext`), `[HasPermission]` and its handlers, the clinic middleware, the `ApiProblemFactory` and every error source, `Result` → HTTP mapping, SPA hosting (`wwwroot`), `Program.cs`, config binding and validation (`AppSettings`), `Database.MigrateAsync()` |
 
 Each layer registers itself: `AddApplication(configuration)`, `AddInfrastructure(configuration)`, `AddApi()`.
@@ -194,8 +196,9 @@ The solution and projects use the code name `ClinicHub` (renamed from `Drags` on
 
 ## 2. Domain
 
-**Anemic domain model** (for now): entities are plain classes with properties and relationships, no
-behavior. Business rules live in handlers, plus a few pure, reusable helpers (`DosingRules`).
+**Anemic domain model** (for now): entities are plain classes with properties and relationships, almost no
+behavior (one exception so far: `Clinic.Delete(now)`, the soft delete, M1.5). Business rules live in handlers,
+plus a few pure, reusable helpers (`DosingRules`).
 Moving behavior into entities later is possible without changing the layering.
 
 ---
@@ -307,6 +310,18 @@ the success path). Writes that must serialize (the per-phone OTP limit) use a lo
 
 Permissions are **not** a behavior yet; see [§ 7](#7-permissions).
 
+**Post-commit actions** (M1.5, design D3). Side effects that must not run before the commit, today the access
+cache invalidations, go through `IPostCommitActions` (`Common/Abstractions`):
+`await postCommit.AddAsync(token => accessCache.InvalidateClinicAsync(id, token))`. `TransactionRunner` implements it
+(one scoped instance serves both interfaces): inside the outermost transaction it opened, `AddAsync` only queues;
+the queue runs when that transaction ends, **committed or rolled back**, after the execution strategy is done
+(retries included; a failed attempt's actions run too). Nested commands (savepoints) just queue. With no
+transaction of the runner's own (none, or one opened elsewhere such as the dev seed's), `AddAsync` runs the action
+at once. Failures are logged, never thrown; actions get `CancellationToken.None`. Only for actions that are safe after a
+rollback (clearing a cache entry is). Callers: `SessionService.IssueAsync` (staff + user on every issued token)
+and the clinic suspend/activate/delete commands. Accepted: a cache load that started before the commit may
+store the old row after the invalidation (≤ 10 min). An SMS sender (M3.2) can use it too.
+
 ### 3.6 Data access: `IAppDbContext`
 
 Handlers use the database **directly through `IAppDbContext`**, with no generic repositories.
@@ -341,6 +356,16 @@ public interface IAppDbContext
   `Entry()`. Transactions go through `ITransactionRunner`; the interceptor stays in Infrastructure.
 - The **clinic query filter lives in `AppDbContext`**, so every read through this interface is filtered.
 - **Views** are mapped as keyless entities (`HasNoKey().ToView(...)`) and added here as `DbSet`s.
+- **The current clinic** is set at the edge, never passed to use cases (M1.5 design D2): from the token
+  (clinic middleware), or through `IClinicScope` (`Common/Abstractions`, scoped; implemented by `Features/Platform/Clinics/ClinicScope`, as it
+  needs the Platform clinic rules and `Common` never references `Features`): `EnterAsync(clinicId)` for the
+  super admin's per-clinic admin endpoints (`ClinicErrors.NotFound` for a missing, deleted or template clinic;
+  suspended allowed; switching to a *different* clinic once one is set throws) and `using (scope.Use(clinicId))`
+  for non-HTTP code (sets it for a block, restores the previous one; nestable).
+- **Cross-clinic work** (Platform code only): reads across clinics are explicit, `IgnoreQueryFilters()`, read
+  only (e.g. the admin clinic list's staff counts, `ClinicQueries.SelectDetails`' staff count and owners); writes go one clinic
+  at a time through `scope.Use(clinicId)`; the save interceptor refuses a row of another clinic. Deleted clinics
+  are excluded explicitly (`Clinics.NotDeleted()`, `Manageable()` also without the template; no query filter on `Clinics`).
 - **Raw SQL, stored procedures, Dapper or another store:** add a **purpose-built interface** in Application
   (for example `IDrugReportQueries.GetUsageAsync(...)`), implemented in Infrastructure. The handler depends
   on that method, not on how it is fetched. This is the only kind of "repository" we add, and only when a
@@ -393,7 +418,15 @@ ClinicHub.Application/
       Queries/GetPermissions/
     Roles/                       DefaultRoles.cs
     StaffMembers/                IMembershipService.cs  MembershipService.cs
+   Platform/
+    Clinics/                     ClinicErrors.cs  ClinicDto.cs  ClinicQueries.cs (NotDeleted, Manageable, SelectDetails)  ClinicScope.cs
+      Commands/RenameClinic/  Commands/SuspendClinic/  Commands/ActivateClinic/  Commands/DeleteClinic/
+      Queries/GetClinics/  Queries/GetClinic/
+                                 (M1.5.2 adds Commands/CreateClinic and the Provisioning/ sub-feature)
 ```
+
+Platform has no module-wide errors class yet (only `Clinics/ClinicErrors.cs`); the Api side is
+`Api/Features/Platform/AdminClinicsController.cs`.
 
 - **A module root holds only `<Module>Errors.cs`** (Access also holds `Permissions.cs`, § 7.1). Everything else
   lives in a **sub-feature folder**: `Module/SubFeature/{Commands,Queries}/UseCase/`, with the sub-feature's
@@ -413,7 +446,7 @@ ClinicHub.Application/
   class next to it (`SessionRules`, Infrastructure's `JwtValidation`). An interface of an `internal` class may
   stay internal.
 - Used concretely on purpose (not services): `ClinicContext`, per-request state that readers use through
-  `IClinicContext`; only its fillers take the settable class (the clinic middleware and `StartupSeeder`). Also EF
+  `IClinicContext`; only its fillers take the settable class (the clinic middleware, `ClinicScope` and `StartupSeeder`). Also EF
   plumbing: `AppDbContext` inside Infrastructure where `IAppDbContext` hides what is needed, plus `Program.cs`'s
   `Database.MigrateAsync()`, and `ClinicAndTimestampsInterceptor`.
 
@@ -443,7 +476,7 @@ ClinicHub.Application/
   dotnet ef database update --project ClinicHub.Infrastructure --startup-project ClinicHub.Api
   ```
 
-- Implementations of Application abstractions: `TransactionRunner`, `AccessCache` (HybridCache; Redis later
+- Implementations of Application abstractions: `TransactionRunner` (`ITransactionRunner` and `IPostCommitActions`, one scoped instance), `AccessCache` (HybridCache; Redis later
   as config), `TokenService` (+ the claim names, `AuthClaims`, and the key and validation, `JwtValidation`), `DisplayOtpSender`, `OtpLock`. `CurrentUser`
   is in the Api: it reads `HttpContext`, and Infrastructure has no ASP.NET reference.
 - `StartupSeeder` (`IStartupSeeder`: template clinic, super admins through Application's `IIdentitySeeder`, dev data).

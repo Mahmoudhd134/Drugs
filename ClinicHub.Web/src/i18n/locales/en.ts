@@ -260,6 +260,7 @@ const en = {
         emptyTitle: "No groups yet",
         emptyDescription: "Groups let you add several drugs to a prescription with one click.",
         noResults: "No groups match your search.",
+        pickerEmpty: "This clinic has no groups yet.",
         noDrugsTitle: "No drugs in this group",
         noDrugsDescription: "Search for drugs and click them to add them here.",
         created: "Group created",

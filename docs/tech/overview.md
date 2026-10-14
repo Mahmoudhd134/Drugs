@@ -37,7 +37,8 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Platform/                    Clinic (+ ClinicStatus)
 ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
   Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner,
-                               IStartupSeeder
+                               IPostCommitActions (after-commit side effects), IClinicScope (sets the current
+                               clinic: EnterAsync, Use; implemented in Features/Platform/Clinics), IStartupSeeder
   Common/Messaging/            ICommand, ICommand<T>, IQuery<T> (+ ICommandBase, ICommitOnFailure) and their
                                handler interfaces
   Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
@@ -60,13 +61,17 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                Queries/GetPermissions
     Roles/                     DefaultRoles
     StaffMembers/              IMembershipService/MembershipService
+  Features/Platform/Clinics/   ClinicErrors, ClinicDto (ClinicSummary, ClinicDetails), ClinicQueries (NotDeleted,
+                               Manageable, SelectDetails), ClinicScope (IClinicScope); Commands/ (RenameClinic, SuspendClinic,
+                               ActivateClinic, DeleteClinic), Queries/ (GetClinics, GetClinic)
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
   Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration)
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
-  Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints)
+  Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints) and
+                                               IPostCommitActions (runs the queue when its outermost transaction ends)
   Migrations/                  EF Core migrations (applied automatically on startup)
   Identity/                    TokenService (JWT; ITokenService) + AuthClaims, JwtValidation, DisplayOtpSender, OtpLock
                                (pg_advisory_xact_lock)
@@ -83,7 +88,8 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   Features/Drugs, DrugGroups/  thin controllers (+ their request records)
   Features/Identity/           AuthController (+ the refresh cookie), MeController, CurrentUser (ICurrentUser
                                from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
-  Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, the 403 answers
+  Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy)
+  Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, PlatformAdminHandler, the 403 answers
                                (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
                                PermissionsController, AccessSetup (DI)
   Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
@@ -169,7 +175,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   **start with** the term first.
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
-  `IdentityErrors`, `AccessErrors`). Add new codes
+  `IdentityErrors`, `AccessErrors`, `ClinicErrors`). Add new codes
   there **and** under `errors.*` in both locale files. The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them.
 - `Nullable` is disabled in every csproj.
@@ -179,14 +185,20 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   take a `clinicId` from the client in clinic routes. Only Platform code (and the Access module's
   membership queries and access-cache loads by id, read-only) may `IgnoreQueryFilters()`.
 - **Auth:** clinic controllers carry `[Authorize(Policy = AuthPolicies.ClinicContext)]` (a clinic-context
-  token whose staff member and clinic are still active; platform tokens get 403). Read the caller from
+  token whose staff member and clinic are still active; platform tokens get 403). Admin controllers
+  (`Api/Features/Platform`, routes `api/v1/admin/…`) carry `[Authorize(Policy = AuthPolicies.PlatformAdmin)]`
+  (a platform token whose user is still a super admin; anything else 403 `forbidden`). Read the caller from
   `ICurrentUser` (claims), never from the body.
 - **Permissions:** every clinic action carries `[HasPermission(Permissions.X.Y)]` (implies the clinic
   policy). Adding a permission is one constant in `Application/Features/Access/Permissions.cs` (one class, its
   resource classes grouped by module; a new resource class needs `[PermissionModule("…")]`) (+ the SPA mirror
   and labels). Changes to staff, roles, clinics or
   users must call the `IAccessCache.Invalidate*` method from the
-  [invalidation table](../features/access/tech.md#cache-accesscache).
+  [invalidation table](../features/access/tech.md#cache-accesscache), **after the commit**: queue it with
+  `await postCommit.AddAsync(token => accessCache.InvalidateX(id, token))` (`IPostCommitActions`).
+- **Clinics** are soft deleted (`DeletedAt`); there is no query filter on `Clinics`, so every place that decides
+  whether a clinic can be used checks it explicitly (admin code: `db.Clinics.NotDeleted()` / `Manageable()`;
+  [platform admin](../features/platform-admin/tech.md)).
 
 ### Errors (ProblemDetails)
 
@@ -241,7 +253,8 @@ A missing drug or group answers `notFound` (the SPA shows "this item no longer e
 
 ```
 Clinics (Platform)
-- Id (PK), Name (≤256), Status ("active" | "suspended"), IsTemplate (only one: partial unique index)
+- Id (PK), Name (≤256), Status ("active" | "suspended"), IsTemplate (only one: partial unique index),
+  DeletedAt (timestamptz null: set = soft deleted, Status untouched; no query filter)
 
 Users (Identity)       Phone (E.164, unique), IsSuperAdmin, LastLoginAt
 OtpCodes (Identity)    Phone, CodeHash (HMAC), ExpiresAt, Attempts, ConsumedAt; index (Phone, CreatedAt)
@@ -307,12 +320,19 @@ Drugs                       DrugGroups
 | POST | `/drug-groups` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + group |
 | PUT | `/drug-groups/{id}` | Replace name and items (order + overrides) → group |
 | DELETE | `/drug-groups/{id}` | Delete → 204 |
+| GET | `/admin/clinics?search=&status=&page=1&pageSize=20` | Paged `ClinicSummary` (no template, no deleted), by name (prefix matches first when searching); `status` = `active` / `suspended` |
+| GET | `/admin/clinics/{id}` | `ClinicDetails` (+ `owners`) |
+| PUT | `/admin/clinics/{id}` | Rename `{ name }` → `ClinicDetails` |
+| POST | `/admin/clinics/{id}/suspend`, `/admin/clinics/{id}/activate` | → 204 (idempotent) |
+| DELETE | `/admin/clinics/{id}` | Soft delete → 204 (final for now) |
 
 Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
 (`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
 permission (e.g. `drugs.delete`, [table](../features/access/tech.md#api)), else 403 `forbidden`;
-inactive staff → 403 `noAccess`, suspended clinic → 403 `clinicSuspended`. Auth contracts:
-[login tech](../features/auth/tech.md).
+inactive staff or a deleted clinic → 403 `noAccess`, suspended clinic → 403 `clinicSuspended`. Auth contracts:
+[login tech](../features/auth/tech.md). Admin routes (`/admin/*`) need a platform-context token of a
+current super admin (else 403 `forbidden`); a missing, deleted or template clinic id → 404 `notFound`
+([platform admin](../features/platform-admin/tech.md)).
 
 Swagger UI is available in Development at `/swagger`.
 
@@ -334,7 +354,8 @@ Swagger UI is available in Development at `/swagger`.
   `ClinicHub.Infrastructure.Migrations`) with their ids unchanged, so existing databases are unaffected.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
   to PostgreSQL; `Initial` was regenerated again for clinic scoping (M1.1) and for login
-  (M1.2). From M1.3 on, migrations are **added on top** (`AddRoles`), never regenerated.
+  (M1.2). From M1.3 on, migrations are **added on top**, never regenerated: `Initial` → `AddRoles` (M1.3) →
+  `AddClinicDeletedAt` (M1.5.1, one nullable column).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`.
 
@@ -518,7 +539,8 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- Users, staff and roles come only from seeding until the admin area (M1.5).
+- Users, staff and roles come only from seeding until the admin area (M1.5.2–M1.5.5). Clinics can be
+  renamed, suspended, re-activated and deleted through the admin API since M1.5.1 (no screens yet; no create yet).
 - Permission or active-flag changes made outside the (future) admin endpoints apply within 30 s
   (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
   on any 403).

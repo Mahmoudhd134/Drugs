@@ -132,7 +132,7 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   none in the template), `super_admin: "true"` (platform only). Refresh tokens are 32 random bytes
   (base64url); only their SHA-256 is stored.
 - **`IMembershipService` / `MembershipService`** (`Features/Access/StaffMembers`, Access module): a user's active memberships in active,
-  non-template clinics, their staff id in a clinic, and "is active member". These are the only reads of
+  non-template, non-deleted clinics (`DeletedAt`, M1.5.1), their staff id in a clinic, and "is active member". These are the only reads of
   `Staff` across clinics, so they use `IgnoreQueryFilters()` (read only); Identity calls the service.
 - **`ISessionService` / `SessionService`** (shared by the session use cases; `SessionRules` holds
   `RotationGrace` and `SetContext`)
@@ -141,7 +141,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   - `IssueAsync`: rotates the refresh token, slides `ExpiresAt` (`RefreshTokenDays` (30) for staff;
     `PlatformSessionHours` (12) for **every session of a super admin**, whatever the context: they can
     switch to the platform at any time without a new code), saves (the hash is an EF concurrency token:
-    a lost race → `RefreshTokenRotated`, 409), invalidates the access cache and builds the access token.
+    a lost race → `RefreshTokenRotated`, 409), queues the access cache invalidation for after the commit
+    (`IPostCommitActions`, M1.5.1) and builds the access token.
     Returns a `SessionIssue`: the `AuthResult` body plus the refresh token and its expiry (`[JsonIgnore]`),
     which only the controller reads, for the cookie.
 - **Refresh**: live session (not revoked, not expired) by token hash; re-checks the context
@@ -153,7 +154,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **Switch**: needs the session's **current refresh cookie** besides the access token
   (missing or another session's → 401 `RefreshTokenRejected`, cookie kept; just rotated → 409), so a stolen
   access token alone can't obtain a refresh token. The requested context must be in the user's
-  contexts; otherwise `clinicSuspended` (a clinic the user could enter, but suspended) or `noAccess`.
+  contexts; otherwise `clinicSuspended` (a clinic the user could enter, but suspended) or `noAccess` (also for
+  a **deleted** clinic, whatever its status: M1.5.1).
 - **Logout**: finds the session by token hash (current, or previous within 30 s) and
   revokes it **by id** with `ExecuteUpdate` (no concurrency check), so a refresh rotating the token
   meanwhile can't undo it.

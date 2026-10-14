@@ -22,7 +22,7 @@ namespace ClinicHub.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Drags.Api.Models.Clinic", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Access.Role", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -30,35 +30,111 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IsTemplate")
+                    b.Property<bool>("IsOwner")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsTemplate")
+                    b.HasIndex("ClinicId")
                         .IsUnique()
-                        .HasFilter("\"IsTemplate\"");
+                        .HasDatabaseName("IX_Roles_ClinicId_Owner")
+                        .HasFilter("\"IsOwner\"");
 
-                    b.ToTable("Clinics");
+                    b.HasIndex("ClinicId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Roles");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Drug", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Access.RolePermission", b =>
+                {
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Permission")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("RoleId", "Permission");
+
+                    b.ToTable("RolePermissions", (string)null);
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Access.Staff", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ClinicId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("Staff");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Access.StaffRole", b =>
+                {
+                    b.Property<int>("StaffId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("StaffId", "RoleId");
+
+                    b.HasIndex("ClinicId");
+
+                    b.HasIndex("RoleId", "ClinicId");
+
+                    b.HasIndex("StaffId", "ClinicId");
+
+                    b.ToTable("StaffRoles");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -90,7 +166,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("Drugs");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.DrugGroup", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroup", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -119,7 +195,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("DrugGroups");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.DrugGroupItem", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroupItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -156,7 +232,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("DrugGroupItems");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.OtpCode", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Identity.OtpCode", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -196,59 +272,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("OtpCodes");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Role", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClinicId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsOwner")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClinicId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Roles_ClinicId_Owner")
-                        .HasFilter("\"IsOwner\"");
-
-                    b.HasIndex("ClinicId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("Roles");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.RolePermission", b =>
-                {
-                    b.Property<int>("RoleId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Permission")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("RoleId", "Permission");
-
-                    b.ToTable("RolePermissions", (string)null);
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.Session", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Identity.Session", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -306,67 +330,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("Sessions");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Staff", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ClinicId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FullName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ClinicId", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("Staff");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.StaffRole", b =>
-                {
-                    b.Property<int>("StaffId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RoleId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ClinicId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("StaffId", "RoleId");
-
-                    b.HasIndex("ClinicId");
-
-                    b.HasIndex("RoleId", "ClinicId");
-
-                    b.HasIndex("StaffId", "ClinicId");
-
-                    b.ToTable("StaffRoles");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.User", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Identity.User", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -399,15 +363,116 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Drug", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Platform.Clinic", b =>
                 {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsTemplate")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsTemplate")
+                        .IsUnique()
+                        .HasFilter("\"IsTemplate\"");
+
+                    b.ToTable("Clinics");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Access.Role", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Access.RolePermission", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Access.Role", null)
+                        .WithMany("Permissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Access.Staff", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.OwnsOne("Drags.Api.Models.Dosing", "DefaultDosing", b1 =>
+                    b.HasOne("ClinicHub.Domain.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Access.StaffRole", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ClinicHub.Domain.Access.Role", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId", "ClinicId")
+                        .HasPrincipalKey("Id", "ClinicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ClinicHub.Domain.Access.Staff", "Staff")
+                        .WithMany("Roles")
+                        .HasForeignKey("StaffId", "ClinicId")
+                        .HasPrincipalKey("Id", "ClinicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
+
+                    b.Navigation("Staff");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.OwnsOne("ClinicHub.Domain.Catalog.Dosing", "DefaultDosing", b1 =>
                         {
                             b1.Property<int>("DrugId")
                                 .HasColumnType("integer");
@@ -455,38 +520,38 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Navigation("DefaultDosing");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.DrugGroup", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroup", b =>
                 {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.DrugGroupItem", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroupItem", b =>
                 {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Drags.Api.Models.DrugGroup", "DrugGroup")
+                    b.HasOne("ClinicHub.Domain.Catalog.DrugGroup", "DrugGroup")
                         .WithMany("Items")
                         .HasForeignKey("DrugGroupId", "ClinicId")
                         .HasPrincipalKey("Id", "ClinicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Drags.Api.Models.Drug", "Drug")
+                    b.HasOne("ClinicHub.Domain.Catalog.Drug", "Drug")
                         .WithMany("GroupItems")
                         .HasForeignKey("DrugId", "ClinicId")
                         .HasPrincipalKey("Id", "ClinicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.OwnsOne("Drags.Api.Models.Dosing", "Dosing", b1 =>
+                    b.OwnsOne("ClinicHub.Domain.Catalog.Dosing", "Dosing", b1 =>
                         {
                             b1.Property<int>("DrugGroupItemId")
                                 .HasColumnType("integer");
@@ -538,32 +603,14 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Navigation("DrugGroup");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Role", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Identity.Session", b =>
                 {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
-                        .WithMany()
-                        .HasForeignKey("ClinicId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.RolePermission", b =>
-                {
-                    b.HasOne("Drags.Api.Models.Role", null)
-                        .WithMany("Permissions")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.Session", b =>
-                {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Drags.Api.Models.User", "User")
+                    b.HasOne("ClinicHub.Domain.Identity.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -572,68 +619,24 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Staff", b =>
-                {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
-                        .WithMany()
-                        .HasForeignKey("ClinicId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Drags.Api.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.StaffRole", b =>
-                {
-                    b.HasOne("Drags.Api.Models.Clinic", null)
-                        .WithMany()
-                        .HasForeignKey("ClinicId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Drags.Api.Models.Role", "Role")
-                        .WithMany()
-                        .HasForeignKey("RoleId", "ClinicId")
-                        .HasPrincipalKey("Id", "ClinicId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Drags.Api.Models.Staff", "Staff")
-                        .WithMany("Roles")
-                        .HasForeignKey("StaffId", "ClinicId")
-                        .HasPrincipalKey("Id", "ClinicId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Role");
-
-                    b.Navigation("Staff");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.Drug", b =>
-                {
-                    b.Navigation("GroupItems");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.DrugGroup", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("Drags.Api.Models.Role", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Access.Role", b =>
                 {
                     b.Navigation("Permissions");
                 });
 
-            modelBuilder.Entity("Drags.Api.Models.Staff", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Access.Staff", b =>
                 {
                     b.Navigation("Roles");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>
+                {
+                    b.Navigation("GroupItems");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroup", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

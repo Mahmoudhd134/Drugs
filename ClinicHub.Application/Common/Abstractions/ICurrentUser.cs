@@ -12,6 +12,9 @@ public interface ICurrentUser
     int? StaffId { get; }
     bool IsClinic { get; }
     bool IsPlatform { get; }
-    /// <summary>Only true in the platform context (the claim is only issued there).</summary>
+    /// <summary>
+    /// Only true in the platform context (the claim is only issued there). The token's claim, possibly stale
+    /// (up to the token's lifetime): not for authorization, use <c>IAccessCache.GetUserAsync</c>.
+    /// </summary>
     bool IsSuperAdmin { get; }
 }

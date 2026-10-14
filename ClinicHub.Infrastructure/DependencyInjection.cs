@@ -22,7 +22,10 @@ public static class DependencyInjection
             .UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
             .AddInterceptors(serviceProvider.GetRequiredService<ClinicAndTimestampsInterceptor>()));
         services.AddScoped<IAppDbContext>(serviceProvider => serviceProvider.GetRequiredService<AppDbContext>());
-        services.AddScoped<ITransactionRunner, TransactionRunner>();
+        // One instance per request for both: the runner knows when its outermost transaction ends
+        services.AddScoped<TransactionRunner>();
+        services.AddScoped<ITransactionRunner>(serviceProvider => serviceProvider.GetRequiredService<TransactionRunner>());
+        services.AddScoped<IPostCommitActions>(serviceProvider => serviceProvider.GetRequiredService<TransactionRunner>());
 
         // In memory. For several servers, register a distributed cache (e.g. AddStackExchangeRedisCache):
         // HybridCache uses it as its second level with no code change

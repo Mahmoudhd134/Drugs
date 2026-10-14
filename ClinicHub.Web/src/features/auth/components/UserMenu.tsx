@@ -27,7 +27,8 @@ export const UserMenu = () => {
                 {me && (
                     <ListItemText
                         sx={{px: 2, pb: 1}}
-                        primary={me.staff?.fullName ?? me.user.phone}
+                        // Phones stay left to right in Arabic (else the "+" moves to the end)
+                        primary={me.staff?.fullName ?? <span dir="ltr">{me.user.phone}</span>}
                         secondary={me.staff ? <span dir="ltr">{me.user.phone}</span> : undefined}
                     />
                 )}

@@ -2,11 +2,14 @@ using System.ComponentModel;
 
 namespace ClinicHub.Application.Features.Access.Authorization;
 
-/// <summary>A staff member's access, as cached. <see cref="IsOwner"/> = one of <see cref="RoleIds"/> is the Owner role.</summary>
+/// <summary>
+/// A staff member's access, as cached. <see cref="IsClinicDeleted"/> = the clinic is soft deleted;
+/// <see cref="IsOwner"/> = one of <see cref="RoleIds"/> is the Owner role.
+/// </summary>
 [ImmutableObject(true)]
 public sealed record StaffAccess(
-    int StaffId, int UserId, int ClinicId, string FullName, bool IsActive, string ClinicStatus, bool IsOwner,
-    IReadOnlyList<int> RoleIds);
+    int StaffId, int UserId, int ClinicId, string FullName, bool IsActive, string ClinicStatus, bool IsClinicDeleted,
+    bool IsOwner, IReadOnlyList<int> RoleIds);
 
 [ImmutableObject(true)]
 public sealed record RoleAccess(int RoleId, int ClinicId, IReadOnlyList<string> Permissions);
@@ -14,8 +17,9 @@ public sealed record RoleAccess(int RoleId, int ClinicId, IReadOnlyList<string> 
 [ImmutableObject(true)]
 public sealed record UserAccess(int UserId, bool IsSuperAdmin);
 
+/// <summary><see cref="IsDeleted"/> = the clinic is soft deleted.</summary>
 [ImmutableObject(true)]
-public sealed record ClinicAccess(int ClinicId, string Status, bool IsTemplate);
+public sealed record ClinicAccess(int ClinicId, string Status, bool IsTemplate, bool IsDeleted);
 
 /// <summary>
 /// Cached reads for the per-request access checks (implemented in Infrastructure: the only code that
@@ -45,7 +49,7 @@ public interface IAccessCache
     Task InvalidateStaffAsync(int staffId, CancellationToken cancellationToken = default);
     /// <summary>A role's permissions or name changed (also call <see cref="InvalidateClinicAsync"/> when it is deleted).</summary>
     Task InvalidateRoleAsync(int roleId, CancellationToken cancellationToken = default);
-    /// <summary>The clinic's status changed or one of its roles was deleted: every entry of the clinic.</summary>
+    /// <summary>The clinic's status changed, it was deleted, or one of its roles was deleted: every entry of the clinic.</summary>
     Task InvalidateClinicAsync(int clinicId, CancellationToken cancellationToken = default);
     /// <summary>A user-level change (e.g. the super-admin flag): every entry of the user.</summary>
     Task InvalidateUserAsync(int userId, CancellationToken cancellationToken = default);
