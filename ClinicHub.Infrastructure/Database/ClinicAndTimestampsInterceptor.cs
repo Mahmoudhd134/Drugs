@@ -9,9 +9,10 @@ namespace ClinicHub.Infrastructure.Database;
 /// <summary>
 /// Before every save: stamps new <see cref="IClinicOwned"/> rows with the current clinic, and throws
 /// if a row is added, changed or deleted with no clinic in context or in another clinic. Fills
-/// <see cref="IHasTimestamps"/> in UTC (a change to an owned value counts as a change to its owner).
+/// <see cref="IHasTimestamps"/> in UTC from <see cref="TimeProvider"/>, the clock the use cases compare those stamps
+/// with (a change to an owned value counts as a change to its owner).
 /// </summary>
-public class ClinicAndTimestampsInterceptor : SaveChangesInterceptor
+public class ClinicAndTimestampsInterceptor(TimeProvider clock) : SaveChangesInterceptor
 {
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
     {
@@ -26,12 +27,12 @@ public class ClinicAndTimestampsInterceptor : SaveChangesInterceptor
         return ValueTask.FromResult(result);
     }
 
-    private static void Apply(DbContext context)
+    private void Apply(DbContext context)
     {
         if (context is not AppDbContext db)
             return;
 
-        var now = DateTime.UtcNow;
+        var now = clock.GetUtcNow().UtcDateTime;
         var entries = db.ChangeTracker.Entries().ToList();
         var ownersOfChangedValues = FindOwnersOfChangedOwnedValues(entries);
 

@@ -36,8 +36,9 @@ Invalid schedules return 400 `invalidDosing`.
 - `IsValid`: 2–10 steps; every step needs an allowed frequency with its value (1–24 times /
   1–72 hours) and an allowed period with its value (1–365); open-ended periods only on the
   **last** step; step dose 0 < x ≤ 1000; no dosing-level frequency/duration next to steps.
-  A step dose does not require the dosing's own unit, because a group line may inherit the unit
-  from the drug.
+  A step dose **from step 2 on** does not require the dosing's own unit, because a group line may
+  inherit the unit from the drug. Step 1's dose becomes the dosing's dose (above), so it needs the
+  unit like any dose (`invalidDosing` without it); the UI locks step 1's dose to the dose above.
 
 ## Frontend (`src/features/dosing/`)
 - `taperConfig.ts`: the business switches, one line each: `MAX_TAPER_STEPS`,
@@ -73,6 +74,11 @@ Invalid schedules return 400 `invalidDosing`.
 
 ## Edge cases & limitations
 - A one-step schedule is saved as a normal dosing (switch is off when reopened).
+- Accepted difference between the API and the SPA (user decision, M1.6): a one-step schedule whose step breaks the
+  step rules (a period in months, «قبل النوم», «عند اللزوم», custom text) is folded first by the API (`Normalize`) and
+  accepted when the resulting plain dosing is valid; the SPA checks the step rules before folding (`dosingErrors`) and
+  refuses it. The SPA never sends such a schedule. Parity fixture rows: `apiOnly`
+  ([tests/fixtures](../../../tests/fixtures/README.md)).
 - Prescription lines in `localStorage` from before this feature have no `taperSteps` and load as before.
 - Steps are inherited as a whole (no per-step inheritance from the drug default).
 - Step frequencies are limited to "times a day" and "every N hours"; periods to days/weeks

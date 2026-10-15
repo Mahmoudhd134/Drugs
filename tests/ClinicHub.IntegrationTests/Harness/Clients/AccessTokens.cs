@@ -8,9 +8,10 @@ using Microsoft.IdentityModel.JsonWebTokens;
 namespace ClinicHub.IntegrationTests.Harness.Clients;
 
 /// <summary>
-/// Access tokens with chosen times, for the token-lifetime cases: JwtBearer checks a token's lifetime with the real
-/// clock (not the test clock), so an "old" token is made by the app's own <see cref="TokenService"/> with a clock set in
-/// the past, for the same user, session and context as a logged-in client (signed with the Testing key).
+/// Access tokens with chosen times without moving the test clock (JwtBearer checks lifetimes against the test clock, so
+/// <c>Clock.Advance</c> is the usual way to age a token): made by the app's own <see cref="TokenService"/> with a clock
+/// set to <c>issuedAt</c>, for the same user, session and context as a logged-in client (signed with the Testing key).
+/// Useful for two tokens of different ages in one test.
 /// </summary>
 public sealed class AccessTokens(AppFixture app)
 {

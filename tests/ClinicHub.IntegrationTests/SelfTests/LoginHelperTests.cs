@@ -138,9 +138,9 @@ public class LoginHelperTests(AppFixture app) : IntegrationTest(app)
     {
         var owner = await Login.OwnerAsync(await Data.Clinic());
 
-        owner.AccessToken = await App.Tokens.ReissueAsync(owner, DateTimeOffset.UtcNow.AddMinutes(-10));
+        owner.AccessToken = await App.Tokens.ReissueAsync(owner, Clock.GetUtcNow().AddMinutes(-10));
         await (await owner.GetAsync("/api/v1/drugs")).ShouldBeOkAsync();
-        owner.AccessToken = await App.Tokens.ReissueAsync(owner, DateTimeOffset.UtcNow.AddMinutes(-16));
+        owner.AccessToken = await App.Tokens.ReissueAsync(owner, Clock.GetUtcNow().AddMinutes(-16));
         await (await owner.GetAsync("/api/v1/drugs")).ShouldBeProblemAsync(HttpStatusCode.Unauthorized, "unauthorized");
     }
 }

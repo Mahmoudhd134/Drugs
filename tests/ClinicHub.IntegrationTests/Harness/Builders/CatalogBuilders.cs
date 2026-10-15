@@ -41,7 +41,7 @@ public sealed class DrugBuilder(AppFixture app, int clinicId)
     public TaskAwaiter<DrugDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }
 
-/// <summary><see cref="CreateDrugGroupCommand"/> in the clinic (or the template): lines in the order added.</summary>
+/// <summary><see cref="CreateDrugGroupCommand"/> in the clinic (or the template): lines in the order added (default: one new drug).</summary>
 public sealed class GroupBuilder(AppFixture app, int clinicId)
 {
     private string name = Unique.Name("Group", "مجموعة");
@@ -62,8 +62,13 @@ public sealed class GroupBuilder(AppFixture app, int clinicId)
 
     public GroupBuilder With(DrugDto drug, Dosing overrideDosing = null) => With(drug.Id, overrideDosing);
 
-    public async Task<DrugGroupDto> CreateAsync() =>
-        (await app.SendAsync(new CreateDrugGroupCommand(name, items), clinicId)).ShouldSucceed();
+    /// <summary>Creates the group; with no line added, one line with a new default drug of the same clinic (a group needs one).</summary>
+    public async Task<DrugGroupDto> CreateAsync()
+    {
+        if (items.Count == 0)
+            items.Add(new SaveDrugGroupItem((await new DrugBuilder(app, clinicId).CreateAsync()).Id, null));
+        return (await app.SendAsync(new CreateDrugGroupCommand(name, items), clinicId)).ShouldSucceed();
+    }
 
     public TaskAwaiter<DrugGroupDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }

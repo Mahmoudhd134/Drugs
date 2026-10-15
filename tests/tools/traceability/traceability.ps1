@@ -9,10 +9,12 @@
     - integration tests      tests/ClinicHub.IntegrationTests/**/*.cs  [Trait("Case", "AUTH-036")]  -> level api
     - Vitest                 ClinicHub.Web/src/**/*.test.ts(x)         "@DOSE-012" in a title         -> levels unit, ui
     - Playwright             ClinicHub.Web/e2e/**/*.spec.ts            "@RX-004" in a title           -> level e2e
-  A test marked as a known bug (xUnit Skip = "BUG-0nn: ...", Vitest test.skip("BUG-1nn: ..."), Playwright test.fixme)
-  counts its cases as covered-but-known-bug: they count for the gates and are listed apart.
-  Fails (exit 1) when a test names an ID that is not in the catalog, and, with -Gate, when the coverage of the cases in
-  scope is below the gates: 100% of P0 and P1, at least 80% of P2 (manual cases are never counted).
+  A test marked as a known bug (xUnit Skip = "BUG-0nn: ...", Vitest test.skip("BUG-1nn: ..."), Playwright
+  test.fixme("BUG-1nn: ...")) counts its cases as covered-but-known-bug: they count for the gates and are listed apart.
+  Any other skip (no BUG-nnn id; also .todo and the tests of a describe.skip) is not coverage, nor is an ID in a
+  comment. Fails (exit 1) when a test names an ID that is not exactly a catalog ID, when a test is skipped without a
+  BUG-nnn id, when the catalog repeats an ID, and, with -Gate, when the coverage of the cases in scope is below the
+  gates: 100% of P0 and P1, at least 80% of P2 (manual cases are never counted).
   Writes <OutDir>/traceability.md and traceability.json.
 
 .PARAMETER Areas
@@ -47,11 +49,13 @@ $idPattern = '[A-Z][A-Z0-9]*-\d{3}'
 
 # ---- Catalog ----
 $cases = [ordered]@{}
+$duplicates = New-Object System.Collections.ArrayList
 foreach ($line in [IO.File]::ReadAllLines($Catalog, $utf8)) {
     if ($line -notmatch "^\|\s*($idPattern)\s*\|") { continue }
     $cells = $line.Trim().Trim('|') -split '\|'
     # From the right: the case text may itself hold a "|"
     $id = $cells[0].Trim()
+    if ($cases.Contains($id)) { [void]$duplicates.Add($id); continue }
     $priority = $cells[$cells.Count - 3].Trim()
     $level = $cells[$cells.Count - 2].Trim()
     $cases[$id] = [pscustomobject]@{
@@ -60,9 +64,12 @@ foreach ($line in [IO.File]::ReadAllLines($Catalog, $utf8)) {
     }
 }
 if ($cases.Count -eq 0) { throw "No case found in $Catalog" }
+# IDs are stable and never reused (design D2)
+if ($duplicates.Count -gt 0) { throw "Duplicate case IDs in $($Catalog): $(($duplicates | Sort-Object -Unique) -join ', ')" }
 
 # ---- Tests ----
-$found = New-Object System.Collections.ArrayList   # { Id, Level(s), KnownBug, File, Line }
+# { Id, Levels, State (covered | knownBug | skipped), File, Line }; "skipped" = skipped without a BUG-nnn id: not counted
+$found = New-Object System.Collections.ArrayList
 
 function Get-Files([string] $dir, [string[]] $patterns) {
     if (-not (Test-Path $dir)) { return @() }
@@ -70,45 +77,123 @@ function Get-Files([string] $dir, [string[]] $patterns) {
         Where-Object { $_.FullName -notmatch '\\(bin|obj|node_modules)\\' }
 }
 
-function Add-CSharp([string] $dir, [string[]] $levels) {
-    foreach ($file in Get-Files $dir @('*.cs')) {
-        $lines = [IO.File]::ReadAllLines($file.FullName, $utf8)
-        # The attributes above one member: their case IDs share the member's Skip
-        $block = New-Object System.Collections.ArrayList
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            $text = $lines[$i].Trim()
-            if ($text.StartsWith('[') -or ($block.Count -gt 0 -and $text.StartsWith('//'))) {
-                [void]$block.Add(@{ Text = $text; Line = $i + 1 })
+# The lines with their comments blanked out ("//..." and "/* ... */", also across lines), strings kept: an ID in a
+# comment proves nothing. $quotes: the string delimiters of the language.
+function Remove-Comments([string[]] $lines, [char[]] $quotes) {
+    $out = New-Object System.Collections.ArrayList
+    $inBlock = $false
+    foreach ($line in $lines) {
+        $sb = New-Object System.Text.StringBuilder
+        $quote = [char]0
+        for ($i = 0; $i -lt $line.Length; $i++) {
+            $c = $line[$i]
+            $next = [char]0; if ($i + 1 -lt $line.Length) { $next = $line[$i + 1] }
+            if ($inBlock) {
+                if ($c -eq '*' -and $next -eq '/') { $inBlock = $false; $i++ }
                 continue
             }
-            if ($block.Count -gt 0) {
+            if ($quote -ne [char]0) {
+                [void]$sb.Append($c)
+                if ($c -eq [char]92 -and $next -ne [char]0) { [void]$sb.Append($next); $i++ }
+                elseif ($c -eq $quote) { $quote = [char]0 }
+                continue
+            }
+            if ($c -eq '/' -and $next -eq '/') { break }
+            if ($c -eq '/' -and $next -eq '*') { $inBlock = $true; $i++; continue }
+            if ($quotes -contains $c) { $quote = $c }
+            [void]$sb.Append($c)
+        }
+        [void]$out.Add($sb.ToString())
+    }
+    return , $out.ToArray()
+}
+
+# How much a line opens (+) or closes (-) of $open/$close, outside strings
+function Get-Depth([string] $line, [char] $open, [char] $close, [char[]] $quotes) {
+    $depth = 0; $quote = [char]0
+    for ($i = 0; $i -lt $line.Length; $i++) {
+        $c = $line[$i]
+        if ($quote -ne [char]0) {
+            if ($c -eq [char]92) { $i++ } elseif ($c -eq $quote) { $quote = [char]0 }
+            continue
+        }
+        if ($quotes -contains $c) { $quote = $c }
+        elseif ($c -eq $open) { $depth++ }
+        elseif ($c -eq $close) { $depth-- }
+    }
+    return $depth
+}
+
+function Add-Found([string] $id, [string[]] $levels, [string] $state, [string] $file, [int] $line) {
+    [void]$found.Add([pscustomobject]@{ Id = $id; Levels = $levels; State = $state; File = $file.Substring($Root.Length + 1); Line = $line })
+}
+
+# xUnit: the attributes above one member (continuation lines of a multi-line attribute included) share its Skip
+function Add-CSharp([string] $dir, [string[]] $levels) {
+    $quotes = [char[]]@('"')
+    foreach ($file in Get-Files $dir @('*.cs')) {
+        $lines = Remove-Comments ([IO.File]::ReadAllLines($file.FullName, $utf8)) $quotes
+        $block = New-Object System.Collections.ArrayList
+        $depth = 0
+        for ($i = 0; $i -le $lines.Count; $i++) {
+            $text = ''; if ($i -lt $lines.Count) { $text = $lines[$i].Trim() }
+            $inBlock = $block.Count -gt 0
+            if ($i -lt $lines.Count -and ($text.StartsWith('[') -or ($inBlock -and ($depth -gt 0 -or $text -eq '')))) {
+                [void]$block.Add(@{ Text = $text; Line = $i + 1 })
+                $depth += Get-Depth $text '[' ']' $quotes
+                continue
+            }
+            if ($inBlock) {
                 $all = ($block | ForEach-Object { $_.Text }) -join ' '
-                $knownBug = $all -match 'Skip\s*=\s*"BUG-\d+'
+                $state = 'covered'
+                if ($all -match 'Skip\s*=\s*"\s*BUG-\d{3}') { $state = 'knownBug' }
+                elseif ($all -match 'Skip\s*=\s*"') { $state = 'skipped' }
                 foreach ($entry in $block) {
                     foreach ($m in [regex]::Matches($entry.Text, "Trait\(\s*""Case""\s*,\s*""([^""]+)""\s*\)")) {
-                        [void]$found.Add([pscustomobject]@{
-                            Id = $m.Groups[1].Value; Levels = $levels; KnownBug = $knownBug
-                            File = $file.FullName.Substring($Root.Length + 1); Line = $entry.Line })
+                        Add-Found $m.Groups[1].Value $levels $state $file.FullName $entry.Line
                     }
                 }
                 $block.Clear()
+                $depth = 0
             }
         }
     }
 }
 
+# Vitest / Playwright: "@ID" tokens in a test or describe title. The title belongs to the nearest call opened on its
+# line or up to 5 lines above (prettier wraps long titles); inside a describe.skip/fixme block every test is skipped too.
 function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels) {
+    $quotes = [char[]]@('"', "'", '`')
+    $opener = '\b(test|it|describe)((\.\w+)*)\s*\('
     foreach ($file in Get-Files $dir $patterns) {
-        $lines = [IO.File]::ReadAllLines($file.FullName, $utf8)
+        $lines = Remove-Comments ([IO.File]::ReadAllLines($file.FullName, $utf8)) $quotes
+        $braces = 0
+        $skippedBlocks = New-Object System.Collections.ArrayList   # { Depth, Bug }
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $text = $lines[$i]
-            $tokens = [regex]::Matches($text, "@($idPattern)\b")
-            if ($tokens.Count -eq 0) { continue }
-            $knownBug = ($text -match '\.(skip|fixme)\s*\(' -and $text -match 'BUG-\d+') -or ($text -match '\.fixme\s*\(')
-            foreach ($m in $tokens) {
-                [void]$found.Add([pscustomobject]@{
-                    Id = $m.Groups[1].Value; Levels = $levels; KnownBug = $knownBug
-                    File = $file.FullName.Substring($Root.Length + 1); Line = $i + 1 })
+            $tokens = [regex]::Matches($text, '@([A-Za-z][A-Za-z0-9]*-\d+)\b')
+            if ($tokens.Count -gt 0) {
+                $state = 'covered'
+                $start = $i
+                for ($j = $i; $j -ge [math]::Max(0, $i - 5); $j--) {
+                    if ($lines[$j] -match $opener) { $start = $j; break }
+                }
+                $call = ($lines[$start..$i] -join ' ')
+                $modifiers = ''
+                if ($call -match $opener) { $modifiers = $Matches[2] }
+                $bug = $call -match 'BUG-\d{3}'
+                if ($modifiers -match '\.(skip|fixme|todo)\b') { if ($bug) { $state = 'knownBug' } else { $state = 'skipped' } }
+                elseif ($skippedBlocks.Count -gt 0) {
+                    if ($bug -or @($skippedBlocks | Where-Object { $_.Bug }).Count -gt 0) { $state = 'knownBug' } else { $state = 'skipped' }
+                }
+                foreach ($m in $tokens) { Add-Found $m.Groups[1].Value $levels $state $file.FullName ($i + 1) }
+            }
+            if ($text -match '\bdescribe((\.\w+)*)\s*\(' -and $Matches[1] -match '\.(skip|fixme)\b') {
+                [void]$skippedBlocks.Add([pscustomobject]@{ Depth = $braces; Bug = ($text -match 'BUG-\d{3}') })
+            }
+            $braces += Get-Depth $text '{' '}' $quotes
+            while ($skippedBlocks.Count -gt 0 -and $braces -le $skippedBlocks[$skippedBlocks.Count - 1].Depth -and $text -match '\}') {
+                $skippedBlocks.RemoveAt($skippedBlocks.Count - 1)
             }
         }
     }
@@ -120,11 +205,13 @@ Add-Script (Join-Path $Root 'ClinicHub.Web\src') @('*.test.ts', '*.test.tsx') @(
 Add-Script (Join-Path $Root 'ClinicHub.Web\e2e') @('*.spec.ts') @('e2e')
 
 # ---- Matching ----
-$unknown = @($found | Where-Object { -not $cases.Contains($_.Id) })
+# Anything not exactly a catalog ID (a typo, "@AUTH-0163", "@auth-189") is unknown
+$unknown = @($found | Where-Object { -not $cases.Contains($_.Id) -or $_.Id -cnotmatch "^$idPattern$" })
+$skippedWithoutBug = @($found | Where-Object { $_.State -eq 'skipped' })
 # case|level -> 'covered' | 'knownBug'
 $status = @{}
 $offLevel = New-Object System.Collections.ArrayList
-foreach ($test in ($found | Where-Object { $cases.Contains($_.Id) })) {
+foreach ($test in ($found | Where-Object { $_.State -ne 'skipped' -and $cases.Contains($_.Id) -and $_.Id -cmatch "^$idPattern$" })) {
     $case = $cases[$test.Id]
     $matched = @($test.Levels | Where-Object { $case.Levels -contains $_ })
     if ($matched.Count -eq 0) {
@@ -134,7 +221,7 @@ foreach ($test in ($found | Where-Object { $cases.Contains($_.Id) })) {
     foreach ($level in $matched) {
         $key = "$($test.Id)|$level"
         # A passing test wins over a known-bug one
-        if (-not $test.KnownBug) { $status[$key] = 'covered' }
+        if ($test.State -eq 'covered') { $status[$key] = 'covered' }
         elseif (-not $status.ContainsKey($key)) { $status[$key] = 'knownBug' }
     }
 }
@@ -208,6 +295,14 @@ foreach ($areaGroup in ($rows | Group-Object Area)) {
         [void]$md.AppendLine("| $($areaGroup.Name) | $($levelGroup.Name) | $($cells -join ' | ') | $missingTop |")
     }
 }
+if ($skippedWithoutBug.Count -gt 0) {
+    [void]$md.AppendLine('')
+    [void]$md.AppendLine('## Skipped without a BUG-nnn id (not counted): FAIL')
+    [void]$md.AppendLine('')
+    [void]$md.AppendLine('A test is skipped only as a known bug (Skip = "BUG-0nn: ...", test.skip/fixme("BUG-1nn: ...")); any other skip is not coverage.')
+    [void]$md.AppendLine('')
+    foreach ($k in $skippedWithoutBug) { [void]$md.AppendLine("- $($k.Id): $($k.File):$($k.Line)") }
+}
 if ($unknown.Count -gt 0) {
     [void]$md.AppendLine('')
     [void]$md.AppendLine('## Unknown IDs (not in the catalog): FAIL')
@@ -237,6 +332,7 @@ foreach ($m in $missingTop) { [void]$md.AppendLine("- $($m.Id) ($($m.Priority), 
 $json = [pscustomobject]@{
     catalogCases = $cases.Count; testsNamingCases = $found.Count; scope = $scopeText
     gate = $gateResults; unknownIds = @($unknown | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" })
+    skippedWithoutBug = @($skippedWithoutBug | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" })
     knownBugCases = @($bugs | ForEach-Object { "$($_.Id)|$($_.Level)" })
     missing = @($scoped | Where-Object { $_.State -eq 'missing' } | ForEach-Object { "$($_.Id)|$($_.Priority)|$($_.Level)" })
 } | ConvertTo-Json -Depth 5
@@ -249,6 +345,10 @@ foreach ($g in $gateResults) {
 $failed = $false
 if ($unknown.Count -gt 0) {
     Write-Host "  Unknown case IDs: $(($unknown | ForEach-Object { $_.Id }) -join ', ')" -ForegroundColor Red
+    $failed = $true
+}
+if ($skippedWithoutBug.Count -gt 0) {
+    Write-Host "  Tests skipped without a BUG-nnn id: $(($skippedWithoutBug | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" }) -join '; ')" -ForegroundColor Red
     $failed = $true
 }
 if ($Gate -and $gateFailed) {

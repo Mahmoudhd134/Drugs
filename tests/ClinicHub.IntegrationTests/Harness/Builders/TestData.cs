@@ -91,7 +91,10 @@ public sealed class TestData(AppFixture app)
 
     public DrugBuilder Drug(ClinicHandle clinic) => Drug(clinic.Id);
 
-    /// <summary>A group (default: a unique name, no lines; add lines with <see cref="GroupBuilder.With(int, Dosing)"/>).</summary>
+    /// <summary>
+    /// A group (default: a unique name and one line with a new default drug of the clinic; lines added with
+    /// <see cref="GroupBuilder.With(int, Dosing)"/> replace that default).
+    /// </summary>
     public GroupBuilder Group(int clinicId) => new(app, clinicId);
 
     public GroupBuilder Group(ClinicHandle clinic) => Group(clinic.Id);

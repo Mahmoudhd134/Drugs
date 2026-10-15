@@ -18,7 +18,7 @@ public sealed record PermissionDefinition(string Key, string Module, string Reso
 /// </summary>
 public static partial class PermissionCatalog
 {
-    public static readonly IReadOnlyList<PermissionDefinition> All = Build();
+    public static readonly IReadOnlyList<PermissionDefinition> All = Build(typeof(Permissions));
 
     private static readonly Dictionary<string, PermissionDefinition> ByKey = All.ToDictionary(p => p.Key);
 
@@ -46,14 +46,19 @@ public static partial class PermissionCatalog
     [GeneratedRegex(@"^[a-z][a-zA-Z]*\.[a-z][a-zA-Z]*$")]
     private static partial Regex KeyFormat();
 
-    private static List<PermissionDefinition> Build()
+    /// <summary>
+    /// Reads and validates the catalog declared by <paramref name="permissions"/> (its public nested classes, one per
+    /// resource); throws on a bad declaration, so the app refuses to start. Internal (not private) for the unit tests,
+    /// which feed it bad declarations.
+    /// </summary>
+    internal static List<PermissionDefinition> Build(Type permissions)
     {
-        var definitions = typeof(Permissions).GetNestedTypes(BindingFlags.Public)
+        var definitions = permissions.GetNestedTypes(BindingFlags.Public)
             .SelectMany(type =>
             {
                 var module = type.GetCustomAttribute<PermissionModuleAttribute>()?.Module;
                 if (string.IsNullOrWhiteSpace(module))
-                    throw new InvalidOperationException($"Permissions.{type.Name} has no [PermissionModule].");
+                    throw new InvalidOperationException($"{permissions.Name}.{type.Name} has no [PermissionModule].");
                 // Drugs → drugs: a class only holds its own resource's keys
                 var resource = char.ToLowerInvariant(type.Name[0]) + type.Name[1..];
                 return type.GetFields(BindingFlags.Public | BindingFlags.Static)

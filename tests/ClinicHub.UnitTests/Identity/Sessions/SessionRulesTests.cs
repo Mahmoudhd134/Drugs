@@ -11,7 +11,7 @@ namespace ClinicHub.UnitTests.Identity.Sessions;
 public class SessionRulesTests
 {
     [Fact]
-    public void A_rotated_refresh_token_is_recognized_for_30_seconds()
+    public void The_rotation_grace_is_30_seconds()
     {
         SessionRules.RotationGrace.ShouldBe(TimeSpan.FromSeconds(30));
     }
