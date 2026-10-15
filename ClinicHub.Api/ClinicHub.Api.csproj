@@ -44,4 +44,10 @@
     <ProjectReference Include="..\ClinicHub.Infrastructure\ClinicHub.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- Test projects see internal types (validators, handlers, rules) -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClinicHub.UnitTests" />
+    <InternalsVisibleTo Include="ClinicHub.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

@@ -71,3 +71,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Lets the integration tests host the app (WebApplicationFactory<Program>)
+public partial class Program;
