@@ -22,9 +22,10 @@ public class LoginSmokeTests(AppFixture app) : IntegrationTest(app)
 
         var response = await browser.VerifyOtpAsync(clinic.Owner.Phone, code);
 
+        await response.ShouldBeOkAsync();
         var auth = await response.ReadAsync<AuthResult>();
         auth.AccessToken.ShouldNotBeNullOrEmpty();
-        auth.ExpiresAt.ShouldBe(Clock.GetUtcNow().UtcDateTime.AddMinutes(15), TimeSpan.FromSeconds(10));
+        auth.ExpiresAt.ShouldBe(Clock.GetUtcNow().UtcDateTime.AddMinutes(15));
         auth.Context.Type.ShouldBe("clinic");
         auth.Context.ClinicId.ShouldBe(clinic.Id);
         auth.Context.ClinicName.ShouldBe(clinic.Name);

@@ -77,7 +77,8 @@ public static class HttpAssertions
     public static async Task<Problem> ShouldBeProblemAsync(this HttpResponseMessage response, HttpStatusCode status, string code)
     {
         var body = await response.ShouldBeAsync(status);
-        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json", body);
+        response.Content.Headers.ContentType.ShouldNotBeNull(body);
+        response.Content.Headers.ContentType.MediaType.ShouldBe("application/problem+json", body);
         var problem = Json.Read<Problem>(body) with { Body = JsonNode.Parse(body).AsObject() };
         problem.Status.ShouldBe((int)status, body);
         problem.Code.ShouldBe(code, body);

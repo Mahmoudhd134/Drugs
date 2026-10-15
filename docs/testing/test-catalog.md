@@ -24,7 +24,7 @@ case and its source disagree, the source wins and the case is fixed.
 | Source | The doc section that states the behavior (relative links) |
 
 - Fixtures: integration tests run in the `Testing` environment with the intended OTP limits (5 attempts, 60 s, 5 per
-  hour) and `FakeTimeProvider` ([D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout)); test data is built
+  hour) and a frozen test clock ([D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout)); test data is built
   through the real use cases. Example names below: clinics A, B, C; drugs "Tobradex", "Vigamox", "Pred Forte" and
   «قطرة مرطبة»; groups "Post cataract" (G).
 - Dosing sentences are the exact output of `dosingToText` (`rxTextAr.ts`). Arabic plural classes: one = 1, two = 2,
@@ -1412,7 +1412,7 @@ through xUnit (`DosingRules`) and Vitest (`normalizeDosing`/`dosingErrors`).
 | DOSE-062 | Given a non-custom frequency with `frequencyText`, then normalize drops the text; custom text is trimmed | P1 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
 | DOSE-063 | Given continuous / untilNextVisit with a `durationValue`, then normalize drops the value | P1 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
 | DOSE-064 | Given blank strings for codes (`doseUnit:""`, `eye:" "`), then they normalize to null | P2 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
-| DOSE-065 | Given all fields empty, then normalize returns null (API) and the drug stores `defaultDosing: null` | P1 | unit | [dosing tech § Data model](../features/dosing/tech.md#data-model) |
+| DOSE-065 | Given all fields empty, then normalize returns null (API) and the drug stores `defaultDosing: null` | P1 | unit+api | [dosing tech § Data model](../features/dosing/tech.md#data-model) |
 | DOSE-066 | Given the same input, then C# `DosingRules.Normalize`/`IsValid` and TS `normalizeDosing`/`dosingErrors` agree for every row of `tests/fixtures/dosing-cases.json` | P0 | unit | [M1.6 § D6](../design/m1.6-test-foundation.md#d6-rule-parity-between-c-and-typescript) |
 | DOSE-067 | Given two dosings that differ only in fields that don't apply, then `sameDosing` is true | P1 | unit | [dosing tech § Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
 | DOSE-068 | Given `eyeKey` of a dosing without an eye, then "none"; `otherEye` right↔left, and null for both/none/ask | P1 | unit | [dosing tech § Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
@@ -1527,7 +1527,7 @@ Sources: [tapering business](../features/tapering/business.md), [tapering tech](
 | TAPER-054 | Given start 10, reduce 1, down to 1, then 10 steps (allowed) | P1 | unit | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | TAPER-055 | Given start 11, reduce 1, down to 1 (11 steps), then no result | P1 | unit | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | TAPER-056 | Given start 0 or 25, reduce 0, down to 0, down to above start, each 0 or 366, a non-integer (2.5) or an empty field, then no result | P1 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
-| TAPER-057 | Given start 24, each 365 days, reduce 3, down to 1, then a valid plan (24, 21, …, 3, 1 = 10 steps) | P2 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
+| TAPER-057 | Given start 24, each 365 days, reduce 3, down to 1, then a valid plan (24, 21, 18, 15, 12, 9, 6, 3, 1 = 9 steps) | P2 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-058 | Given start = down to (e.g. 2 and 2), then a 1-step plan («عدد المراحل: 1», «إنشاء» enabled), which saves as a plain dosing | P2 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-059 | Given «إنشاء تلقائي…», when opened, then it is pre-filled from step 1 (start = its times a day, reduce 1, down to 1, each = its period) and shows «سيتم استبدال المراحل الحالية. يمكنك تعديل كل مرحلة بعد ذلك.» | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-060 | Given a valid plan in the generator, then it shows «عدد المراحل: N»; clicking «إنشاء» replaces the steps and closes it | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |

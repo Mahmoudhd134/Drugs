@@ -37,6 +37,9 @@ public static class TestRun
     private static readonly ConcurrentDictionary<string, byte> Created = new();
     private static Task started;
     private static NpgsqlConnection lockConnection;
+    // Set only once this process holds the run's liveness lock: a refused duplicate run must not drop the live run's
+    // databases on its way out
+    private static bool ownsLock;
     private static int copies;
 
     /// <summary>The databases of this run that exist now (template and copies).</summary>
@@ -49,7 +52,7 @@ public static class TestRun
     private static string Server => Environment.GetEnvironmentVariable(ServerVariable) is { Length: > 0 } server ? server : DefaultServer;
 
     /// <summary>The maintenance database, unpooled: only CREATE / DROP / COMMENT and the liveness locks.</summary>
-    private static string AdminConnectionString
+    internal static string AdminConnectionString
     {
         get
         {
@@ -73,6 +76,7 @@ public static class TestRun
         if (!await TryLockAsync(lockConnection, Id))
             throw new InvalidOperationException(
                 $"Another test process is running with the run id '{Id}' ({RunIdVariable}); use another id.");
+        ownsLock = true;
 
         await DropStaleAsync();
 
@@ -106,7 +110,11 @@ public static class TestRun
         Created.TryRemove(database, out _);
     }
 
-    /// <summary>End of the process: drops every database of this run and releases the liveness lock.</summary>
+    /// <summary>
+    /// End of the process: drops every database of this run and releases the liveness lock; a later start in the same
+    /// process (a test host kept alive) starts a new template. A process that never got the lock (a duplicate run id)
+    /// drops nothing: those databases belong to the live run.
+    /// </summary>
     public static async Task ShutdownAsync()
     {
         Task start;
@@ -123,18 +131,28 @@ public static class TestRun
             // A failed start still cleans up what it created
         }
 
-        NpgsqlConnection.ClearAllPools();
-        await using (var connection = new NpgsqlConnection(AdminConnectionString))
+        try
         {
-            await connection.OpenAsync();
-            foreach (var database in await ListAsync(connection))
-                if (RunOf(database.Name) == Id)
-                    await DropAsync(connection, database.Name);
+            if (ownsLock)
+            {
+                NpgsqlConnection.ClearAllPools();
+                await using var connection = new NpgsqlConnection(AdminConnectionString);
+                await connection.OpenAsync();
+                foreach (var database in await ListAsync(connection))
+                    if (RunOf(database.Name) == Id)
+                        await DropAsync(connection, database.Name);
+            }
         }
-        Created.Clear();
-        if (lockConnection is not null)
-            await lockConnection.DisposeAsync();
-        lockConnection = null;
+        finally
+        {
+            Created.Clear();
+            if (lockConnection is not null)
+                await lockConnection.DisposeAsync();
+            lockConnection = null;
+            ownsLock = false;
+            lock (Sync)
+                started = null;
+        }
     }
 
     /// <summary>

@@ -20,9 +20,23 @@ namespace ClinicHub.IntegrationTests.Harness.Clients;
 /// the phone's earlier codes: logins in a test never hit the limits. A test that checks the limits requests codes
 /// itself (<see cref="ApiClient.RequestOtpAsync"/>) and must not log the same phone in through these helpers meanwhile.
 /// </para>
+/// <para>
+/// By default on the collection's app; <see cref="On"/> gives the same helpers on a variant app (a "restarted" API).
+/// </para>
 /// </summary>
-public sealed class Logins(AppFixture app)
+public sealed class Logins(AppFixture app, ClinicHubFactory factory = null)
 {
+    private ClinicHubFactory Factory => factory ?? app.Factory;
+
+    /// <summary>The same helpers on <paramref name="variant"/> (<see cref="AppFixture.CreateVariant"/>), e.g. <c>Login.On(variant).SuperAdminAsync()</c>.</summary>
+    public Logins On(ClinicHubFactory variant) => new(app, variant);
+
+    /// <summary>The first super admin phone of this app's settings (<c>Platform:SuperAdminPhones</c>), E.164.</summary>
+    public string SuperAdminPhone =>
+        Factory.Services.GetRequiredService<IPhoneNormalizer>().Normalize(
+            Factory.Services.GetRequiredService<PlatformSettings>().SuperAdminPhones[0],
+            Factory.Services.GetRequiredService<PlatformSettings>().DefaultRegion);
+
     /// <summary>A code for <paramref name="phone"/> (its earlier codes deleted first): the <c>devCode</c> of a 200 request.</summary>
     public async Task<string> CodeAsync(ApiClient client, string phone)
     {
@@ -42,7 +56,7 @@ public sealed class Logins(AppFixture app)
     /// <summary>A new browser logged in as <paramref name="phone"/> (asserts 200); its context is set only when the user has one place.</summary>
     public async Task<ApiClient> AsAsync(string phone)
     {
-        var client = app.CreateClient();
+        var client = new ApiClient(Factory);
         await (await TryAsync(client, phone)).ShouldBeOkAsync();
         return client;
     }
@@ -50,7 +64,7 @@ public sealed class Logins(AppFixture app)
     /// <summary>The test super admin in the platform context (the admin endpoints).</summary>
     public async Task<ApiClient> SuperAdminAsync()
     {
-        var client = await AsAsync(app.SuperAdminPhone);
+        var client = await AsAsync(SuperAdminPhone);
         await client.EnterPlatformAsync();
         return client;
     }
@@ -58,7 +72,7 @@ public sealed class Logins(AppFixture app)
     /// <summary>The test super admin in the template clinic (editing the default catalog).</summary>
     public async Task<ApiClient> SuperAdminInTemplateAsync()
     {
-        var client = await AsAsync(app.SuperAdminPhone);
+        var client = await AsAsync(SuperAdminPhone);
         await client.EnterClinicAsync(await app.TemplateClinicIdAsync());
         return client;
     }
@@ -88,16 +102,25 @@ public sealed class Logins(AppFixture app)
 
     /// <summary>
     /// Fast path (opt-in): one session kept for the whole test class under <paramref name="key"/>, never shared with
-    /// another class. Only for tests that don't change that session (no logout, switch or refresh on it).
+    /// another class. Only for tests that don't change that session (no logout, switch or refresh on it). Get it
+    /// before moving the clock (its token is dated by the clock, and the clock goes back to the real time between
+    /// tests): called after <c>Clock.Advance</c>, it throws.
     /// </summary>
-    public Task<ApiClient> SharedAsync(string key, Func<Task<ApiClient>> login) => app.PerClassAsync($"login:{key}", login);
+    public Task<ApiClient> SharedAsync(string key, Func<Task<ApiClient>> login)
+    {
+        if (app.Clock.Offset != TimeSpan.Zero)
+            throw new InvalidOperationException(
+                "Get the shared session before Clock.Advance: a token dated in this test's future is refused in the next test.");
+        return app.PerClassAsync($"login:{key}", login);
+    }
 
     /// <summary>The super admin (platform context), one session per test class.</summary>
     public Task<ApiClient> SharedSuperAdminAsync() => SharedAsync("superadmin", SuperAdminAsync);
 
-    private async Task ClearCodesAsync(string phone)
+    /// <summary>Deletes the earlier OTP codes of <paramref name="phone"/> (what the helpers do before each login).</summary>
+    public async Task ClearCodesAsync(string phone)
     {
-        var services = app.Factory.Services;
+        var services = Factory.Services;
         var normalized = services.GetRequiredService<IPhoneNormalizer>()
             .Normalize(phone, services.GetRequiredService<PlatformSettings>().DefaultRegion);
         if (normalized is null)

@@ -7,7 +7,6 @@ using ClinicHub.IntegrationTests.Harness.Clients;
 using ClinicHub.IntegrationTests.Harness.Databases;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Respawn;
@@ -24,6 +23,8 @@ namespace ClinicHub.IntegrationTests.Harness.Hosting;
 /// Respawn (every table but the migrations history), the startup seeder runs again (template clinic + test super
 /// admin: what a fresh template holds), the access cache is emptied and the per-class sessions are dropped. Tests of
 /// one class share the database, so each builds its own data (unique names). The clock is reset before every test.
+/// A test that started a variant app (<see cref="CreateVariant"/>: its startup seeder ran on this database) makes the
+/// next test start as if it were a new class.
 /// </para>
 /// </summary>
 public sealed class AppFixture : IAsyncLifetime
@@ -32,6 +33,7 @@ public sealed class AppFixture : IAsyncLifetime
     private Respawner respawner;
     private Type currentClass;
     private bool used;
+    private bool dirty;
 
     public AppFixture()
     {
@@ -70,18 +72,26 @@ public sealed class AppFixture : IAsyncLifetime
             await TestRun.DropAsync(DatabaseName);
     }
 
-    /// <summary>Called by <see cref="IntegrationTest"/> before each test: clock reset; database reset on a new class.</summary>
+    /// <summary>
+    /// Called by <see cref="IntegrationTest"/> before each test: clock reset; database reset on a new class (or after a
+    /// variant app ran on the database).
+    /// </summary>
     public async Task BeforeTestAsync(Type testClass)
     {
+        var moved = Clock.Offset != TimeSpan.Zero;
         Clock.Reset();
-        if (testClass == currentClass)
+        // Entries cached under a moved clock carry later timestamps than any invalidation made after the reset
+        if (moved)
+            Factory.ClearMemoryCache();
+        if (testClass == currentClass && !dirty)
             return;
         currentClass = testClass;
         await DisposePerClassAsync();
         // A fresh copy is already clean
-        if (used)
+        if (used || dirty)
             await ResetAsync();
         used = true;
+        dirty = false;
     }
 
     /// <summary>
@@ -103,8 +113,9 @@ public sealed class AppFixture : IAsyncLifetime
         }
         await using (var scope = Factory.Services.CreateAsyncScope())
             await scope.ServiceProvider.GetRequiredService<IStartupSeeder>().SeedAsync(isDevelopment: false);
-        // "*" = every entry, whatever its tags
-        await Factory.Services.GetRequiredService<HybridCache>().RemoveByTagAsync("*");
+        // The whole cache, without HybridCache's "*" invalidation: that one is stamped with the (frozen) clock and
+        // would also refuse every entry cached later at the same instant
+        Factory.ClearMemoryCache();
     }
 
     /// <summary>A new anonymous client with its own cookie jar (one browser).</summary>
@@ -164,10 +175,16 @@ public sealed class AppFixture : IAsyncLifetime
         QueryDbAsync(db => db.Clinics.Where(c => c.IsTemplate).Select(c => c.Id).SingleAsync());
 
     /// <summary>
-    /// Another app on this collection's database with config and/or service overrides (startup refusals, a throwing
-    /// sender…). It has its own clock and caches; dispose it in the test (<c>await using</c>).
+    /// Another app on this collection's database with config and/or service overrides: a restart with other settings
+    /// (startup refusals, another <c>Platform:SuperAdminPhones</c>), a throwing sender… Its startup runs the seeder on
+    /// this database, so the next test starts on a reset database (as a new class would). It has its own clock and
+    /// caches: after it starts, send every request through it (<c>new ApiClient(variant)</c>,
+    /// <c>Login.On(variant)</c>) and move <c>variant.Clock</c>. Dispose it in the test (<c>await using</c>).
     /// </summary>
     public ClinicHubFactory CreateVariant(IReadOnlyDictionary<string, string> settings = null,
-        Action<IServiceCollection> services = null) =>
-        new(Factory.ConnectionString, settings, services);
+        Action<IServiceCollection> services = null)
+    {
+        dirty = true;
+        return new ClinicHubFactory(Factory.ConnectionString, settings, services);
+    }
 }

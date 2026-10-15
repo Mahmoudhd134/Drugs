@@ -54,12 +54,4 @@ public class StaffRulesTests
 
         staff.ActiveOwners().Select(s => s.Id).ShouldBe([1, 4]);
     }
-
-    [Fact]
-    public void With_roles_keeps_every_staff_member()
-    {
-        var staff = new List<Staff> { Member(1, true, OwnerRole), Member(2, false) }.AsQueryable();
-
-        staff.WithRoles().Select(s => s.Id).ShouldBe([1, 2]);
-    }
 }

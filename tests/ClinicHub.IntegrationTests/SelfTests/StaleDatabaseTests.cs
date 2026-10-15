@@ -8,23 +8,29 @@ namespace ClinicHub.IntegrationTests.SelfTests;
 /// <summary>
 /// Crash cleanup (design D3): a run that is gone (killed, crashed) leaves its databases behind; the next run drops
 /// them, but never the databases of a run that is still alive (another worktree testing in parallel).
+/// <para>
+/// Other test processes may run at the same time (parallel worktrees) and clean up too, so these tests check the
+/// outcome (the database is gone, or still there), never which process dropped it.
+/// </para>
 /// </summary>
 [Trait("Area", "infra")]
 public class StaleDatabaseTests
 {
-    private const string Admin = "Host=localhost;Port=5432;Database=postgres;Username=drags;Password=drags;Pooling=false";
-
     [Fact]
     public async Task The_databases_of_a_run_that_is_gone_are_dropped()
     {
         await TestRun.EnsureStartedAsync();
         var database = $"drags_it_{NewRunId("gone")}_1";
-        await CreateAsync(database);
+        try
+        {
+            await CreateAsync(database);
 
-        var dropped = await TestRun.DropStaleAsync();
-
-        dropped.ShouldContain(database);
-        (await ExistsAsync(database)).ShouldBeFalse();
+            await ShouldBeDroppedByTheCleanupAsync(database);
+        }
+        finally
+        {
+            await DropIfLeftAsync(database);
+        }
     }
 
     [Fact]
@@ -33,18 +39,26 @@ public class StaleDatabaseTests
         await TestRun.EnsureStartedAsync();
         var run = NewRunId("live");
         var database = $"drags_it_{run}_1";
-        await using (var liveRun = new NpgsqlConnection(Admin))
+        try
         {
-            await liveRun.OpenAsync();
-            (await TestRun.TryLockAsync(liveRun, run)).ShouldBeTrue();
-            await CreateAsync(database);
+            await using (var liveRun = new NpgsqlConnection(TestRun.AdminConnectionString))
+            {
+                await liveRun.OpenAsync();
+                (await TestRun.TryLockAsync(liveRun, run)).ShouldBeTrue();
+                await CreateAsync(database);
 
-            (await TestRun.DropStaleAsync()).ShouldNotContain(database);
-            (await ExistsAsync(database)).ShouldBeTrue();
+                await TestRun.DropStaleAsync();
+
+                (await ExistsAsync(database)).ShouldBeTrue();
+            }
+
+            // The run ends without cleaning up (its session is gone): the next cleanup drops it
+            await ShouldBeDroppedByTheCleanupAsync(database);
         }
-
-        // The run ends without cleaning up (its session is gone): the next cleanup drops it
-        (await TestRun.DropStaleAsync()).ShouldContain(database);
+        finally
+        {
+            await DropIfLeftAsync(database);
+        }
     }
 
     [Fact]
@@ -52,10 +66,25 @@ public class StaleDatabaseTests
     {
         await TestRun.EnsureStartedAsync();
 
-        var dropped = await TestRun.DropStaleAsync();
+        await TestRun.DropStaleAsync();
 
-        dropped.ShouldNotContain(TestRun.TemplateName);
         (await ExistsAsync(TestRun.TemplateName)).ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Runs the cleanup until the database is gone (at most 5 s): another process's cleanup may hold the dead run's lock
+    /// for an instant while it drops the database itself, so one pass of ours may see the run as alive.
+    /// </summary>
+    private static async Task ShouldBeDroppedByTheCleanupAsync(string database)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await TestRun.DropStaleAsync();
+            if (!await ExistsAsync(database))
+                return;
+            await Task.Delay(100);
+        }
+        (await ExistsAsync(database)).ShouldBeFalse($"{database} should have been dropped by the cleanup");
     }
 
     private static string NewRunId(string label) => $"selftest{label}{Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant()}";
@@ -63,15 +92,26 @@ public class StaleDatabaseTests
     private static async Task CreateAsync(string database)
     {
         DatabaseGuard.EnsureName(database);
-        await using var connection = new NpgsqlConnection(Admin);
+        await ExecuteAsync($"CREATE DATABASE \"{database}\"");
+    }
+
+    private static async Task DropIfLeftAsync(string database)
+    {
+        DatabaseGuard.EnsureName(database);
+        await ExecuteAsync($"DROP DATABASE IF EXISTS \"{database}\" WITH (FORCE)");
+    }
+
+    private static async Task ExecuteAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(TestRun.AdminConnectionString);
         await connection.OpenAsync();
-        await using var command = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", connection);
+        await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
     }
 
     private static async Task<bool> ExistsAsync(string database)
     {
-        await using var connection = new NpgsqlConnection(Admin);
+        await using var connection = new NpgsqlConnection(TestRun.AdminConnectionString);
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand("SELECT count(*) FROM pg_database WHERE datname = @name", connection);
         command.Parameters.AddWithValue("name", database);

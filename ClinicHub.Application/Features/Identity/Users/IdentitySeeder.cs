@@ -16,7 +16,8 @@ public sealed class IdentitySeeder(
     IAccessCache accessCache,
     IUserAccounts userAccounts,
     IPhoneNormalizer phoneNormalizer,
-    PlatformSettings platform) : IIdentitySeeder
+    PlatformSettings platform,
+    TimeProvider clock) : IIdentitySeeder
 {
     public async Task SeedSuperAdminsAsync(CancellationToken cancellationToken = default)
     {
@@ -45,7 +46,7 @@ public sealed class IdentitySeeder(
                 user.IsSuperAdmin = isSuperAdmin;
             }
 
-            var now = DateTime.UtcNow;
+            var now = clock.GetUtcNow().UtcDateTime;
             await db.Sessions.Where(s => demoted.Contains(s.UserId) && s.RevokedAt == null)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, now).SetProperty(x => x.UpdatedAt, now), token);
             await db.SaveChangesAsync(token);

@@ -15,13 +15,24 @@ public abstract class IntegrationTest(AppFixture app) : IAsyncLifetime
     protected TestData Data => App.Data;
     /// <summary>Logged-in clients (real OTP flow).</summary>
     protected Logins Login => App.Login;
-    /// <summary>The app's time: <c>Clock.Advance(TimeSpan.FromSeconds(60))</c>.</summary>
+    /// <summary>The app's time, frozen during the test: <c>Clock.Advance(TimeSpan.FromSeconds(60))</c>.</summary>
     protected TestClock Clock => App.Clock;
 
     /// <summary>A new anonymous browser (own cookie jar, no token).</summary>
     protected ApiClient Anonymous() => App.CreateClient();
 
-    public virtual Task InitializeAsync() => App.BeforeTestAsync(GetType());
+    /// <summary>Resets (clock; database on a new class), then <see cref="SetUpAsync"/>. Not overridable: use SetUpAsync.</summary>
+    public async Task InitializeAsync()
+    {
+        await App.BeforeTestAsync(GetType());
+        await SetUpAsync();
+    }
+
+    /// <summary>
+    /// Per-test setup, after the reset (build data here or in the test, never in the constructor: the reset would wipe
+    /// it; for data shared by the class use <see cref="AppFixture.PerClassAsync{T}"/>).
+    /// </summary>
+    protected virtual Task SetUpAsync() => Task.CompletedTask;
 
     public virtual Task DisposeAsync() => Task.CompletedTask;
 }

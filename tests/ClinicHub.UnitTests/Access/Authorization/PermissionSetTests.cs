@@ -18,7 +18,6 @@ public class PermissionSetTests
     }
 
     [Fact]
-    [Trait("Case", "ACC-005")]
     public void Of_drops_keys_no_longer_in_the_catalog()
     {
         PermissionSet.Of(["drugs.archive", "drugs.list"]).Keys.ShouldBe(["drugs.list"]);
