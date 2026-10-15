@@ -19,7 +19,7 @@ internal sealed class UpdateRoleCommandHandler(IAppDbContext db, IAccessCache ac
             return RoleErrors.Locked;
 
         var name = command.Name.Trim();
-        if (await db.Roles.WithName(name).AnyAsync(r => r.Id != role.Id, cancellationToken))
+        if (RoleRules.IsOwnerLabel(name) || await db.Roles.WithName(name).AnyAsync(r => r.Id != role.Id, cancellationToken))
             return RoleErrors.NameTaken;
 
         // A rename is tracked on the row itself; when only the permission rows changed, the role's UpdatedAt moves too

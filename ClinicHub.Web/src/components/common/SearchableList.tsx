@@ -26,7 +26,7 @@ type Props<T> = {
 
 /**
  * Search box + result list with keyboard support:
- * ↑/↓ move the highlight, Enter selects, Escape clears the search.
+ * ↑/↓ move the highlight, Enter selects, Escape clears the search. A double click on an item selects it once.
  */
 export const SearchableList = <T, >(props: Props<T>) => {
     const {
@@ -105,7 +105,8 @@ export const SearchableList = <T, >(props: Props<T>) => {
                                 role="option"
                                 selected={index === activeIndex}
                                 aria-selected={index === activeIndex}
-                                onClick={() => onSelect(item)}
+                                // Only the first click of a burst: a double click selects once (keyboard activation has detail 0)
+                                onClick={(event) => event.detail <= 1 && onSelect(item)}
                                 onMouseEnter={() => setActiveIndex(index)}
                                 divider={index < items.length - 1}
                                 sx={{alignItems: "flex-start", py: 1.25}}

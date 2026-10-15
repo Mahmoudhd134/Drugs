@@ -28,6 +28,7 @@ import {DialogForm} from "../../../components/common/DialogForm.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {useRoles} from "../../roles/useRoles.ts";
 import type {Role, RolesAdapter} from "../../roles/types.ts";
+import {useRoleLabel} from "../../roles/roleLabel.ts";
 import {useSaveStaff} from "../useStaff.ts";
 import type {StaffAdapter, StaffMember} from "../types.ts";
 
@@ -101,6 +102,7 @@ type FormProps = {
 
 const StaffForm = ({member, roles, save, onClose}: FormProps) => {
     const {t} = useTranslation();
+    const roleLabel = useRoleLabel();
     const once = useSingleFlight();
     const adding = member === null;
     const [phone, setPhone] = useState("");
@@ -257,7 +259,7 @@ const StaffForm = ({member, roles, save, onClose}: FormProps) => {
                                     }
                                     label={
                                         <Box sx={{py: 0.5}}>
-                                            <Box component="span" dir="auto" sx={{overflowWrap: "anywhere"}}>{role.name}</Box>
+                                            <Box component="span" dir="auto" sx={{overflowWrap: "anywhere"}}>{roleLabel(role)}</Box>
                                             {role.isOwner && (
                                                 <Typography variant="caption" color="text.secondary" sx={{display: "block"}}>
                                                     {t("staff.editor.ownerHint")}

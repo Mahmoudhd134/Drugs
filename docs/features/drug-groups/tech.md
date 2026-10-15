@@ -22,7 +22,10 @@ Dosing flows: drug default → **group override** → prescription line (see [do
   (+ value), eye. So editing a drug's default updates every group that didn't override that part.
 - A line's eye may be `"ask"` (`DosingCodes.AskEye`): chosen when the group is added to a
   prescription. Only group lines accept it.
-- A drug may appear more than once in a group only with **different eyes**.
+- A drug may appear more than once in a group only with **different effective eyes** (the line's own eye, else the
+  drug's current default eye; no eye = "none"; `ask` is an eye of its own). Since M1.6.0 (review CAT-D13) the server
+  checks the effective eye: a group saved before a drug's default eye changed can hold a clash, which the editor
+  marks and the API refuses to save until it is fixed.
 - Deleting a group deletes its lines, not the drugs. Deleting a drug deletes its lines in every
   group, which can leave a group with zero lines (it shows "Drugs: 0" and can't be saved empty).
 - Migrations: today the tables are part of `Initial`. History: introduced as `Combos`/`ComboDrags` (`AddCombos`),
@@ -38,7 +41,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 |---|---|---|---|---|
 | GET | `/drug-groups?search=&page=1&pageSize=20` | query | `PagedResult<DrugGroupDto>` | |
 | GET | `/drug-groups/{id}` | | `DrugGroupDto` | 404 `notFound` |
-| POST | `/drug-groups` | `SaveDrugGroupRequest` | 201 `DrugGroupDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `drugsRequired`, `invalidRequest` (> 1000 items), `invalidDosing`, `duplicateGroupItem`, `drugNotFound` |
+| POST | `/drug-groups` | `SaveDrugGroupRequest` | 201 `DrugGroupDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `drugsRequired`, `invalidRequest` (> 1000 items), `invalidDosing`, then (handler) `drugNotFound`, `duplicateGroupItem` |
 | PUT | `/drug-groups/{id}` | `SaveDrugGroupRequest` | `DrugGroupDto` | 400 (as above, checked first), 404 `notFound` |
 | DELETE | `/drug-groups/{id}` | | 204 | 404 `notFound` |
 
@@ -66,10 +69,11 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 - Validators (create and update, one each), in report order: name (`ValidName()`) → at least one non-null item
   (`drugsRequired`, field `items`) → at most `SaveDrugGroupItem.MaxItems` (1000) items (`invalidRequest`, field
   `items`; beyond it the item rules are skipped, so a huge list can't build a huge answer) → each item's dosing valid with `allowAskEye: true` (`invalidDosing`, field
-  `items[i].dosing`; a custom frequency text with a NUL is invalid) → no duplicate `(drugId, override eye)`
-  (`duplicateGroupItem`, field `items`). All failures are returned.
-- The handlers then check that every drug exists in the clinic (`drugNotFound`, 400): it reads the database,
-  so it is only reported when the request is otherwise valid, and (update) before an unknown group's 404.
+  `items[i].dosing`; a custom frequency text with a NUL is invalid). All failures are returned.
+- The handlers then read the drugs' default eyes: every drug must exist in the clinic (`drugNotFound`, 400), then no
+  two lines may give the same drug for the same **effective** eye (`SaveDrugGroupItem.HasDuplicate`:
+  `duplicateGroupItem`, 400, field `items`; moved from the validators in M1.6.0). Both are only reported when the
+  request is otherwise valid, and (update) before an unknown group's 404.
 - Update **replaces** all lines (remove + insert) and the name, and touches the group's `UpdatedAt`.
   Create and update reload the group with its drugs for the response. Each command is one transaction.
 - List/detail include items → drug; ordered by `Name`, then `Id`.
@@ -95,6 +99,10 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     `allowAskEye`, plus a "Use drug default" button that clears the override.
   - Save validates name and ≥ 1 line on the client. Unsaved-changes guard on Back/Cancel and
     `beforeunload`.
+  - Lines whose effective eyes clash (`clashingItemKeys` in `editorItem.ts`: same `itemIdentity`; possible after a
+    drug's default eye changed) get an error chip `groups.eyeClash` ("Same drug and eye as another line"); editors see
+    an alert `groups.eyeClashSave` above the lines, and Save is blocked with the same message as a toast until a line
+    is removed or its eye changed (M1.6.0).
 - **`GroupPicker`** (prescription page): name, line count, drug names.
 - **`api.ts`**: `drugGroupKeys`; `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`,
   `useSaveDrugGroup` (`{ id, name, items }`), `useDeleteDrugGroup`.
@@ -114,3 +122,8 @@ unknown drug rejected, invalid dosing rejected, deleting a drug removes its line
 Browser (:5173, Arabic + English, desktop + 375px): create group with validation, keyboard adding,
 drag reorder, overrides with chips, live inheritance after changing a drug default, reset to
 default, unsaved-changes guard, chip wrapping.
+M1.6.0 (API on a scratch DB): default eye right + lines (no override, override left) → 201; the default changed to
+left → GET shows both lines effective left; PUT / POST of those lines → 400 `duplicateGroupItem` (field `items`);
+`ask` + an inherited eye → 201; no eye + `none` → 400; an unknown drug is reported before a duplicate, a duplicate
+before an unknown group. Browser (EN/AR, 1280/375): both clashing lines marked, alert shown, Save blocked; after
+removing one, saved.

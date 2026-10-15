@@ -11,6 +11,7 @@ import {
     getSession,
     onClinicLost,
     onContextChanged,
+    onOtherUserSignedIn,
     recheckLostContext,
     setSession,
     startSession,
@@ -19,7 +20,7 @@ import {
 } from "./session.ts";
 import {useMeQuery} from "./api.ts";
 import {useContextLabel} from "./useContextLabel.ts";
-import {AuthContext, type AuthValue} from "./useAuth.ts";
+import {AuthContext, type AuthValue, homeOf} from "./useAuth.ts";
 import {type AuthResult, type Context, contextKey} from "./types.ts";
 
 /** Restores the session on page load (refresh cookie) and exposes it with `useAuth()`. Inside the router. */
@@ -52,6 +53,15 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
             if (loss.outcome === "moved") navigate("/", {replace: true});
         });
     }, [t, navigate, contextLabel]);
+
+    // A stale tab's switch found another user signed in from another tab: it follows that session (no switch sent)
+    useEffect(() => {
+        onOtherUserSignedIn((auth: AuthResult) => {
+            toast.dismiss();
+            toast(t("auth.otherUserSignedIn"), {id: "otherUser", duration: 8000});
+            navigate(homeOf(auth.context), {replace: true});
+        });
+    }, [t, navigate]);
 
     const signIn = useCallback((auth: AuthResult) => setSession(auth), []);
 

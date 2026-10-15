@@ -4,7 +4,8 @@ namespace ClinicHub.Application.Features.Access;
 
 /// <summary>
 /// 403 reasons of the per-request clinic access check (besides <see cref="CommonErrors.Forbidden"/>).
-/// Used by the Api's authorization handlers and by login (<c>noAccess</c>).
+/// Used by the Api's authorization handlers and by login and the clinic picker (where the reason may name the
+/// clinic: <see cref="ClinicError"/>).
 /// </summary>
 public static class AccessErrors
 {
@@ -14,4 +15,11 @@ public static class AccessErrors
 
     public static readonly Error ClinicSuspended =
         new("clinicSuspended", "The clinic is suspended.", ErrorType.Forbidden);
+
+    /// <summary>
+    /// Login and the clinic picker only (M1.6.0): the user's staff account in an active clinic is deactivated. A
+    /// request inside the clinic still answers <see cref="NoAccess"/>.
+    /// </summary>
+    public static readonly Error StaffInactive =
+        new("staffInactive", "Your staff account in this clinic is deactivated.", ErrorType.Forbidden);
 }

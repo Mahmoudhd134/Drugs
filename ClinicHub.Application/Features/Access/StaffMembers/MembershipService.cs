@@ -1,4 +1,5 @@
 using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Common.Results;
 using ClinicHub.Domain.Access;
 using ClinicHub.Domain.Platform;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,25 @@ internal sealed class MembershipService(IAppDbContext db) : IMembershipService
             .Select(s => (int?)s.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-    public Task<bool> IsActiveMemberAsync(int userId, int clinicId, CancellationToken cancellationToken) =>
-        ActiveMemberships(userId).AnyAsync(s => s.ClinicId == clinicId, cancellationToken);
+    public async Task<Error> GetEntryRefusalAsync(int userId, int? clinicId, CancellationToken cancellationToken)
+    {
+        var memberships = await db.Staff.IgnoreQueryFilters().AsNoTracking()
+            .Where(s => s.UserId == userId && (clinicId == null || s.ClinicId == clinicId))
+            .Join(db.Clinics, s => s.ClinicId, c => c.Id, (s, c) => new { Staff = s, Clinic = c })
+            // Deleted clinics are never a reason (they are not revealed)
+            .Where(x => !x.Clinic.IsTemplate && x.Clinic.DeletedAt == null)
+            .Select(x => new { x.Staff.IsActive, x.Clinic.Status, x.Clinic.Name })
+            .ToListAsync(cancellationToken);
+
+        // Every clinic with the reason, by name (ordinal); two clinics with the same name are named once
+        var suspended = memberships.Where(m => m.Status == ClinicStatus.Suspended)
+            .Select(m => m.Name).Distinct().Order(StringComparer.Ordinal).ToList();
+        if (suspended.Count > 0)
+            return new ClinicError(AccessErrors.ClinicSuspended, suspended);
+        var inactive = memberships.Where(m => !m.IsActive && m.Status == ClinicStatus.Active)
+            .Select(m => m.Name).Distinct().Order(StringComparer.Ordinal).ToList();
+        if (inactive.Count > 0)
+            return new ClinicError(AccessErrors.StaffInactive, inactive);
+        return AccessErrors.NoAccess;
+    }
 }

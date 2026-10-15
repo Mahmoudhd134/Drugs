@@ -17,7 +17,8 @@ public sealed record ProblemError(
 /// <summary>
 /// The only place that builds error responses: every error source (Result failures, 401, 403, invalid
 /// bodies, 404/405, unexpected exceptions and the AddProblemDetails safety net) answers the same
-/// RFC 9457 shape: <c>type, title, status, detail, instance, code, errors[], traceId</c>.
+/// RFC 9457 shape: <c>type, title, status, detail, instance, code, errors[], traceId</c> (+ <c>clinicNames</c> when
+/// the first error is a <see cref="ClinicError"/>).
 /// <c>code</c> (the first error's code) is what the SPA translates (<c>errors.{code}</c>).
 /// </summary>
 public static class ApiProblemFactory
@@ -63,6 +64,9 @@ public static class ApiProblemFactory
         var first = errors[0];
         var problem = new ProblemDetails { Status = status ?? StatusOf(first), Detail = first.Description };
         problem.Extensions["code"] = first.Code;
+        // Only for the errors that name a clinic (the login and clinic picker refusals)
+        if (first is ClinicError clinicError)
+            problem.Extensions["clinicNames"] = clinicError.ClinicNames;
         problem.Extensions["errors"] = errors
             .Select(e => new ProblemError(e.Code, e.Description, FieldName(e.Field)))
             .ToList();

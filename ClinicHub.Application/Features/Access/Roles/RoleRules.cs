@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClinicHub.Application.Features.Access.Authorization;
 using ClinicHub.Domain.Access;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,35 @@ internal static class RoleRules
         var lowered = name.ToLowerInvariant();
         return roles.Where(r => r.Name.ToLower() == lowered);
     }
+
+    /// <summary>
+    /// True when <paramref name="name"/> reads like the Owner role as the SPA shows it, in any language
+    /// (<see cref="DefaultRoles.OwnerLabels"/>): compared case-insensitively (ordinal) after
+    /// <see cref="WithoutInvisibleMarks"/> and trimming, so "OWNER", «المالك» with an RLM or a tatweel, or «المالِك» are
+    /// caught. Another role can't take it (<see cref="RoleErrors.NameTaken"/>), even where the stored "Owner" would not
+    /// match (the Arabic label). Look-alike letters of other scripts (a Cyrillic "е" in "Owner") are not caught
+    /// (accepted: only the super admin names roles).
+    /// </summary>
+    public static bool IsOwnerLabel(string name)
+    {
+        var plain = WithoutInvisibleMarks(name).Trim();
+        return DefaultRoles.OwnerLabels.Any(label => string.Equals(label, plain, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// The name without what doesn't change how it reads: Unicode format characters (category Cf: LRM/RLM, ZWSP,
+    /// ZWJ/ZWNJ, BOM, soft hyphen…), non-spacing marks (category Mn: every combining mark, e.g. the Arabic tashkeel
+    /// U+064B–U+065F) and the Arabic tatweel (U+0640). The superscript (dagger) alef U+0670, also a mark, stands for an
+    /// alef («المٰلك» reads «المالك»), so it becomes one instead of being dropped.
+    /// </summary>
+    public static string WithoutInvisibleMarks(string name) =>
+        new(name.Replace(SuperscriptAlef, Alef)
+            .Where(c => char.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.NonSpacingMark)
+                        && c != Tatweel).ToArray());
+
+    private const char Tatweel = (char)0x0640;
+    private const char SuperscriptAlef = (char)0x0670;
+    private const char Alef = (char)0x0627;
 
     /// <summary>The roles of these ids (duplicates in <paramref name="ids"/> are ignored by <c>IN</c>).</summary>
     public static IQueryable<Role> WithIds(this IQueryable<Role> roles, IReadOnlyCollection<int> ids) =>

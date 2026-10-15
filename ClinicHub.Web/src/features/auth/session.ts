@@ -35,9 +35,25 @@ const keyOf = (s: SessionState) => (s.status === "authenticated" ? contextKey(s.
 /** The current context's key ("none" when logged out or not chosen). */
 export const currentContextKey = () => keyOf(state);
 
+/**
+ * The user id (`sub`) of an access token, or null when it can't be read. Only to tell two users apart in this tab;
+ * never trusted for access (the API checks the signature).
+ */
+const userOfToken = (token: string): string | null => {
+    try {
+        const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const sub = (JSON.parse(atob(payload)) as { sub?: unknown }).sub;
+        return sub === undefined || sub === null ? null : String(sub);
+    } catch {
+        return null;
+    }
+};
+
+const userOf = (s: SessionState) => (s.status === "authenticated" ? userOfToken(s.auth.accessToken) : null);
+
 const setState = (next: SessionState) => {
-    // Another clinic's (or nobody's) data must never show: drop cached queries before rendering
-    if (keyOf(state) !== keyOf(next)) contextChangedHandler?.();
+    // Another clinic's (or nobody's, or another user's) data must never show: drop cached queries before rendering
+    if (keyOf(state) !== keyOf(next) || userOf(state) !== userOf(next)) contextChangedHandler?.();
     state = next;
     listeners.forEach(listener => listener());
 };
@@ -128,22 +144,55 @@ export const startSession = (force = false) => {
     void refreshSession();
 };
 
+let otherUserHandler: ((auth: AuthResult) => void) | null = null;
+
+/**
+ * The switch was not made: another user signed in from another tab, and this tab now follows that session (the
+ * provider says so and opens its home). Callers skip their own navigation and error message.
+ */
+export class OtherUserSignedInError extends Error {
+    constructor() {
+        super("Another user signed in from another tab.");
+        this.name = "OtherUserSignedInError";
+    }
+}
+
+/**
+ * Runs when a context switch found another user signed in (from another tab, sharing the cookie): the provider says
+ * so and opens that session's home.
+ */
+export const onOtherUserSignedIn = (handler: (auth: AuthResult) => void) => {
+    otherUserHandler = handler;
+};
+
 /**
  * POST /auth/context, in the same queue as refreshes (it rotates the cookie too). The interceptor
  * doesn't refresh this call (that refresh would wait behind it in the queue), so it is retried here
  * once: after a refresh on 401 (expired token, or a cookie of another session), or as is on 409
- * (another tab rotated the cookie at the same moment).
+ * (another tab rotated the cookie at the same moment). When that refresh brings **another user's** session (this tab
+ * was stale: someone logged out and in as another user in another tab), the switch is not sent again: the tab follows
+ * that session as it is, {@link onOtherUserSignedIn} is told (it alone navigates), and the call rejects with
+ * {@link OtherUserSignedInError} so callers neither navigate nor show an error (M1.6.0).
  */
 export const switchSessionContext = (type: "clinic" | "platform", clinicId?: number) =>
     exclusive(async () => {
         const post = () => api.post<AuthResult>("/auth/context", {type, clinicId}, AUTH_TIMEOUT);
+        const userBefore = userOf(state);
         let response;
         try {
             response = await post();
         } catch (error) {
             if (status(error) === 409) response = await post();
-            else if (status(error) === 401 && await callRefresh(false)) response = await post();
-            else throw error;
+            else if (status(error) === 401) {
+                const token = await callRefresh(false);
+                if (!token) throw error;
+                if (state.status === "authenticated" && userBefore !== null && userOfToken(token) !== userBefore) {
+                    const auth = state.auth;
+                    setTimeout(() => otherUserHandler?.(auth));
+                    throw new OtherUserSignedInError();
+                }
+                response = await post();
+            } else throw error;
         }
         setSession(response.data);
         return response.data;

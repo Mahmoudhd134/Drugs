@@ -18,8 +18,12 @@ public static class DrugGroupErrors
     public static readonly Error InvalidDosing =
         new("invalidDosing", "The dosing of a group line is not valid.", ErrorType.Validation);
 
+    /// <summary>
+    /// Two lines give the same drug for the same <b>effective</b> eye (<see cref="SaveDrugGroupItem.HasDuplicate"/>).
+    /// Checked by the handlers (it reads the drugs' default eyes), after <see cref="DrugNotFound"/>.
+    /// </summary>
     public static readonly Error DuplicateItem =
-        new("duplicateGroupItem", "A drug is in the group twice for the same eye.", ErrorType.Validation);
+        new("duplicateGroupItem", "A drug is in the group twice for the same eye.", ErrorType.Validation, "Items");
 
     /// <summary>Checked by the handlers (it reads the database), after the validator passed.</summary>
     public static readonly Error DrugNotFound =

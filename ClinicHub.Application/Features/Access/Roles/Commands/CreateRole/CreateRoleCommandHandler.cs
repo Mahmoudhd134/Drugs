@@ -12,7 +12,7 @@ internal sealed class CreateRoleCommandHandler(IAppDbContext db) : ICommandHandl
     public async Task<Result<RoleDto>> Handle(CreateRoleCommand command, CancellationToken cancellationToken)
     {
         var name = command.Name.Trim();
-        if (await db.Roles.WithName(name).AnyAsync(cancellationToken))
+        if (RoleRules.IsOwnerLabel(name) || await db.Roles.WithName(name).AnyAsync(cancellationToken))
             return RoleErrors.NameTaken;
 
         var role = new Role { Name = name };

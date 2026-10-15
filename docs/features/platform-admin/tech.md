@@ -37,7 +37,7 @@ query joins `Clinics` to read the flag itself). Every place that decides whether
 |---|---|
 | `MembershipService.GetEnterableClinicsAsync` (login contexts, refresh, switch) | skipped (`DeletedAt == null`) |
 | `AccessCache` → `PermissionService` | `StaffAccess.IsClinicDeleted` / `ClinicAccess.IsDeleted` → 403 `noAccess`, checked before the status (never `clinicSuspended`, which would reveal the clinic) |
-| `SwitchContextCommandHandler` "is it suspended?" | `noAccess` whatever its `Status` |
+| `MembershipService.GetEntryRefusalAsync` (login and picker refusal reasons, M1.6.0) | left out: `noAccess` whatever its `Status`, never named in `clinicNames` |
 | `IClinicScope.EnterAsync`, the clinic use cases | 404 `notFound` |
 | Admin lists and lookups | `db.Clinics.NotDeleted()` (`ClinicQueries`); `Manageable()` = not deleted and not the template |
 
@@ -318,9 +318,20 @@ action (`<Can>`, or capability flags on the adapter) comes with the clinic-side 
 - i18n: `roles.*`, `staff.*`, `permissionModules.*` (catalog → "Drugs and groups" / «الأدوية والمجموعات», prescription →
   "Prescription" / «الروشتة», as the resource), `common.listSeparator` (", " / «، »), `admin.clinic.tabs.roles|staff`; names
   inside bidi isolates; plural forms for the staff count, the result count, the permission summary and the held-role
-  Delete tooltip. The Arabic texts name the role «Owner» (its name in the data), not «مالك». Role names are clinic content (not translated:
-  the default "Owner", "Doctor", "Assistant" stay in English).
-- No backend change.
+  Delete tooltip. Role names are clinic content (not translated: "Doctor", "Assistant" stay in English), **except the
+  Owner role** (M1.6.0): `features/roles/roleLabel.ts` `useRoleLabel()` shows a role with `isOwner` as `roles.ownerName`
+  ("Owner" / «المالك») in the role list, the staff role chips and the staff editor's role choices; the stored name stays
+  `Owner`. The messages naming it (`errors.roleLocked`, `errors.lastOwner`, `staff.lastOwnerHint`,
+  `admin.create.templateNote`) use the label too («المالك» in Arabic; Doctor and Assistant in bidi isolates there). The
+  `roles` of `/me` / the contexts (plain names) are not shown anywhere in the SPA, so they need no flag.
+- The API refuses a role created or renamed to "Owner" or «المالك» (`DefaultRoles.OwnerLabels`; `RoleRules.IsOwnerLabel`)
+  with 409 `roleNameTaken`, shown on the name input as any taken name (M1.6.0). Rule: the name without Unicode format
+  characters (category Cf: LRM/RLM, ZWSP, ZWJ/ZWNJ, BOM, soft hyphen…), non-spacing marks (category Mn: every
+  combining mark, e.g. the Arabic tashkeel U+064B–U+065F) and the tatweel U+0640, the superscript alef U+0670 read as
+  an alef («المٰلك» = «المالك») (`RoleRules.WithoutInvisibleMarks`), trimmed, equals a label case-insensitively (`OrdinalIgnoreCase`). Known limit
+  (accepted: only the super admin names roles): look-alike letters of another script (a Cyrillic "е" in "Owner") pass.
+  The stored name keeps whatever was typed; only this check strips the marks.
+- No backend change (M1.5.5; M1.6.0 added the Owner label refusal above).
 
 ## Edge cases & limitations
 - Delete is final in M1.5 (no endpoint clears `DeletedAt`); restoring = clearing it in the database, the clinic

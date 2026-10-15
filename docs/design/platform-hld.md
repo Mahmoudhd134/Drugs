@@ -353,6 +353,8 @@ sequenceDiagram
 
 - Verify succeeds only if the phone has at least one active staff membership in an active,
   non-template clinic, or is a super admin. Otherwise `noAccess` (403) and no session.
+  *(M1.6.0: the most specific reason instead: `clinicSuspended` or the new `staffInactive` (403), with `clinicNames`,
+  else `noAccess`; the same in the clinic picker ([login tech](../features/auth/tech.md)).)*
 - Contexts: each active staff clinic (`type: clinic`), plus `platform` and the template clinic
   for super admins.
 - The access token (15 min, JWT, HS256) is kept **in memory** by the SPA. The refresh token is an
@@ -546,6 +548,8 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 `clinicSuspended`, `forbidden`, `roleNameTaken`, `unknownPermission`, `roleLocked`, `roleInUse`,
 `rolesRequired`, `staffExists`, `lastOwner`. Each goes in its feature's error class (`<Feature>Errors`, M1.4) and `errors.*` in both locales.
 *(M1.5.3 adds `roleNotFound`; all of these are built: `RoleErrors`, `StaffErrors`, [design § 7](m1.5-platform-admin.md#7-errors-new).)*
+*(M1.6.0 adds `staffInactive` (403, login and the clinic picker) and the ProblemDetails field `clinicNames` for it and
+`clinicSuspended` there ([tech overview](../tech/overview.md#errors-problemdetails)).)*
 
 ---
 

@@ -13,8 +13,15 @@ internal sealed class CreateDrugGroupCommandHandler(IAppDbContext db)
     {
         var items = SaveDrugGroupItem.Normalize(command.Items);
         var drugIds = items.Select(x => x.DrugId).Distinct().ToList();
-        if (await db.Drugs.CountAsync(d => drugIds.Contains(d.Id), cancellationToken) != drugIds.Count)
+        // Each drug's default eye: a line without an eye of its own takes it (the effective eye)
+        var defaultEyes = await db.Drugs.AsNoTracking()
+            .Where(d => drugIds.Contains(d.Id))
+            .Select(d => new { d.Id, d.DefaultDosing.Eye })
+            .ToDictionaryAsync(d => d.Id, d => d.Eye, cancellationToken);
+        if (defaultEyes.Count != drugIds.Count)
             return DrugGroupErrors.DrugNotFound;
+        if (SaveDrugGroupItem.HasDuplicate(items, defaultEyes))
+            return DrugGroupErrors.DuplicateItem;
 
         var group = new DrugGroup
         {

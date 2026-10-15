@@ -69,9 +69,9 @@ descriptions are in `IdentityErrors` (+ `AccessErrors` for the 403s, `TooManyReq
 |---|---|---|---|---|---|
 | GET | `/auth/otp/mode` | anonymous | — | `{ mode: "Display" \| "Sms" }` (not in HLD 8.1: lets the login page show the display-mode banner up front) | — |
 | POST | `/auth/otp/request` | anonymous | `{ phone }` | `{ expiresInSeconds, resendAfterSeconds, devCode? }` | 400 `invalidPhone`; 429 `tooManyRequests` (+ `Retry-After`) |
-| POST | `/auth/otp/verify` | anonymous | `{ phone, code }` | `AuthResult` + refresh cookie | 400 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`; 403 `noAccess` |
+| POST | `/auth/otp/verify` | anonymous | `{ phone, code }` | `AuthResult` + refresh cookie | 400 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`; 403 nowhere to enter: `clinicSuspended` / `staffInactive` (+ `clinicNames`), else `noAccess` (M1.6.0, below) |
 | POST | `/auth/refresh` | refresh cookie | — | `AuthResult`, cookie rotated | 401 `unauthorized` (cookie cleared); 401 `noContexts` the user has no context left: session revoked (cookie cleared; M1.5.3); 409 `conflict` the cookie was rotated by a parallel call less than 30 s ago (cookie kept, no tokens) |
-| POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `noAccess`, `clinicSuspended`; 401 session gone (cookie cleared; checked first); 401 cookie missing or of another session (cookie kept); 409 as above |
+| POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `clinicSuspended` / `staffInactive` (+ `clinicNames`: the picked clinic), `noAccess`; 401 session gone (checked first): cookie cleared, unless it is another live session's (then kept, M1.6.0); 401 cookie missing or of another session (cookie kept); 409 as above |
 | GET | `/auth/contexts` | access token | — | `Context[]` | 401 |
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
 | GET | `/me` | access token | — | `Me` | 401 |
@@ -128,9 +128,19 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   `invalidCode`; attempts used up → `tooManyAttempts`; expired → `codeExpired`; wrong → atomic
   `Attempts + 1` (`ExecuteUpdate … WHERE Attempts < Max`) and `invalidCode`, or `tooManyAttempts` on the
   last allowed try; right → atomic consume (`WHERE ConsumedAt IS NULL`). Hashes are compared with
-  `FixedTimeEquals`. Codes typed with Arabic-Indic digits are accepted. Then: unknown phone or no context →
-  403 `noAccess` (no session, no cookie; the code stays consumed); otherwise a new session, exactly one
-  context → chosen automatically; also deletes sessions that ended a week ago.
+  `FixedTimeEquals`. Codes typed with Arabic-Indic digits are accepted. Then: unknown phone → 403 `noAccess`; no
+  context → the most specific reason (`IMembershipService.GetEntryRefusalAsync`, M1.6.0, below); either way no
+  session and no cookie (the code stays consumed). Otherwise a new session, exactly one context → chosen
+  automatically; also deletes sessions that ended a week ago.
+- **Why the user can't enter** (M1.6.0, `GetEntryRefusalAsync(userId, clinicId?)`; login: all the user's staff rows,
+  the picker: the requested clinic's), template and **deleted** clinics left out: a staff row (active or not) in a
+  suspended clinic → `clinicSuspended`; else a deactivated staff row in an active clinic → `staffInactive`
+  (`AccessErrors.StaffInactive`, 403); else `noAccess` (removed staff, deleted clinics, unknown phones: never
+  revealed). The first two are a `ClinicError` listing the clinics with that reason (`clinicNames` in the
+  ProblemDetails, by name, ordinal, each name once even when two clinics share it): at login **every** one (mixed
+  reasons: only the suspended ones), in the picker the picked one. Only answered after a right code (login) or to a
+  logged-in user (picker), so it reveals nothing to someone guessing numbers. Requests inside a clinic are unchanged
+  (`noAccess` / `clinicSuspended` from the access check, then the lost-clinic flow).
 - **`IOtpSender`** / **`DisplayOtpSender`** (Infrastructure): display mode logs the code (warning) and sets
   `RevealsCode`, so the API returns `devCode`. `Otp:Mode = Sms` has no sender yet: `AppSettings.Validate`
   stops the app.
@@ -141,7 +151,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   none in the template), `super_admin: "true"` (platform only). Refresh tokens are 32 random bytes
   (base64url); only their SHA-256 is stored.
 - **`IMembershipService` / `MembershipService`** (`Features/Access/StaffMembers`, Access module): a user's active memberships in active,
-  non-template, non-deleted clinics (`DeletedAt`, M1.5.1), their staff id in a clinic, and "is active member". They read
+  non-template, non-deleted clinics (`DeletedAt`, M1.5.1), their staff id in a clinic, and why they can't enter
+  (`GetEntryRefusalAsync`, M1.6.0). They read
   `Staff` across clinics with `IgnoreQueryFilters()` (read only), like the platform admin's clinic queries and the access
   cache; Identity calls the service.
 - **`ISessionService` / `SessionService`** (shared by the session use cases; `SessionRules` holds
@@ -164,9 +175,14 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   Older tokens → 401. A reused old token does **not** revoke the session (no reuse detection).
 - **Switch**: needs the session's **current refresh cookie** besides the access token
   (missing or another session's → 401 `RefreshTokenRejected`, cookie kept; just rotated → 409), so a stolen
-  access token alone can't obtain a refresh token. The requested context must be in the user's
-  contexts; otherwise `clinicSuspended` (a clinic the user could enter, but suspended) or `noAccess` (also for
-  a **deleted** clinic, whatever its status: M1.5.1).
+  access token alone can't obtain a refresh token. The token's session ended (revoked, expired, gone) → 401
+  `SessionEnded` (cookie cleared), **unless** the cookie is the current or previous refresh token of another live
+  session → 401 `RefreshTokenRejected` (cookie kept; M1.6.0, review AUTH-T01: log out in one tab, log in again in
+  another, then use the stale tab: the new session's cookie survives, the SPA's refresh-and-retry picks it up). The
+  requested context must be in the user's contexts; otherwise the reason from `GetEntryRefusalAsync` for that clinic
+  (`clinicSuspended`, `staffInactive`, `noAccess`, above; a **deleted** clinic is always `noAccess`); the platform and
+  the template (never in `GetEntryRefusalAsync`) → `noAccess` (a super admin always has both among their contexts,
+  whatever the template's status, so they never get here).
 - **Logout**: finds the session by token hash (current, or previous within 30 s) and
   revokes it **by id** with `ExecuteUpdate` (no concurrency check), so a refresh rotating the token
   meanwhile can't undo it.
@@ -225,7 +241,15 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   - Every call that rotates the cookie (refresh, context switch, logout) runs **one at a time**: a
     promise queue in the tab, plus a Web Lock across tabs where the browser provides them
     (HTTPS/localhost). Concurrent refreshes share one promise. A 409 is retried once; a switch that
-    gets 401 refreshes and retries once. Auth calls time out after 15 s, so a stalled API can't hold
+    gets 401 refreshes and retries once, **unless the refresh brought another user's session** (M1.6.0, review
+    UI-F3: the tab was stale and someone logged out and in as another user in another tab; the users are told apart by
+    the access tokens' `sub`, read without trust): then the switch is not sent again, the tab keeps that session as it
+    is, and `onOtherUserSignedIn` lets `AuthProvider` toast `auth.otherUserSignedIn` ("Another user signed in from
+    another tab. This tab now uses that account.") and open that session's home (`homeOf`: its clinic, the admin, or
+    the picker): the only navigation, since the call rejects with `OtherUserSignedInError` and the callers (the clinic
+    picker, "Back to platform admin", "Edit default catalog") skip their own navigation and error toast. A change of
+    user also clears the query cache (`setState` compares the tokens' `sub` besides the context), so the old user's
+    `/me` and data never show. Auth calls time out after 15 s, so a stalled API can't hold
     the lock forever.
   - Only a **401** from `/auth/refresh` logs out. An unreachable/failing API keeps the session (the
     request fails with its own error); on page load it gives `offline` (a retry screen), not the login page.
@@ -293,7 +317,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   The old unscoped `prescription.lines` (and the older `prescription.selection`) move to the first
   clinic opened.
 - i18n: `auth.*` and new `errors.*` (`invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`,
-  `tooManyRequests`, `noAccess`, `clinicSuspended`, `forbidden`) in `en.ts` and `ar.ts`.
+  `tooManyRequests`, `noAccess`, `clinicSuspended`, `forbidden`; M1.6.0: `staffInactive`, and
+  `clinicSuspended_named_*` / `staffInactive_named_*`, plural forms with `{{clinics}}`, and `common.quotedName`) in
+  `en.ts` and `ar.ts`. `api/errors.ts` reads `clinicNames` into `ApiError.clinicNames`; `getErrorMessage` then uses
+  `errors.<code>_named` with `count` = the number of names and `clinics` = the names, each quoted
+  (`common.quotedName`, bidi isolated) and joined by `Intl.ListFormat` in the UI language (“A” and “B” / «A» و«B»),
+  so the login page and the clinic picker name the clinics (`tsconfig.app.json` lib + `ES2021.Intl`).
 
 ## Edge cases & limitations
 - Access tokens stay valid until they expire (≤ 15 min) after logout; refresh and context switches
@@ -325,8 +354,8 @@ against the API:
   `staff_id`, no `super_admin` and lists 10,000 drugs; `/me` shows "Dev Owner" and `["*"]`; Second
   demo clinic lists 3; platform or template → `noAccess`; refresh keeps the context and rotates the
   cookie; the old cookie → 409 within 30 s (no tokens), 401 after; logout 204, then refresh → 401.
-- one active membership → context chosen automatically; inactive staff → `noAccess`; suspended
-  clinic → `clinicSuspended`.
+- one active membership → context chosen automatically; inactive staff → `noAccess` (since M1.6.0: `staffInactive`
+  at login and in the picker); suspended clinic → `clinicSuspended`.
 - super admin: contexts template + platform; platform token has `super_admin` and gets 403 on
   `/drugs`; in the template they create a drug; `/me` has no staff. Session expiry: 12 h for the
   super admin (even before a context is chosen); 30 days for the dev owner.
@@ -351,3 +380,12 @@ against the API:
   `invalidPhone`, `module` on `/permissions` and the lowercase `Location` differ. In the DB: wrong codes still
   count (1, then 3), a right code for an unknown phone stays consumed, losing every context revokes the
   session; 8 parallel requests for one phone → 1×200 + 7×429; 8 parallel wrong guesses leave `Attempts` at 3.
+- M1.6.0 (scratch DB `drags_m160`, API on `:5056`, script with the cookie kept by hand, 57/57): at verify, active
+  staff in one / two suspended clinics → `clinicSuspended` + `clinicNames` (one / both, by name); inactive in one / two
+  active clinics → `staffInactive` + the name(s); inactive + suspended elsewhere, and inactive **in** a suspended
+  clinic → `clinicSuspended`; only in a deleted (suspended) clinic, removed staff, unknown phone → `noAccess` without
+  `clinicNames`; never a cookie. In the picker: deactivated → `staffInactive`, suspended (staff active or not) →
+  `clinicSuspended`, deleted / removed / not a member / platform → `noAccess`, the cookie kept; inside a clinic a
+  deactivation still answers `noAccess`. Ended session's access token + another live session's cookie → 401, cookie
+  **not** cleared, that cookie still refreshes; with its own cookie or an unknown one → 401 + cleared.
+  Browser (Arabic and English, 1280 and 375 px): the login messages naming the clinic.

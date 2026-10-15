@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import type {Drug} from "../drugs/types.ts";
 import {eyeKey, otherEye, type Dosing} from "../dosing/types.ts";
 import type {PrescriptionLine} from "./types.ts";
@@ -54,9 +54,16 @@ const load = (clinicId: number): PrescriptionLine[] => {
 /**
  * The lines of the clinic's current prescription. Survives page reloads (localStorage, one key per
  * clinic). Each drug appears at most once per eye. The page is re-mounted when the clinic changes.
+ * The checks read the latest lines (a ref updated with every change), not the last render's: two adds in a row
+ * (a fast double click, or a group added after its dialogs were answered) never add the same drug+eye twice.
  */
 export const usePrescriptionLines = (clinicId: number) => {
-    const [lines, setLines] = useState<PrescriptionLine[]>(() => load(clinicId));
+    const [lines, setLinesState] = useState<PrescriptionLine[]>(() => load(clinicId));
+    const latest = useRef(lines);
+    const setLines = useCallback((next: PrescriptionLine[] | ((current: PrescriptionLine[]) => PrescriptionLine[])) => {
+        latest.current = typeof next === "function" ? next(latest.current) : next;
+        setLinesState(latest.current);
+    }, []);
 
     useEffect(() => {
         try {
@@ -71,7 +78,7 @@ export const usePrescriptionLines = (clinicId: number) => {
 
     /** Adds a line per drug (with its default dosing), skipping drug+eye pairs already present. */
     const addDrugs = useCallback((drugs: Drug[]) => {
-        const taken = new Set(lines.map(l => identity(l.drug.id, l.dosing)));
+        const taken = new Set(latest.current.map(l => identity(l.drug.id, l.dosing)));
         const fresh: PrescriptionLine[] = [];
         for (const drug of drugs) {
             const line = lineFromDrug(drug);
@@ -82,17 +89,18 @@ export const usePrescriptionLines = (clinicId: number) => {
         }
         if (fresh.length) setLines(current => [...current, ...fresh]);
         return {added: fresh.length, skipped: drugs.length - fresh.length};
-    }, [lines]);
+    }, [setLines]);
 
     /** Returns false (and changes nothing) if the new eye clashes with another line of the same drug. */
     const updateLine = useCallback((key: string, changes: Pick<PrescriptionLine, "dosing" | "note">) => {
-        const line = lines.find(l => l.key === key);
+        const current = latest.current;
+        const line = current.find(l => l.key === key);
         if (!line) return false;
         const id = identity(line.drug.id, changes.dosing);
-        if (lines.some(l => l.key !== key && identity(l.drug.id, l.dosing) === id)) return false;
-        setLines(current => current.map(l => (l.key === key ? {...l, ...changes} : l)));
+        if (current.some(l => l.key !== key && identity(l.drug.id, l.dosing) === id)) return false;
+        setLines(all => all.map(l => (l.key === key ? {...l, ...changes} : l)));
         return true;
-    }, [lines]);
+    }, [setLines]);
 
     /** For a right/left line whose opposite eye is free: inserts a copy for the other eye right after it. */
     const canAddOtherEye = useCallback((line: PrescriptionLine) => {
@@ -108,29 +116,29 @@ export const usePrescriptionLines = (clinicId: number) => {
             const index = current.findIndex(l => l.key === line.key);
             return [...current.slice(0, index + 1), copy, ...current.slice(index + 1)];
         });
-    }, [canAddOtherEye]);
+    }, [canAddOtherEye, setLines]);
 
     /** The line of this drug for the dosing's eye, if any. */
     const findLine = useCallback((drugId: number, dosing: Dosing) =>
-        lines.find(l => identity(l.drug.id, l.dosing) === identity(drugId, dosing)), [lines]);
+        latest.current.find(l => identity(l.drug.id, l.dosing) === identity(drugId, dosing)), []);
 
     /** Appends prepared lines as they are (callers check for clashes). */
     const addLines = useCallback((toAdd: PrescriptionLine[]) => {
         if (toAdd.length) setLines(current => [...current, ...toAdd]);
-    }, []);
+    }, [setLines]);
 
     /** Replaces a line's dosing, keeping its position and note. */
     const setLineDosing = useCallback((key: string, dosing: Dosing) =>
-        setLines(current => current.map(l => (l.key === key ? {...l, dosing} : l))), []);
+        setLines(current => current.map(l => (l.key === key ? {...l, dosing} : l))), [setLines]);
 
-    const removeLine = useCallback((key: string) => setLines(current => current.filter(l => l.key !== key)), []);
+    const removeLine = useCallback((key: string) => setLines(current => current.filter(l => l.key !== key)), [setLines]);
 
     /** Clears the prescription and returns a function that restores it. */
     const clear = useCallback(() => {
-        const previous = lines;
+        const previous = latest.current;
         setLines([]);
         return () => setLines(previous);
-    }, [lines]);
+    }, [setLines]);
 
     return {
         lines, drugIds, addDrugs, findLine, addLines, setLineDosing, updateLine,

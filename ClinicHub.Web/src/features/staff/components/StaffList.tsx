@@ -31,6 +31,7 @@ import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import type {RolesAdapter} from "../../roles/types.ts";
+import {useRoleLabel} from "../../roles/roleLabel.ts";
 import {useRemoveStaff, useStaffList} from "../useStaff.ts";
 import type {StaffAdapter, StaffMember} from "../types.ts";
 import {StaffEditorDialog} from "./StaffEditorDialog.tsx";
@@ -47,6 +48,7 @@ type Props = {
  */
 export const StaffList = ({adapter, rolesAdapter}: Props) => {
     const {t} = useTranslation();
+    const roleLabel = useRoleLabel();
     const [search, setSearch] = useState("");
     const debouncedSearch = useDebouncedValue(search.trim());
     // The page goes with the search it was picked for: a new search, once sent, asks for its first page at once (not
@@ -176,7 +178,7 @@ export const StaffList = ({adapter, rolesAdapter}: Props) => {
                                                         <Chip
                                                             key={role.id}
                                                             size="small"
-                                                            label={<span dir="auto">{role.name}</span>}
+                                                            label={<span dir="auto">{roleLabel(role)}</span>}
                                                             color={role.isOwner ? "primary" : "default"}
                                                             variant={role.isOwner ? "filled" : "outlined"}
                                                             // Long names wrap (a chip never widens the table past the screen)

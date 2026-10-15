@@ -43,6 +43,8 @@ const en = {
         reload: "Reload",
         // Between the items of a list in a sentence ("Drugs, Groups")
         listSeparator: ", ",
+        // A name inside a sentence (bidi isolated), e.g. in a list of clinics
+        quotedName: "“\u2068{{name}}\u2069”",
         // Table pagination
         rowsPerPage: "Rows per page",
         displayedRows: "{{from}}–{{to}} of {{count}}",
@@ -77,6 +79,21 @@ const en = {
         tooManyRequests: "Too many codes requested. Wait a little and try again.",
         noAccess: "This number has no access. Ask your clinic to add you.",
         clinicSuspended: "This clinic is disabled.",
+        // errors.<code>_named (plural forms): the same error when the API names the clinics (clinicNames: login and
+        // the clinic picker); {{clinics}} = the names, each in common.quotedName, joined by the language's "and"
+        clinicSuspended_named_zero: "{{clinics}} are disabled.",
+        clinicSuspended_named_one: "{{clinics}} is disabled.",
+        clinicSuspended_named_two: "{{clinics}} are disabled.",
+        clinicSuspended_named_few: "{{clinics}} are disabled.",
+        clinicSuspended_named_many: "{{clinics}} are disabled.",
+        clinicSuspended_named_other: "{{clinics}} are disabled.",
+        staffInactive: "Your account is deactivated. Ask the clinic owner.",
+        staffInactive_named_zero: "Your accounts in {{clinics}} are deactivated. Ask the clinic owners.",
+        staffInactive_named_one: "Your account in {{clinics}} is deactivated. Ask the clinic owner.",
+        staffInactive_named_two: "Your accounts in {{clinics}} are deactivated. Ask the clinic owners.",
+        staffInactive_named_few: "Your accounts in {{clinics}} are deactivated. Ask the clinic owners.",
+        staffInactive_named_many: "Your accounts in {{clinics}} are deactivated. Ask the clinic owners.",
+        staffInactive_named_other: "Your accounts in {{clinics}} are deactivated. Ask the clinic owners.",
         forbidden: "You are not allowed to do this.",
         roleNameTaken: "Another role in this clinic already has this name.",
         unknownPermission: "One of the permissions doesn't exist.",
@@ -118,6 +135,8 @@ const en = {
         logout: "Log out",
         // A clinic the user was working in can't be entered any more (deactivated, removed, clinic suspended)
         clinicLostChoose: "You no longer have access to “\u2068{{from}}\u2069”. Choose where to continue.",
+        // A stale tab's clinic switch found another user signed in (from another tab): this tab follows that session
+        otherUserSignedIn: "Another user signed in from another tab. This tab now uses that account.",
         clinicLostMoved: "You no longer have access to “\u2068{{from}}\u2069”. You are now in “\u2068{{to}}\u2069”.",
         clinicLostEnded: "You no longer have access to “\u2068{{from}}\u2069” or to any other clinic.",
         // The session ended too (e.g. a super admin removed from the platform's settings): log in again
@@ -139,6 +158,7 @@ const en = {
         alreadyAdded: "“\u2068{{name}}\u2069” is already in the list",
         groupAdded: "Added from “\u2068{{name}}\u2069”: {{count}}",
         groupSkipped: "Already in the list: {{count}}",
+        groupDuplicated: "Duplicated in the group, not added: {{count}}",
         editorTitle: "Edit before copying",
         editorHint: "Changes here are only used for copying and are not saved.",
         editLine: "Edit dosing",
@@ -156,6 +176,13 @@ const en = {
         applyToRemaining: "Apply to the remaining conflicts: {{count}}",
         groupReplaced: "Replaced with the group's dosing: {{count}}",
         groupKept: "Kept the current dosing: {{count}}",
+        // Two lines of a group meet once the "ask" eye is chosen (an "ask" line and a line for that eye)
+        groupClashTitle: "Two dosings for the same eye",
+        groupClashMessage: "“\u2068{{name}}\u2069” is in the group twice for the eye you chose, with different dosings. Which one should be added?",
+        groupClashFirst: "First in the group",
+        groupClashSecond: "Second in the group",
+        useFirst: "Use the first",
+        useSecond: "Use the second",
         quickCopyInfo: "Copy the prescription as it is. Pasting into Word keeps the formatting.",
         editAndCopyInfo: "Adjust the text first (bold, lists, alignment), then copy it.",
         clearAllInfo: "Remove all drugs to start the next patient. You can undo.",
@@ -310,6 +337,8 @@ const en = {
         customDosing: "Group dosing",
         customDosingInfo: "This drug has its own dosing in this group instead of the drug's default.",
         alreadyInGroupForEye: "“\u2068{{name}}\u2069” is already in this group for that eye",
+        eyeClash: "Same drug and eye as another line",
+        eyeClashSave: "A drug is in the group twice for the same eye (marked below). Remove a line or change its eye, then save.",
     },
     // Platform admin (super admin): clinics; each clinic's roles and staff use roles.* and staff.*
     admin: {
@@ -413,6 +442,8 @@ const en = {
         staff: "Staff",
         actions: "Actions",
         locked: "Locked",
+        // How the Owner role is shown (its stored name stays "Owner"; other role names are clinic data)
+        ownerName: "Owner",
         ownerSummary: "Every permission, always. This role can't be changed or deleted.",
         allPermissions: "All permissions",
         noPermissions: "No permissions",

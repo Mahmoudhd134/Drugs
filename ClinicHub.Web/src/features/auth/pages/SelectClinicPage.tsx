@@ -20,6 +20,7 @@ import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {homeOf, useAuth} from "../useAuth.ts";
+import {OtherUserSignedInError} from "../session.ts";
 import {type Context, contextKey} from "../types.ts";
 import {useContextsQuery} from "../api.ts";
 import {useContextLabel} from "../useContextLabel.ts";
@@ -51,7 +52,8 @@ export const SelectClinicPage = () => {
             const auth = await switchContext(context);
             navigate(homeOf(auth.context), {replace: true});
         } catch (e) {
-            toast.error(getErrorMessage(e));
+            // Another user signed in from another tab: the provider already opens that session's home
+            if (!(e instanceof OtherUserSignedInError)) toast.error(getErrorMessage(e));
             setPending(null);
         }
     };

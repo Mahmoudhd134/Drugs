@@ -44,18 +44,33 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 ### Page & components
 - `pages/PrescriptionPage.tsx`: two columns (catalog md=5, lines md=7; stacked on mobile).
   - **Adding a group** (`addGroup`):
-    1. Each group line → candidate with `mergeDosing(drug.defaultDosing, line.dosing)`.
+    1. Each group line → candidate with `mergeDosing(drug.defaultDosing, line.dosing)`. A drug+eye already seen in
+       the group as saved (a group saved before a drug's default eye changed; the API refuses new ones) is dropped and
+       counted as **duplicated** (the first wins).
     2. If any candidate eye is `ask` → `askEye(groupName)` (right / left / both). Cancel aborts.
-    3. For each candidate (drug+eye seen twice in the batch: first wins): no existing line →
-       new line; existing with the same dosing (`sameDosing`) → counted as unchanged;
-       otherwise → conflict.
-    4. Conflicts are asked one by one with `askConflict` (current vs group sentence; "keep
-       current" / "use the group's"; closing = keep). With more conflicts left, a checkbox applies
+    3. An `ask` line and a line of the same drug for the eye then chosen (e.g. `ask` + right, the user picks right)
+       become one line: identical dosings → silently one; different ones → `askConflict` with `variant: "group"`
+       (title "Two dosings for the same eye", the two dosings as "First in the group" / "Second in the group", buttons
+       "Use the first" / "Use the second" (ar: «الجرعة الأولى/الثانية في المجموعة», «استخدام الأولى/الثانية»); Esc =
+       the first; each dialog keeps its request rendered until it has faded out (`onExited`), so it never shows
+       another variant's or an empty text while closing; with more such pairs, "apply to the remaining"), so no
+       dosing is dropped unseen and these are **not** counted as duplicated (M1.6.0, review UI-F2).
+    4. For each candidate: no existing line → new line; existing with the same dosing (`sameDosing`) → counted as
+       unchanged; otherwise → conflict.
+    5. Conflicts are asked one by one with `askConflict` (current vs group sentence; "keep
+       current" / "use the group's"; Esc = keep; since M1.6.0 a click outside the eye or conflict dialog does nothing,
+       so the second click of a double click on the group can't answer it). With more conflicts left, a checkbox applies
        the answer to the rest. "Use the group's" replaces the existing line's dosing in place
        (position and note kept).
-    5. New lines are appended; toast lines `groupAdded`, `groupReplaced`, `groupKept`,
-       `groupSkipped` (identical).
+    6. New lines are appended; toast lines `groupAdded`, `groupReplaced`, `groupKept`,
+       `groupSkipped` (identical), `groupDuplicated` (duplicated in the group, not added; M1.6.0: no line is dropped
+       silently).
   - Adding a single drug whose drug+eye is already present → toast `prescription.alreadyAdded`.
+  - Double clicks (M1.6.0): `SearchableList` (both pickers) ignores the extra clicks of a burst (`event.detail > 1`;
+    keyboard activation has `detail` 0), so a double click selects once (one add, one toast); adding a group also
+    runs in `useSingleFlight` (a click while its dialogs are open does nothing); `usePrescriptionLines` checks against the latest lines (a ref updated with every change, not
+    the last render's), so a drug+eye is never added twice, even by two adds before a re-render or by a group whose
+    dialogs were answered after other changes.
   - Clear all → toast with **Undo** (6 s).
   - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
 - `components/CatalogPanel.tsx`: tabs **Groups** (default) / **Drugs**; both pickers stay mounted. Each tab shows only
@@ -98,4 +113,7 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 Browser (real clicks, :5173, Arabic + English, desktop + 375px): add group (description fallback),
 add drugs with Enter, ⊕ other eye insertion and button hiding, line edit with note, eye clash
 error, editor content (RTL, bold names, sentences, note), legacy storage migration, copied
-plain text/HTML.
+plain text/HTML. M1.6.0: a group with two lines for the same drug and effective eye → one line added, the toast says
+"Duplicated in the group, not added: 1" / «مكرر في المجموعة ولم يُضف: 1» (EN/AR, 1280/375); an `ask` line + a right
+line of the same drug, right chosen → the "Two dosings for the same eye" dialog, the picked dosing added, no
+"duplicated" line; fast double clicks on a drug and on a group add it once (one flow, one dialog).

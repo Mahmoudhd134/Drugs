@@ -8,8 +8,9 @@ namespace ClinicHub.Application.Features.Catalog.DrugGroups.Commands.CreateDrugG
 /// <summary>
 /// In the order the errors are reported: name → at least one item → at most
 /// <see cref="SaveDrugGroupItem.MaxItems"/> items (<c>invalidRequest</c>; the item rules are then skipped) → each
-/// item's dosing (the "ask" eye allowed) → no duplicate (drug, eye). Null items are ignored, as when saving. The
-/// handler then checks that the drugs exist (<c>drugNotFound</c>).
+/// item's dosing (the "ask" eye allowed). Null items are ignored, as when saving. The handler then checks what
+/// needs the drugs: that they exist (<c>drugNotFound</c>), then no duplicate (drug, effective eye)
+/// (<c>duplicateGroupItem</c>).
 /// </summary>
 internal sealed class CreateDrugGroupCommandValidator : AbstractValidator<CreateDrugGroupCommand>
 {
@@ -33,12 +34,6 @@ internal sealed class CreateDrugGroupCommandValidator : AbstractValidator<Create
                 .ChildRules(item => item.RuleFor(x => x.Dosing)
                     .Must(dosing => DosingRules.IsValid(DosingRules.Normalize(dosing), allowAskEye: true))
                     .WithError(DrugGroupErrors.InvalidDosing));
-
-            // The same drug may appear more than once only with different eyes
-            RuleFor(x => x.Items)
-                .Must(items => SaveDrugGroupItem.Normalize(items) is var normalized
-                               && normalized.Select(x => (x.DrugId, x.Dosing?.Eye)).Distinct().Count() == normalized.Count)
-                .WithError(DrugGroupErrors.DuplicateItem);
         });
     }
 }

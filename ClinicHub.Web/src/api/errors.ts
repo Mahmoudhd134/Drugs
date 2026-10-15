@@ -20,6 +20,11 @@ export interface ApiError {
     code: string | null;
     errors: ApiErrorItem[];
     traceId: string | null;
+    /**
+     * The clinics the error is about, only for the login and clinic picker refusals that name them (`clinicSuspended`,
+     * `staffInactive`; by name): the message is then `errors.<code>_named` (plural forms). Empty otherwise.
+     */
+    clinicNames: string[];
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -48,18 +53,34 @@ export const toApiError = (error: unknown): ApiError | null => {
         code: typeof body.code === "string" ? body.code : null,
         errors: parseItems(body.errors),
         traceId: typeof body.traceId === "string" ? body.traceId : null,
+        clinicNames: Array.isArray(body.clinicNames)
+            ? body.clinicNames.filter((name): name is string => typeof name === "string")
+            : [],
     };
 };
 
-/** `errors.<code>` when that text exists. */
-const translateCode = (code: string | null) =>
-    code && i18n.exists(`errors.${code}`) ? i18n.t(`errors.${code}`) : null;
+/** The names, each quoted (`common.quotedName`), joined by the UI language's "and": “A”, “B”, and “C” / «A» و«B» و«C». */
+const clinicList = (names: string[]) =>
+    new Intl.ListFormat(i18n.language, {type: "conjunction"})
+        .format(names.map(name => i18n.t("common.quotedName", {name})));
+
+/**
+ * `errors.<code>` when that text exists; `errors.<code>_named` (plural forms, `{{clinics}}`) when the error names
+ * clinics.
+ */
+const translateCode = (code: string | null, clinicNames: string[] = []) => {
+    if (!code) return null;
+    const count = clinicNames.length;
+    if (count > 0 && i18n.exists(`errors.${code}_named`, {count}))
+        return i18n.t(`errors.${code}_named`, {count, clinics: clinicList(clinicNames)});
+    return i18n.exists(`errors.${code}`) ? i18n.t(`errors.${code}`) : null;
+};
 
 /** Translated, user-facing message for an API error (uses the "code" the API returns when present). */
 export const getErrorMessage = (error: unknown): string => {
     if (axios.isAxiosError(error) && !error.response) return i18n.t("errors.network");
     const apiError = toApiError(error);
-    const message = translateCode(apiError?.code ?? null);
+    const message = translateCode(apiError?.code ?? null, apiError?.clinicNames);
     if (message) return message;
     if (apiError?.status === 404) return i18n.t("errors.notFound");
     return i18n.t("errors.generic");

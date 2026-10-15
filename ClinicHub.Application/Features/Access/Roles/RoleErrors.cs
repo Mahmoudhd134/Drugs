@@ -13,7 +13,10 @@ public static class RoleErrors
     public static readonly Error NotFound =
         new(CommonErrors.NotFound.Code, "The role does not exist in this clinic.", ErrorType.NotFound);
 
-    /// <summary>Another role of the clinic has the name (trimmed, case-insensitive).</summary>
+    /// <summary>
+    /// Another role of the clinic has the name (trimmed, case-insensitive), or the name reads like the Owner role in
+    /// any UI language ("Owner", «المالك»: <see cref="RoleRules.IsOwnerLabel"/>).
+    /// </summary>
     public static readonly Error NameTaken =
         new("roleNameTaken", "Another role of this clinic has this name.", ErrorType.Conflict);
 

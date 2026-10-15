@@ -196,7 +196,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
   `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`, `StaffErrors`). Add new codes
-  there **and** under `errors.*` in both locale files. The transport codes (`unauthorized`, `invalidRequest`,
+  there **and** under `errors.*` in both locale files. A code that may name a clinic (`clinicSuspended`,
+  `staffInactive`: the `clinicNames` field below) also has `errors.<code>_named` (plural forms, `{{clinics}}`). The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;
   nor has `noContexts` (the refresh's 401 when no clinic is left: the SPA logs out with its own `auth.*` message).
 - `Nullable` is disabled in every backend csproj (the stub `ClinicHub.Web.csproj` has it enabled; it holds no
@@ -243,6 +244,11 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 - `code` = the first error's code (what the SPA translates); `errors` = all of them (`field` in camelCase, e.g.
   `items[0].dosing`, when known); `detail` = the first description (English, for developers); `traceId` finds the
   request in the logs.
+- `clinicNames` (M1.6.0): a string array, only when the first error is a `ClinicError` (`Application/Common/Results`):
+  the login and clinic picker refusals `clinicSuspended` / `staffInactive` list the clinics concerned (the picked one;
+  at login every clinic with that reason, by name); the SPA then shows `errors.<code>_named` (plural forms, the names
+  quoted with `common.quotedName` and joined with `Intl.ListFormat`). Absent everywhere else (one shape, one optional
+  field).
 - Status from the first error's `ErrorType`: Validation 400, Unauthorized 401, Forbidden 403, NotFound 404,
   Conflict 409, Failure 500; `tooManyRequests` 429 and `methodNotAllowed` 405 by code. A `TooManyRequestsError`
   (e.g. the OTP limits) also sets `Retry-After`.
@@ -251,7 +257,7 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 |---|---|---|
 | Use case failure (`Result`) | `ToOk` / `ToCreated` / `ToNoContent` | the handler's or validator's |
 | No/invalid/expired token | JwtBearer `OnChallenge` | `unauthorized` (401; the SPA refreshes by status) |
-| Permission / context | `AccessAuthorizationResultHandler`, JwtBearer `OnForbidden` | `forbidden`, `noAccess`, `clinicSuspended` |
+| Permission / context | `AccessAuthorizationResultHandler`, JwtBearer `OnForbidden` | `forbidden`, `noAccess`, `clinicSuspended` (login and the clinic picker also `staffInactive`, from the use cases) |
 | Malformed JSON, wrong types, empty body | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error, with its `field`; the parser's message only in Development) |
 | Unknown route / wrong method | `UseProblemStatusCodePages` | `notFound` 404 / `methodNotAllowed` 405 |
 | Unhandled exception | `UnexpectedExceptionHandler` | `unexpected` 500; message and stack only in Development |
@@ -316,7 +322,8 @@ Drugs                       DrugGroups
   ([tapering tech](../features/tapering/tech.md)).
 
 - Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
-- A drug appears at most once per group **per eye** (`duplicateGroupItem`).
+- A drug appears at most once per group **per effective eye** (the line's own eye, else the drug's default;
+  `duplicateGroupItem`, checked by the handlers since M1.6.0).
 - `Dosing` is an EF **owned type** (`ClinicHub.Domain/Catalog/Dosing.cs`), reusable on any entity via
   `OwnsOne(..., DosingConfiguration.Configure)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
 
@@ -326,9 +333,9 @@ Drugs                       DrugGroups
 |---|---|---|
 | GET | `/auth/otp/mode` | `{ mode }` (`Display` → the login page shows its banner). Anonymous |
 | POST | `/auth/otp/request` | `{ phone }` → code created (`devCode` in display mode). Anonymous |
-| POST | `/auth/otp/verify` | `{ phone, code }` → `AuthResult` + refresh cookie. Anonymous |
+| POST | `/auth/otp/verify` | `{ phone, code }` → `AuthResult` + refresh cookie. Anonymous (nowhere to enter: 403 `clinicSuspended` / `staffInactive` with `clinicNames`, else `noAccess`) |
 | POST | `/auth/refresh` | Refresh cookie → new `AuthResult`, cookie rotated |
-| POST | `/auth/context` | `{ type, clinicId? }` → `AuthResult` for that context |
+| POST | `/auth/context` | `{ type, clinicId? }` → `AuthResult` for that context (can't enter: 403 `clinicSuspended` / `staffInactive` with `clinicNames`, else `noAccess`) |
 | GET | `/auth/contexts` | Contexts the user can pick |
 | POST | `/auth/logout` | Revokes the session, clears the cookie → 204 |
 | GET | `/me` | User, context, staff, permissions (expanded keys in a clinic context) |
@@ -366,7 +373,7 @@ inactive staff or a deleted clinic → 403 `noAccess`, suspended clinic → 403 
 [login tech](../features/auth/tech.md). Admin routes (`/admin/*`) need a platform-context token of a
 current super admin (else 403 `forbidden`); a missing, deleted or template clinic id → 404 `notFound`, also on the
 roles and staff routes (a suspended clinic is managed); a role or staff id of another clinic → 404 `notFound`. Role
-and staff errors: `roleNameTaken`, `roleLocked`, `roleInUse`, `staffExists`, `lastOwner` (409); `unknownPermission`,
+and staff errors: `roleNameTaken` (also a role named like the Owner role's label, "Owner" / «المالك»), `roleLocked`, `roleInUse`, `staffExists`, `lastOwner` (409); `unknownPermission`,
 `rolesRequired`, `roleNotFound`, `invalidPhone` and the name codes (400)
 ([platform admin](../features/platform-admin/tech.md#api)).
 
@@ -505,7 +512,7 @@ Swagger UI is available in Development at `/swagger`.
 | `ListPagination` | Translated `TablePagination` with `PAGE_SIZES` (`pageSizes.ts`: 10/20/50); hides the rows-per-page choice below `sm` so it fits a phone; the choice also has its own `aria-label` |
 | `PageBoundary` | Where a layout shows its page: `Suspense` spinner + error boundary ("Couldn't load this page. — Reload"), reset when the path changes |
 | `SearchField` | Search input with icon and clear button |
-| `SearchableList` | Search + result list with ↑/↓/Enter/Esc keyboard support, loading/error/empty states, "load more" |
+| `SearchableList` | Search + result list with ↑/↓/Enter/Esc keyboard support, loading/error/empty states, "load more"; a double click on an item selects it once (`event.detail > 1` ignored) |
 | `SortableList` | dnd-kit vertical list; drag handle per row; mouse, touch and keyboard reordering |
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |

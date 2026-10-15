@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {AppShell} from "./AppShell.tsx";
 import {useAuth, useClinic} from "../../features/auth/useAuth.ts";
+import {OtherUserSignedInError} from "../../features/auth/session.ts";
 import {useContextLabel} from "../../features/auth/useContextLabel.ts";
 import {NAV_ITEMS} from "../../app/navigation.tsx";
 import {usePermissions} from "../../features/access/usePermissions.ts";
@@ -57,7 +58,8 @@ const BackToAdminButton = () => {
             await switchContext(platform);
             navigate("/admin", {replace: true});
         } catch (error) {
-            toast.error(getErrorMessage(error));
+            // Another user signed in from another tab: the provider already opens that session's home
+            if (!(error instanceof OtherUserSignedInError)) toast.error(getErrorMessage(error));
             setPending(false);
         }
     });

@@ -9,6 +9,7 @@ import {navButtonSx} from "../../../components/layout/navButtonSx.ts";
 import {ADMIN_NAV_ITEMS} from "../../../app/navigation.tsx";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {useAuth} from "../../auth/useAuth.ts";
+import {OtherUserSignedInError} from "../../auth/session.ts";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 
 /** The platform admin's frame (super admin, platform context): its sections and a way into the template. */
@@ -43,7 +44,8 @@ const EditTemplateButton = () => {
             await switchContext(template);
             navigate("/drugs", {replace: true});
         } catch (error) {
-            toast.error(getErrorMessage(error));
+            // Another user signed in from another tab: the provider already opens that session's home
+            if (!(error instanceof OtherUserSignedInError)) toast.error(getErrorMessage(error));
             setPending(false);
         }
     });

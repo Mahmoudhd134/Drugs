@@ -29,6 +29,7 @@ import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {usePermissionCatalog} from "../../access/api.ts";
 import {useDeleteRole, useRoles} from "../useRoles.ts";
 import {usePermissionLabels} from "../usePermissionLabels.ts";
+import {useRoleLabel} from "../roleLabel.ts";
 import type {Role, RolesAdapter} from "../types.ts";
 import {RoleEditorDialog} from "./RoleEditorDialog.tsx";
 
@@ -39,6 +40,7 @@ import {RoleEditorDialog} from "./RoleEditorDialog.tsx";
 export const RoleList = ({adapter}: { adapter: RolesAdapter }) => {
     const {t} = useTranslation();
     const labels = usePermissionLabels();
+    const roleLabel = useRoleLabel();
     const roles = useRoles(adapter);
     const catalog = usePermissionCatalog();
     const deleteRole = useDeleteRole(adapter);
@@ -116,7 +118,7 @@ export const RoleList = ({adapter}: { adapter: RolesAdapter }) => {
                                     <TableRow key={role.id} sx={{"& td": {py: 1.25}}}>
                                         <TableCell sx={{minWidth: 0}}>
                                             <Stack direction="row" sx={{alignItems: "center", gap: 1, flexWrap: "wrap"}}>
-                                                <Box component="span" dir="auto" sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{role.name}</Box>
+                                                <Box component="span" dir="auto" sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{roleLabel(role)}</Box>
                                                 {role.isOwner && (
                                                     <Chip size="small" variant="outlined" icon={<LockIcon/>} label={t("roles.locked")}/>
                                                 )}

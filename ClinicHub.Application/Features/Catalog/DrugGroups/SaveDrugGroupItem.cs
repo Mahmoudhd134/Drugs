@@ -15,4 +15,15 @@ public record SaveDrugGroupItem(int DrugId, Dosing Dosing)
         .Where(x => x is not null)
         .Select(x => x with { Dosing = DosingRules.Normalize(x.Dosing) })
         .ToList();
+
+    /// <summary>
+    /// True when two (normalized) items give the same drug for the same <b>effective</b> eye: the line's own eye, else
+    /// the drug's default eye (<paramref name="defaultEyes"/>: drug id → its default eye, null = none), where no eye
+    /// and "none" are the same; "ask" is an eye of its own. Like the SPA's <c>itemIdentity</c>.
+    /// </summary>
+    public static bool HasDuplicate(List<SaveDrugGroupItem> items, IReadOnlyDictionary<int, string> defaultEyes) =>
+        items.Select(x => (x.DrugId, Eye: x.Dosing?.Eye ?? defaultEyes.GetValueOrDefault(x.DrugId) ?? NoEye))
+            .Distinct().Count() != items.Count;
+
+    private const string NoEye = "none";
 }

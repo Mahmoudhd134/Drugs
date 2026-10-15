@@ -12,6 +12,12 @@ public static class DefaultRoles
     public const string Doctor = "Doctor";
     public const string Assistant = "Assistant";
 
+    /// <summary>
+    /// How the SPA shows the Owner role (its only translated name: English, Arabic; M1.6.0). No other role may be
+    /// named like one of them (<see cref="RoleRules.IsOwnerLabel"/>), so two roles never look the same.
+    /// </summary>
+    public static readonly IReadOnlyList<string> OwnerLabels = [Owner, "المالك"];
+
     private static readonly string[] AssistantDenied = [Permissions.Drugs.Delete, Permissions.Groups.Delete];
 
     /// <summary>Name → permissions; null = the Owner role (every permission, no rows).</summary>

@@ -194,8 +194,9 @@ The dev seed calls no invalidation (nothing it seeds is cached yet); `IdentitySe
 
 **Deleted clinics** (M1.5.1, `Clinics.DeletedAt`): the staff entry carries `IsClinicDeleted` and the clinic entry
 `IsDeleted`; `PermissionService` answers `noAccess` for them before looking at the status. `MembershipService`
-skips deleted clinics (so they leave the login contexts, refresh and switch), and the switch's "is it suspended?"
-check answers `noAccess` for a deleted clinic whatever its `Status`.
+skips deleted clinics (so they leave the login contexts, refresh and switch), and its `GetEntryRefusalAsync` (the
+login and picker refusal reasons, M1.6.0) leaves them out too: a deleted clinic gives `noAccess` and is never named,
+whatever its `Status`.
 
 ## Frontend (`src/features/access`)
 

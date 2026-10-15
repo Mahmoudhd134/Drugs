@@ -5,6 +5,7 @@ using ClinicHub.Application.Common.Messaging;
 using ClinicHub.Application.Common.Results;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Application.Features.Access;
+using ClinicHub.Application.Features.Access.StaffMembers;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Identity.Users;
 using ClinicHub.Domain.Identity;
@@ -14,12 +15,16 @@ namespace ClinicHub.Application.Features.Identity.Login.Commands.VerifyOtp;
 
 /// <summary>
 /// A new session after a verified code (one per login per device); the context is chosen when there is
-/// only one. <see cref="AccessErrors.NoAccess"/> (and no session) for an unknown phone or a user who can
-/// enter nothing: the same answer, so phones can't be probed.
+/// only one. A user who can enter nothing gets no session and the most specific reason
+/// (<see cref="IMembershipService.GetEntryRefusalAsync"/>: <see cref="AccessErrors.ClinicSuspended"/>,
+/// <see cref="AccessErrors.StaffInactive"/>, else <see cref="AccessErrors.NoAccess"/>); an unknown phone gets
+/// <see cref="AccessErrors.NoAccess"/>, like a removed staff member, so phones can't be probed. Only after a right
+/// code, so only the phone's owner sees the reason.
 /// </summary>
 internal sealed class VerifyOtpCommandHandler(
     IAppDbContext db,
     ISessionService sessions,
+    IMembershipService memberships,
     IPhoneNormalizer phoneNormalizer,
     OtpSettings otp,
     PlatformSettings platform,
@@ -37,7 +42,7 @@ internal sealed class VerifyOtpCommandHandler(
             return AccessErrors.NoAccess;
         var contexts = await sessions.GetContextsAsync(user, cancellationToken);
         if (contexts.Count == 0)
-            return AccessErrors.NoAccess;
+            return await memberships.GetEntryRefusalAsync(user.Id, null, cancellationToken);
 
         var now = clock.GetUtcNow().UtcDateTime;
         // Housekeeping: forget sessions that ended a week ago

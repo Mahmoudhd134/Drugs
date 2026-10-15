@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import MedicationIcon from "@mui/icons-material/Medication";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {PageHeader} from "../../../components/common/PageHeader.tsx";
@@ -29,6 +30,7 @@ import {DosingText} from "../../dosing/components/DosingText.tsx";
 import {ASK_EYE, eyeKey, isDosingEmpty, otherEye, type Dosing} from "../../dosing/types.ts";
 import {GroupItemDialog} from "../components/GroupItemDialog.tsx";
 import {
+    clashingItemKeys,
     effectiveDosing,
     type EditorItem,
     itemIdentity,
@@ -92,6 +94,9 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
     const [showNameRequired, setShowNameRequired] = useState(false);
 
     const selectedIds = useMemo(() => new Set(items.map(i => i.drug.id)), [items]);
+    // Lines giving the same drug for the same eye (possible after a drug's default eye changed): marked, and Save is
+    // blocked until they are fixed
+    const clashingKeys = useMemo(() => clashingItemKeys(items), [items]);
     const isDirty = name.trim() !== (initial?.name ?? "") || itemsSignature(items) !== initialSignature;
 
     // Warn before closing the tab with unsaved changes
@@ -159,6 +164,10 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
         }
         if (items.length === 0) {
             toast.error(t("errors.drugsRequired"));
+            return;
+        }
+        if (clashingKeys.size > 0) {
+            toast.error(t("groups.eyeClashSave"));
             return;
         }
 
@@ -242,6 +251,9 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                 <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("groups.drugsInGroup")}</Typography>
                                 <Chip size="small" label={items.length}/>
                             </Stack>
+                            {!readOnly && clashingKeys.size > 0 && (
+                                <Alert severity="error" sx={{mb: 2}}>{t("groups.eyeClashSave")}</Alert>
+                            )}
                             {items.length === 0 ? (
                                 <EmptyState
                                     compact
@@ -272,6 +284,9 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                                     <DosingText dosing={effective}/>
                                                 )}
                                                 <Stack direction="row" sx={{gap: 0.5, flexWrap: "wrap", mt: 0.5}}>
+                                                    {clashingKeys.has(item.key) && (
+                                                        <Chip size="small" color="error" icon={<ErrorIcon/>} label={t("groups.eyeClash")} sx={wrappingChip}/>
+                                                    )}
                                                     {!isDosingEmpty(item.dosing) && (
                                                         <Tooltip title={t("groups.customDosingInfo")}>
                                                             <Chip size="small" variant="outlined" color="primary" label={t("groups.customDosing")} sx={wrappingChip}/>
