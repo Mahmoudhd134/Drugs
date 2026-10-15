@@ -16,6 +16,13 @@ namespace ClinicHub.IntegrationTests.Harness.Databases;
 /// and so is any older than <see cref="StaleAfter"/>. At the end (<see cref="ShutdownAsync"/>, called by
 /// <see cref="Running.IntegrationTestFramework"/>) the run drops its own databases.
 /// </para>
+/// <para>
+/// Under load (parallel worktrees, Stryker) a <c>CREATE</c>/<c>DROP DATABASE</c> can wait long for PostgreSQL's
+/// checkpoints, so the maintenance connection has a long command timeout (<see cref="AdminCommandTimeoutSeconds"/>).
+/// Only creating this run's databases fails loudly: dropping (other runs' leftovers, a collection's copy at its end,
+/// the run's own at shutdown) is best effort, logged (<see cref="Warn"/>) and retried later (at shutdown, else by the
+/// next run's stale cleanup, the run being gone), never a failed test.
+/// </para>
 /// </summary>
 public static class TestRun
 {
@@ -25,12 +32,16 @@ public static class TestRun
     public static readonly TimeSpan StaleAfter = TimeSpan.FromDays(1);
     private const string DefaultServer = "Host=localhost;Port=5432;Username=drags;Password=drags";
     private const string CommentPrefix = "clinichub-it created=";
+    /// <summary>CREATE/DROP DATABASE under load wait for checkpoints well past Npgsql's default 30 s.</summary>
+    public const int AdminCommandTimeoutSeconds = 600;
 
     public static string Id { get; } = ResolveId(Environment.GetEnvironmentVariable(RunIdVariable));
     public static string TemplateName => $"{DatabaseGuard.Prefix}{Id}_tpl";
 
     /// <summary>What the run did with databases (created, dropped, stale ones found): for the self-tests and debugging.</summary>
     public static ConcurrentQueue<string> Log { get; } = new();
+    /// <summary>Problems that did not fail the run (a database not dropped yet), reported at the end of the run.</summary>
+    public static ConcurrentQueue<string> Warnings { get; } = new();
 
     private static readonly object Sync = new();
     private static readonly SemaphoreSlim CreateGate = new(1, 1);
@@ -56,7 +67,10 @@ public static class TestRun
     {
         get
         {
-            var builder = new NpgsqlConnectionStringBuilder(Server) { Database = "postgres", Pooling = false };
+            var builder = new NpgsqlConnectionStringBuilder(Server)
+            {
+                Database = "postgres", Pooling = false, CommandTimeout = AdminCommandTimeoutSeconds,
+            };
             DatabaseGuard.EnsureLocal(builder.Host);
             return builder.ConnectionString;
         }
@@ -78,7 +92,14 @@ public static class TestRun
                 $"Another test process is running with the run id '{Id}' ({RunIdVariable}); use another id.");
         ownsLock = true;
 
-        await DropStaleAsync();
+        try
+        {
+            await DropStaleAsync();
+        }
+        catch (Exception e)
+        {
+            Warn($"stale database cleanup skipped: {e.Message}");
+        }
 
         await CreateDatabaseAsync(TemplateName, template: null);
         // Booting the app migrates the database and runs the startup seeder (template clinic, test super admin),
@@ -140,8 +161,12 @@ public static class TestRun
                 await connection.OpenAsync();
                 foreach (var database in await ListAsync(connection))
                     if (RunOf(database.Name) == Id)
-                        await DropAsync(connection, database.Name);
+                        await TryDropAsync(connection, database.Name, "left for the next run's cleanup");
             }
+        }
+        catch (Exception e)
+        {
+            Warn($"the run's databases were not dropped (the next run's cleanup will): {e.Message}");
         }
         finally
         {
@@ -157,7 +182,8 @@ public static class TestRun
 
     /// <summary>
     /// Drops the databases left by runs that are gone (their liveness lock is free: crashed, killed) or that are older
-    /// than <see cref="StaleAfter"/>; a live run's databases are kept. Returns the dropped names.
+    /// than <see cref="StaleAfter"/>; a live run's databases are kept. Best effort: a database that can't be dropped now
+    /// is logged and left for a later cleanup. Returns the dropped names.
     /// </summary>
     public static async Task<List<string>> DropStaleAsync()
     {
@@ -186,9 +212,18 @@ public static class TestRun
             // This process holds its own lock (taken before the cleanup): a database with its id is a leftover of a
             // previous, dead run with the same id
             var isOwn = run.Key == Id;
-            var alive = !isOwn && !await TryLockAsync(connection, run.Key);
-            if (!alive && !isOwn)
-                await UnlockAsync(connection, run.Key);
+            bool alive;
+            try
+            {
+                alive = !isOwn && !await TryLockAsync(connection, run.Key);
+                if (!alive && !isOwn)
+                    await UnlockAsync(connection, run.Key);
+            }
+            catch (Exception e)
+            {
+                Warn($"stale cleanup: could not check run {run.Key}: {e.Message}");
+                continue;
+            }
             foreach (var database in run)
             {
                 var old = database.CreatedAt is { } created && DateTime.UtcNow - created > StaleAfter;
@@ -196,7 +231,8 @@ public static class TestRun
                     continue;
                 if (isOwn && Created.ContainsKey(database.Name))
                     continue;
-                await DropAsync(connection, database.Name);
+                if (!await TryDropAsync(connection, database.Name, "a later cleanup retries"))
+                    continue;
                 dropped.Add(database.Name);
                 Log.Enqueue($"dropped stale {database.Name} ({(alive ? "older than a day" : "run gone")})");
             }
@@ -267,6 +303,30 @@ public static class TestRun
         {
             CreateGate.Release();
         }
+    }
+
+    /// <summary>A drop that never throws: false (and a warning) when the database could not be dropped now.</summary>
+    private static async Task<bool> TryDropAsync(NpgsqlConnection connection, string name, string then)
+    {
+        // A name the guard refuses is a bug of the harness: that one throws
+        DatabaseGuard.EnsureName(name);
+        try
+        {
+            await DropAsync(connection, name);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Warn($"could not drop {name} ({then}): {e.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>Logs a problem that does not fail the run; the test framework reports them at the end.</summary>
+    public static void Warn(string message)
+    {
+        Warnings.Enqueue(message);
+        Log.Enqueue($"warning: {message}");
     }
 
     private static async Task DropAsync(NpgsqlConnection connection, string name)

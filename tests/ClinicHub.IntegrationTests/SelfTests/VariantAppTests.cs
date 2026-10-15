@@ -7,6 +7,7 @@ using ClinicHub.IntegrationTests.Harness.Builders;
 using ClinicHub.IntegrationTests.Harness.Clients;
 using ClinicHub.IntegrationTests.Harness.Databases;
 using ClinicHub.IntegrationTests.Harness.Hosting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -93,6 +94,37 @@ public class VariantAppTests(AppFixture app) : IntegrationTest(app)
 
         Should.Throw<InvalidOperationException>(variant.Start).Message.ShouldContain("Test database guard");
         (await DatabaseExistsAsync(elsewhere)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_service_override_that_replaces_the_built_options_cannot_point_the_app_elsewhere()
+    {
+        const string elsewhere = "drags_guard_options_probe";
+        using var variant = App.CreateVariant(services: services =>
+        {
+            services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.AddScoped(_ => new DbContextOptionsBuilder<AppDbContext>()
+                .UseNpgsql($"Host=localhost;Port=5432;Database={elsewhere};Username=drags;Password=drags").Options);
+        });
+
+        Should.Throw<InvalidOperationException>(variant.Start).Message.ShouldContain("Test database guard");
+        (await DatabaseExistsAsync(elsewhere)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task The_token_lifetime_check_on_the_test_clock_keeps_the_apps_own_switch()
+    {
+        // If the app ever turned the lifetime check off, the tests must see expired tokens accepted as production would
+        var clinic = await Data.Clinic();
+        await using var variant = App.CreateVariant(services: services =>
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme,
+                options => options.TokenValidationParameters.ValidateLifetime = false));
+        variant.Start();
+        var owner = await Login.On(variant).OwnerAsync(clinic);
+
+        variant.Clock.Advance(TimeSpan.FromHours(2));
+
+        await (await owner.GetAsync("/api/v1/drugs")).ShouldBeOkAsync();
     }
 
     private static async Task<bool> DatabaseExistsAsync(string database)

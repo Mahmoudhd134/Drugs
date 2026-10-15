@@ -1,9 +1,10 @@
 <#
 .SYNOPSIS
   Self-test of traceability.ps1 on tiny fixtures (fixtures/): a complete set passes; a missing P0, an unknown or
-  malformed ID, a skip without a BUG id and a repeated catalog ID fail; IDs in comments don't count; known bugs are
-  found in multi-line attributes, wrapped titles and describe.skip blocks; a scope that leaves the missing case out
-  passes. Exit 1 when the tool misbehaves. Run by test.ps1 (full tier).
+  malformed ID, a skip without a BUG id (also a const or interpolated Skip) and a repeated catalog ID fail; IDs in
+  comments and e-mail addresses don't count; known bugs are found in multi-line attributes, wrapped titles and
+  describe.skip blocks (a body-less describe.skip skips nothing); a scope that leaves the missing case out passes; P2 is
+  not gated. Exit 1 when the tool misbehaves. Run by test.ps1 (full tier).
 #>
 $ErrorActionPreference = 'Stop'
 $tool = Join-Path $PSScriptRoot 'traceability.ps1'
@@ -46,6 +47,10 @@ try {
         param($j)
         if (-not (@($j.unknownIds) | Where-Object { $_ -like 'FIX-999 *' })) { return "unknown: $($j.unknownIds -join ', ')" }
     }
+    Invoke-Case 'p2-is-reported-not-gated' 'missing-p2' 0 @() {
+        param($j)
+        if (@($j.missing) -notcontains 'FIX-003|P2|api') { return "missing: $($j.missing -join ', ')" }
+    }
     Invoke-Case 'scope-excludes-the-missing-case' 'missing-p0' 0 @('-Levels', 'unit,ui,e2e') { param($j) }
     Invoke-Case 'scope-includes-the-missing-case' 'missing-p0' 1 @('-Areas', 'FIX', '-Levels', 'api') { param($j) }
     Invoke-Case 'comments-and-wrapped-known-bugs' 'tricky' 1 @() {
@@ -57,12 +62,18 @@ try {
             if (@($j.knownBugCases) -notcontains $expected) { return "known bug not found ($expected): $($j.knownBugCases -join ', ')" }
         }
         if (@($j.skippedWithoutBug).Count -ne 0 -or @($j.unknownIds).Count -ne 0) { return "skipped/unknown: $($j.skippedWithoutBug) $($j.unknownIds)" }
+        # An e-mail address is no ID; a describe.skip with no body skips nothing after it
+        if (@($j.missing) -contains 'FIX-002|P1|unit') { return "a test after a body-less describe.skip not counted: $($j.missing -join ', ')" }
     }
     Invoke-Case 'skipped-without-a-bug-id' 'skipped-without-bug' 1 @('-Levels', 'unit') {
         param($j)
         $skipped = @($j.skippedWithoutBug | ForEach-Object { ($_ -split ' ')[0] })
-        if (@($skipped | Where-Object { $_ -eq 'FIX-001' }).Count -ne 1 -or @($skipped | Where-Object { $_ -eq 'FIX-005' }).Count -ne 2 -or
-            @($skipped | Where-Object { $_ -eq 'FIX-003' }).Count -ne 1) { return "skipped without a bug: $($j.skippedWithoutBug -join '; ')" }
+        # FIX-001: a plain reason, a const, $"..." and @"..." (only a plain "BUG-nnn..." literal is a known bug);
+        # FIX-002: inside a describe.skip whose body opens after a wrapped title
+        if (@($skipped | Where-Object { $_ -eq 'FIX-001' }).Count -ne 4 -or @($skipped | Where-Object { $_ -eq 'FIX-005' }).Count -ne 2 -or
+            @($skipped | Where-Object { $_ -eq 'FIX-003' }).Count -ne 1 -or @($skipped | Where-Object { $_ -eq 'FIX-002' }).Count -ne 1) {
+            return "skipped without a bug: $($j.skippedWithoutBug -join '; ')"
+        }
         if (@($j.knownBugCases).Count -ne 0) { return "a plain skip counted as a known bug: $($j.knownBugCases -join ', ')" }
     }
     Invoke-Case 'malformed-id' 'malformed-id' 1 @('-Levels', 'unit') {
@@ -81,5 +92,5 @@ if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Host "  traceability self-test: $_" -ForegroundColor Red }
     exit 1
 }
-Write-Host '  traceability self-test: ok (complete passes; missing P0, unknown/malformed ID, skip without bug id, duplicate catalog ID fail; comments ignored; wrapped known bugs found; scope works)'
+Write-Host '  traceability self-test: ok (complete passes; missing P0, unknown/malformed ID, skip without bug id, duplicate catalog ID fail; missing P2 passes; comments and e-mails ignored; wrapped known bugs found; scope works)'
 exit 0

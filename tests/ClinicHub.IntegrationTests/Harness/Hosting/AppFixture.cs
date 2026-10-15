@@ -68,8 +68,17 @@ public sealed class AppFixture : IAsyncLifetime
         await DisposePerClassAsync();
         if (Factory is not null)
             await Factory.DisposeAsync();
-        if (DatabaseName is not null)
+        if (DatabaseName is null)
+            return;
+        try
+        {
             await TestRun.DropAsync(DatabaseName);
+        }
+        catch (Exception e)
+        {
+            // Never a failed collection for it: the run drops it again at its end, else the next run's stale cleanup
+            TestRun.Warn($"could not drop {DatabaseName} (dropped later): {e.Message}");
+        }
     }
 
     /// <summary>
@@ -78,11 +87,8 @@ public sealed class AppFixture : IAsyncLifetime
     /// </summary>
     public async Task BeforeTestAsync(Type testClass)
     {
-        var moved = Clock.Offset != TimeSpan.Zero;
+        // The cache keeps its answers across tests of a class, as a running server does: its own clock never goes back
         Clock.Reset();
-        // Entries cached under a moved clock carry later timestamps than any invalidation made after the reset
-        if (moved)
-            Factory.ClearMemoryCache();
         if (testClass == currentClass && !dirty)
             return;
         currentClass = testClass;
@@ -113,13 +119,15 @@ public sealed class AppFixture : IAsyncLifetime
         }
         await using (var scope = Factory.Services.CreateAsyncScope())
             await scope.ServiceProvider.GetRequiredService<IStartupSeeder>().SeedAsync(isDevelopment: false);
-        // The whole cache, without HybridCache's "*" invalidation: that one is stamped with the (frozen) clock and
-        // would also refuse every entry cached later at the same instant
+        // The database changed outside the app: nothing cached before may survive
         Factory.ClearMemoryCache();
     }
 
     /// <summary>A new anonymous client with its own cookie jar (one browser).</summary>
     public ApiClient CreateClient() => new(Factory);
+
+    /// <summary>Whether <see cref="PerClassAsync{T}"/> already holds a value for <paramref name="key"/>.</summary>
+    public bool HasPerClass(string key) => perClass.ContainsKey(key);
 
     /// <summary>
     /// A value kept for the rest of the current test class (e.g. a logged-in session: the opt-in fast path), dropped

@@ -104,14 +104,15 @@ public sealed class Logins(AppFixture app, ClinicHubFactory factory = null)
     /// Fast path (opt-in): one session kept for the whole test class under <paramref name="key"/>, never shared with
     /// another class. Only for tests that don't change that session (no logout, switch or refresh on it). Get it
     /// before moving the clock (its token is dated by the clock, and the clock goes back to the real time between
-    /// tests): called after <c>Clock.Advance</c>, it throws.
+    /// tests): creating it after <c>Clock.Advance</c> throws (reading it again after an advance is fine).
     /// </summary>
     public Task<ApiClient> SharedAsync(string key, Func<Task<ApiClient>> login)
     {
-        if (app.Clock.Offset != TimeSpan.Zero)
+        var perClassKey = factory is null ? $"login:{key}" : $"login:{key}@variant{factory.GetHashCode()}";
+        if (!app.HasPerClass(perClassKey) && Factory.Clock.Offset != TimeSpan.Zero)
             throw new InvalidOperationException(
                 "Get the shared session before Clock.Advance: a token dated in this test's future is refused in the next test.");
-        return app.PerClassAsync($"login:{key}", login);
+        return app.PerClassAsync(perClassKey, login);
     }
 
     /// <summary>The super admin (platform context), one session per test class.</summary>

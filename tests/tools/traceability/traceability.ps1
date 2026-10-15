@@ -9,12 +9,13 @@
     - integration tests      tests/ClinicHub.IntegrationTests/**/*.cs  [Trait("Case", "AUTH-036")]  -> level api
     - Vitest                 ClinicHub.Web/src/**/*.test.ts(x)         "@DOSE-012" in a title         -> levels unit, ui
     - Playwright             ClinicHub.Web/e2e/**/*.spec.ts            "@RX-004" in a title           -> level e2e
-  A test marked as a known bug (xUnit Skip = "BUG-0nn: ...", Vitest test.skip("BUG-1nn: ..."), Playwright
-  test.fixme("BUG-1nn: ...")) counts its cases as covered-but-known-bug: they count for the gates and are listed apart.
-  Any other skip (no BUG-nnn id; also .todo and the tests of a describe.skip) is not coverage, nor is an ID in a
-  comment. Fails (exit 1) when a test names an ID that is not exactly a catalog ID, when a test is skipped without a
-  BUG-nnn id, when the catalog repeats an ID, and, with -Gate, when the coverage of the cases in scope is below the
-  gates: 100% of P0 and P1, at least 80% of P2 (manual cases are never counted).
+  A test marked as a known bug (xUnit Skip = "BUG-0nn: ..." as a plain string literal, Vitest test.skip("BUG-1nn: ..."),
+  Playwright test.fixme("BUG-1nn: ...")) counts its cases as covered-but-known-bug: they count for the gates and are
+  listed apart. Any other skip (no BUG-nnn id; a Skip that is not a plain literal: a const, $"...", @"..."; also .todo
+  and the tests of a describe.skip) is not coverage, nor is an ID in a comment. Fails (exit 1) when a test names an ID
+  that is not exactly a catalog ID, when a test is skipped without a BUG-nnn id, when the catalog repeats an ID, and,
+  with -Gate, when the coverage of the P0 or P1 cases in scope is below 100% (P2 is reported, not gated; manual cases
+  are never counted).
   Writes <OutDir>/traceability.md and traceability.json.
 
 .PARAMETER Areas
@@ -43,7 +44,8 @@ if (-not $OutDir) { $OutDir = Join-Path $Root 'artifacts' }
 $Areas = @($Areas | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToUpperInvariant() })
 $Levels = @($Levels | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() })
 $automated = @('unit', 'api', 'ui', 'e2e')
-$gates = @{ P0 = 100; P1 = 100; P2 = 80 }
+# P2: reported only (the user's trim, 2026-10-15: E2E covers P0/P1; P2 by component/api tests where cheap)
+$gates = @{ P0 = 100; P1 = 100; P2 = $null }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $idPattern = '[A-Z][A-Z0-9]*-\d{3}'
 
@@ -145,9 +147,10 @@ function Add-CSharp([string] $dir, [string[]] $levels) {
             }
             if ($inBlock) {
                 $all = ($block | ForEach-Object { $_.Text }) -join ' '
+                # Any Skip skips (xUnit takes a const or an interpolated string too); a known bug only as a plain literal
                 $state = 'covered'
-                if ($all -match 'Skip\s*=\s*"\s*BUG-\d{3}') { $state = 'knownBug' }
-                elseif ($all -match 'Skip\s*=\s*"') { $state = 'skipped' }
+                if ($all -match '(?<![\w$@])Skip\s*=\s*"\s*BUG-\d{3}') { $state = 'knownBug' }
+                elseif ($all -match '\bSkip\s*=') { $state = 'skipped' }
                 foreach ($entry in $block) {
                     foreach ($m in [regex]::Matches($entry.Text, "Trait\(\s*""Case""\s*,\s*""([^""]+)""\s*\)")) {
                         Add-Found $m.Groups[1].Value $levels $state $file.FullName $entry.Line
@@ -169,9 +172,11 @@ function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels) {
         $lines = Remove-Comments ([IO.File]::ReadAllLines($file.FullName, $utf8)) $quotes
         $braces = 0
         $skippedBlocks = New-Object System.Collections.ArrayList   # { Depth, Bug }
+        $pending = $null                                           # a describe.skip whose body has not opened yet
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $text = $lines[$i]
-            $tokens = [regex]::Matches($text, '@([A-Za-z][A-Za-z0-9]*-\d+)\b')
+            # Not an e-mail address ("owner@clinic-1.test"): nothing word-like right before the "@"
+            $tokens = [regex]::Matches($text, '(?<![\w.%+-])@([A-Za-z][A-Za-z0-9]*-\d+)\b')
             if ($tokens.Count -gt 0) {
                 $state = 'covered'
                 $start = $i
@@ -188,10 +193,19 @@ function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels) {
                 }
                 foreach ($m in $tokens) { Add-Found $m.Groups[1].Value $levels $state $file.FullName ($i + 1) }
             }
+            # A describe.skip/fixme skips the tests of the body it opens (its "{" may come a few lines later, after a
+            # wrapped title); one that opens no body (describe.skip("x", suite);) skips nothing below it
             if ($text -match '\bdescribe((\.\w+)*)\s*\(' -and $Matches[1] -match '\.(skip|fixme)\b') {
-                [void]$skippedBlocks.Add([pscustomobject]@{ Depth = $braces; Bug = ($text -match 'BUG-\d{3}') })
+                $pending = [pscustomobject]@{ Depth = $braces; Parens = 0; Bug = $false }
             }
-            $braces += Get-Depth $text '{' '}' $quotes
+            $opened = Get-Depth $text '{' '}' $quotes
+            if ($null -ne $pending) {
+                if ($text -match 'BUG-\d{3}') { $pending.Bug = $true }
+                $pending.Parens += Get-Depth $text '(' ')' $quotes
+                if ($opened -gt 0) { [void]$skippedBlocks.Add([pscustomobject]@{ Depth = $pending.Depth; Bug = $pending.Bug }); $pending = $null }
+                elseif ($pending.Parens -le 0) { $pending = $null }
+            }
+            $braces += $opened
             while ($skippedBlocks.Count -gt 0 -and $braces -le $skippedBlocks[$skippedBlocks.Count - 1].Depth -and $text -match '\}') {
                 $skippedBlocks.RemoveAt($skippedBlocks.Count - 1)
             }
@@ -252,9 +266,10 @@ $scoped = @($rows | Where-Object { $_.InScope })
 $gateResults = New-Object System.Collections.ArrayList
 foreach ($p in @('P0', 'P1', 'P2')) {
     $s = Get-Stats @($scoped | Where-Object { $_.Priority -eq $p })
+    $passed = ($null -eq $gates[$p]) -or ($s.Percent -ge $gates[$p])
     [void]$gateResults.Add([pscustomobject]@{
         Priority = $p; Gate = $gates[$p]; Total = $s.Total; Covered = $s.Covered; KnownBug = $s.KnownBug
-        Missing = $s.Missing; Percent = $s.Percent; Passed = ($s.Percent -ge $gates[$p]) })
+        Missing = $s.Missing; Percent = $s.Percent; Passed = $passed })
 }
 $gateFailed = @($gateResults | Where-Object { -not $_.Passed }).Count -gt 0
 
@@ -278,7 +293,9 @@ $md = New-Object System.Text.StringBuilder
 [void]$md.AppendLine('|---|---:|---:|---:|---:|---:|---:|---|')
 foreach ($g in $gateResults) {
     $result = 'pass'; if (-not $g.Passed) { $result = '**FAIL**' }
-    [void]$md.AppendLine("| $($g.Priority) | $($g.Gate)% | $($g.Total) | $($g.Covered) | $($g.KnownBug) | $($g.Missing) | $($g.Percent)% | $result |")
+    $gateText = "$($g.Gate)%"
+    if ($null -eq $g.Gate) { $gateText = '-'; $result = 'reported' }
+    [void]$md.AppendLine("| $($g.Priority) | $gateText | $($g.Total) | $($g.Covered) | $($g.KnownBug) | $($g.Missing) | $($g.Percent)% | $result |")
 }
 [void]$md.AppendLine('')
 [void]$md.AppendLine('## By area and level (whole catalog)')
@@ -299,7 +316,7 @@ if ($skippedWithoutBug.Count -gt 0) {
     [void]$md.AppendLine('')
     [void]$md.AppendLine('## Skipped without a BUG-nnn id (not counted): FAIL')
     [void]$md.AppendLine('')
-    [void]$md.AppendLine('A test is skipped only as a known bug (Skip = "BUG-0nn: ...", test.skip/fixme("BUG-1nn: ...")); any other skip is not coverage.')
+    [void]$md.AppendLine('A test is skipped only as a known bug (Skip = "BUG-0nn: ..." as a plain string literal, test.skip/fixme("BUG-1nn: ...")); any other skip is not coverage.')
     [void]$md.AppendLine('')
     foreach ($k in $skippedWithoutBug) { [void]$md.AppendLine("- $($k.Id): $($k.File):$($k.Line)") }
 }
@@ -340,7 +357,8 @@ $json = [pscustomobject]@{
 
 # ---- Console + exit code ----
 foreach ($g in $gateResults) {
-    Write-Host ("  {0}: {1}% of {2} (covered {3}, known bug {4}, missing {5}; gate {6}%)" -f $g.Priority, $g.Percent, $g.Total, $g.Covered, $g.KnownBug, $g.Missing, $g.Gate)
+    $gateText = 'reported, no gate'; if ($null -ne $g.Gate) { $gateText = "gate $($g.Gate)%" }
+    Write-Host ("  {0}: {1}% of {2} (covered {3}, known bug {4}, missing {5}; {6})" -f $g.Priority, $g.Percent, $g.Total, $g.Covered, $g.KnownBug, $g.Missing, $gateText)
 }
 $failed = $false
 if ($unknown.Count -gt 0) {

@@ -53,6 +53,10 @@ public sealed class IntegrationTestFramework(IMessageSink messageSink) : XunitTe
                 // The next run drops what is left (its run is gone); never fail the results for it
                 DiagnosticMessageSink.OnMessage(new DiagnosticMessage($"Test databases not dropped: {e.Message}"));
             }
+            // Database problems that did not fail the run (best-effort drops, retried later)
+            foreach (var warning in TestRun.Warnings.Distinct())
+                DiagnosticMessageSink.OnMessage(new DiagnosticMessage($"ClinicHub test databases: {warning}"));
+            TestRun.Warnings.Clear();
             await base.BeforeTestAssemblyFinishedAsync();
         }
     }

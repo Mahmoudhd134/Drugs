@@ -7,9 +7,9 @@
            of the chosen areas (-Area, else from git diff); e2e smoke (npm run e2e -- --grep @smoke) only when UI files
            changed and an e2e script exists; traceability report (unknown case IDs fail).
   full     everything: all unit, Vitest with coverage gates, all integration with coverage, the whole e2e suite
-           (Chromium projects), the backend coverage gates (D5), the traceability gate (100% P0/P1, 80% P2).
-  release  full + Stryker.NET on the critical backend modules (gate 85%) + StrykerJS (npm run test:mutation) + e2e on
-           every browser (CLINICHUB_E2E_BROWSERS=all: + Firefox and WebKit).
+           (Chromium), the backend coverage gates (D5), the traceability gate (100% P0 and P1; P2 reported, not gated).
+  release  full + Stryker.NET on the 6 critical backend files of tests/stryker-config.json (gate 85% on each) +
+           StrykerJS (npm run test:mutation). E2E stays Chromium only (CLINICHUB_E2E_BROWSERS=chromium).
   -Mutate  (any tier) also runs Stryker.NET on the files you name (a phase-B track proving its tests).
   PostgreSQL: the compose container (docker compose up -d). Test databases: drags_it_<run>_* (dropped at the end).
   Exit code: 0 when every stage passed and every gate held, else 1 (also when the runner itself fails). Missing pieces
@@ -28,16 +28,19 @@
   Seed of the random test order (integration tests). Default: a new random seed, printed and written to the summary.
 
 .PARAMETER Mutate
-  Files to mutate with Stryker.NET (glob patterns, repo-relative or starting with **), e.g.
-  'ClinicHub.Application/Features/Identity/Login/**/*.cs'. Replaces the config's critical-module list for this run;
-  the 85% break threshold still applies. Report: artifacts/mutation/backend.
+  Files to mutate with Stryker.NET (glob patterns, repo-relative or starting with **; comma separated or repeated), e.g.
+  'ClinicHub.Application/Features/Access/Authorization/PermissionService.cs'. Replaces the config's critical-file list
+  for this run; the 85% gate applies to each mutated file, and a list that matches no code FAILS the stage. With an
+  explicit -Area (not "all"), only that area's integration tests run against the mutants (Stryker's test-case-filter
+  "(Area=a|Area=b)&FullyQualifiedName~ClinicHub.IntegrationTests"), so the score is the area's own; without -Area, every
+  .NET test (unit + integration) counts. Report: artifacts/mutation/backend.
 
 .EXAMPLE
   ./test.ps1                       # step tier, areas from git diff
   ./test.ps1 -Tier step -Area auth,access
   ./test.ps1 -Tier full
   ./test.ps1 -Tier step -Seed 1234 # reproduce an order
-  ./test.ps1 -Tier step -Area auth -Mutate 'ClinicHub.Application/Features/Identity/Login/**/*.cs'
+  ./test.ps1 -Tier step -Area auth -Mutate 'ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs'
 #>
 [CmdletBinding()]
 param(
@@ -254,39 +257,61 @@ function Invoke-DotnetTests([string] $project, [string] $name, [string] $filter,
 }
 
 # Stryker.NET from the local tool manifest (never a tool installed under a long folder: the 260-character path
-# limit breaks it). With $mutateGlobs, a copy of the config with that file list.
-function Invoke-Stryker([string[]] $mutateGlobs) {
-    $config = Join-Path $root 'tests\stryker-config.json'
+# limit breaks it). With $mutateGlobs, that file list instead of the config's; with $testAreas, only those areas'
+# integration tests run against the mutants. The 85% gate applies to each mutated file (mutation-score.ps1).
+function Invoke-Stryker([string[]] $mutateGlobs, [string[]] $testAreas) {
     $out = Join-Path $artifacts 'mutation\backend'
+    $json = Get-Content (Join-Path $root 'tests\stryker-config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $options = $json.'stryker-config'
     if ($mutateGlobs.Count -gt 0) {
-        $json = Get-Content $config -Raw -Encoding UTF8 | ConvertFrom-Json
-        $json.'stryker-config'.mutate = @($mutateGlobs | ForEach-Object {
+        $options.mutate = @($mutateGlobs | ForEach-Object {
                 $glob = $_.Replace([char]92, [char]47)
                 if ($glob.StartsWith('**') -or $glob.StartsWith('!')) { $glob } else { "**/$glob" }
             })
-        $json.'stryker-config'.solution = Join-Path $root 'ClinicHub.sln'
-        $config = Join-Path $artifacts 'mutation\stryker-config.chosen.json'
-        [IO.File]::WriteAllText($config, ($json | ConvertTo-Json -Depth 5), $utf8)
-        Write-Host "  mutating: $($json.'stryker-config'.mutate -join ', ')"
     }
+    $tests = 'every .NET test (unit + integration)'
+    if ($testAreas.Count -gt 0) {
+        $filter = "($(@($testAreas | ForEach-Object { "Area=$_" }) -join '|'))&FullyQualifiedName~ClinicHub.IntegrationTests"
+        $options | Add-Member -NotePropertyName 'test-case-filter' -NotePropertyValue $filter -Force
+        $tests = "integration tests of $($testAreas -join ', ') ($filter)"
+    }
+    $options.solution = Join-Path $root 'ClinicHub.sln'
+    New-Item -ItemType Directory -Force -Path $out | Out-Null
+    $config = Join-Path $artifacts 'mutation\stryker-config.chosen.json'
+    [IO.File]::WriteAllText($config, ($json | ConvertTo-Json -Depth 5), $utf8)
+    Write-Host "  mutating: $($options.mutate -join ', ')"
+    Write-Host "  tests: $tests"
+    $log = Join-Path $out 'stryker.log'
     # Each Stryker test process makes its own test run (own databases): no shared run id
     $saved = $env:CLINICHUB_TEST_RUN
     Remove-Item Env:\CLINICHUB_TEST_RUN
+    Push-Location $root
     try {
-        # From the repo root: the config's solution path is relative to it
-        $code = Invoke-Native 'dotnet' @('stryker', '-f', $config, '-O', $out)
+        # To the console and to a log (read below for tests failing without any mutant)
+        & dotnet stryker -f $config -O $out | Tee-Object -Variable strykerOutput | Out-Host
+        $code = $LASTEXITCODE
+        [IO.File]::WriteAllLines($log, [string[]]@($strykerOutput), $utf8)
     }
     finally {
+        Pop-Location
         $env:CLINICHUB_TEST_RUN = $saved
     }
     $report = Join-Path $out 'reports\mutation-report.json'
-    $note = 'gate 85% (break), artifacts/mutation/backend'
-    if (Test-Path $report) {
-        [void](Invoke-Script (Join-Path $root 'tests\tools\mutation\mutation-score.ps1') @('-Report', $report, '-OutDir', $out))
-        $score = (Get-Content (Join-Path $out 'mutation.json') -Raw -Encoding UTF8 | ConvertFrom-Json).score
-        if ($null -ne $score) { $note = "score $score% (gate 85%), artifacts/mutation/backend" }
+    if (-not (Test-Path $report)) {
+        return @{ Result = 'FAILED'; Note = "Stryker failed before scoring (see its log above, artifacts/mutation/backend/stryker.log); a build error such as CS0518 under load: rerun" }
     }
-    $result = 'passed'; if ($code -ne 0) { $result = 'FAILED' }
+    $scoreCode = Invoke-Script (Join-Path $root 'tests\tools\mutation\mutation-score.ps1') @('-Report', $report, '-OutDir', $out, '-Gate', '85')
+    $summary = Get-Content (Join-Path $out 'mutation.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $note = "score $($summary.score)% (gate 85% per file), artifacts/mutation/backend"
+    $result = 'passed'
+    if ($summary.tested -eq 0) { $result = 'FAILED'; $note = "no mutant in $($options.mutate -join ', ')" }
+    elseif ($scoreCode -ne 0 -or $code -ne 0) { $result = 'FAILED' }
+    # Tests that already fail without any mutant make the score meaningless (Stryker only warns)
+    $failing = Select-String -Path $log -Pattern '(\d+) tests? (is|are) failing' | Select-Object -First 1
+    if ($failing) {
+        $result = 'FAILED'
+        $note = "$($failing.Matches[0].Groups[1].Value) test(s) failed in Stryker's initial run (score not trustworthy, see the log); $note"
+    }
     return @{ Result = $result; Note = $note }
 }
 
@@ -313,6 +338,11 @@ try {
     $env:CLINICHUB_TEST_SEED = "$Seed"
 
     $areas = @($Area | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLowerInvariant() })
+    # powershell -File passes "-Mutate a.cs,b.cs" as one string: split it like -Area
+    $Mutate = @($Mutate | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() })
+    # Only an explicit -Area (not "all") narrows the tests run against the mutants
+    $mutateAreas = @()
+    if ($areas -notcontains 'all') { $mutateAreas = $areas }
     foreach ($a in $areas) {
         if ($a -ne 'all' -and $allAreas -notcontains $a) { throw "Unknown area '$a' (known: $($allAreas -join ', '), all)" }
     }
@@ -403,7 +433,7 @@ try {
         }
 
         # e2e contract: "npm run e2e" = the whole Playwright suite; step adds "-- --grep @smoke"; the Playwright config
-        # picks its projects from CLINICHUB_E2E_BROWSERS (chromium: the Chromium projects; all: + Firefox, WebKit)
+        # picks its projects from CLINICHUB_E2E_BROWSERS (always "chromium": the Chromium projects)
         $runE2e = $scripts -contains 'e2e' -and ($Tier -ne 'step' -or $uiChanged)
         if ($runE2e) {
             $e2eArguments = @('run', 'e2e')
@@ -411,7 +441,8 @@ try {
             if ($Tier -eq 'step') { $e2eArguments += @('--', '--grep', '@smoke'); $e2eLabel = 'End-to-end smoke (npm run e2e -- --grep @smoke)' }
             Invoke-Stage $e2eLabel {
                 Ensure-NodeModules
-                if ($Tier -eq 'release') { $env:CLINICHUB_E2E_BROWSERS = 'all' } else { $env:CLINICHUB_E2E_BROWSERS = 'chromium' }
+                # Chromium only, on every tier (the user's trim, 2026-10-15)
+                $env:CLINICHUB_E2E_BROWSERS = 'chromium'
                 $code = Invoke-Native (Get-Npm) $e2eArguments $web
                 $result = 'passed'; if ($code -ne 0) { $result = 'FAILED' }
                 return @{ Result = $result; Note = "browsers: $env:CLINICHUB_E2E_BROWSERS" }
@@ -446,14 +477,18 @@ try {
         if ($Tier -ne 'step') { $arguments += '-Gate' }
         $code = Invoke-Script (Join-Path $root 'tests\tools\traceability\traceability.ps1') $arguments
         $result = 'passed'; if ($code -ne 0) { $result = 'FAILED' }
-        $note = 'report only (unknown IDs and skips without a bug ID fail)'; if ($Tier -ne 'step') { $note = 'gate: 100% P0/P1, 80% P2' }
+        $note = 'report only (unknown IDs and skips without a bug ID fail)'; if ($Tier -ne 'step') { $note = 'gate: 100% P0 and P1 (P2 reported)' }
         return @{ Result = $result; Note = $note }
     }
 
     if (-not $buildFailed -and ($Tier -eq 'release' -or $Mutate.Count -gt 0)) {
-        $mutationLabel = 'Backend mutation (Stryker.NET, critical modules)'
-        if ($Mutate.Count -gt 0) { $mutationLabel = 'Backend mutation (Stryker.NET, -Mutate files)' }
-        Invoke-Stage $mutationLabel { Invoke-Stryker $Mutate }
+        $mutationLabel = 'Backend mutation (Stryker.NET, critical files)'
+        $testAreas = @()
+        if ($Mutate.Count -gt 0) {
+            $mutationLabel = 'Backend mutation (Stryker.NET, -Mutate files)'
+            $testAreas = $mutateAreas
+        }
+        Invoke-Stage $mutationLabel { Invoke-Stryker $Mutate $testAreas }
     }
     if ($Tier -eq 'release' -and -not $buildFailed) {
         if ($scripts -contains 'test:mutation') {
@@ -527,9 +562,13 @@ if (Test-Path $traceFile) {
     [void]$md.AppendLine('')
     [void]$md.AppendLine('| Priority | Covered | Known bug | Missing | % | Gate |')
     [void]$md.AppendLine('|---|---:|---:|---:|---:|---:|')
-    foreach ($g in $t.gate) { [void]$md.AppendLine("| $($g.Priority) | $($g.Covered) | $($g.KnownBug) | $($g.Missing) | $($g.Percent)% | $($g.Gate)% |") }
-    if (@($t.unknownIds).Count -gt 0) { [void]$md.AppendLine("Unknown IDs: $($t.unknownIds -join '; ')") }
-    if (@($t.skippedWithoutBug).Count -gt 0) { [void]$md.AppendLine("Skipped without a bug ID (not counted): $($t.skippedWithoutBug -join '; ')") }
+    foreach ($g in $t.gate) {
+        $gateText = 'reported'; if ($null -ne $g.Gate) { $gateText = "$($g.Gate)%" }
+        [void]$md.AppendLine("| $($g.Priority) | $($g.Covered) | $($g.KnownBug) | $($g.Missing) | $($g.Percent)% | $gateText |")
+    }
+    # A blank line first: a line right under a table renders as one of its rows
+    if (@($t.unknownIds).Count -gt 0) { [void]$md.AppendLine(''); [void]$md.AppendLine("Unknown IDs: $($t.unknownIds -join '; ')") }
+    if (@($t.skippedWithoutBug).Count -gt 0) { [void]$md.AppendLine(''); [void]$md.AppendLine("Skipped without a bug ID (not counted): $($t.skippedWithoutBug -join '; ')") }
     [void]$md.AppendLine('')
     [void]$md.AppendLine('Details: artifacts/traceability.md')
 }
@@ -537,7 +576,7 @@ $mutationFile = Join-Path $artifacts 'mutation\backend\mutation.md'
 $mutationReports = @(Get-ChildItem -Path (Join-Path $artifacts 'mutation') -Filter 'mutation-report.json' -Recurse -ErrorAction SilentlyContinue)
 if ((Test-Path $mutationFile) -or $mutationReports.Count -gt 0) {
     [void]$md.AppendLine('')
-    [void]$md.AppendLine('## Mutation (gate 85%)')
+    [void]$md.AppendLine('## Mutation (gate 85% per critical file)')
     [void]$md.AppendLine('')
     if (Test-Path $mutationFile) { [void]$md.Append([IO.File]::ReadAllText($mutationFile, $utf8)); [void]$md.AppendLine('') }
     foreach ($m in $mutationReports) { [void]$md.AppendLine("- $($m.FullName.Substring($root.Length + 1))") }

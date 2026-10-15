@@ -3,16 +3,12 @@
     "solution": "ClinicHub.sln",
     "configuration": "Release",
     "mutate": [
-      "**/ClinicHub.Infrastructure/Database/AppDbContext.cs",
       "**/ClinicHub.Infrastructure/Database/ClinicAndTimestampsInterceptor.cs",
-      "**/ClinicHub.Application/Features/Identity/Login/**/*.cs",
-      "**/ClinicHub.Application/Features/Identity/Sessions/**/*.cs",
-      "**/ClinicHub.Application/Features/Access/Authorization/**/*.cs",
-      "**/ClinicHub.Application/Features/Access/Roles/**/*.cs",
-      "**/ClinicHub.Application/Features/Access/StaffMembers/**/*.cs",
-      "**/ClinicHub.Application/Features/Platform/**/*.cs",
-      "**/ClinicHub.Api/Features/Access/**/*.cs",
-      "**/ClinicHub.Api/Features/Platform/AdminClinicFilter.cs"
+      "**/ClinicHub.Api/Features/Platform/AdminClinicFilter.cs",
+      "**/ClinicHub.Application/Features/Access/Authorization/PermissionService.cs",
+      "**/ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs",
+      "**/ClinicHub.Application/Features/Identity/Sessions/Commands/RefreshSession/RefreshSessionCommandHandler.cs",
+      "**/ClinicHub.Application/Features/Access/StaffMembers/MembershipService.cs"
     ],
     "reporters": [ "html", "json", "progress", "cleartext" ],
     "thresholds": { "high": 95, "low": 85, "break": 85 },

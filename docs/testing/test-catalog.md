@@ -35,8 +35,10 @@ case and its source disagree, the source wins and the case is fixed.
 - Every test names the cases it proves: xUnit `[Trait("Case", "AUTH-012")]`, Vitest and Playwright `@AUTH-012` in the
   test title. A test may prove several cases; a case may need several tests (one per level for `api+e2e`).
 - No "covered by" column here: `tests/tools/traceability` lists the IDs found in the tests and fails when a P0 or P1 case
-  has no test or a test names an unknown ID (report in `artifacts/`). Gate: 100% of P0 and P1, ≥ 80% of P2
-  ([D5](../design/m1.6-test-foundation.md#d5-coverage-and-mutation-gates)).
+  has no test or a test names an unknown ID (report in `artifacts/`). Gate: 100% of P0 and P1; P2 is reported, not
+  gated ([D5](../design/m1.6-test-foundation.md#d5-coverage-and-mutation-gates); the user's trim, 2026-10-15).
+- E2E covers P0 and P1 cases only (Chromium only): a P2 case whose level includes `e2e` is covered by a component or
+  `api` test where that is cheap, else left open (reported).
 - Every later step adds its feature's cases here, in the same commit as its docs and tests (a new area only for a new
   feature), and fixes the cases whose behavior it changes.
 - `manual` cases are not automated: they are run in the [dress rehearsal](dress-rehearsal.md) (with every P0 case).
@@ -880,7 +882,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-177 | Given an unused role, when Delete, then the confirm «حذف الدور «X»؟ لا يمكن التراجع عن ذلك. لا يمكن حذف دور ممنوح لموظفين: أزِل هذا الدور من موظفيه أولًا.» opens with the focus on Cancel | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-178 | Given the delete confirm, when confirming (double click), then one `DELETE`, the toast «تم حذف الدور «X»» and the row is gone | P1 | e2e | [business: messages][adm-b-msg] |
 | ADM-179 | Given "New role", then the dialog shows the name (max 100), the sections «الأدوية والمجموعات» (Drugs, Groups) and «الروشتة», 11 checkboxes with their translated labels, and «المختار: 0 من 11.» | P1 | ui | [business: screens][adm-b-screens] |
-| ADM-180 | Given the picker, when ticking «تعديل المجموعات» / "Edit groups", then «فتح مجموعة», «عرض قائمة المجموعات والبحث فيها», «عرض قائمة الأدوية والبحث فيها» are ticked and locked, each with «مطلوبة لـ: تعديل المجموعات», and the count is 4 of 11 | P0 | ui | [business: screens][adm-b-screens] |
+| ADM-180 | Given the picker, when ticking «تعديل المجموعات» / "Edit groups", then «فتح مجموعة», «عرض قائمة المجموعات والبحث فيها», «عرض قائمة الأدوية والبحث فيها» are ticked and locked, each with the ticked permissions that directly require it: «فتح مجموعة» and «عرض قائمة الأدوية والبحث فيها» show «مطلوبة لـ: تعديل المجموعات», «عرض قائمة المجموعات والبحث فيها» shows «مطلوبة لـ: فتح مجموعة»; the count is 4 of 11 | P0 | ui | [business: screens][adm-b-screens], [tech roles/staff screens][adm-t-rsui] |
 | ADM-181 | Given a locked (required) box, when clicking it or pressing Space on it, then it stays ticked | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-182 | Given «تعديل المجموعات» ticked (its 3 requirements locked), when it is unticked, then the 3 requirements stay ticked but unlocked and the count reads 3 of 11 | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-183 | Given "Edit drugs" and "Delete drugs" ticked, then "Open a drug" shows "Needed by: Edit drugs, Delete drugs"; unticking both unlocks it | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
