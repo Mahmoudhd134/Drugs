@@ -1,0 +1,59 @@
+import {describe, expect, test, vi} from "vitest";
+import {screen, waitFor} from "@testing-library/react";
+import {aDrug, aGroup, drugGroupsHandlers, drugsHandlers, recordRequests, renderWithProviders, server} from "../../../test";
+import type {Permission} from "../../access/permissions.ts";
+import {CatalogPanel} from "./CatalogPanel.tsx";
+import {patientWaits} from "../../../test/fe-access/patience.ts";
+
+// The prescription's catalog panel by permission: docs/features/access/tech.md "Frontend" (Pages: Prescription),
+// access business.md «الصلاحيات». A picker the user can't use is neither shown nor loaded (an unhandled request fails).
+
+patientWaits();
+
+const openPanel = (permissions: Permission[]) =>
+    renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectGroup={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "ar", user: {permissions}});
+
+describe("catalog panel by permission @area:access", () => {
+    test("with both: the Groups and Drugs tabs, Groups first with the focus @ACC-068 @smoke", async () => {
+        server.use(...drugGroupsHandlers([aGroup({name: "Post cataract"})]), ...drugsHandlers([aDrug({name: "Tobradex"})]));
+        await openPanel(["groups.list", "drugs.list", "prescriptions.create"]);
+        expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["المجموعات", "الأدوية"]);
+        expect(screen.getByRole("tab", {name: "المجموعات"})).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("searchbox", {name: "ابحث عن مجموعة بالاسم…"})).toHaveFocus();
+        expect(await screen.findByText("Post cataract")).toBeInTheDocument();
+    });
+
+    test("with drugs.list only: only the Drugs tab, its search has the focus, and groups are never loaded @ACC-068", async () => {
+        server.use(...drugsHandlers([aDrug({name: "Tobradex"})]));
+        const requests = recordRequests();
+        await openPanel(["drugs.list", "prescriptions.create"]);
+        expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["الأدوية"]);
+        expect(screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"})).toHaveFocus();
+        expect(await screen.findByText("Tobradex")).toBeInTheDocument();
+        expect(requests.requests.some(r => r.path === "/drug-groups")).toBe(false);
+    });
+
+    test("with groups.list only: only the Groups tab, with the focus, and drugs are never loaded @ACC-068", async () => {
+        server.use(...drugGroupsHandlers([aGroup({name: "Post cataract"})]));
+        const requests = recordRequests();
+        await openPanel(["groups.list"]);
+        expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["المجموعات"]);
+        expect(screen.getByRole("searchbox", {name: "ابحث عن مجموعة بالاسم…"})).toHaveFocus();
+        expect(await screen.findByText("Post cataract")).toBeInTheDocument();
+        await waitFor(() => expect(requests.requests.some(r => r.path === "/drug-groups")).toBe(true));
+        expect(requests.requests.some(r => r.path === "/drugs")).toBe(false);
+    });
+
+    test("with neither: «ليست لديك صلاحية للبحث في الأدوية أو المجموعات.» and nothing loaded @ACC-069", async () => {
+        const requests = recordRequests();
+        await openPanel([]);
+        expect(screen.getByText("ليست لديك صلاحية للبحث في الأدوية أو المجموعات.")).toBeInTheDocument();
+        expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+        expect(requests.requests).toEqual([]);
+    });
+
+    test("with neither, in English: \"You don't have permission to search drugs or groups.\" @ACC-069", async () => {
+        await renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectGroup={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "en", user: {permissions: []}});
+        expect(screen.getByText("You don't have permission to search drugs or groups.")).toBeInTheDocument();
+    });
+});
