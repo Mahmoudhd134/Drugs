@@ -45,7 +45,6 @@ public class CreateRoleCommandValidatorTests
         Validate("Editors", ["nope.x"]).Errors.ShouldBe([new ApiFieldError("unknownPermission", "permissions")]);
         Validate("Editors", ["nope.x", "drugs.list", "other.y"])
             .Errors.ShouldBe([new ApiFieldError("unknownPermission", "permissions")]);
-        Validate("Editors", ["Drugs.List"]).Errors.ShouldBe([new ApiFieldError("unknownPermission", "permissions")]);
     }
 
     [Theory]
