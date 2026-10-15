@@ -9,7 +9,8 @@ conflict with lines already in the prescription.
 Dosing flows: drug default → **group override** → prescription line (see [dosing](../dosing/tech.md)).
 
 ## Data model
-- `DrugGroups` (`ClinicHub.Domain/Catalog/DrugGroup.cs`): `Id`, `Name` (required, max 256).
+- `DrugGroups` (`ClinicHub.Domain/Catalog/DrugGroup.cs`): `Id`, `Name` (required, max 256), `SearchName` (stored
+  generated column: the name lower-cased and Arabic-folded, only searched; M1.6.1, [search](../../tech/overview.md#conventions)).
 - `DrugGroupItems`: `Id`, `DrugGroupId` (FK, cascade), `DrugId` (FK, cascade), `Order` (0-based),
   `Dosing_*` (owned `Dosing`, nullable) = the group override.
 - Both tables also have `ClinicId` (FK → `Clinics`, restrict; an item's FKs to its group and drug
@@ -76,7 +77,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   request is otherwise valid, and (update) before an unknown group's 404.
 - Update **replaces** all lines (remove + insert) and the name, and touches the group's `UpdatedAt`.
   Create and update reload the group with its drugs for the response. Each command is one transaction.
-- List/detail include items → drug; ordered by `Name`, then `Id`.
+- List/detail include items → drug; ordered by `Name`, then `Id`. Search: the term folded by `SearchText.Term`
+  `Contains` in `SearchName` (Arabic-normalized, case-insensitive, M1.6.1; no prefix ranking for groups).
 - `GET /drugs/{id}/groups` (drugs controller) lists the groups using a drug, for the delete warning.
 
 ## Frontend (`src/features/drugGroups/`)
@@ -88,8 +90,10 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 - **List page** `pages/DrugGroupsPage.tsx` (`/groups`): search, card grid (12/page), each card shows
   the line count and first 4 drug names.
 - **Editor page** `pages/DrugGroupEditorPage.tsx` (`/groups/new`, `/groups/:id`):
-  - Lines use the shared `DosingLineList`: number, drug, **effective** dosing sentence (or the drug
-    description when there is no dosing), chips "Group dosing" (override set) and "Eye is chosen
+  - Lines use the shared `DosingLineList`: number, drug, `LineDetails` with the **effective** dosing (its
+    sentence; or the drug description when it has no dose, frequency, duration or tapering, followed by the eye part
+    if any: [prescription](../prescription/tech.md#text-formats-prescriptiontextts); an `ask`-only line shows the
+    description, M1.6.1), chips "Group dosing" (override set) and "Eye is chosen
     when the group is added" (`ask`). Chips wrap on narrow screens. Actions: ✎ edit, ⊕ add for the
     other eye (when the effective eye is right/left and the other is free), ✕ remove; drag to reorder.
   - Adding a drug from `DrugPicker` creates a line with an empty override; adding a drug+eye pair

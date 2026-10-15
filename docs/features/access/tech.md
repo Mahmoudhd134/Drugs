@@ -64,7 +64,8 @@ reading.
 Composite FKs `(StaffId, ClinicId)` → `Staff(Id, ClinicId)` and `(RoleId, ClinicId)` → `Roles(Id, ClinicId)`
 (both cascade), so the database rejects a role of another clinic (same pattern as `DrugGroupItems`).
 Like every clinic-owned table it also has the FK `ClinicId` → `Clinics` (restrict) and its index.
-`Staff` gets the unique `(Id, ClinicId)` they target.
+`Staff` gets the unique `(Id, ClinicId)` they target (and, M1.6.1, the generated `SearchName` column for the staff
+search: [platform admin](../platform-admin/tech.md#roles-and-staff-m153)).
 
 The join tables have no timestamps (only `Roles` does).
 
@@ -76,7 +77,7 @@ through the change tracker so it propagates.
 
 | Method | Route | Auth | Response |
 |---|---|---|---|
-| GET | `/permissions` | any access token | `[{ key, module, resource, action, requires[] }]` (catalog order; `module` since M1.4, for the role editor's sections; labels are translated in the SPA) |
+| GET | `/permissions` | any access token | `[{ key, module, resource, action, requires[] }]` (catalog order; `requires` = the direct requirements only, as declared; `module` since M1.4, for the role editor's sections; labels are translated in the SPA) |
 | GET | `/me` | access token | `permissions`: the expanded keys in a clinic context (Owner/template = all keys), `[]` on the platform or without a context |
 
 `Context.roles` (login, refresh, switch, `/auth/contexts`) now lists the user's role names in each

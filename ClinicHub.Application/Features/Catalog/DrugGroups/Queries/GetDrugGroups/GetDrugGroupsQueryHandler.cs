@@ -2,6 +2,7 @@ using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Messaging;
 using ClinicHub.Application.Common.Paging;
 using ClinicHub.Application.Common.Results;
+using ClinicHub.Application.Common.Search;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Catalog.DrugGroups.Queries.GetDrugGroups;
@@ -15,9 +16,9 @@ internal sealed class GetDrugGroupsQueryHandler(IAppDbContext db)
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var groups = db.DrugGroups.AsNoTracking();
 
-        var term = Paging.SearchTerm(query.Search);
+        var term = SearchText.Term(query.Search);
         if (!string.IsNullOrEmpty(term))
-            groups = groups.Where(g => g.Name.ToLower().Contains(term));
+            groups = groups.Where(g => EF.Property<string>(g, SearchText.Column).Contains(term));
 
         var totalCount = await groups.CountAsync(cancellationToken);
 

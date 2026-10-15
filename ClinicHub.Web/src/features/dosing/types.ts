@@ -90,6 +90,16 @@ export const isDosingEmpty = (d: Dosing | null | undefined) => {
     return n.doseAmount == null && !n.doseUnit && !n.frequency && !n.durationUnit && !n.eye && !n.taperSteps;
 };
 
+/**
+ * True when the dosing says how to take the drug: a dose, a frequency, a duration or a tapering schedule. An empty
+ * dosing, or one with only an eye, doesn't: a line then shows the drug's description, followed by the eye part
+ * (`LineDetails`, `prescriptionText.ts`).
+ */
+export const hasDosingInstructions = (d: Dosing | null | undefined) => {
+    const n = normalizeDosing(d);
+    return !!(n.doseUnit || n.frequency || n.durationUnit || n.taperSteps);
+};
+
 export type TaperStepField = "doseAmount" | "frequency" | "frequencyValue" | "durationUnit" | "durationValue";
 export type DosingField =
     | "doseAmount" | "doseUnit" | "frequencyValue" | "frequencyText" | "durationValue"
@@ -165,5 +175,11 @@ export const mergeDosing = (base: Dosing | null | undefined, override: Dosing | 
     });
 };
 
-export const sameDosing = (a: Dosing | null | undefined, b: Dosing | null | undefined) =>
-    JSON.stringify(normalizeDosing(a)) === JSON.stringify(normalizeDosing(b));
+/** Same normalized dosing; an unset eye equals "none" (as in `eyeKey`: both write no eye). */
+export const sameDosing = (a: Dosing | null | undefined, b: Dosing | null | undefined) => {
+    const key = (d: Dosing | null | undefined) => {
+        const n = normalizeDosing(d);
+        return JSON.stringify({ ...n, eye: eyeKey(n) });
+    };
+    return key(a) === key(b);
+};

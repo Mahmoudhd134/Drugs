@@ -2,6 +2,7 @@ using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Messaging;
 using ClinicHub.Application.Common.Paging;
 using ClinicHub.Application.Common.Results;
+using ClinicHub.Application.Common.Search;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Access.StaffMembers.Queries.GetStaff;
@@ -15,13 +16,13 @@ internal sealed class GetStaffQueryHandler(IAppDbContext db)
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var staff = db.Staff.AsNoTracking();
 
-        var term = Paging.SearchTerm(query.Search);
+        var term = SearchText.Term(query.Search);
         if (!string.IsNullOrEmpty(term))
         {
             var phoneDigits = PhoneDigits(term);
             staff = phoneDigits is null
-                ? staff.Where(s => s.FullName.ToLower().Contains(term))
-                : staff.Where(s => s.FullName.ToLower().Contains(term) || s.User.Phone.Contains(phoneDigits));
+                ? staff.Where(s => EF.Property<string>(s, SearchText.Column).Contains(term))
+                : staff.Where(s => EF.Property<string>(s, SearchText.Column).Contains(term) || s.User.Phone.Contains(phoneDigits));
         }
 
         var totalCount = await staff.CountAsync(cancellationToken);

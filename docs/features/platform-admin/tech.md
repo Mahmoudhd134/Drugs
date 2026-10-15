@@ -64,8 +64,9 @@ type ClinicDetails = ClinicSummary & { owners: { staffId: number; fullName: stri
   is **still** a super admin → 403 `forbidden` (a clinic or template-context token of the super admin too).
 - A missing or deleted clinic, or the **template**, → 404 `notFound` on every `{id}` route (so the template can't be
   renamed, suspended or deleted, and a deleted clinic can't be deleted again).
-- List: no template, no deleted clinics; `search` = case-insensitive `Contains` on the name, names starting with
-  it first; `status` = `active` / `suspended` (trimmed, lower-cased, control characters dropped; any other value matches nothing); then by
+- List: no template, no deleted clinics; `search` = case-insensitive, Arabic-normalized `Contains` (M1.6.1: the term
+  folded by `SearchText.Term`, looked for in the generated column `Clinics.SearchName`;
+  [search](../../tech/overview.md#conventions)), names whose folded name starts with it first; `status` = `active` / `suspended` (trimmed, lower-cased, control characters dropped; any other value matches nothing); then by
   name and id. Paging as everywhere (`Paging.Normalize`: page ≥ 1, pageSize 1–100, default 20).
 - `staffCount` = active staff. `owners` = active staff holding the Owner role, by name.
 - Create: both names trimmed, at most `FieldLimits.NameMaxLength` (256, the `Clinics.Name` and `Staff.FullName`
@@ -120,7 +121,8 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 - **Owner role** (`IsOwner`): update and delete → 409 `roleLocked` (after validation).
 - **Role delete**: real delete (its `RolePermissions` cascade); any staff holding it, active or not → 409 `roleInUse`.
 - **Staff list**: the clinic's staff, active or not, by full name then id; paging as everywhere. `search`
-  (`Paging.SearchTerm`) matches the full name (`Contains`, case-insensitive); a term that looks like a phone (only
+  (`SearchText.Term`) matches the full name (`Contains` in the generated column `Staff.SearchName`: case-insensitive
+  and Arabic-normalized, M1.6.1, [search](../../tech/overview.md#conventions)); a term that looks like a phone (only
   digits, Arabic-Indic too, spaces, `+ - ( )`) **also** matches the stored phone containing its digits (mapped to
   ASCII) with the **leading zeros dropped**: a local `0100…` (trunk prefix), «٠١٠٠…» or an international `0020…` finds
   `+20100…`; `+20100` and `100000` match too. Not matched: a trunk `0` after the country code (`+20 0100…`, kept
@@ -265,7 +267,7 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 | `api/errors.ts` | `getFieldErrors(error)`: field → translated message of its first error (`errors.<code>`); `getOtherErrors(error, inputFields)`: the translated messages of the errors no input shows |
 | Shared (`components/common`, `hooks`) | `PageHeader` (`titleText`: cut after 3 lines with a tooltip; top-aligned leading; subtitle may hold a chip), `BackButton`, `ListPagination` (also on the drugs page; the rows-per-page choice hidden below `sm`), `PageBoundary`, `useConfirm` (long titles wrap; a `destructive` confirm starts on Cancel), `useSingleFlight` (one run at a time; also the drug dialog's and the group editor's Save) |
 | `features/auth` | `useContextLabel()` (platform → "Platform admin", template → "Template clinic", else the clinic name: picker, app bar, lost-context messages); the picker lists the platform first; a lost platform context is handled like a lost clinic (below) |
-| `hooks/useFormatDate.ts` | Dates in the UI language with Latin digits (like the app's counts): `medium` in the list, `long` on the Overview |
+| `hooks/useFormatDate.ts` | Dates in the UI language with Latin digits (like the app's counts), in the browser's time zone: `medium` in the list, `long` on the Overview |
 
 - `homeOf(platform)` is `/admin`: the picker and a context switch into the platform land there. The super admin always
   has two contexts (platform + template), so the login shows the picker; the login's "return to the page" never

@@ -1,7 +1,6 @@
 import {Typography} from "@mui/material";
 import {DosingLineList} from "../../dosing/components/DosingLineList.tsx";
-import {DosingText} from "../../dosing/components/DosingText.tsx";
-import {isDosingEmpty} from "../../dosing/types.ts";
+import {LineDetails} from "../../dosing/components/LineDetails.tsx";
 import type {PrescriptionLine} from "../types.ts";
 
 type Props = {
@@ -13,21 +12,13 @@ type Props = {
     onAddOtherEye: (line: PrescriptionLine) => void;
 };
 
-/** Prescription lines: drug, dosing sentence (or the drug description when no dosing), note. */
+/** Prescription lines: drug, dosing sentence (or the drug description when the dosing has no instructions), note. */
 export const PrescriptionLineList = (props: Props) => (
     <DosingLineList
         {...props}
         renderDetails={(line) => (
             <>
-                {isDosingEmpty(line.dosing) ? (
-                    line.drug.description && (
-                        <Typography variant="body2" color="text.secondary" sx={{whiteSpace: "pre-line"}}>
-                            {line.drug.description}
-                        </Typography>
-                    )
-                ) : (
-                    <DosingText dosing={line.dosing}/>
-                )}
+                <LineDetails dosing={line.dosing} description={line.drug.description}/>
                 {line.note && (
                     <Typography variant="body2" color="text.secondary" dir="auto" sx={{fontStyle: "italic"}}>
                         {line.note}

@@ -26,7 +26,7 @@ import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
 import {DosingLineList} from "../../dosing/components/DosingLineList.tsx";
-import {DosingText} from "../../dosing/components/DosingText.tsx";
+import {LineDetails} from "../../dosing/components/LineDetails.tsx";
 import {ASK_EYE, eyeKey, isDosingEmpty, otherEye, type Dosing} from "../../dosing/types.ts";
 import {GroupItemDialog} from "../components/GroupItemDialog.tsx";
 import {
@@ -274,15 +274,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                         const effective = effectiveDosing(item);
                                         return (
                                             <>
-                                                {isDosingEmpty(effective) ? (
-                                                    item.drug.description && (
-                                                        <Typography variant="body2" color="text.secondary" sx={{whiteSpace: "pre-line"}}>
-                                                            {item.drug.description}
-                                                        </Typography>
-                                                    )
-                                                ) : (
-                                                    <DosingText dosing={effective}/>
-                                                )}
+                                                <LineDetails dosing={effective} description={item.drug.description}/>
                                                 <Stack direction="row" sx={{gap: 0.5, flexWrap: "wrap", mt: 0.5}}>
                                                     {clashingKeys.has(item.key) && (
                                                         <Chip size="small" color="error" icon={<ErrorIcon/>} label={t("groups.eyeClash")} sx={wrappingChip}/>

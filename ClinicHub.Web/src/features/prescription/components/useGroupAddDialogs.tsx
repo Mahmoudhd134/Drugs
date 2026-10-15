@@ -14,7 +14,8 @@ import {
 } from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {DosingText} from "../../dosing/components/DosingText.tsx";
-import {isDosingEmpty, type Dosing, type Eye} from "../../dosing/types.ts";
+import {dosingToText} from "../../dosing/dosingText.ts";
+import type {Dosing, Eye} from "../../dosing/types.ts";
 
 /** Eyes offered when a group's "ask" lines are added */
 const CHOOSABLE_EYES: Eye[] = ["right", "left", "both"];
@@ -85,7 +86,8 @@ export const useGroupAddDialogs = () => {
     const dosingBox = (label: string, dosing: Dosing) => (
         <Box sx={{flex: 1, p: 1.5, borderRadius: 2, bgcolor: "action.hover"}}>
             <Typography variant="caption" color="text.secondary">{label}</Typography>
-            {isDosingEmpty(dosing)
+            {/* Nothing to write (empty, or only «بدون عين») */}
+            {!dosingToText(dosing)
                 ? <Typography color="text.disabled">{t("dosing.noDosing")}</Typography>
                 : <DosingText dosing={dosing}/>}
         </Box>

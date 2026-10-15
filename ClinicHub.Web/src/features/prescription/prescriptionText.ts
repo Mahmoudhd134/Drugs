@@ -1,17 +1,19 @@
 import {dosingToText} from "../dosing/dosingText.ts";
-import {isDosingEmpty} from "../dosing/types.ts";
+import {hasDosingInstructions} from "../dosing/types.ts";
 import type {PrescriptionLine} from "./types.ts";
 
 const escapeHtml = (text: string) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /**
- * The text under a line's drug name: the dosing sentence (or, when no dosing is set, the drug's
- * description, as before structured dosing) followed by the line's note.
+ * The text under a line's drug name: the dosing sentence, or, when the dosing has no dose, frequency, duration or
+ * tapering (empty, or only an eye), the drug's description followed by the eye part (as the line shows it,
+ * `LineDetails`); then the line's note.
  */
 const detailsOf = (line: PrescriptionLine) =>
     [
-        isDosingEmpty(line.dosing) ? line.drug.description?.trim() : dosingToText(line.dosing),
+        hasDosingInstructions(line.dosing) ? null : line.drug.description?.trim(),
+        dosingToText(line.dosing),
         line.note.trim(),
     ].filter(Boolean) as string[];
 

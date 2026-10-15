@@ -35,7 +35,7 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 - `updateLine(key, {dosing, note})`: returns `false` (no change) if the new eye clashes with another
   line of the same drug.
 - `canAddOtherEye(line)` / `addOtherEye(line)`: for right/left lines whose opposite eye is free,
-  inserts a copy for the other eye right after the line.
+  inserts a copy for the other eye right after the line (same dosing and note, a new key).
 - `removeLine(key)`, `reorder(lines)`, `clear()` (returns a `restore` function for undo).
 - `findLine(drugId, dosing)`, `addLines(lines)`, `setLineDosing(key, dosing)`: used by the
   add-group flow. `newLine(drug, dosing?)` and `lineIdentity(drugId, dosing)` are exported.
@@ -55,9 +55,10 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
        the first; each dialog keeps its request rendered until it has faded out (`onExited`), so it never shows
        another variant's or an empty text while closing; with more such pairs, "apply to the remaining"), so no
        dosing is dropped unseen and these are **not** counted as duplicated (M1.6.0, review UI-F2).
-    4. For each candidate: no existing line → new line; existing with the same dosing (`sameDosing`) → counted as
-       unchanged; otherwise → conflict.
-    5. Conflicts are asked one by one with `askConflict` (current vs group sentence; "keep
+    4. For each candidate: no existing line → new line; existing with the same dosing (`sameDosing`: normalized values,
+       an unset eye equal to "none", since both write no eye) → counted as unchanged; otherwise → conflict.
+    5. Conflicts are asked one by one with `askConflict` (current vs group sentence; a dosing with nothing to write
+       shows «لا توجد جرعة محددة» / "No dosing set" in its box, an eye-only dosing only its eye part; "keep
        current" / "use the group's"; Esc = keep; since M1.6.0 a click outside the eye or conflict dialog does nothing,
        so the second click of a double click on the group can't answer it). With more conflicts left, a checkbox applies
        the answer to the rest. "Use the group's" replaces the existing line's dosing in place
@@ -71,26 +72,33 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
     runs in `useSingleFlight` (a click while its dialogs are open does nothing); `usePrescriptionLines` checks against the latest lines (a ref updated with every change, not
     the last render's), so a drug+eye is never added twice, even by two adds before a re-render or by a group whose
     dialogs were answered after other changes.
-  - Clear all → toast with **Undo** (6 s).
+  - Clear all → toast with **Undo** (6 s). Undo puts back **exactly** the lines cleared (`clear()` returns
+    `() => setLines(previous)`): a line added after the clear and before Undo is dropped, without a message. Intended
+    (M1.6.1, Q1): Undo restores the prescription as it was.
   - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
 - `components/CatalogPanel.tsx`: tabs **Groups** (default) / **Drugs**; both pickers stay mounted. Each tab shows only
   with its permission (`groups.list` / `drugs.list`; neither → `access.nothingToPick`, unreachable today since the page's
   `prescriptions.create` requires `drugs.list`; [access](../access/tech.md#frontend-srcfeaturesaccess)).
 - `components/SelectionPanel.tsx`: count chip, Clear all, `PrescriptionLineList`, empty state,
   **Copy** and **Edit & copy** buttons.
-- `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, Arabic dosing
-  sentence (or the drug description when the line has no dosing), note; actions ✎ edit,
+- `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, `LineDetails` (the Arabic dosing
+  sentence, or the drug description when the dosing has no instructions: see Text formats), note; actions ✎ edit,
   ⊕ add for the other eye (only when possible), ✕ remove. Clicking the row text also edits.
 - `components/useGroupAddDialogs.tsx`: promise-based dialogs `askEye` and `askConflict`
   (render `dialogs` in the page).
-- `components/LineEditDialog.tsx`: `DosingFields` + note; blocks save on invalid fields; shows
+- `components/LineEditDialog.tsx`: `DosingFields` + note (its "Prescription text" preview is the dosing sentence only:
+  for an eye-only dosing just the eye part; the line adds the drug description, see Text formats); blocks save on
+  invalid fields; shows
   `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens.
 - `components/EditorDialog.tsx` + `EditorContent.tsx`: lazy-loaded Quill editor, rebuilt from the
   current lines on every open. Edits are not saved.
 
 ### Text formats (`prescriptionText.ts`)
-- A line renders as: drug name, then its details: the dosing sentence (`dosingToText`) **or**, if
-  the line has no dosing, the drug description; then the note.
+- A line renders as: drug name, then its details: the dosing sentence (`dosingToText`); **or**, when the dosing
+  has no instructions (`hasDosingInstructions` false: no dose unit, frequency, duration or tapering, i.e. empty or only
+  an eye), the drug description followed by the dosing sentence, which is then only the eye part («في العين اليمنى»;
+  nothing for «بدون عين»); then the note. Same rule on screen (`dosing/components/LineDetails`, also the group
+  editor's lines). M1.6.1, Q2: before, a dosing with only an eye hid the description.
 - `linesToPlainText`: name and details on separate lines, a blank line between drugs.
 - `linesToHtml`: one `<p>` per line (`<strong>name</strong><br>details…`), separated by empty
   paragraphs. Paragraphs **always** get Quill's RTL classes because prescriptions are Arabic.
@@ -104,6 +112,10 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 ## Edge cases & limitations
 - Lines keep a **snapshot** of the drug; later edits/deletes of the drug are not reflected until
   the line is removed and re-added.
+- The pickers (`useDrugPicker`, `useDrugGroupPicker`) show what they loaded: a drug or group changed or deleted in
+  another window or on another computer stays as it was until the picker loads again (a search change or the page
+  opened again once the data is older than the 30 s `staleTime`; no refetch on focus), or the browser page is
+  reloaded; adding it meanwhile uses the old lines and dosings. Accepted (M1.6.1, Q3).
 - A group added twice for different chosen eyes produces separate lines per eye (by design).
 - Selection is per browser (not per user or patient) and is not saved as history.
 - Windows 11 Notepad ignores the HTML clipboard format (plain text only); Word keeps formatting.

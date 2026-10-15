@@ -96,6 +96,12 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("SearchName")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("translate(lower(\"FullName\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -156,6 +162,12 @@ namespace ClinicHub.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("SearchName")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("translate(lower(\"Name\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -184,6 +196,12 @@ namespace ClinicHub.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<string>("SearchName")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("translate(lower(\"Name\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -384,6 +402,12 @@ namespace ClinicHub.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<string>("SearchName")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("translate(lower(\"Name\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
 
                     b.Property<string>("Status")
                         .IsRequired()

@@ -74,7 +74,9 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 - Numbers are Western digits (1, 2, 3).
 
 ## Edge cases & limitations
-- No dosing set → prescription output falls back to the drug's description (pre-Feature 1 behavior).
+- No dosing instructions (no dose unit, frequency, duration or tapering: an empty dosing, or only an eye;
+  `hasDosingInstructions` in `types.ts`) → prescription and group lines fall back to the drug's description, followed
+  by the eye part if any (`LineDetails`, `prescriptionText.ts`; M1.6.1, Q2: before, an eye alone hid the description).
 - `application` (ointment) renders as «طبقة رقيقة» regardless of amount.
 - Decimal amounts other than 0.5 use the `_other` form (e.g. «1.5 قرص»).
 - Code lists are fixed in code (MVP). Changing a code requires a data migration for stored values.

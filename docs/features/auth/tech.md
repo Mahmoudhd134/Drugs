@@ -74,7 +74,7 @@ descriptions are in `IdentityErrors` (+ `AccessErrors` for the 403s, `TooManyReq
 | POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `clinicSuspended` / `staffInactive` (+ `clinicNames`: the picked clinic), `noAccess`; 401 session gone (checked first): cookie cleared, unless it is another live session's (then kept, M1.6.0); 401 cookie missing or of another session (cookie kept); 409 as above |
 | GET | `/auth/contexts` | access token | — | `Context[]` | 401 |
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
-| GET | `/me` | access token | — | `Me` | 401 |
+| GET | `/me` | access token | — | `Me` (a context the user lost: `context: null`, `staff: null`, `permissions: []`) | 401 |
 
 Shapes (`Application/Features/Identity/Sessions/AuthResult.cs`, `ContextDto.cs`, `…/Users/Queries/GetMe/MeDto.cs`,
 `ClinicHub.Web/src/features/auth/types.ts`) follow HLD 8.1:
@@ -106,7 +106,9 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 | `GetContextsQuery`, `GetMeQuery` | `GET contexts`, `GET /me` | 401 `unauthorized` when the token's user no longer exists |
 
 - **`IPhoneNormalizer` / `PhoneNormalizer`** (singleton): `libphonenumber-csharp` parse with `Platform:DefaultRegion` (EG), valid
-  numbers only, formatted E.164; otherwise null. The request and verify validators get it injected and use the
+  numbers only, formatted E.164; otherwise null. Any valid number is accepted, **landlines too** (e.g. `0223456789`), not
+  only mobiles: kept on purpose for now (M1.6.1, Q4) for the login, the owner phone and the staff phone; a phone input
+  with a country code comes later. The request and verify validators get it injected and use the
   `ValidPhone(normalizer, region)` rule (`PhoneValidation`): null → 400 `invalidPhone` (`field: "phone"`). (Not named `PhoneNumbers`: that is the library's namespace.)
   Phones from configuration go through `ConfigPhones.Normalize(normalizer, phone, region, setting)`: invalid → startup
   error naming the setting.
@@ -123,12 +125,16 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   the last code is younger than `ResendSeconds` or the phone had `MaxPerPhonePerHour` codes in the last hour;
   else stores a new random code (`RandomNumberGenerator`, HMAC via `OtpHash`) and calls `IOtpSender` (inside
   the transaction: a sender that throws leaves no stored code). A code is created for **any valid phone**,
-  user or not (no account probing).
+  user or not (no account probing). Boundaries: a new code is allowed once `ResendSeconds` have passed (at exactly
+  60 s: allowed); the hour counts codes created less than an hour ago; `Retry-After` = the whole seconds (rounded up,
+  ≥ 1) until the resend wait ends, else until the hour's oldest code turns an hour old.
 - **Verify** (`VerifyOtpCommandHandler`): only the phone's **latest** code counts. Order: none/consumed →
   `invalidCode`; attempts used up → `tooManyAttempts`; expired → `codeExpired`; wrong → atomic
   `Attempts + 1` (`ExecuteUpdate … WHERE Attempts < Max`) and `invalidCode`, or `tooManyAttempts` on the
   last allowed try; right → atomic consume (`WHERE ConsumedAt IS NULL`). Hashes are compared with
-  `FixedTimeEquals`. Codes typed with Arabic-Indic digits are accepted. Then: unknown phone → 403 `noAccess`; no
+  `FixedTimeEquals`. Codes typed with Arabic-Indic digits are accepted (spaces dropped); the code itself is not
+  validated: empty, letters or another length is a wrong code (`invalidCode`, a try counted). A code expires at
+  `ExpiresAt` itself (requested exactly 5 min ago → `codeExpired`). Then: unknown phone → 403 `noAccess`; no
   context → the most specific reason (`IMembershipService.GetEntryRefusalAsync`, M1.6.0, below); either way no
   session and no cookie (the code stays consumed). Otherwise a new session, exactly one context → chosen
   automatically; also deletes sessions that ended a week ago.
@@ -172,7 +178,9 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   otherwise). Every rotation keeps the old hash as `PreviousRefreshTokenHash` + `RotatedAt`:
   a token that matches it within **30 s** (a parallel call won the race, before or after its commit)
   gets **409**, no tokens, and its cookie is **not** cleared (the winner's `Set-Cookie` is the valid one).
-  Older tokens → 401. A reused old token does **not** revoke the session (no reuse detection).
+  Older tokens → 401. A reused old token does **not** revoke the session (no reuse detection). Boundaries: a session
+  is live while `ExpiresAt` > now (unused for exactly 30 days, or 12 h for a super admin → ended); the previous token
+  answers 409 while `RotatedAt` is less than 30 s ago (at exactly 30 s → 401).
 - **Switch**: needs the session's **current refresh cookie** besides the access token
   (missing or another session's → 401 `RefreshTokenRejected`, cookie kept; just rotated → 409), so a stolen
   access token alone can't obtain a refresh token. The token's session ended (revoked, expired, gone) → 401
@@ -182,7 +190,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   requested context must be in the user's contexts; otherwise the reason from `GetEntryRefusalAsync` for that clinic
   (`clinicSuspended`, `staffInactive`, `noAccess`, above; a **deleted** clinic is always `noAccess`); the platform and
   the template (never in `GetEntryRefusalAsync`) → `noAccess` (a super admin always has both among their contexts,
-  whatever the template's status, so they never get here).
+  whatever the template's status, so they never get here). Any other body (an unknown `type`, `clinic` without
+  `clinicId`) → 403 `noAccess`.
 - **Logout**: finds the session by token hash (current, or previous within 30 s) and
   revokes it **by id** with `ExecuteUpdate` (no concurrency check), so a refresh rotating the token
   meanwhile can't undo it.
@@ -300,10 +309,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   `RequireAuth context="clinic"`. `RequireAuth`: loading → spinner; offline → "can't reach the server" + retry; anonymous →
   `/login` (remembers the page; after login it reopens it only when the login lands in a clinic context and the page
   is inside the clinic app, not `/login`, `/select-clinic`, `/platform` or `/admin…`; else the context's home); wrong/no context → that context's home (`/`, `/admin` or
-  `/select-clinic`). Its outlet is keyed by the context, so every page re-mounts on a switch.
+  `/select-clinic`). Its outlet is keyed by the context, so every page re-mounts on a switch. A logged-in user
+  opening `/login` goes to their context's home.
 - **`LoginPage`**: phone → code. In display mode (`GET /auth/otp/mode`, or a response with
   `devCode`) a warning banner ("OTP display mode") is always visible; the code appears in an alert,
-  is filled in and submitted automatically. Resend button with countdown; "change number".
+  is filled in and submitted automatically. Resend button with countdown; "change number" (back to the phone step,
+  the number kept). The submit button is disabled while the phone (or the code) is empty.
 - **`SelectClinicPage`**: the contexts (platform admin first, then the clinics and the template in the API's order),
   current one marked; picking another calls `/auth/context` and opens that context's home (picking the current one
   just opens its home). Buttons: Back (when a context is set) and Log out; no context → `auth.noContexts` ("No clinic
@@ -338,6 +349,9 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - `Otp:Mode = Sms` has no sender, so a deployed server runs only with `Otp__Mode=Display`
   (a demo/staging setup, not real patients' data: anyone can log in as any phone).
 - Per-IP rate limiting of `/auth/otp/*` is M3.2.
+- Landline numbers are accepted as phones (login, clinic owner, staff), by choice for now (M1.6.1, Q4). Once codes go
+  by SMS (M3.2), a person added with a landline can't receive one; a country-code phone input (mobile numbers) comes
+  later.
 - Outside Development the template starts empty (dev seed: sample content, M1.5.2).
 - Users are created only by seeding, `POST /admin/clinics` (owner) and `POST /admin/clinics/{clinicId}/staff`
   (M1.5.3); the latter two reuse an existing user of the phone.
@@ -364,7 +378,8 @@ against the API:
   deleted; switch + refresh races never delete the cookie; logout racing a refresh leaves the session
   revoked (10/10); `/auth/context` with only an access token (no cookie) → 401 and no `Set-Cookie`,
   with another session's cookie → 401 and that cookie kept; startup refused for Display in
-  Production and Staging, for `Sms`, and for a short signing key; with the API stopped the page
+  Production and Staging (since allowed in any environment, with a warning: Configuration above), for `Sms`, and for a
+  short signing key; with the API stopped the page
   shows "can't reach the server" + retry (not the login page) and retry restores the session; the
   display-mode banner shows before any code is requested.
 - Browser (Arabic, RTL): login with auto-filled code → select clinic → Demo clinic; prescription line

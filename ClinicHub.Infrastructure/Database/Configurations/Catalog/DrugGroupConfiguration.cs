@@ -1,5 +1,6 @@
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
+using ClinicHub.Infrastructure.Database.Configurations.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,6 +12,7 @@ public class DrugGroupConfiguration : IEntityTypeConfiguration<DrugGroup>
     {
         builder.Property(x => x.Name).HasMaxLength(FieldLimits.NameMaxLength).IsRequired();
         builder.HasIndex(x => new { x.ClinicId, x.Name });
+        builder.HasSearchName(nameof(DrugGroup.Name));
         // Target of the group items' (DrugGroupId, ClinicId) FK
         builder.HasAlternateKey(x => new { x.Id, x.ClinicId });
     }

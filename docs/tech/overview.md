@@ -48,6 +48,7 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                separator or bidi override or isolate characters; nameTooLong) and
                                ValidText() (invalidText) rules
   Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
+  Common/Search/               SearchText: the Arabic-normalized search term (Term, Fold) and its column name (M1.6.1)
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
   Features/Catalog/DrugGroups/ same, + DrugGroupDto, DrugGroupErrors, SaveDrugGroupItem
   Features/Identity/           IdentityErrors at the root; sub-features:
@@ -75,7 +76,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
-  Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration)
+  Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration; Common/
+                                      SearchNameConfiguration: the generated SearchName column)
   Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
   Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints) and
                                                IPostCommitActions (runs the queue when its outermost transaction ends)
@@ -190,9 +192,19 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - Entities never leave the API; always return DTOs (avoids JSON cycles and over-posting).
 - Lists return `PagedResult<T>` = `{ items, totalCount, page, pageSize }` (page is 1-based;
   `Paging.Normalize`: page ≥ 1, pageSize 1–100).
-- Search is case-insensitive `Contains` on the name (`ToLower`). Drug search ranks names that
-  **start with** the term first. `Paging.SearchTerm` trims the term and removes control characters (no name has
-  one; a NUL would fail in the database): they are dropped from the term.
+- **Search** (drugs, groups, admin clinics, admin staff by name) is a case-insensitive, **Arabic-normalized**
+  `Contains` (M1.6.1): the searched tables (`Drugs`, `DrugGroups`, `Clinics`, `Staff`) have a **stored generated
+  column** `SearchName` = the name (`FullName` for staff) lower-cased, with أ إ آ ٱ and the superscript alef U+0670
+  → ا, ى → ي, ة → ه, ؤ → و, ئ → ي, and the tatweel (U+0640) and the diacritics (U+064B–U+065F) removed
+  (`translate(lower(…))`); the term is folded the same way by `SearchText.Term` (`Application/Common/Search`). The
+  SQL is built from `SearchText`'s own table by `SearchNameConfiguration` (Infrastructure), so the two can't drift; a
+  change to the table changes the column's SQL and needs a new migration (`has-pending-model-changes` reports it).
+  Handlers filter with `EF.Property<string>(x, SearchText.Column).Contains(term)` (a shadow property: the domain
+  entities don't carry it). Drug and clinic search rank names whose folded name **starts with** the term first.
+  Display, ordering and the stored names are unchanged. `Paging.SearchTerm` (first step of `SearchText.Term`) trims
+  the term and removes control characters (no name has one; a NUL would fail in the database): they are dropped from
+  the term; a term left empty (e.g. only a tatweel) means no filter. The staff search by phone digits is separate
+  (unchanged).
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
   `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`, `StaffErrors`). Add new codes
@@ -243,7 +255,8 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 
 - `code` = the first error's code (what the SPA translates); `errors` = all of them (`field` in camelCase, e.g.
   `items[0].dosing`, when known); `detail` = the first description (English, for developers); `traceId` finds the
-  request in the logs.
+  request in the logs. `title` by status: 400 "Validation failed", 401 "Unauthorized", 403 "Forbidden", 404 "Not
+  found", 405 "Method not allowed", 409 "Conflict", 429 "Too many requests", 500 "Unexpected error".
 - `clinicNames` (M1.6.0): a string array, only when the first error is a `ClinicError` (`Application/Common/Results`):
   the login and clinic picker refusals `clinicSuspended` / `staffInactive` list the clinics concerned (the picked one;
   at login every clinic with that reason, by name); the SPA then shows `errors.<code>_named` (plural forms, the names
@@ -263,7 +276,9 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 | Unhandled exception | `UnexpectedExceptionHandler` | `unexpected` 500; message and stack only in Development |
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
 
-A missing drug or group answers `notFound` (the SPA shows "this item no longer exists").
+A missing drug or group answers `notFound` (the SPA shows "this item no longer exists"). An id that is not a whole
+number (`/drugs/abc`) matches no route (`{id:int}`): `GET` → 404 `notFound`, other methods → 405 `methodNotAllowed`
+(the non-GET quirk in [architecture](../design/architecture.md#carry-over-to-m15)).
 `/api/*` paths never fall back to the SPA's `index.html`.
 
 ### Adding a use case
@@ -282,14 +297,15 @@ A missing drug or group answers `notFound` (the SPA shows "this item no longer e
 ```
 Clinics (Platform)
 - Id (PK), Name (≤256), Status ("active" | "suspended"), IsTemplate (only one: partial unique index),
-  DeletedAt (timestamptz null: set = soft deleted, Status untouched; no query filter)
+  DeletedAt (timestamptz null: set = soft deleted, Status untouched; no query filter), SearchName (generated)
 
 Users (Identity)       Phone (E.164, unique), IsSuperAdmin, LastLoginAt
 OtpCodes (Identity)    Phone, CodeHash (HMAC), ExpiresAt, Attempts, ConsumedAt; index (Phone, CreatedAt)
 Sessions (Identity)    Id (uuid), UserId (cascade), RefreshTokenHash (unique), PreviousRefreshTokenHash
                        (indexed) + RotatedAt (30 s rotation grace), ContextType, ClinicId (restrict),
                        ExpiresAt (sliding), LastUsedAt, RevokedAt
-Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive; unique (ClinicId, UserId)
+Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive, SearchName (generated);
+                       unique (ClinicId, UserId)
 Roles (Access)         ClinicId (clinic-owned), Name (<=100, unique per clinic), IsOwner (one per clinic)
 RolePermissions        RoleId (cascade) + Permission (<=100), PK (RoleId, Permission); none for Owner
 StaffRoles             StaffId, RoleId, ClinicId (clinic-owned); PK (StaffId, RoleId); composite FKs
@@ -301,13 +317,17 @@ Details: [login tech](../features/auth/tech.md), [access tech](../features/acces
 Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
 (`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
 and `DrugGroupItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
-`Drugs` and `DrugGroups`. Group items reference their group and drug with composite FKs
+`Drugs` and `DrugGroups`. `Drugs`, `DrugGroups`, `Clinics` and `Staff` have `SearchName` (text, not null, a
+**stored generated column** from the name, only searched: [search](#conventions); M1.6.1). It has no index: a
+`Contains` can't use a btree index, and a clinic's 10,000 drugs are searched in about a millisecond; the
+`(ClinicId, Name)` indexes still serve the ordered lists. Group items reference their group and drug with composite FKs
 `(DrugGroupId, ClinicId)` / `(DrugId, ClinicId)`, so the database rejects cross-clinic lines.
 
 ```
 Drugs                       DrugGroups
 - Id (PK)                   - Id (PK)
 - Name (≤256, required)     - Name (≤256, required)
+- SearchName (generated)    - SearchName (generated)
 - Description (nullable)
 - DefaultDosing_* (owned Dosing, nullable: dose, frequency, duration, eye, TaperSteps JSON)
         ▲                           ▲
@@ -398,7 +418,9 @@ Swagger UI is available in Development at `/swagger`.
 - History: the SQLite migrations were replaced by a single PostgreSQL `Initial` when the app moved
   to PostgreSQL; `Initial` was regenerated again for clinic scoping (M1.1) and for login
   (M1.2). From M1.3 on, migrations are **added on top**, never regenerated: `Initial` → `AddRoles` (M1.3) →
-  `AddClinicDeletedAt` (M1.5.1, one nullable column).
+  `AddClinicDeletedAt` (M1.5.1, one nullable column) → `AddSearchNames` (M1.6.1: the stored generated `SearchName`
+  columns on `Drugs`, `DrugGroups`, `Clinics` and `Staff`; computed for existing rows when added, so no data step; down
+  drops them; tested up → down → up with data).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`.
 
@@ -452,7 +474,8 @@ Swagger UI is available in Development at `/swagger`.
 
 ### Internationalization (UI text only)
 
-- Languages are declared once in `src/i18n/languages.ts` (`code`, `label`, `dir`). Default `en`.
+- Languages are declared once in `src/i18n/languages.ts` (`code`, `label`, `dir`). First visit: the browser's language when supported (any Arabic
+  locale → `ar`), else `en` (`fallbackLng`); after that, the stored choice.
 - Strings: `src/i18n/locales/en.ts` is the source; `ar.ts` is typed `Translations` (= `typeof en`),
   so **a missing Arabic key fails the build**. Always add keys to both files.
 - UI counts are written as `"Label: {{count}}"`, not plural forms, to stay correct in Arabic. Where a sentence reads
@@ -643,7 +666,9 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
   `execCommand` fallback (works, but HTTPS is recommended).
 - No automated database backups yet.
 - Name ordering follows the database's default collation (not tuned for Arabic).
-  `ToLower` search is case-insensitive for ASCII only (Arabic has no case, so it is unaffected).
+  Search folds the common Arabic spelling variants and lower-cases (`ToLowerInvariant` for the term, the database's
+  `lower()` for the name: they agree for Latin and Arabic; a few special letters, e.g. Turkish "İ", may differ).
+  Not folded: Persian letters (ی, ک), a lone hamza ء, look-alike letters of other scripts.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.

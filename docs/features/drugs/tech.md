@@ -14,6 +14,7 @@ prescriptions. Content is stored once, as typed (not translated).
 | Description | text | nullable; free text, may be multi-line |
 | DefaultDosing_* | 9 columns (8 + `TaperSteps` JSON text) | owned `Dosing`, nullable; see [dosing](../dosing/tech.md) |
 | ClinicId | int FK → `Clinics` (restrict) | owning clinic; filled on insert; index `(ClinicId, Name)` |
+| SearchName | text | stored generated column: `Name` lower-cased and Arabic-folded, only searched (M1.6.1, `AddSearchNames`; [search](../../tech/overview.md#conventions)) |
 | CreatedAt, UpdatedAt | timestamptz | UTC, filled on save |
 
 Every query is scoped to the current clinic: another clinic's drug is 404 (see
@@ -64,9 +65,13 @@ else 401 / 403 ([access](../access/tech.md#api)).
   Every failing rule is returned; the first is the response's `code`.
 - The handlers trim name and description (blank description → `null`) and normalize the dosing (an
   all-empty dosing is stored as `null`). Commands run in one transaction (`TransactionBehavior`).
-- List: optional search = case-insensitive `Contains` on `Name`. Ordering:
+- List: optional search = case-insensitive, **Arabic-normalized** `Contains` (M1.6.1): the term folded by
+  `SearchText.Term` (أ إ آ ٱ and the superscript alef → ا, ى → ي, ة → ه, ؤ → و, ئ → ي; tatweel and diacritics
+  U+064B–U+065F removed; lower case) is looked for in `SearchName`, the name folded the same way by the database
+  ([search](../../tech/overview.md#conventions)). Ordering:
   - no search: by `Name`, then `Id`
-  - search: names starting with the term first, then `Name`, then `Id`
+  - search: names whose `SearchName` starts with the term first, then `Name`, then `Id` (display and ordering use the
+    name as stored)
 - Page size clamped to 1–100 (`Paging.Normalize`).
 - Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic", next to the 2 drugs copied from the template (10,002).
 
@@ -83,12 +88,15 @@ else 401 / 403 ([access](../access/tech.md#api)).
   - `DrugPicker`: `SearchableList` over `useDrugPicker` (infinite, 30/page). Optional
     `selectedIds` shows an "Added" chip. Clears search after selecting.
   - `DrugText`: name (bold), optional dosing sentence (`showDosing`), description (`pre-line`,
-    optional line clamp). The table and the picker show the dosing sentence.
+    optional line clamp). The table and the picker show the dosing sentence; the description is always shown here
+    (also when the default dosing has only an eye: the sentence is then just the eye part). Prescription and group
+    lines follow another rule (`LineDetails`, [prescription](../prescription/tech.md#text-formats-prescriptiontextts)).
 - **`api.ts`**: `drugKeys` (`all`, `list`, `picker`); hooks `useDrugs`, `useDrugPicker`,
   `useSaveDrug` (POST/PUT by `id === null`), `useDeleteDrug`. Both mutations invalidate
   `drugKeys.all` **and** `drugGroupKeys.all` (groups embed drug data).
 - Delete confirmation first calls `fetchDrugGroupNames` and lists the groups that will lose the
-  drug (`drugs.usedInGroups`); if the lookup fails the dialog still opens.
+  drug (`drugs.usedInGroups`), joined with the Arabic comma «، » in both languages (group names are content, often
+  Arabic; kept by choice, M1.6.1, Q5); if the lookup fails the dialog still opens.
 - i18n namespace: `drugs.*` (+ `dosing.*`, `errors.nameRequired`, `errors.nameInvalid`, `errors.nameTooLong`, `errors.invalidText`,
   `errors.invalidDosing`).
 
@@ -99,6 +107,9 @@ else 401 / 403 ([access](../access/tech.md#api)).
 - No duplicate-name check: two drugs may share a name.
 
 ## Testing notes
+M1.6.1 (Q6): every folding in both directions (stored «أسبرين» found by «اسبرين» and back; ى/ي, ة/ه, ؤ/و, ئ/ي,
+diacritics, tatweel, superscript alef), prefix ranking after folding, paging counts, Latin and `%00` unchanged, a
+rename updates `SearchName`; migration up → down → up with data.
 Verified via API calls (create with Arabic text, search Arabic, prefix ranking, blank name → 400,
 update, delete, default dosing save/normalize/validate) and in the browser (dialog fields,
 `dir=auto`, dosing section, sentence in table and picker).
