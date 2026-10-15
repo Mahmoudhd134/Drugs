@@ -6,7 +6,7 @@ import {useTranslation} from "react-i18next";
 import {BackButton} from "../../../components/common/BackButton.tsx";
 import {PageHeader} from "../../../components/common/PageHeader.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
-import {getErrorMessage, getFieldErrors, getOtherErrors} from "../../../api/errors.ts";
+import {splitFormErrors} from "../../../api/errors.ts";
 import {useCreateClinic} from "../api.ts";
 
 /** The form's inputs, by the request field the API names in its errors. */
@@ -67,11 +67,9 @@ export const CreateClinicPage = () => {
             // The form is done: Back from the clinic goes to the list, not here
             navigate(`/admin/clinics/${clinic.id}`, {replace: true});
         } catch (error) {
-            const fieldErrors = getFieldErrors(error);
-            const shown = FIELDS.filter(f => fieldErrors[f]);
-            showErrors(Object.fromEntries(shown.map(f => [f, fieldErrors[f]])));
+            const {fields, others} = splitFormErrors(error, FIELDS);
+            showErrors(fields);
             // The rest (no field, or one the form has no input for) as a toast
-            const others = shown.length === 0 ? [getErrorMessage(error)] : getOtherErrors(error, FIELDS);
             if (others.length) toast.error(others.join("\n"));
         }
     };

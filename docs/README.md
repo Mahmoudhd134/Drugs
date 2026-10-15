@@ -14,13 +14,16 @@ docs/
 │   └── overview.md            ← (عربي) what the system supports today
 ├── design/
 │   ├── platform-hld.md        ← multi-clinic platform: requirements, data model, API, delivery (MVP milestones and steps)
-│   └── architecture.md        ← backend layers, MediatR use cases, Result/Error, ProblemDetails (M1.4)
+│   ├── architecture.md        ← backend layers, MediatR use cases, Result/Error, ProblemDetails (M1.4)
+│   └── m1.5-platform-admin.md ← design of the platform admin (M1.5)
 └── features/
     ├── _template/             ← copy this folder for every new feature
     │   ├── tech.md
     │   └── business.md
     ├── clinic-scoping/        ← clinics + automatic per-clinic data isolation (M1.1)
     ├── auth/                  ← phone + OTP login, sessions, clinic contexts (M1.2)
+    ├── access/                ← roles, permissions, permission checks (M1.3)
+    ├── platform-admin/        ← super admin: clinics, provisioning, each clinic's roles and staff (M1.5)
     ├── dosing/                ← structured dosing (shared by drugs, groups, prescriptions)
     ├── tapering/              ← tapering schedules (steps inside a dosing)
     ├── drugs/                 ← drug catalog
@@ -48,4 +51,4 @@ docs/
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |
 | Drug groups (protocols) | [tech](features/drug-groups/tech.md) | [business](features/drug-groups/business.md) |
 | Prescription builder | [tech](features/prescription/tech.md) | [business](features/prescription/business.md) |
-| Platform admin (M1.5: clinics API and screens, roles and staff API) | [tech](features/platform-admin/tech.md) | [business](features/platform-admin/business.md) |
+| Platform admin (M1.5: clinics, roles and staff; API and screens) | [tech](features/platform-admin/tech.md) | [business](features/platform-admin/business.md) |

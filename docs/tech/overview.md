@@ -113,7 +113,9 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
   src/app/navigation.tsx       NAV_ITEMS (sidebar) with the permission each page needs, ADMIN_NAV_ITEMS (platform admin)
   src/features/<feature>/      api.ts, types.ts, components/, pages/
   src/features/access/         permissions.ts, usePermissions, withPermission, <Can>, Permission* controls,
-                               <RequirePermission>
+                               <RequirePermission>, api.ts (the permission catalog)
+  src/features/roles/, staff/  reusable role and staff lists + editors; data only through an adapter (no URLs)
+  src/features/admin/          admin layout, clinic pages and tabs, adapters.ts (adminRolesApi / adminStaffApi)
   src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
@@ -408,7 +410,7 @@ Swagger UI is available in Development at `/swagger`.
 | `/select-clinic` | `SelectClinicPage` (logged in) |
 | `/admin` | `ClinicsPage` (platform context: search, status filter, paging, kept in the URL query) |
 | `/admin/clinics/new` | `CreateClinicPage` (clinic name + owner phone and name) |
-| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; Roles and Staff in M1.5.5); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
+| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
 | `/admin/*` | redirects to `/admin` |
 | `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
@@ -431,6 +433,10 @@ Swagger UI is available in Development at `/swagger`.
   Pages are re-mounted when the context changes; `useClinic()` gives the current clinic.
 - `AdminLayout` (`features/admin/components`, platform context) = `AppShell` with "Platform admin", `ADMIN_NAV_ITEMS` (Clinics; add
   new admin sections there) and "Edit default catalog" (switches to the template context, opens its drugs).
+- Reusable data components (M1.5 design D9): a component that may be mounted by several areas (e.g. `RoleList`,
+  `StaffList`) takes an **adapter** (`list`/`create`/`update`/`delete` + a `DataScope`: its query-key `scope` and what a
+  change `affects`, `api/dataScope.ts`) instead of calling the API itself; the area builds the adapter (e.g.
+  `adminRolesApi(clinicId)`) ([platform admin](../features/platform-admin/tech.md#roles-and-staff-screens-m155)).
 
 ### Internationalization (UI text only)
 
@@ -490,7 +496,7 @@ Swagger UI is available in Development at `/swagger`.
 |---|---|
 | `PageHeader` | Page title, subtitle (a block: may hold a chip), leading (back button, top-aligned), actions; `titleText` for a title that may be long (cut after 3 lines, full text as tooltip) |
 | `BackButton` | The header's "Back" icon button (arrow flipped in RTL) |
-| `ListPagination` | Translated `TablePagination` with `PAGE_SIZES` (`pageSizes.ts`: 10/20/50); hides the rows-per-page choice below `sm` so it fits a phone |
+| `ListPagination` | Translated `TablePagination` with `PAGE_SIZES` (`pageSizes.ts`: 10/20/50); hides the rows-per-page choice below `sm` so it fits a phone; the choice also has its own `aria-label` |
 | `PageBoundary` | Where a layout shows its page: `Suspense` spinner + error boundary ("Couldn't load this page. — Reload"), reset when the path changes |
 | `SearchField` | Search input with icon and clear button |
 | `SearchableList` | Search + result list with ↑/↓/Enter/Esc keyboard support, loading/error/empty states, "load more" |
@@ -498,6 +504,7 @@ Swagger UI is available in Development at `/swagger`.
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
 | `InfoTip` | Small ⓘ icon with a tooltip (opens on tap too) to explain a field or option |
+| `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs |
 
 Hooks (`src/hooks`): `useDebouncedValue`, `useLanguage`, `useFormatDate` (dates in the UI language, Latin digits),
 `useSingleFlight` (`once(action)`: a call while the previous one runs is ignored; a mutation's `isPending` re-renders
@@ -599,9 +606,8 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- The admin area has screens for clinics (M1.5.4: create with the owner, list, rename, disable / enable, delete); each
-  clinic's roles and staff are managed through the API only until M1.5.5. Clinics can't manage their own staff or
-  roles yet.
+- Only the super admin manages roles and staff (admin area, M1.5); clinics can't manage their own yet (the role and
+  staff components are reusable for it: a clinic-side adapter + `roles.*` / `staff.*` permissions, after the MVP).
 - Permission or active-flag changes made outside the admin endpoints (e.g. psql) apply within 30 s
   (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
   on any 403 and whenever the tab gets the focus back).

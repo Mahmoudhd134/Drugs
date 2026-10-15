@@ -9,8 +9,9 @@ token**: the API reads them per request from a cache (HybridCache), and the SPA 
 The same per-request check makes sure the staff member and the clinic are still active, which closes
 M1.2's "token valid ≤ 15 min after deactivation/suspension" gap (bounded now by the cache, see below).
 Roles came only from seeding in this step; since M1.5.3 the super admin manages each clinic's roles and staff
-through the admin API ([platform admin](../platform-admin/tech.md#roles-and-staff-m153)); clinics can't manage their
-own yet (`roles.*` / `staff.*` keys come with clinic-side screens, M1.5 design D8).
+through the admin API ([platform admin](../platform-admin/tech.md#roles-and-staff-m153)), and since M1.5.5 from the
+clinic page's Roles and Staff tabs ([screens](../platform-admin/tech.md#roles-and-staff-screens-m155)); clinics can't
+manage their own yet (`roles.*` / `staff.*` keys come with clinic-side screens, M1.5 design D8).
 
 ## How to…
 
@@ -234,8 +235,12 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
     Cancel and Back go to `/groups`, or to `/` without `groups.list`.
   - Prescription: `CatalogPanel` shows the Groups tab with `groups.list` and the Drugs tab with
     `drugs.list` (each picker `enabled` only then; the visible one gets the focus); neither → a short message.
-- i18n: `access.*` (no-permission page, tooltip, `nothingToPick`), `permissions.<resource>.<action>`
-  and `permissionResources.*` (for M1.5's role editor), `drugs.details`, `groups.view`.
+- i18n: `access.*` (no-permission page, tooltip, `nothingToPick`), `permissions.<resource>.<action>`,
+  `permissionResources.*` and `permissionModules.*` (the role editor's sections), `drugs.details`, `groups.view`.
+- `api.ts` (M1.5.5): `usePermissionCatalog()` reads `GET /permissions` once per app run, for the role editor
+  (`features/roles`: grouped by module → resource, a permission's `requires` ticked and locked with it; the same
+  closure as `PermissionCatalog.WithRequirements`). A new permission shows there with its label (`permissions.<key>`;
+  without one, the key itself) and needs no editor change.
 
 ## Dev seed
 `StartupSeeder` (Infrastructure; Development, empty DB): both demo clinics are created with `CreateClinicCommand`

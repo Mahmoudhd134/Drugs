@@ -260,8 +260,9 @@ public class Result<TData> : Result
 
 - **The handler picks the `ErrorType`; the API layer alone turns it into an HTTP status.** Handlers never
   know about HTTP.
-- `Errors` is a list so several validation failures can be returned together. Today the frontend uses the
-  first one; the full list is in the response for later.
+- `Errors` is a list so several validation failures can be returned together. The frontend shows each field's
+  errors on its input and toasts the rest (`getFieldErrors` / `splitFormErrors`, with `codeFields` for codes that name
+  no field); `code` (the first error's) is what a single message uses.
 
 ### 3.3 Error catalog
 
@@ -556,8 +557,8 @@ one place (`toApiError(error)` in `src/api/errors.ts` → a typed `ApiError { st
 | Field | Value |
 |---|---|
 | `status`, `title` | From the first error's `ErrorType` (Validation 400, Unauthorized 401, Forbidden 403, NotFound 404, Conflict 409, Failure 500; `tooManyRequests` 429) |
-| `code` | The first error's code: what the frontend reads today |
-| `errors` | Every error (`code`, `description`, `field` when known) |
+| `code` | The first error's code: what the frontend shows when one message is enough (toasts) |
+| `errors` | Every error (`code`, `description`, `field` when known); the SPA maps the whole list onto the form's inputs |
 | `detail` | The first error's English description (developers, logs) |
 | `traceId` | `Activity.Current?.Id ?? HttpContext.TraceIdentifier`, to find the request in the logs |
 

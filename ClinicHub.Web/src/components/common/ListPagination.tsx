@@ -29,6 +29,8 @@ export const ListPagination = ({count, page, onPageChange, rowsPerPage, onRowsPe
             labelRowsPerPage={t("common.rowsPerPage")}
             labelDisplayedRows={({from, to, count}) => t("common.displayedRows", {from, to, count})}
             getItemAriaLabel={(type) => t(`common.pagination.${type}`)}
+            // Also named on itself (its aria-labelledby points to the label, which some tools don't follow)
+            slotProps={{select: {inputProps: {"aria-label": t("common.rowsPerPage")}}}}
             sx={{
                 "& .MuiTablePagination-selectLabel, & .MuiTablePagination-input": {display: {xs: "none", sm: "inline-flex"}},
                 "& .MuiTablePagination-toolbar": {px: {xs: 1, sm: 2}},

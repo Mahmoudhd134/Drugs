@@ -83,7 +83,8 @@ export const ClinicPage = () => {
                 ))}
             </Tabs>
 
-            <PageBoundary>
+            {/* Remounted for another clinic (e.g. Back between two clinics' tabs): its dialogs, search and rows never follow */}
+            <PageBoundary key={clinicId}>
                 <Outlet context={clinic.data}/>
             </PageBoundary>
         </>

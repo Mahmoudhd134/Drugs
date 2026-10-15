@@ -2,7 +2,7 @@
 
 ## Summary
 M1.5 of the [multi-clinic platform](../../design/platform-hld.md), built in five sub-steps from the approved
-[M1.5 design](../../design/m1.5-platform-admin.md). **Built so far: M1.5.1–M1.5.3** (backend only). M1.5.1: the
+[M1.5 design](../../design/m1.5-platform-admin.md). **Built: M1.5.1–M1.5.5** (M1.5 is done). M1.5.1: the
 admin foundations and the clinic lifecycle API: the super admin, in the **platform** context, can list, search,
 filter, open, rename, suspend, re-activate and (soft) delete clinics through `/api/v1/admin/clinics`, on the
 `PlatformAdmin` policy (D1), `IClinicScope` (D2), post-commit cache invalidation (D3) and the `Clinics.DeletedAt` soft
@@ -14,8 +14,9 @@ M1.5.3: each clinic's **roles** and **staff** (`/api/v1/admin/clinics/{clinicId}
 Access module, never take a clinic id), with the Owner lock, `roleInUse`, `lastOwner` and the post-commit invalidations
 of the D3 table (lockout on the next request). M1.5.4: the **admin screens for clinics** (frontend only): the
 `/admin` area with its own layout, the clinics list, the create page and the clinic page (Overview tab: rename,
-disable / enable, delete with the name typed), and a link into the template ([Frontend](#frontend)). Not built yet: the
-roles and staff screens (M1.5.5).
+disable / enable, delete with the name typed), and a link into the template ([Frontend](#frontend)). M1.5.5: the
+clinic page's **Roles** and **Staff** tabs (frontend only), built from reusable components that get their data through
+an adapter (design D9), so a clinic-side screen can mount them later ([Roles and staff screens](#roles-and-staff-screens-m155)).
 
 ## Data model
 Migration **`AddClinicDeletedAt`** (M1.5.1, on top of `AddRoles`; adds one nullable column, no data step needed).
@@ -235,7 +236,7 @@ every start (a clinic needs an owner; the template is still filled when empty). 
 (about 1.8–2.1 s on a fresh dev DB, mostly the 10,000 drugs).
 
 ## Frontend
-Built in M1.5.4 (clinics); the roles and staff tabs come in M1.5.5. Everything under `/admin` is lazy, inside
+Built in M1.5.4 (clinics) and M1.5.5 (the roles and staff tabs, [below](#roles-and-staff-screens-m155)). Everything under `/admin` is lazy, inside
 `RequireAuth context="platform"` (any other context is sent to its own home: an owner's or a staff token never reaches
 these pages, and the API refuses them anyway with 403 `forbidden`).
 
@@ -245,6 +246,8 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 | `/admin/clinics/new` | `CreateClinicPage` | One form: clinic name, owner phone (`dir="ltr"`, `type="tel"`), owner full name. Required fields checked first; `POST /admin/clinics` once (`useSingleFlight`: a double click sends one request); success → the new clinic's page (`replace`) with a toast. API field errors (`name`, `owner.phone`, `owner.fullName`) are shown on their inputs (`getFieldErrors`) and the first invalid input gets the focus (once the inputs are enabled again); errors of no field or of another field are toasted next to them (`getOtherErrors`); no field error at all → `getErrorMessage` |
 | `/admin/clinics/:id` | `ClinicPage` | `PageHeader` with `BackButton` (to the list as it was left), the name (cut after 3 lines, full name in the `title`) and the status chip, then a **tab bar** from `CLINIC_TABS`; each tab is a child route that gets the clinic through the outlet context (`useTabClinic()`), inside a `PageBoundary`. An id that isn't a positive whole number without leading zeros fitting an int (`05`, `abc`, `99999999999`) or a 404 (missing, deleted, template) → "Clinic not found" with a link back; checked before the cached data, so a clinic deleted meanwhile shows it too. A load error → the header with Back, and "Couldn't load" with Retry |
 | `/admin/clinics/:id` (index) | `ClinicOverview` (tab **Overview**) | Details (name, status, created date, active staff, owners: name + phone LTR); **Rename** (dialog, `PUT`; `name` errors on the input; not closable while saving; each opening starts from the current name, also when reopened during the closing animation); **Disable** (confirm saying staff lose access on their next action, the focus on Cancel; `suspend`) / **Enable** (no confirm; `activate`); **Delete** (dialog "Delete this clinic?", the name shown once: the button stays disabled until the name is typed exactly, both sides compared as typable text: NFC, invisible format characters (`\p{Cf}`) removed, white space runs as one space, trimmed; case kept; `DELETE` → the list as it was left, with a toast). Every action runs once per click burst (`useSingleFlight`). "Disabled" (chip and the Disable button) uses `#b45309` (≈ 5:1 on white, `disabledTone.ts`) instead of the theme's warning (≈ 3:1) |
+| `/admin/clinics/:id/roles` | `ClinicRolesTab` (tab **Roles**, lazy) | `RoleList` with `adminRolesApi(clinicId)` ([below](#roles-and-staff-screens-m155)) |
+| `/admin/clinics/:id/staff` | `ClinicStaffTab` (tab **Staff**, lazy) | `StaffList` with `adminStaffApi(clinicId)` and `adminRolesApi(clinicId)` |
 | `/admin/*` | | → `/admin` |
 | `/platform` | | → `/admin` (the placeholder page is gone) |
 
@@ -254,7 +257,7 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 | `components/layout/AppLayout.tsx` | In the template, for a user who also has the platform context (the super admin), the banner has **"Back to platform admin"**: switches to the platform context and opens `/admin`. The app bar names the template "Template clinic" / «العيادة النموذجية» (`useContextLabel`), not its stored English name |
 | `components/layout/AppShell.tsx` | Shared frame: app bar (logo link, context label, `LanguageMenu`, `UserMenu`), sidebar in a `<nav>` landmark (permanent ≥ md, drawer below), optional banner, the page in a `PageBoundary` (spinner while its chunk loads, "Couldn't load — Reload" when it fails). `AppLayout` (clinic app) and `AdminLayout` are thin wrappers around it. An entry is active on its path (`end`: exactly) and under each `activeFor` path |
 | `app/navigation.tsx` | `ADMIN_NAV_ITEMS` next to the clinic `NAV_ITEMS`: Clinics today; a new section (e.g. M2.1's Forms) is one entry here + its route |
-| `features/admin/clinicTabs.tsx` | `CLINIC_TABS` (`path`, `labelKey`, `element`; `""` = the index tab), mapped to child routes in `App.tsx`; M1.5.5 adds Roles and Staff as two entries (they may be lazy). Overview is imported eagerly (one spinner, not two; it ships in the main chunk because `App.tsx` imports `CLINIC_TABS`). `useTabClinic()` is in `useTabClinic.ts` (no import cycle with the tab components) |
+| `features/admin/clinicTabs.tsx` | `CLINIC_TABS` (`path`, `labelKey`, `element`; `""` = the index tab), mapped to child routes in `App.tsx`: Overview, Roles, Staff (the last two `lazy`: their own chunks, loaded on first visit inside the page's `PageBoundary`). Overview is imported eagerly (one spinner, not two; it ships in the main chunk because `App.tsx` imports `CLINIC_TABS`). `useTabClinic()` is in `useTabClinic.ts` (no import cycle with the tab components) |
 | `features/admin/api.ts` | `adminClinicKeys` (`all`, `lists` = `[...all, "list"]`, `list(search, status, page, pageSize)`, `detail(id)`); `useAdminClinics` (`keepPreviousData`), `useAdminClinic` (`staleTime: 0`), `useCreateClinic` / `useRenameClinic` (put the answer in the detail cache, reload the lists), `useSetClinicStatus` (updates the cached status, reloads the lists), `useDeleteClinic` (removes the cached lists, so the next list shown loads without the clinic instead of showing it first; the page drops the details with `useForgetClinic` only after leaving, so they aren't loaded again: no stray 404). Lists are reloaded with `refetchType: "all"`: also the list left for the clinic's page, so coming back never shows the old row first. A change answering 404 (deleted meanwhile) reloads the details ("not found") and the lists |
 | `features/admin/listState.ts` | `ClinicsListState` (the list's query, passed as navigation state) and `useClinicsListPath()` (the Back target, kept across tabs) |
 | `features/admin/components/` | `ClinicStatusChip`, `ClinicOverview`, `RenameClinicDialog`, `DeleteClinicDialog`, `disabledTone.ts` |
@@ -280,7 +283,43 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
   disabled."); "Platform admin" everywhere in English; names in messages inside bidi isolates; the
   table pagination labels moved to `common.rowsPerPage` / `common.displayedRows` (the drugs page too); the placeholder's
   `auth.platformTitle`, `platformComingSoon`, `platformTemplateTip` removed. Phones always `dir="ltr"`.
-- The role and staff error codes already have `errors.*` texts (M1.5.3) for the M1.5.5 screens.
+- The role and staff error codes have `errors.*` texts since M1.5.3; the screens' own texts are `roles.*` and `staff.*` (M1.5.5).
+
+### Roles and staff screens (M1.5.5)
+Design D9: the components never build a URL or a cache key; an **adapter** gives them their data. The platform admin's
+adapters are the only ones today; a clinic-side screen (after the MVP) passes its own and wraps the components in
+`RequirePermission`. D9 holds for the **data**, not yet for the **actions**: `RoleList` / `StaffList` always show
+Add, Edit and Delete, and the staff editor always lists the roles (the super admin may do everything). Gating each
+action (`<Can>`, or capability flags on the adapter) comes with the clinic-side screens.
+
+| Piece | Role |
+|---|---|
+| `api/dataScope.ts` | `DataScope = { scope: QueryKey; affects?: QueryKey[]; container?: QueryKey }`: where a component's data lives in the query cache, what else a change changes, and what it belongs to. `refreshScope(queryClient, s)`: after a change, the scope and everything it affects load again, in **one** `invalidateQueries` whose predicate matches any of the keys (`partialMatchKey`), so a query under two of them (one key prefixing another) loads once (`refetchType: "all"`: also lists not shown now, as for the clinics lists). `loadInScope(queryClient, s, load)`: wraps the list query functions: a 404 reloads the `container` (that key only), so a page whose clinic is gone shows "not found". `showsStaleData(error, codes?)`: 404, 409 or one of `codes` → the data shown is out of date, reload it too |
+| `features/roles/types.ts` | `Role`, `SaveRole`, `RolesAdapter = DataScope & { list(), create(body), update(id, body), delete(id) }` |
+| `features/staff/types.ts` | `StaffMember`, `AddStaff`, `UpdateStaff`, `StaffQuery { search, page, pageSize }`, `StaffAdapter = DataScope & { list(query), create(body), update(id, body), delete(id) }` |
+| `features/admin/adapters.ts` | `adminRolesApi(clinicId)`: `/admin/clinics/{clinicId}/roles`, scope `[...adminClinicKeys.detail(id), "roles"]`, affects the staff (a rename shows in the role chips) and the clinic's details (a 404 there: the clinic is gone). `adminStaffApi(clinicId)`: `…/staff`, scope `[…detail(id), "staff"]`, affects the roles (`staffCount`), the clinic's details (active staff count, owners) and the clinics lists. Both scopes sit under the clinic's details key, so whatever reloads the clinic reloads them; both have the details as `container` (a 404 loading a list → the page shows "not found") |
+| `features/admin/components/ClinicRolesTab.tsx`, `ClinicStaffTab.tsx` | Build the adapters for the page's clinic (`useTabClinic`) and mount the components. `ClinicPage` keys its `PageBoundary` by the clinic id: going to another clinic (e.g. Back between two clinics' Staff tabs) remounts the tab, so an open dialog, the search, the page and the previous rows (`keepPreviousData`) never follow to the other clinic |
+| `features/access/api.ts` | `usePermissionCatalog()`: `GET /permissions` (`PermissionDefinition { key, module, resource, action, requires }`), loaded once per app run (`staleTime: Infinity`; the role editor keeps a role's keys the loaded catalog doesn't know, so a deploy adding a permission never drops it on save) |
+| `features/roles/useRoles.ts` | `useRoles(adapter)` (key = the scope, `staleTime: 0`), `useSaveRole` (create when `id` is null), `useDeleteRole`; after success, or a stale-data refusal, `refreshScope` |
+| `features/roles/permissionChoice.ts` | Pure rules of the picker (like `PermissionCatalog.WithRequirements`): `withRequirements(catalog, keys)` (transitive, catalog order, unknown keys dropped), `requiredBy(catalog, ticked, key)` (the ticked permissions directly requiring it; enough, the ticked set being closed), `toggle` (tick = add with requirements; untick only when nothing ticked requires it), `groupCatalog` (modules → resources, catalog order) |
+| `features/roles/usePermissionLabels.ts` | Labels: `permissionModules.<module>`, `permissionResources.<resource>`, `permissions.<key>`; a key without a label shows as it is |
+| `features/roles/components/RoleList.tsx` | Header (title, explanation, **New role**) and a table: name (+ **Locked** chip for the Owner) with a summary line under it (Owner: "Every permission, always…"; else "All permissions", "No permissions", or "*n* permissions: Drugs, Groups", plural forms, the resources from the catalog's `resource`; blank until the catalog is loaded), staff count (every holder, active or not), actions (edit, delete; none for the Owner). Delete of a role held by anyone is **disabled** (`aria-disabled`, still focusable; its tooltip is its description: "Held by *n* staff members. Take it away from them first.", plural forms); the API's `roleInUse` check stays. Delete: `useConfirm` (destructive, focus on Cancel), single-flight, toast with the name; `roleInUse` / `roleLocked` / `notFound` → toast (and the list reloads) |
+| `features/roles/components/RoleEditorDialog.tsx` | Title "New role" / "Edit the role “…”". Name (`dir="auto"`, max 100) + `PermissionPicker`; "Selected: *n* of 11." (live region). Required name checked first. `name` errors on the input (`nameRequired`, `nameTooLong`, `nameInvalid` and `roleNameTaken`, which names no field: mapped by code), the focus back on it; anything else (`unknownPermission`, `roleLocked`…) toasted. 404 → toast, the dialog closes, the list reloads. Full screen below `sm`, only the content scrolls (`components/common/DialogForm`: the form is a flex column, so Save and Cancel stay on screen; the drug and staff dialogs use it too); not closable while saving; each opening starts from the role given. Waits for the catalog (spinner, or "Couldn't load" + Retry) |
+| `features/roles/components/PermissionPicker.tsx` | One `section` per module (heading), one `fieldset` per resource (legend; a module of one resource, e.g. Prescription, shows no legend: the fieldset is named by `aria-label`), a checkbox per permission. A ticked permission's requirements are ticked and **locked**: `aria-disabled` (not `disabled`, so Tab reaches it; clicking does nothing), the tick in `text.secondary` (≈ 5.7:1), label in the normal colour, and "Needed by: Edit drugs, Delete drugs" under the label, the box's `aria-describedby` (said after its name) |
+| `features/staff/useStaff.ts` | `useStaffList(adapter, query)` (`keepPreviousData`, `staleTime: 0`), `useSaveStaff` (`{id: null, body: AddStaff}` or `{id, body: UpdateStaff}`), `useRemoveStaff`; reload as for roles, also after `roleNotFound` |
+| `features/staff/components/StaffList.tsx` | Header (title, "*n* staff members" with plural forms, or while searching "*n* results", the matches of the search; **Add staff member**), search (debounced 300 ms; name or phone, the API matches local, international and Arabic-Indic digits), progress bar while the typed search waits or loads, paging (local state; the page belongs to the search it was picked for, so a new search asks for its first page in its first request; a page past the end moves to the last, shown as loading meanwhile, never "no match"). Columns: name (min. 120 px, 160 from `sm`), phone (LTR), roles (chips, the Owner filled; long names wrap inside the chip, so a chip never widens the table), status (Active / Inactive), actions (edit, remove). Below `sm` the phone, below `md` the status, sit under the name; cells have less padding on phones (no horizontal scroll at 375 px). Remove: destructive confirm ("lose access on their next action; account and other clinics kept"), single-flight; `lastOwner` → toast with "Give the Owner role to another active staff member first, then try again." (8 s) |
+| `features/staff/components/StaffEditorDialog.tsx` | Title "Add staff member" / "Edit “…”" (the person's name). Add: phone (`type="tel"`, LTR, hint: "For example 01001234567", an existing account is reused), full name, roles (a `fieldset` of checkboxes, the Owner role with "Every permission"). Edit: the phone shown disabled (hint: remove and add again to change it), full name ("the name in this clinic only"), **Active** switch with what it means (its `aria-describedby`), roles. A roles error sets `aria-invalid` and `aria-describedby` (the message) on the role boxes; the first one gets the focus. Save and Cancel pinned as in the role dialog (`DialogForm`). Required phone / name / at least one role checked first, then the API's: `phone` (`invalidPhone`, `staffExists` mapped by code), `fullName`, `roleIds` (`rolesRequired`, `roleNotFound`) on their inputs, the first one focused; the rest toasted (`lastOwner` with the hint above). Roles deleted meanwhile are not offered nor sent. 404 → toast, close, reload |
+| `api/errors.ts` | `getFieldErrors` / `getOtherErrors` take an optional `codeFields` (`{staffExists: "phone"}`) for errors the API answers without a field; `splitFormErrors(error, inputFields, codeFields?)` → `{fields, others}` (others = the error's message when no input shows one) |
+
+- After a **staff** change: the staff list (all pages and searches), the roles (staff counts), the clinic's Overview
+  (active staff count, owners) and the clinics lists (staff count) load again, also when not shown. After a **role**
+  change: the roles, the staff list (role chips) and the clinic's details. Each query once per change.
+- i18n: `roles.*`, `staff.*`, `permissionModules.*` (catalog → "Drugs and groups" / «الأدوية والمجموعات», prescription →
+  "Prescription" / «الروشتة», as the resource), `common.listSeparator` (", " / «، »), `admin.clinic.tabs.roles|staff`; names
+  inside bidi isolates; plural forms for the staff count, the result count, the permission summary and the held-role
+  Delete tooltip. The Arabic texts name the role «Owner» (its name in the data), not «مالك». Role names are clinic content (not translated:
+  the default "Owner", "Doctor", "Assistant" stay in English).
+- No backend change.
 
 ## Edge cases & limitations
 - Delete is final in M1.5 (no endpoint clears `DeletedAt`); restoring = clearing it in the database, the clinic
@@ -317,8 +356,38 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 - No GET of one role or staff member (the screens work from the lists): the `Location` of a 201 is the list's URL.
 - A staff member's phone can't be changed; the super admin's own phone can be added as staff of a clinic (a normal
   staff row; the platform rights don't change).
+- Accepted: a cycle in the catalog's `requires` would lock both boxes of the cycle once one is ticked. The catalog is
+  defined in code and `PermissionCatalog` rejects unknown and self requirements; no cycle exists.
+- After a staff change every cached staff page of the clinic (each page and search visited) loads again: a handful of
+  requests at most.
 
 ## Testing notes
+**M1.5.5**, verified in the built-in browser on a scratch database `drags_m155` (fresh dev seed; dropped afterwards; the
+main dev DB untouched), API on `:5055` from the Release build serving the built SPA, opened as `http://m155.localhost:5055`
+(the owner and the staff member on their own hosts, `owner155.` / `staff155.localhost`), English and Arabic, 1280 and
+375 px (no horizontal scroll; the role and staff tables fit):
+- Roles (Demo clinic): Owner first with **Locked**, no actions, "Every permission, always…"; Assistant "9 permissions:
+  Drugs, Groups, Prescription". New role "Editors" with **Edit groups** → "Open a group", "See the group list" and
+  "See the drug list" ticked and locked, each "Needed by: …"; a double click on Save → one `POST` (201). Renamed
+  " doctor " → `roleNameTaken` on the name input; "Group editors" + **Delete drugs** (→ "Open a drug" locked) → saved,
+  "6 permissions: Drugs, Groups". Delete Assistant → confirm (focus on Cancel) → `roleInUse` toast; delete Doctor
+  (unused) → gone. A role deleted in the database while its editor was open → Save → "This item no longer exists.", the
+  dialog closed, the list without it.
+- Staff (Demo clinic): search "owner" → Dev Owner; `01000000003` → Dev Assistant; «٠١٠٠٠٠٠٠٠٠٢» → Dev Owner; "zzz" →
+  "No staff members match your search." Add with nothing → the three required messages, the focus on the phone;
+  `01000000003` → `staffExists` on the phone; `01000000050` "Nour Editor" with Group editors → added ("3 staff members").
+  Dev Owner deactivated → `lastOwner` toast with the hint; Dev Assistant made inactive with Assistant + Group editors →
+  "Inactive" and both chips; Overview "Active staff 2"; Roles: Group editors 2.
+- Done-when (Arabic UI): clinic «عيادة النور» created on the create page (owner `01000000060`); role «قراءة فقط» with
+  "Open a drug" + "Open a group" (→ 4 permissions); «سارة أحمد» (`01000000070`) added with it; an existing user
+  (`+20 100 000 0003`, Dev Assistant) added as Assistant (user reused). The owner's login → the prescription page with
+  the template's group (2 drugs). The staff member's login → `/groups` (no prescription permission), no add or edit
+  buttons, `/me` permissions exactly `drugs.list, drugs.details, groups.list, groups.details`. Removing the owner →
+  `lastOwner`; removing «سارة أحمد» («موظف واحد») → her next click → `/login` with "You no longer have access to
+  “عيادة النور” or to any other clinic."
+- Console: only the expected 4xx (refresh 401s, 409s, the removed staff member's 403); the API log only the expected
+  failures (`roleNameTaken`, `roleInUse`, `staffExists`, `lastOwner`, `noContexts`).
+
 **M1.5.4 review fixes**, verified in the built-in browser on a scratch database `drags_fix154` (dropped afterwards; the
 main dev DB untouched), API on `:5055` from the Release build serving the built SPA, opened as
 `http://fix154.localhost:5055` (own host, own refresh cookie), English and Arabic, 1280 and 375 px:

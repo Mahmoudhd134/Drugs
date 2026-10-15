@@ -66,13 +66,22 @@ export const getErrorMessage = (error: unknown): string => {
 };
 
 /**
+ * Fields for codes the API answers without one (a 409 such as `staffExists` names no field), so the form shows them on
+ * an input too: `{staffExists: "phone"}`.
+ */
+export type CodeFields = Readonly<Record<string, string>>;
+
+const fieldOf = (item: ApiErrorItem, codeFields?: CodeFields) => item.field ?? codeFields?.[item.code];
+
+/**
  * Translated message of the first error of each request field (`name`, `owner.phone`…), to show on the form's inputs.
  * Empty when the API named no field (show {@link getErrorMessage} instead).
  */
-export const getFieldErrors = (error: unknown): Record<string, string> => {
+export const getFieldErrors = (error: unknown, codeFields?: CodeFields): Record<string, string> => {
     const result: Record<string, string> = {};
     for (const item of toApiError(error)?.errors ?? []) {
-        if (item.field && !(item.field in result)) result[item.field] = translateCode(item.code) ?? i18n.t("errors.generic");
+        const field = fieldOf(item, codeFields);
+        if (field && !(field in result)) result[field] = translateCode(item.code) ?? i18n.t("errors.generic");
     }
     return result;
 };
@@ -81,8 +90,25 @@ export const getFieldErrors = (error: unknown): Record<string, string> => {
  * Translated messages (each once) of the errors a form can't show on its inputs: those of no field or of a field not
  * in `inputFields`. To toast next to the field errors.
  */
-export const getOtherErrors = (error: unknown, inputFields: readonly string[]): string[] => [
+export const getOtherErrors = (error: unknown, inputFields: readonly string[], codeFields?: CodeFields): string[] => [
     ...new Set((toApiError(error)?.errors ?? [])
-        .filter(item => !item.field || !inputFields.includes(item.field))
+        .filter(item => {
+            const field = fieldOf(item, codeFields);
+            return !field || !inputFields.includes(field);
+        })
         .map(item => translateCode(item.code) ?? i18n.t("errors.generic"))),
 ];
+
+/**
+ * A failed form save, split: the message of each input the form has (`fields`), and the rest to toast (`others`;
+ * the error's message when no input shows anything, so something is always said).
+ */
+export const splitFormErrors = <F extends string>(error: unknown, inputFields: readonly F[], codeFields?: CodeFields) => {
+    const all = getFieldErrors(error, codeFields);
+    const fields: Partial<Record<F, string>> = {};
+    for (const field of inputFields) if (all[field]) fields[field] = all[field];
+    const others = Object.keys(fields).length === 0
+        ? [getErrorMessage(error)]
+        : getOtherErrors(error, inputFields, codeFields);
+    return {fields, others};
+};

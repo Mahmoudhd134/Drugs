@@ -15,6 +15,7 @@ import {useTheme} from "@mui/material/styles";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
+import {DialogForm} from "../../../components/common/DialogForm.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {useSaveDrug} from "../api.ts";
 import type {Drug} from "../types.ts";
@@ -98,7 +99,7 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
     const nameError = showNameRequired && !name.trim();
 
     return (
-        <form onSubmit={handleSubmit} noValidate>
+        <DialogForm onSubmit={handleSubmit}>
             <DialogContent sx={{pt: 1}}>
                 <Stack sx={{gap: 2, pt: 1}}>
                     <TextField
@@ -136,6 +137,6 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
                     {saveDrug.isPending ? t("common.saving") : t("common.save")}
                 </Button>
             </DialogActions>
-        </form>
+        </DialogForm>
     );
 };

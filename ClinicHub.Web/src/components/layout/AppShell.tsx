@@ -63,6 +63,8 @@ export const AppShell = ({homeTo, homeLabel, contextLabel, contextTitle, navItem
                             to={item.to}
                             className={active ? "active" : undefined}
                             aria-current={active ? "page" : undefined}
+                            // Named explicitly: some tools don't take the name from the nested text
+                            aria-label={t(item.labelKey)}
                             onClick={() => setMobileOpen(false)}
                             sx={navButtonSx}
                         >

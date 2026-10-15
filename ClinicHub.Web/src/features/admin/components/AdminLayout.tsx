@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useId, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {CircularProgress, ListItemButton, ListItemIcon, ListItemText} from "@mui/material";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
@@ -33,6 +33,7 @@ const EditTemplateButton = () => {
     const {contexts, switchContext} = useAuth();
     const once = useSingleFlight();
     const [pending, setPending] = useState(false);
+    const hintId = useId();
     const template = contexts.find(c => c.type === "clinic" && c.isTemplate);
     if (!template) return null;
 
@@ -48,12 +49,19 @@ const EditTemplateButton = () => {
     });
 
     return (
-        <ListItemButton onClick={() => void open()} disabled={pending} sx={navButtonSx}>
+        // Named by its title, described by its hint (not one long name)
+        <ListItemButton
+            onClick={() => void open()}
+            disabled={pending}
+            aria-label={t("admin.editTemplate")}
+            aria-describedby={hintId}
+            sx={navButtonSx}
+        >
             <ListItemIcon>{pending ? <CircularProgress size={20} aria-label={t("common.loading")}/> : <Inventory2Icon/>}</ListItemIcon>
             <ListItemText
                 primary={t("admin.editTemplate")}
                 secondary={t("admin.editTemplateHint")}
-                slotProps={{primary: {fontWeight: "inherit"}}}
+                slotProps={{primary: {fontWeight: "inherit"}, secondary: {id: hintId}}}
             />
         </ListItemButton>
     );
