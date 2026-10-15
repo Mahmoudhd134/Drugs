@@ -58,7 +58,9 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
   - Adding a single drug whose drug+eye is already present → toast `prescription.alreadyAdded`.
   - Clear all → toast with **Undo** (6 s).
   - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
-- `components/CatalogPanel.tsx`: tabs **Groups** (default) / **Drugs**; both pickers stay mounted.
+- `components/CatalogPanel.tsx`: tabs **Groups** (default) / **Drugs**; both pickers stay mounted. Each tab shows only
+  with its permission (`groups.list` / `drugs.list`; neither → `access.nothingToPick`, unreachable today since the page's
+  `prescriptions.create` requires `drugs.list`; [access](../access/tech.md#frontend-srcfeaturesaccess)).
 - `components/SelectionPanel.tsx`: count chip, Clear all, `PrescriptionLineList`, empty state,
   **Copy** and **Edit & copy** buttons.
 - `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, Arabic dosing

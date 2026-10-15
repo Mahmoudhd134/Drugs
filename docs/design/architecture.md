@@ -23,8 +23,8 @@ Module by module, so every part ended with a working app.
 
 ### Part 2: what was done
 
-- Packages in `ClinicHub.Application`: MediatR 13.1 (license from `MediatR:LicenseKey`; `AppSettings.Validate`
-  stops the app outside Development when it is empty), FluentValidation 12 + its DI extensions,
+- Packages in `ClinicHub.Application`: MediatR 13.1 (license from `MediatR:LicenseKey`, committed in `appsettings.json`
+  by choice, expires 2027-10-14; `AppSettings.Validate` stops the app outside Development when it is empty), FluentValidation 12 + its DI extensions,
   `Microsoft.Extensions.Configuration.Abstractions` (for `AddApplication(configuration)`).
 - `Application/Common`: `Messaging/` (§ 3.1), `Results/` (`Result`, `Error`, `ErrorType`, `CommonErrors`),
   `Behaviors/` (§ 3.5), `Validation/` (`.WithError(error)` = `.WithErrorCode(code)` + the description; the shared
@@ -213,8 +213,9 @@ Moving behavior into entities later is possible without changing the layering.
 ### 3.1 MediatR abstractions
 
 MediatR (commercial since v13; free **community license** for companies under $5M yearly revenue: register
-at luckypennysoftware.com). The license key is read from config `MediatR:LicenseKey` (environment variable
-outside Development; may be empty in dev, MediatR then only logs a warning). Own abstractions on top:
+at luckypennysoftware.com). The license key is read from config `MediatR:LicenseKey`: committed in `appsettings.json` (the user's
+choice; expires 2027-10-14, renew yearly), overridable by the environment variable `MediatR__LicenseKey`; required
+outside Development (an empty key may run in dev, MediatR then only logs a warning). Own abstractions on top:
 
 ```cs
 public interface ICommandBase;                                   // marker: lets behaviors target every command
@@ -325,8 +326,9 @@ the queue runs when that transaction ends, **committed or rolled back**, after t
 (retries included; a failed attempt's actions run too). Nested commands (savepoints) just queue. With no
 transaction of the runner's own (none, or one opened elsewhere such as the dev seed's), `AddAsync` runs the action
 at once. Failures are logged, never thrown; actions get `CancellationToken.None`. Only for actions that are safe after a
-rollback (clearing a cache entry is). Callers: `SessionService.IssueAsync` (staff + user on every issued token)
-and the clinic suspend/activate/delete commands. Accepted: a cache load that started before the commit may
+rollback (clearing a cache entry is). Callers: `SessionService.IssueAsync` (staff + user on every issued token),
+the clinic suspend/activate/delete commands and the role and staff commands (update/delete role; add/update/remove
+staff). Accepted: a cache load that started before the commit may
 store the old row after the invalidation (≤ 10 min). An SMS sender (M3.2) can use it too.
 
 ### 3.6 Data access: `IAppDbContext`

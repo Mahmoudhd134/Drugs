@@ -4,8 +4,9 @@
 M1.1 (Foundations) of the [multi-clinic platform](../../design/platform-hld.md). Adds the
 `Clinics` table and makes the catalog (drugs, groups, group items) belong to a clinic. Isolation is
 automatic: an EF Core global query filter limits every query to the request's clinic, and a
-`SaveChanges` interceptor stamps new rows with that clinic and fills UTC timestamps. Until login
-exists, a temporary middleware chooses the clinic. API contracts are unchanged.
+`SaveChanges` interceptor stamps new rows with that clinic and fills UTC timestamps. The request's
+clinic comes from the token's `clinic_id` (M1.2; the temporary middleware of M1.1 is gone). API
+contracts are unchanged.
 
 ## Data model
 **Clinics** (`ClinicHub.Domain/Platform/Clinic.cs`, Platform module)
@@ -14,7 +15,7 @@ exists, a temporary middleware chooses the clinic. API contracts are unchanged.
 |---|---|---|
 | Id | int PK, identity | |
 | Name | varchar(256) | required |
-| Status | varchar(20) | `active` / `suspended` (`ClinicStatus`); only used to pick the default clinic so far *(M1.2: suspended clinics are left out of login contexts → `clinicSuspended`)* |
+| Status | varchar(20) | `active` / `suspended` (`ClinicStatus`): suspended clinics are left out of the login contexts, a switch to one answers 403 `clinicSuspended`, and every clinic request is refused with 403 `clinicSuspended` (per-request check since M1.3; admin suspend since M1.5, effective from the next request) |
 | IsTemplate | boolean | only one template: partial unique index `WHERE "IsTemplate"` |
 | DeletedAt | timestamptz null | *(M1.5.1)* set = soft deleted: hidden everywhere, nobody can enter it (`noAccess`); no EF query filter, checked explicitly ([platform admin](../platform-admin/tech.md#data-model)) |
 | CreatedAt, UpdatedAt | timestamptz | UTC |
@@ -51,7 +52,8 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 - `AppDbContext` (`ClinicHub.Infrastructure/Database`) takes `IClinicContext` and exposes `ClinicId`. For
   every non-owned entity type implementing `IClinicOwned` it adds the FK to `Clinics` (restrict) and the filter
   `ClinicId != null && e.ClinicId == ClinicId`: **fails closed**, no clinic = no rows.
-  `IgnoreQueryFilters()` is reserved for Platform code.
+  `IgnoreQueryFilters()` is reserved for Platform code and the Access module's read-only membership queries and
+  cache loads by id.
 - `ClinicAndTimestampsInterceptor` (`ClinicHub.Infrastructure/Database`; one singleton, added in
   `AddInfrastructure`), before every save:
   - `IClinicOwned` (added, modified or deleted): no clinic in context → `InvalidOperationException`.
@@ -89,14 +91,16 @@ No new endpoints, no contract changes. Behavior inside a clinic:
   the use cases then run under the same filter and interceptor ([platform admin](../platform-admin/tech.md#roles-and-staff-m153)).
 
 ## Frontend
-No changes. The SPA never sends a clinic; the API decides it.
+Catalog calls never send a clinic: it comes from the token. The SPA picks the clinic at login / switch
+(`POST /auth/context`, see [login](../auth/tech.md)) and keeps the prescription per clinic
+(`prescription.lines.<clinicId>`).
 
 ## Edge cases & limitations
-- Fresh Production DB: only the template exists, so the middleware finds no clinic: lists are empty
-  and saves throw (500) until clinics can be created (M1.5).
-- `Status` only matters for picking the default clinic; the dev header accepts suspended clinics,
-  and suspension is not enforced yet (M1.3/M1.5). *(M1.2: the middleware is gone; suspended
-  clinics can't be entered at login or switch, but open access tokens stay valid ≤ 15 min.)*
+- Fresh Production DB: only the template exists; nobody but the super admin can sign in until the super admin
+  creates a clinic in `/admin`.
+- Suspension is enforced per request by the permission check (M1.3; [access](../access/tech.md)), not only at
+  login and switch. *(History: in M1.1 `Status` only picked the default clinic and the dev header accepted suspended
+  clinics; in M1.2 open access tokens stayed valid ≤ 15 min after a suspension.)*
 - A group PUT always moves the group's `UpdatedAt` (even with no change), and its lines are
   re-inserted, so a line's `CreatedAt` is the last group save. A drug PUT with an identical
   non-null dosing also moves `UpdatedAt` (the dosing is replaced). Deleting a drug removes its

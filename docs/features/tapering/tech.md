@@ -16,8 +16,9 @@ group overrides and prescription lines, with the same inheritance and conflict r
 - Why JSON and not a child table: steps are always read and written with their dosing, never
   queried on their own; a JSON column keeps the owned type flat, needs only one nullable column
   per owner, and new step fields (like the per-step dose) need no migration.
-- Migration `AddTaperSteps`: two nullable TEXT columns, no data changes. Tested up → down → up on a
-  copy of the dev DB (row counts unchanged).
+- Migration: the two nullable TEXT columns are part of `Initial` today. History: they came in `AddTaperSteps` (no data
+  changes; tested up → down → up on a copy of the dev DB, row counts unchanged), later folded into the single PostgreSQL
+  `Initial` ([migrations](../../tech/overview.md#migrations)).
 
 ## API
 No new endpoints. `defaultDosing` (drugs) and `items[].dosing` (groups) accept and return

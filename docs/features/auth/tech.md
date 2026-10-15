@@ -10,8 +10,9 @@ access token per context; the request's clinic (`IClinicContext`) now comes only
 A minimal `Staff` table says which clinics a user may enter (roles: M1.3, [access](../access/tech.md)).
 
 ## Data model
-Migration: the single PostgreSQL `Initial` was regenerated (nothing in production; dev DB reset
-with `docker compose down -v && docker compose up -d`). All tables have `CreatedAt`/`UpdatedAt`.
+Migration: these tables are in `Initial` (regenerated in M1.2, when nothing was in production; dev DB reset
+with `docker compose down -v && docker compose up -d`); later steps add migrations on top (`AddRoles`,
+`AddClinicDeletedAt`). All these tables have `CreatedAt`/`UpdatedAt`.
 
 **Users** (`ClinicHub.Domain/Identity/User.cs`)
 
@@ -70,7 +71,7 @@ descriptions are in `IdentityErrors` (+ `AccessErrors` for the 403s, `TooManyReq
 | POST | `/auth/otp/request` | anonymous | `{ phone }` | `{ expiresInSeconds, resendAfterSeconds, devCode? }` | 400 `invalidPhone`; 429 `tooManyRequests` (+ `Retry-After`) |
 | POST | `/auth/otp/verify` | anonymous | `{ phone, code }` | `AuthResult` + refresh cookie | 400 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`; 403 `noAccess` |
 | POST | `/auth/refresh` | refresh cookie | — | `AuthResult`, cookie rotated | 401 `unauthorized` (cookie cleared); 401 `noContexts` the user has no context left: session revoked (cookie cleared; M1.5.3); 409 `conflict` the cookie was rotated by a parallel call less than 30 s ago (cookie kept, no tokens) |
-| POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `noAccess`, `clinicSuspended`; 401 session gone, or cookie missing/of another session (cookie kept); 409 as above |
+| POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `noAccess`, `clinicSuspended`; 401 session gone (cookie cleared; checked first); 401 cookie missing or of another session (cookie kept); 409 as above |
 | GET | `/auth/contexts` | access token | — | `Context[]` | 401 |
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
 | GET | `/me` | access token | — | `Me` | 401 |
@@ -140,8 +141,9 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   none in the template), `super_admin: "true"` (platform only). Refresh tokens are 32 random bytes
   (base64url); only their SHA-256 is stored.
 - **`IMembershipService` / `MembershipService`** (`Features/Access/StaffMembers`, Access module): a user's active memberships in active,
-  non-template, non-deleted clinics (`DeletedAt`, M1.5.1), their staff id in a clinic, and "is active member". These are the only reads of
-  `Staff` across clinics, so they use `IgnoreQueryFilters()` (read only); Identity calls the service.
+  non-template, non-deleted clinics (`DeletedAt`, M1.5.1), their staff id in a clinic, and "is active member". They read
+  `Staff` across clinics with `IgnoreQueryFilters()` (read only), like the platform admin's clinic queries and the access
+  cache; Identity calls the service.
 - **`ISessionService` / `SessionService`** (shared by the session use cases; `SessionRules` holds
   `RotationGrace` and `SetContext`)
   - `GetContextsAsync`: each clinic from `IMembershipService` (by name), then for a super admin the
@@ -202,17 +204,18 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 
 ### Configuration
 
-| Key | Default (`appsettings.json`) | Development | Production |
+| Key | Default (`appsettings.json`; the OTP limits: code defaults, see below) | Development | Production |
 |---|---|---|---|
 | `Auth:Jwt:Issuer` / `Audience` | `clinichub` | | |
 | `Auth:Jwt:SigningKey` | — | dev key | env `Auth__Jwt__SigningKey` (≥ 32 bytes) |
 | `Auth:AccessTokenMinutes` / `RefreshTokenDays` / `PlatformSessionHours` | 15 / 30 / 12 | | |
 | `Otp:Mode` | `Sms` (refused until an SMS sender exists) | `Display` | env `Otp__Mode=Display` for a demo/staging server (startup warning; anyone can log in) |
-| `Otp:Length`, `ExpiryMinutes`, `MaxAttempts`, `ResendSeconds`, `MaxPerPhonePerHour` | 6, 5, 5, 60, 5 | | |
+| `Otp:Length`, `ExpiryMinutes`, `MaxAttempts`, `ResendSeconds`, `MaxPerPhonePerHour` | 6, 5, 5, 60, 5 (code defaults in `OtpSettings`; `appsettings.json` currently relaxes the last three to 5000, 0, 5000 by choice, until hardening in M3.2) | | |
 | `Otp:HashKey` | — | dev key | env `Otp__HashKey` (≥ 32 bytes) |
 | `Platform:DefaultRegion` | `EG` | | |
 | `Platform:SuperAdminPhones` | `[]` | `+201000000001` | env `Platform__SuperAdminPhones__0`, … |
 | `Platform:DevOwnerPhone` | — | `+201000000002` | (dev seed only) |
+| `Platform:DevAssistantPhone` | — | `+201000000003` | (dev seed only) |
 
 ## Frontend
 - **Dev proxy:** `vite.config.ts` proxies `/api` → `http://localhost:5000`; `.env.development` sets
@@ -245,7 +248,7 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   mount and focus).
 - **`AuthProvider`** (inside `AppProviders`): starts the session on load (`/auth/refresh`), and
   `useAuth()` exposes `status`, `context`, `contexts`, `me` (`GET /me`, query key `["me", contextKey]`),
-  `signIn`, `switchContext`, `logout` (then opens `/login`), `retry` (offline). `useClinic()` returns
+  `meReady` / `meFailed` / `meRetrying` / `retryMe` (the `/me` load state), `signIn`, `switchContext`, `logout` (then opens `/login`), `retry` (offline). `useClinic()` returns
   the current clinic context inside the clinic app.
 - **Lost clinic** (since M1.5.3, design D7): every `/auth/refresh` re-checks the context (several contexts left →
   cleared → picker; one → entered; none → 401 `noContexts` → `/login`), and the routes follow its answer. A 403
@@ -271,16 +274,21 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   `RequireAuth context="platform"` (M1.5.4, [platform admin](../platform-admin/tech.md#frontend); `/platform`, the
   placeholder page before it, redirects to `/admin`). The clinic app (`AppLayout` + pages) is under
   `RequireAuth context="clinic"`. `RequireAuth`: loading → spinner; offline → "can't reach the server" + retry; anonymous →
-  `/login` (remembers the page); wrong/no context → that context's home (`/`, `/admin` or
+  `/login` (remembers the page; after login it reopens it only when the login lands in a clinic context and the page
+  is inside the clinic app, not `/login`, `/select-clinic`, `/platform` or `/admin…`; else the context's home); wrong/no context → that context's home (`/`, `/admin` or
   `/select-clinic`). Its outlet is keyed by the context, so every page re-mounts on a switch.
 - **`LoginPage`**: phone → code. In display mode (`GET /auth/otp/mode`, or a response with
   `devCode`) a warning banner ("OTP display mode") is always visible; the code appears in an alert,
   is filled in and submitted automatically. Resend button with countdown; "change number".
-- **`SelectClinicPage`**: the contexts (clinics, template, platform), current one marked; picking
-  calls `/auth/context` and opens that context's home. The list is `GET /auth/contexts`, loaded fresh on opening (a
+- **`SelectClinicPage`**: the contexts (platform admin first, then the clinics and the template in the API's order),
+  current one marked; picking another calls `/auth/context` and opens that context's home (picking the current one
+  just opens its home). Buttons: Back (when a context is set) and Log out; no context → `auth.noContexts` ("No clinic
+  is available for your number."). The list is `GET /auth/contexts`, loaded fresh on opening (a
   spinner meanwhile; the session's list if it fails), so a clinic lost or given since the last refresh shows as it is.
 - **`AppLayout`**: clinic name in the app bar, `UserMenu` (name + phone, "Switch clinic" when there
-  are several contexts, "Log out"), and a warning banner in the template clinic.
+  are several contexts, "Log out"), and a warning banner in the template clinic (with "Back to platform admin"
+  for a user who has the platform context; [platform admin](../platform-admin/tech.md#frontend)). The app bar's name
+  comes from `useContextLabel` ("Template clinic" for the template), through `AppShell`.
 - **Prescription** (`usePrescriptionLines(clinicId)`): `localStorage["prescription.lines.<clinicId>"]`.
   The old unscoped `prescription.lines` (and the older `prescription.selection`) move to the first
   clinic opened.

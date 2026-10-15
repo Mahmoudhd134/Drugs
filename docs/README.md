@@ -38,7 +38,8 @@ docs/
 3. Update `tech/overview.md` (API table, data model, routes) and `business/overview.md`
    (feature list) when the feature adds endpoints, tables, pages or user-visible capabilities.
 4. If a change alters an existing feature's behavior, update that feature's docs in the same commit.
-5. Keep docs describing what **is** built, not plans. Put ideas in a "Future ideas" section.
+5. Keep docs describing what **is** built, not plans. List gaps under "Edge cases & limitations" (tech) /
+   «ما لا تدعمه الميزة حاليًا» (business).
 
 ## Current features
 
@@ -46,6 +47,7 @@ docs/
 |---|---|---|
 | Clinic scoping | [tech](features/clinic-scoping/tech.md) | [business](features/clinic-scoping/business.md) |
 | Login (phone + OTP) | [tech](features/auth/tech.md) | [business](features/auth/business.md) |
+| Roles and permissions (M1.3) | [tech](features/access/tech.md) | [business](features/access/business.md) |
 | Structured dosing | [tech](features/dosing/tech.md) | [business](features/dosing/business.md) |
 | Tapering schedules | [tech](features/tapering/tech.md) | [business](features/tapering/business.md) |
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |

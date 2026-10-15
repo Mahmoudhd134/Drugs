@@ -25,8 +25,9 @@ Dosing flows: drug default → **group override** → prescription line (see [do
 - A drug may appear more than once in a group only with **different eyes**.
 - Deleting a group deletes its lines, not the drugs. Deleting a drug deletes its lines in every
   group, which can leave a group with zero lines (it shows "Drugs: 0" and can't be saved empty).
-- Migrations: introduced as `Combos`/`ComboDrags` (`AddCombos`), renamed in `RenameToDrugs`,
-  override columns added in `AddGroupItemDosing` (nullable; existing lines = no override).
+- Migrations: today the tables are part of `Initial`. History: introduced as `Combos`/`ComboDrags` (`AddCombos`),
+  renamed in `RenameToDrugs`, override columns added in `AddGroupItemDosing` (nullable; existing lines = no override);
+  those SQLite migrations were folded into the single PostgreSQL `Initial` ([migrations](../../tech/overview.md#migrations)).
 
 ## API (`ClinicHub.Api/Features/DrugGroups/DrugGroupsController.cs`, route `api/v1/drug-groups`)
 
@@ -44,6 +45,9 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 - `DrugGroupDto = { id, name, items: [{ drug: DrugDto, dosing: Dosing | null }] }`, items in `Order`.
   `drug` includes its `defaultDosing`, so the client can merge.
 - `SaveDrugGroupRequest = { name, items: [{ drugId, dosing }] }`; list position becomes `Order`.
+- Every action needs a clinic token (`ClinicContext` policy) and its permission: `groups.list` (`GET /drug-groups`),
+  `groups.details` (`GET /drug-groups/{id}`), `groups.create` / `groups.update` / `groups.delete`; else 401 / 403
+  ([access](../access/tech.md#api)).
 
 ## Backend (`ClinicHub.Application/Features/Catalog/DrugGroups/`)
 

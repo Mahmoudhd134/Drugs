@@ -9,8 +9,8 @@ Drug and group **content is not translated**: it is stored once, as typed.
 > renamed from `Drags` (an old typo) on 2026-10-14; the commercial brand will only touch UI strings,
 > the logo and the domain. Legacy names kept on purpose: the PostgreSQL database and user `drags`, and
 > the Docker Compose project `drags` (container `drags-postgres`, volume `drags_drags-pgdata`), so
-> existing data is kept. The migration designer files and snapshot keep their old CLR name strings
-> (`Drags.Api.Models.*`). The new JWT issuer/audience and refresh cookie name (`clinichub_refresh`)
+> existing data is kept. The `Initial` and `AddRoles` designer files keep their old CLR name strings
+> (`Drags.Api.Models.*`); the snapshot was rewritten with `ClinicHub.Domain.*` by `AddClinicDeletedAt`. The new JWT issuer/audience and refresh cookie name (`clinichub_refresh`)
 > logged out every session once; an old `drags_refresh` cookie is ignored until it expires.
 
 ## Stack
@@ -104,7 +104,8 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
                                PermissionsController, AccessSetup (DI)
   Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
   Program.cs                   settings, DI, middleware, migrate-on-startup, seeding (IStartupSeeder)
-ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot
+ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot. Also holds a stub
+                               ClinicHub.Web.csproj (in the solution; its Program.cs "Hello World" is unused)
   src/app/                     App (routes), AppProviders, theme, chunkReload (reload once after a new deployment)
   src/api/                     axios client, error → message, shared API types
   src/components/common/       reusable UI (PageHeader, BackButton, ListPagination, PageBoundary, SearchField, …)
@@ -136,8 +137,9 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Database:** PostgreSQL (`ConnectionStrings:DefaultConnection`). In Development it is the Docker
   container from `docker-compose.yml` (set in `appsettings.Development.json`); production must set
   the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
-  `Program.cs` validates the settings (missing/short secrets, `Otp:Mode = Sms` (no sender yet), an
-  invalid seeded phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
+  `Program.cs` validates the settings (missing/short secrets, a missing JWT issuer/audience, out-of-range OTP
+  numbers or token/session lifetimes, any `Otp:Mode` other than `Display` (no SMS sender yet), an invalid seeded
+  phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
   also gets sample **template** content (2 eye drops, Moxifloxacin and Prednisolone, and the group "After cataract
@@ -197,7 +199,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   there **and** under `errors.*` in both locale files. The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;
   nor has `noContexts` (the refresh's 401 when no clinic is left: the SPA logs out with its own `auth.*` message).
-- `Nullable` is disabled in every csproj.
+- `Nullable` is disabled in every backend csproj (the stub `ClinicHub.Web.csproj` has it enabled; it holds no
+  backend code).
 - **Clinic-owned data:** a clinic's entity implements `IClinicOwned` (and `IHasTimestamps`); the
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
   with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
@@ -277,7 +280,8 @@ Clinics (Platform)
 
 Users (Identity)       Phone (E.164, unique), IsSuperAdmin, LastLoginAt
 OtpCodes (Identity)    Phone, CodeHash (HMAC), ExpiresAt, Attempts, ConsumedAt; index (Phone, CreatedAt)
-Sessions (Identity)    Id (uuid), UserId (cascade), RefreshTokenHash (unique), ContextType, ClinicId,
+Sessions (Identity)    Id (uuid), UserId (cascade), RefreshTokenHash (unique), PreviousRefreshTokenHash
+                       (indexed) + RotatedAt (30 s rotation grace), ContextType, ClinicId (restrict),
                        ExpiresAt (sliding), LastUsedAt, RevokedAt
 Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive; unique (ClinicId, UserId)
 Roles (Access)         ClinicId (clinic-owned), Name (<=100, unique per clinic), IsOwner (one per clinic)
@@ -288,7 +292,8 @@ StaffRoles             StaffId, RoleId, ClinicId (clinic-owned); PK (StaffId, Ro
 
 Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md).
 
-Every table has `CreatedAt`/`UpdatedAt` (`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
+Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
+(`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
 and `DrugGroupItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
 `Drugs` and `DrugGroups`. Group items reference their group and drug with composite FKs
 `(DrugGroupId, ClinicId)` / `(DrugId, ClinicId)`, so the database rejects cross-clinic lines.
@@ -457,8 +462,9 @@ Swagger UI is available in Development at `/swagger`.
   flips its own start/end, so put `dir="auto"` on an inner span, not on the element carrying the spacing.
   Directional icons (e.g. back arrow) must be flipped manually when `dir === "rtl"`.
 - User-entered content (drug/group names) can be Arabic or English: inputs use `dir="auto"`. A name
-  interpolated into a message is written `\u2068{{name}}\u2069` in both locale files (a bidi isolate: the quotes
-  and the text after it stay in place in either direction).
+  interpolated into a message is wrapped in the bidi isolates U+2068/U+2069 in both locale files (written
+  `\u2068{{name}}\u2069`; some `roles.*` / `staff.*` strings hold the literal characters instead, same result): the
+  quotes and the text after it stay in place in either direction.
 - MUI's built-in English labels must be passed translated: e.g. `TablePagination`/`Pagination`
   `getItemAriaLabel` from `common.pagination.*`.
 - Adding a language: add it to `LANGUAGES`, create `locales/<code>.ts` typed `Translations`,
@@ -584,11 +590,14 @@ curl -s -X POST localhost:5000/api/v1/auth/context -H "Authorization: Bearer <ac
 curl -s localhost:5000/api/v1/drugs -H "Authorization: Bearer <accessToken>"
 ```
 
-A new code for the same phone needs 60 s (5 per hour); in dev, `DELETE FROM "OtpCodes"` resets it.
+OTP limits come from `Otp:*`: the intended limits (code defaults in `OtpSettings`) are 60 s between codes for a phone,
+5 codes per hour and 5 wrong tries; `appsettings.json` currently relaxes them to 0 s / 5000 / 5000 by choice, until
+hardening in M3.2. In dev, `DELETE FROM "OtpCodes"` resets them.
 Secrets: dev values are in `appsettings.Development.json`; any other environment must set
-`Auth__Jwt__SigningKey` and `Otp__HashKey` (≥ 32 bytes) and `MediatR__LicenseKey` (MediatR community license,
-luckypennysoftware.com) as environment variables, or the app won't start. In Development the MediatR key may
-be empty (MediatR only logs a warning).
+`Auth__Jwt__SigningKey` and `Otp__HashKey` (≥ 32 bytes) as environment variables, or the app won't start. The
+MediatR community license key (luckypennysoftware.com) is committed in `appsettings.json` (`MediatR:LicenseKey`, by
+choice; expires 2027-10-14, renew yearly); an env var `MediatR__LicenseKey` overrides it, and an empty key stops the
+app outside Development (in Development MediatR only logs a warning).
 
 Checks before committing:
 
@@ -615,10 +624,11 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
   log in as any phone), so it suits a demo/staging server only.
 - No per-IP limit on OTP requests yet (M3.2): one person can request codes for many numbers
   (costly once SMS is real).
-- `AllowedOrigins` (CORS) is no longer used (dev goes through the Vite proxy, production is
-  same-origin); it can be removed.
-- Access tokens stay valid up to 15 min after **logout** (no per-request session check). Suspension
-  and staff deactivation are checked per request through the access cache (within 30 s).
+- `AllowedOrigins` (CORS) is still applied by `Program.cs` but no longer needed (dev goes through the Vite
+  proxy, production is same-origin); it can be removed.
+- Access tokens stay valid up to 15 min after **logout** (no per-request session check). Suspension,
+  deletion and staff deactivation/removal are checked per request through the access cache: at once when done
+  through the admin endpoints, within 30 s when changed outside them.
 - **HTTPS is now required** outside localhost: the login refresh cookie is `Secure`, so on the
   plain-http LAN setup every reload would ask for a new login. Moving the deployment to HTTPS is a
   prerequisite for M1.2 in production.
@@ -640,7 +650,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
    a thin controller in `ClinicHub.Api/Features/<Feature>/`, errors in `<Feature>Errors`, migration
    (reviewed, data-preserving).
 2. Frontend: `src/features/<feature>/` with `types.ts`, `api.ts` (keys + hooks), `components/`,
-   `pages/`; lazy route in `App.tsx`; nav item in `AppLayout`; strings in `en.ts` **and** `ar.ts`.
+   `pages/`; lazy route in `CLINIC_ROUTES` (`app/App.tsx`) and a nav item in `NAV_ITEMS` (`app/navigation.tsx`); strings in `en.ts` **and** `ar.ts`.
 3. Check RTL (switch to Arabic) and mobile width.
 4. Run the checks above.
 5. Docs: `docs/features/<feature>/tech.md` + `business.md`, and update the overviews.

@@ -26,7 +26,8 @@ resource is a nested class with `[PermissionModule("<module>")]` named after the
 only `drugs.*`): the catalog refuses to start otherwise. Then the same key in `ClinicHub.Web/src/features/access/permissions.ts`, and its label
 under `permissions.<resource>.<action>` in `en.ts` and `ar.ts`. Decide whether the default roles get it
 (`DefaultRoles`: Doctor gets everything, Assistant everything except the deletes). A new resource also
-needs `permissionResources.<resource>`.
+needs `permissionResources.<resource>`, and a new module `permissionModules.<module>` (both in `en.ts` and `ar.ts`;
+otherwise the role editor shows the raw name).
 
 **Gate a button**: change its name: `Button` → `PermissionButton` (also `PermissionIconButton`,
 `PermissionMenuItem`, `PermissionFab`) and add `permission` / `anyOf` / `allOf`; `whenDenied="disable"`
@@ -109,8 +110,8 @@ endpoint checks in `ClinicHub.Api/Features/Access`.
 
 | Piece | Layer | Role |
 |---|---|---|
-| `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Groups`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("catalog")]` on every resource class. The single source of truth |
-| `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure, for M1.5's role editor) |
+| `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Groups`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("<module>")]` on every resource class (`catalog` for `Drugs`/`Groups`, `prescription` for `Prescriptions`). The single source of truth |
+| `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure: `PermissionSet.Of` when reading, `RoleRules.SetPermissions` when a role is saved) |
 | `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); names and permissions only (`Templates`). Clinic provisioning's `DefaultRolesSeeder` (M1.5.2) creates them, so every new clinic, the dev ones included, gets them |
 | `IAccessCache` / `AccessCache` | Application / Infrastructure | Singleton. The only code that knows cache keys, tags and the library (below) |
 | `IPermissionService` / `PermissionService` | Application | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or the `Error`: `AccessErrors.NoAccess`, `AccessErrors.ClinicSuspended`, `CommonErrors.Forbidden`), `GetAsync()` → `PermissionSet` |
@@ -181,7 +182,7 @@ for up to 10 min.
 | staff added, edited (name, roles, active flag) or removed | `InvalidateStaffAsync(staffId)` | `AddStaff`, `UpdateStaff`, `RemoveStaff` (M1.5.3; for an add the id is new: kept for the rule) |
 | role edited (permissions or name) | `InvalidateRoleAsync(roleId)` (on every update: names aren't cached, harmless) | `UpdateRole` (M1.5.3); `CreateRole` needs none (new id, no holder) |
 | role deleted | `InvalidateClinicAsync(clinicId)` (every entry of the clinic, the role's own included; M1.5 design D3) | `DeleteRole` (M1.5.3; only roles nobody holds can be deleted) |
-| clinic suspended, activated or deleted | `InvalidateClinicAsync(clinicId)` (a rename needs none) | `SuspendClinic`, `ActivateClinic`, `DeleteClinic` (M1.5.1; also when nothing changed) |
+| clinic suspended, activated or deleted | `InvalidateClinicAsync(clinicId)` (a rename needs none) | `SuspendClinic`, `ActivateClinic` (also when the status was already that), `DeleteClinic` (M1.5.1) |
 | user-level change (e.g. super-admin flag) | `InvalidateUserAsync(userId)` | `IdentitySeeder`, for every user whose flag changes (after its own transaction) |
 | clinic created (`CreateClinicCommand`, M1.5.2) | none: its clinic, roles and staff ids are new, so no entry exists for them; an existing user who becomes the owner has no user-level change (their contexts are read from the database at login, refresh and switch) | — |
 | token issued (login, refresh, switch) | staff — and the user (see below); **not** the roles: role permission edits rely on `InvalidateRoleAsync` | `SessionService.IssueAsync`, post-commit |
@@ -205,12 +206,12 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
 | `components/Can.tsx` | `<Can permission… fallback?>` renders children only when allowed |
 | `withPermission.tsx` | `withPermission(Component)` adds the rule props + `whenDenied: "hide" \| "disable"` (default hide); disabled controls get the `access.noPermissionTooltip` tooltip on a wrapping `span` (a disabled button has no mouse events), which also takes the ref, so an outer `Tooltip` anchors on it (its own title is then replaced by "no permission") |
 | `components/PermissionControls.tsx` | `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` (MUI). They take no `component` prop: gate link-buttons with `<Can>` |
-| `components/RequirePermission.tsx` | Route guard: spinner until `ready`, then the page, its `fallback`, or `NoPermissionPage` ("No permission" + a link to `/`); if `/me` failed, `PermissionsLoadError` (load failed + Retry) instead of a false "no permission" |
+| `components/RequirePermission.tsx` | Route guard: spinner until `ready`, then the page, its `fallback`, or `NoPermissionPage` ("No permission" + a link to `/`, unless `showHome={false}`); if `/me` failed, `PermissionsLoadError` (load failed + Retry) instead of a false "no permission" |
 
 - `useAuth()` exposes `meReady`, `meFailed`, `meRetrying`, `retryMe` (Retry shows progress); `Me.permissions` is the expanded key list.
 - Routes: `CLINIC_ROUTES` in `app/App.tsx` (`path`, `page`, permission rule, optional `denied`), each
   wrapped in `RequirePermission`. `/` (prescription) uses `denied: <FirstAllowedPage/>`
-  (`app/FirstAllowedPage.tsx`): the first `NAV_ITEMS` page the user may open, or the no-permission page.
+  (`app/FirstAllowedPage.tsx`): the first `NAV_ITEMS` page the user may open, or the no-permission page without its home link (`/` would loop).
 - `NAV_ITEMS` moved to `app/navigation.tsx` with a `permission`; the sidebar hides the rest.
 - Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugPicker`,
   `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`; `DrugPicker` / `GroupPicker` take `enabled`.
@@ -219,7 +220,8 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
   [auth](../auth/tech.md), design D7) or, when the clinic is still there (e.g. re-added under a new staff record),
   replays the request once with the new token. `AppProviders` handles the other 403s (`forbidden`, or one that
   persists after the replay): a query toasts the translated reason (one toast id), and any 403 (query or mutation)
-  reloads `/me` (`authKeys.allMe`), so stale permissions catch up.
+  reloads `/me` (`authKeys.allMe`), so stale permissions catch up. Answers about a context already left (lost clinic,
+  a switch in another tab) are ignored; the clinic-lost toast replaces the page's own error toast (`toast.dismiss()`).
   Queries retry once and only on network/5xx errors (a 4xx answers the same again).
 - Pages:
   - Drugs: Add (`drugs.create`), edit icon (`drugs.update`), delete icon (`drugs.delete`); the Actions
@@ -234,10 +236,12 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
     disabled with the tooltip to editors who lack it. The drug picker also needs `drugs.list`. Save,
     Cancel and Back go to `/groups`, or to `/` without `groups.list`.
   - Prescription: `CatalogPanel` shows the Groups tab with `groups.list` and the Drugs tab with
-    `drugs.list` (each picker `enabled` only then; the visible one gets the focus); neither → a short message.
+    `drugs.list` (each picker `enabled` only then; the visible one gets the focus); neither → a short message (`access.nothingToPick`;
+    unreachable today, since `prescriptions.create` requires `drugs.list`).
 - i18n: `access.*` (no-permission page, tooltip, `nothingToPick`), `permissions.<resource>.<action>`,
   `permissionResources.*` and `permissionModules.*` (the role editor's sections), `drugs.details`, `groups.view`.
-- `api.ts` (M1.5.5): `usePermissionCatalog()` reads `GET /permissions` once per app run, for the role editor
+- `api.ts` (M1.5.5): `usePermissionCatalog()` reads `GET /permissions` once per context (`staleTime: Infinity`; the query cache is
+  cleared on a context switch), for the role editor
   (`features/roles`: grouped by module → resource, a permission's `requires` ticked and locked with it; the same
   closure as `PermissionCatalog.WithRequirements`). A new permission shows there with its label (`permissions.<key>`;
   without one, the key itself) and needs no editor change.

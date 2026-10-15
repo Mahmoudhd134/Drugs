@@ -72,21 +72,23 @@ produces a ready-to-copy folder: **`D:\ClinicHub\publish`**.
 **Database:** PostgreSQL. Set the connection string on the server, e.g. an environment variable
 `ConnectionStrings__DefaultConnection` (in `web.config` under `<environmentVariables>`).
 
-**MediatR license — the app won't start without it** outside Development: environment variable
-`MediatR__LicenseKey` (free community license for companies under $5M yearly revenue, from
-luckypennysoftware.com).
+**MediatR license:** the key is committed in `appsettings.json` (`MediatR:LicenseKey`; free community license for
+companies under $5M yearly revenue, from luckypennysoftware.com). It **expires 2027-10-14**: renew it yearly. An
+environment variable `MediatR__LicenseKey` overrides it; outside Development the app won't start if the key is empty.
 
 **Login (M1.2) — the app won't start without these** (environment variables, never in `appsettings.json`):
-`Auth__Jwt__SigningKey` and `Otp__HashKey` (random secrets, at least 32 bytes each) and the super
-admins' phones `Platform__SuperAdminPhones__0`, `Platform__SuperAdminPhones__1`, … Note: outside
+`Auth__Jwt__SigningKey` and `Otp__HashKey` (random secrets, at least 32 bytes each). Also set the super
+admins' phones `Platform__SuperAdminPhones__0`, `Platform__SuperAdminPhones__1`, … (the app starts without them, but
+then nobody can create clinics; an invalid number stops it). Note: outside
 Development the app starts only with **`Otp__Mode=Display`** (there is no SMS sender yet): login codes
 are shown on screen, so anyone can log in as any phone. Fine for a demo or staging server, not for
-real data. That includes the super admins' phones (today: the template clinic; after M1.5: the whole
-admin area, creating clinics and managing staff), so on a demo server use **throwaway super-admin
-numbers** and no real data. Login also needs **HTTPS** (the refresh cookie is `Secure`): the http binding below is not
+real data. That includes the super admins' phones (the whole admin area: creating, suspending and deleting
+clinics, managing their roles and staff, and the template clinic), so on a demo server use **throwaway super-admin
+numbers** and no real data. Login also needs **HTTPS** (the refresh cookie is `Secure`): the http binding in step 3 is not
 enough once login is deployed.
-The schema is created automatically on first run via EF Core migrations; it starts **empty**
-(the 10 000-row dev seed only runs in Development).
+The schema is created automatically on first run via EF Core migrations; it starts with only the **empty
+template clinic** and the super-admin users (the sample template content, the demo clinics and their 10 000 drugs
+are seeded only in Development).
 
 ---
 

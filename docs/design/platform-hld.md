@@ -53,7 +53,7 @@ M1.1–M1.3 (phases 1–3), M1.4 (phase 3.5), M1.5 (phase 4) and M3.2 (phase 5).
 | NFR-2 | Permission or role changes apply within a minute, without logging in again. |
 | NFR-3 | OTP brute force is limited (attempts per code, codes per phone per hour, requests per IP). |
 | NFR-4 | Display OTP mode is **opt-in by config** (startup warning outside Development); hard-blocked again in Production once an SMS sender exists. |
-| NFR-5 | All times stored in UTC (`timestamptz`). Every table has `CreatedAt`/`UpdatedAt`. |
+| NFR-5 | All times stored in UTC (`timestamptz`). Every table has `CreatedAt`/`UpdatedAt` (built: except the join tables `RolePermissions` and `StaffRoles`). |
 | NFR-6 | One deployable (API + SPA), one PostgreSQL database. Production requires HTTPS. |
 | NFR-7 | Up to M1.5 every step is verified manually (API calls + browser). **M1.6** adds the test foundation for everything built so far (integration tests on a real PostgreSQL for isolation, permissions, auth and the error contract; unit tests for pure rules and validators; a few end-to-end browser flows); from then on each step adds tests with its feature. |
 | NFR-8 | The SMS/WhatsApp OTP sender, rate limits per IP and the Display-mode block in Production land in M3.2, before launch. |
@@ -182,8 +182,8 @@ Invalid → `invalidPhone`. The SPA sends what the user typed; the server normal
 
 ## 5. Data model (PostgreSQL)
 
-All `Id`s are `integer` identity unless noted. All tables have `CreatedAt`/`UpdatedAt timestamptz NOT NULL`
-(omitted below). Names in PascalCase as EF creates them.
+All `Id`s are `integer` identity unless noted. All tables except the join tables `RolePermissions` and `StaffRoles`
+have `CreatedAt`/`UpdatedAt timestamptz NOT NULL` (omitted below). Names in PascalCase as EF creates them.
 
 ```mermaid
 erDiagram
@@ -256,7 +256,7 @@ Old rows are deleted by a cleanup on each request (older than 1 day).
 | Column | Type | Rules |
 |---|---|---|
 | Id | int | PK |
-| ClinicId | int | FK → Clinics, cascade |
+| ClinicId | int | FK → Clinics, restrict |
 | Name | varchar(100) | required, **unique `(ClinicId, Name)`** |
 | IsOwner | boolean | locked, all permissions; **one per clinic** (partial unique index `(ClinicId) WHERE IsOwner`) |
 
@@ -477,8 +477,8 @@ type Me = {
 - Every super-admin session lasts 12 h (sliding). Display mode is allowed in **any** environment by
   config (startup warning outside Development), replacing NFR-4 until an SMS sender exists, so a demo
   or staging server can run; `Otp:Mode` defaults to `Sms`, which is refused until a sender exists.
-- Sessions are not revoked on suspension or staff deactivation yet: access is re-checked at refresh
-  and switch, and open access tokens stay valid ≤ 15 min (7.6's "next request → 401" is not met yet).
+- Sessions are not revoked (M1.5 design D7): suspension, deletion and staff deactivation/removal are checked on
+  every request (403 on the next request, see 7.6); only logout leaves the access token valid ≤ 15 min.
 
 ### 8.2 Catalog (clinic context; existing contracts unchanged)
 
@@ -556,7 +556,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 | Routes | `/login`, `/select-clinic`, clinic app (`/`, `/drugs`, `/groups`…), `/admin/*` (own `AdminLayout`, lazy; built in M1.5.4: `/admin` clinics list, `/admin/clinics/new`, `/admin/clinics/:id` with tabs as child routes; `/platform` → `/admin`) |
 | `features/auth` | `LoginPage` (phone → code; display mode: alert + auto-fill + auto-submit, visible "OTP display mode" banner), `SelectClinicPage`, `AuthProvider` (access token in memory, `me`, `switchContext`, `logout`), `RequireAuth`, `RequirePermission` |
 | API client | Interceptor adds `Authorization: Bearer`; on 401 calls `/auth/refresh` once (shared promise) and retries, else → `/login` |
-| Permissions | `useCan(permission)` + `<Can permission>`; `NAV_ITEMS` get a `permission`; pages wrapped in `RequirePermission`. The API always enforces. |
+| Permissions | `usePermissions().can(permission)` + `<Can permission>`; `NAV_ITEMS` get a `permission`; pages wrapped in `RequirePermission`. The API always enforces. |
 | Layout | App bar shows the clinic name and a user menu (switch clinic, logout); a banner when editing the template (with "Back to platform admin" for the super admin). Since M1.5.4 `AppLayout` and `AdminLayout` share one `AppShell` (app bar, sidebar from a list, drawer on mobile) |
 | `features/admin` | `ClinicsPage` (list: search, status filter, paging), `CreateClinicPage`, `ClinicPage` with tabs: **Overview** (rename, disable / enable, delete with the name typed; M1.5.4), **Roles** and **Staff** (M1.5.5: the reusable `features/roles` and `features/staff` components with the admin adapters); "Edit default catalog" in the admin sidebar switches to the template ([platform admin](../features/platform-admin/tech.md#frontend)) |
 | Prescription | `localStorage` key becomes `prescription.lines.<clinicId>` so clinics never mix |
@@ -577,20 +577,23 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
   },
   "Otp": {
     "Mode": "Display",          // Display | Sms. Built: Display allowed anywhere by config (warning outside Development); default Sms, refused until a sender exists
-    "Length": 6, "ExpiryMinutes": 5, "MaxAttempts": 5,
-    "ResendSeconds": 60, "MaxPerPhonePerHour": 5,
+    "Length": 6, "ExpiryMinutes": 5, "MaxAttempts": 5,  // intended limits (code defaults); the base
+    "ResendSeconds": 60, "MaxPerPhonePerHour": 5,       // appsettings.json relaxes them to 5000 / 0 / 5000 until M3.2
     "HashKey": "<secret>"
   },
   "Platform": {
     "DefaultRegion": "EG",
     "SuperAdminPhones": ["+20…"],
-    "DevOwnerPhone": "+20…"      // Development seed only
+    "DevOwnerPhone": "+20…",     // Development seed only
+    "DevAssistantPhone": "+20…"  // Development seed only
   }
 }
 ```
 
-Rate limiting (ASP.NET Core built-in): `/auth/otp/*` 10 requests/min per IP. Secrets come from
-environment variables in production, never `appsettings.json`.
+Rate limiting (ASP.NET Core built-in): `/auth/otp/*` 10 requests/min per IP (not built yet: M3.2). Secrets come from
+environment variables in production, never `appsettings.json`. Built exception: the MediatR community license key is
+committed in `appsettings.json` (`MediatR:LicenseKey`, by choice; expires 2027-10-14, renew yearly; an env var
+`MediatR__LicenseKey` overrides it).
 
 ---
 

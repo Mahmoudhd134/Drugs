@@ -26,8 +26,9 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 
 - Codes live in `DosingCodes`; the frontend mirrors them in `features/dosing/types.ts`. **Keep both in sync.**
 - `Drug.DefaultDosing` (nullable). An all-null dosing is stored as null.
-- Migrations: `AddDrugDefaultDosing` (8 nullable columns on `Drugs`) and `AddGroupItemDosing`
-  (8 nullable columns on `DrugGroupItems`), `AddTaperSteps` (1 nullable JSON column on each); no data changes.
+- Migrations: the columns (9 nullable on `Drugs`, 9 on `DrugGroupItems`) are part of `Initial`. History: they came
+  in `AddDrugDefaultDosing`, `AddGroupItemDosing` and `AddTaperSteps` (no data changes), SQLite migrations later folded
+  into the single PostgreSQL `Initial` ([migrations](../../tech/overview.md#migrations)).
 - EF logs a startup warning that `Dosing` is an "optional dependent without a required property".
   That is expected: an all-null dosing reads back as `null`.
 
@@ -39,7 +40,7 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
     `invalidDosing` (`DrugErrors.InvalidDosing`, `DrugGroupErrors.InvalidDosing`).
     `allowAskEye` accepts the `ask` eye (`DosingCodes.GroupEyes`); only group lines pass `true`.
 - Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `CreateDrugCommandValidator` /
-  `UpdateDrugCommandValidator` check the name, then the normalized dosing.
+  `UpdateDrugCommandValidator` check the name, the description (`invalidText`), then the normalized dosing.
 - Configuration helper `DosingConfiguration.Configure` (in
   `ClinicHub.Infrastructure/Database/Configurations/Catalog/`) sets column lengths for any owned Dosing; reuse it
   for future owners
@@ -57,7 +58,7 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 - `components/DosingFields.tsx`: the form (dose + unit, frequency + times/hours or custom text,
   period + duration, eye toggle) with a live preview. `onChange` is a **state setter**
   (`Dispatch<SetStateAction<Dosing>>`) so quick successive edits merge into the latest value.
-  `showErrors` highlights fields from `dosingErrors`. Rows put the dropdown first, then the number.
+  `showErrors` highlights fields from `dosingErrors`. Frequency and duration rows put the dropdown first, then the number; the dose row is amount, then unit.
   **Inherit mode** (`inheritFrom={drugDefault}`): empty selects display "Drug default" and the
   preview shows the merged result. `allowAskEye` adds the "Ask when adding" eye.
 - `components/DosingLineList.tsx`: shared numbered, drag-to-reorder list of `{ key, drug }` lines

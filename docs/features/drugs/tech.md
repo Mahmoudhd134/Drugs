@@ -12,7 +12,7 @@ prescriptions. Content is stored once, as typed (not translated).
 | Id | integer PK, identity | |
 | Name | varchar(256) | required, max 256 (`FieldLimits.NameMaxLength`) |
 | Description | text | nullable; free text, may be multi-line |
-| DefaultDosing_* | 8 columns | owned `Dosing`, nullable; see [dosing](../dosing/tech.md) |
+| DefaultDosing_* | 9 columns (8 + `TaperSteps` JSON text) | owned `Dosing`, nullable; see [dosing](../dosing/tech.md) |
 | ClinicId | int FK → `Clinics` (restrict) | owning clinic; filled on insert; index `(ClinicId, Name)` |
 | CreatedAt, UpdatedAt | timestamptz | UTC, filled on save |
 
@@ -37,6 +37,10 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 | DELETE | `/drugs/{id}` | | 204 | 404 `notFound` |
 
 `DrugDto = { id, name, description, defaultDosing }` (`defaultDosing` is null when not set).
+
+Every action needs a clinic token (`ClinicContext` policy) and its permission: `drugs.list` (`GET /drugs`),
+`drugs.details` (`GET /drugs/{id}`, `GET /drugs/{id}/groups`), `drugs.create` / `drugs.update` / `drugs.delete`;
+else 401 / 403 ([access](../access/tech.md#api)).
 
 ## Backend (`ClinicHub.Application/Features/Catalog/Drugs/`)
 
