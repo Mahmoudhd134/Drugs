@@ -21,8 +21,9 @@ public static class AuthPolicies
 
     /// <summary>
     /// Every <c>/admin/*</c> endpoint: an access token in the platform context whose user is <b>still</b> a
-    /// super admin (cached check, <c>Access.PlatformAdminRequirement</c>: removing a phone from
-    /// <c>Platform:SuperAdminPhones</c> locks it out on the next request). Anything else → 403 <c>forbidden</c>.
+    /// super admin (cached check, <c>Access.PlatformAdminRequirement</c>: a phone removed from
+    /// <c>Platform:SuperAdminPhones</c> loses the flag when the startup seeder runs, i.e. after a restart, and is then
+    /// locked out on its next request). Anything else → 403 <c>forbidden</c>.
     /// </summary>
     public const string PlatformAdmin = "PlatformAdmin";
 }
