@@ -53,7 +53,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   `nameRequired`/`nameInvalid`/`nameTooLong` (shared `ValidName()` rule) and `invalidText` (`ValidText()`) are
   `CommonErrors`.
 - Validators (create and update, one each): `ValidName()` (required: not only spaces or invisible format
-  characters; no control characters such as a NUL nor line/paragraph separators → `nameInvalid`; ≤ 256 after
+  characters; no control characters such as a NUL, line/paragraph separators nor bidi overrides or isolates → `nameInvalid`; ≤ 256 after
   trim), then `ValidText()` on the description (a NUL → `invalidText`, field `description`; line breaks and tabs are
   fine), then `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`, field
   `defaultDosing`; a custom frequency text with a NUL is invalid too).

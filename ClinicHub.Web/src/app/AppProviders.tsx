@@ -64,7 +64,8 @@ export const AppProviders = ({children}: { children: ReactNode }) => {
                     <AuthProvider>{children}</AuthProvider>
                     <Toaster
                         position="bottom-center"
-                        toastOptions={{style: {fontFamily: theme.typography.fontFamily, whiteSpace: "pre-line"}}}
+                        // A long unbroken name wraps instead of running off the screen
+                        toastOptions={{style: {fontFamily: theme.typography.fontFamily, whiteSpace: "pre-line", overflowWrap: "anywhere"}}}
                     />
                 </ThemeProvider>
             </CacheProvider>

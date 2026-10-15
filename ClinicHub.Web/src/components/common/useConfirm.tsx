@@ -31,19 +31,21 @@ export const useConfirm = () => {
 
     const dialog = (
         <Dialog open={!!pending} onClose={() => close(false)} maxWidth="xs" fullWidth>
-            <DialogTitle>{pending?.title}</DialogTitle>
+            {/* A long unbroken name (e.g. in the title) wraps instead of widening the dialog */}
+            <DialogTitle sx={{overflowWrap: "anywhere"}}>{pending?.title}</DialogTitle>
             {pending?.message && (
                 <DialogContent>
-                    <DialogContentText sx={{whiteSpace: "pre-line"}}>{pending.message}</DialogContentText>
+                    <DialogContentText sx={{whiteSpace: "pre-line", overflowWrap: "anywhere"}}>{pending.message}</DialogContentText>
                 </DialogContent>
             )}
             <DialogActions sx={{px: 3, pb: 2}}>
-                <Button onClick={() => close(false)}>{t("common.cancel")}</Button>
+                {/* A destructive action never runs on a stray Enter: the focus starts on Cancel */}
+                <Button onClick={() => close(false)} autoFocus={pending?.destructive}>{t("common.cancel")}</Button>
                 <Button
                     variant="contained"
                     color={pending?.destructive ? "error" : "primary"}
                     onClick={() => close(true)}
-                    autoFocus
+                    autoFocus={!pending?.destructive}
                 >
                     {pending?.confirmText ?? t("common.delete")}
                 </Button>

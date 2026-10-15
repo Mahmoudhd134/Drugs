@@ -1,6 +1,6 @@
 import {api, setAuthHandlers} from "../../api/client.ts";
 import {toApiError} from "../../api/errors.ts";
-import {type AuthResult, type ClinicContext, contextKey} from "./types.ts";
+import {type AuthResult, type ClinicContext, type Context, contextKey} from "./types.ts";
 
 /**
  * The login session, outside React so the axios interceptor can use it. The access token lives
@@ -105,6 +105,20 @@ export const refreshSession = (): Promise<string | null> => {
     return refreshing;
 };
 
+/**
+ * `/me` no longer sees the current context (a lost clinic, or a super admin no longer one): a refresh re-checks it.
+ * The loss is already known, so a refresh ending the session with another 401 than `noContexts` (e.g. the demoted
+ * super admin's sessions were revoked) is told to {@link onClinicLost} too, as `signedOut`.
+ */
+export const recheckLostContext = async () => {
+    const before = state;
+    await refreshSession();
+    if (state.status !== "anonymous" || before.status !== "authenticated" || before.auth.context === null
+        || lastReported === before) return;
+    const loss: ClinicLoss = {from: before.auth.context, outcome: "signedOut"};
+    setTimeout(() => clinicLostHandler?.(loss));
+};
+
 /** Restores the session from the refresh cookie (on page load, and "retry" when offline). */
 let started = false;
 export const startSession = (force = false) => {
@@ -136,36 +150,39 @@ export const switchSessionContext = (type: "clinic" | "platform", clinicId?: num
     });
 
 /**
- * How a lost clinic ended (see {@link callRefresh}): the context was cleared (several contexts left: the picker),
- * replaced by the only one left (`to`), or the session ended (none left: login).
+ * How a lost clinic (or a lost platform admin: the user is no longer a super admin) ended (see {@link callRefresh}):
+ * the context was cleared (several contexts left: the picker), replaced by the only one left (`to`), or the session
+ * ended (none left: login).
  */
 export type ClinicLoss =
-    | { from: ClinicContext; outcome: "cleared" | "ended" }
-    | { from: ClinicContext; outcome: "moved"; to: ClinicContext };
+    | { from: Context; outcome: "cleared" | "ended" | "signedOut" }
+    | { from: Context; outcome: "moved"; to: ClinicContext };
 
 let clinicLostHandler: ((loss: ClinicLoss) => void) | null = null;
+/** The session state of the last loss told (by its state before the refresh), not to tell it twice. */
+let lastReported: SessionState | null = null;
 
-/** Runs after a lost clinic changed the session (the provider tells the user and opens the new clinic's home). */
+/** Runs after a lost clinic (or platform) changed the session (the provider tells the user and opens the new clinic's home). */
 export const onClinicLost = (handler: (loss: ClinicLoss) => void) => {
     clinicLostHandler = handler;
 };
 
 /**
- * After a refresh: tells {@link onClinicLost} if the session was in a clinic that is no longer one of the user's
- * contexts (`ended`: the refresh answered 401 `noContexts`). Told in a later task, after the failed request's own
- * error handling (e.g. a page's error toast, which the provider's message replaces).
+ * After a refresh: tells {@link onClinicLost} if the session was in a context (a clinic, or the platform) that is no
+ * longer one of the user's contexts (`ended`: the refresh answered 401 `noContexts`). Told in a later task, after the
+ * failed request's own error handling (e.g. a page's error toast, which the provider's message replaces).
  */
 const reportClinicLoss = (before: SessionState) => {
-    if (before.status !== "authenticated" || before.auth.context?.type !== "clinic") return;
+    if (before.status !== "authenticated" || before.auth.context === null) return;
     const from = before.auth.context;
     const now: SessionState = state;
     let loss: ClinicLoss;
     if (now.status === "anonymous") loss = {from, outcome: "ended"};
-    else if (now.status === "authenticated"
-        && !now.auth.contexts.some(c => c.type === "clinic" && c.clinicId === from.clinicId)) {
+    else if (now.status === "authenticated" && !now.auth.contexts.some(c => contextKey(c) === contextKey(from))) {
         const to = now.auth.context;
         loss = to?.type === "clinic" ? {from, outcome: "moved", to} : {from, outcome: "cleared"};
     } else return;
+    lastReported = before;
     setTimeout(() => clinicLostHandler?.(loss));
 };
 

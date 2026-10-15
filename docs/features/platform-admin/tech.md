@@ -12,7 +12,10 @@ user by phone; the dev seed creates its clinics through the same command and giv
 M1.5.3: each clinic's **roles** and **staff** (`/api/v1/admin/clinics/{clinicId}/roles…`, `/staff…`) through the
 **admin clinic filter** (D2: the route's clinic becomes the request's clinic, so the role and staff use cases, in the
 Access module, never take a clinic id), with the Owner lock, `roleInUse`, `lastOwner` and the post-commit invalidations
-of the D3 table (lockout on the next request). Not built yet: the admin screens (M1.5.4–5).
+of the D3 table (lockout on the next request). M1.5.4: the **admin screens for clinics** (frontend only): the
+`/admin` area with its own layout, the clinics list, the create page and the clinic page (Overview tab: rename,
+disable / enable, delete with the name typed), and a link into the template ([Frontend](#frontend)). Not built yet: the
+roles and staff screens (M1.5.5).
 
 ## Data model
 Migration **`AddClinicDeletedAt`** (M1.5.1, on top of `AddRoles`; adds one nullable column, no data step needed).
@@ -232,9 +235,52 @@ every start (a clinic needs an owner; the template is still filled when empty). 
 (about 1.8–2.1 s on a fresh dev DB, mostly the 10,000 drugs).
 
 ## Frontend
-None yet (M1.5.4–M1.5.5). `/platform` is still the placeholder page. The new error codes (`roleNameTaken`,
-`unknownPermission`, `roleLocked`, `roleInUse`, `rolesRequired`, `roleNotFound`, `staffExists`, `lastOwner`) already
-have `errors.*` texts in `en.ts` and `ar.ts` for the M1.5.5 screens.
+Built in M1.5.4 (clinics); the roles and staff tabs come in M1.5.5. Everything under `/admin` is lazy, inside
+`RequireAuth context="platform"` (any other context is sent to its own home: an owner's or a staff token never reaches
+these pages, and the API refuses them anyway with 403 `forbidden`).
+
+| Route | Page | What it does |
+|---|---|---|
+| `/admin` | `ClinicsPage` | Search (debounced 300 ms), status filter (all / active / disabled), paging (10/20/50); columns name, status chip, active staff, created date (hidden below `sm`); the name is a link to the clinic (keyboard, screen readers, new tab; visible focus outline; cut after 2 lines, full name in its `title`), and a click anywhere on the row opens it too; "New clinic". The subtitle counts the list as filtered (`admin.clinics.subtitle`, plural forms). `search`, `status`, `page` and `pageSize` live in the URL query (replaced, no history entries), so Back from a clinic returns to the same list; the typed search is written once typing pauses (only when it changed), and a search changed from outside (the sidebar's "Clinics", the logo, Back) replaces the typed one; the progress bar shows while a typed search waits and while the list loads; `page` is capped at 1,000,000 (the API's limit), and a page past the end moves to the last one |
+| `/admin/clinics/new` | `CreateClinicPage` | One form: clinic name, owner phone (`dir="ltr"`, `type="tel"`), owner full name. Required fields checked first; `POST /admin/clinics` once (`useSingleFlight`: a double click sends one request); success → the new clinic's page (`replace`) with a toast. API field errors (`name`, `owner.phone`, `owner.fullName`) are shown on their inputs (`getFieldErrors`) and the first invalid input gets the focus (once the inputs are enabled again); errors of no field or of another field are toasted next to them (`getOtherErrors`); no field error at all → `getErrorMessage` |
+| `/admin/clinics/:id` | `ClinicPage` | `PageHeader` with `BackButton` (to the list as it was left), the name (cut after 3 lines, full name in the `title`) and the status chip, then a **tab bar** from `CLINIC_TABS`; each tab is a child route that gets the clinic through the outlet context (`useTabClinic()`), inside a `PageBoundary`. An id that isn't a positive whole number without leading zeros fitting an int (`05`, `abc`, `99999999999`) or a 404 (missing, deleted, template) → "Clinic not found" with a link back; checked before the cached data, so a clinic deleted meanwhile shows it too. A load error → the header with Back, and "Couldn't load" with Retry |
+| `/admin/clinics/:id` (index) | `ClinicOverview` (tab **Overview**) | Details (name, status, created date, active staff, owners: name + phone LTR); **Rename** (dialog, `PUT`; `name` errors on the input; not closable while saving; each opening starts from the current name, also when reopened during the closing animation); **Disable** (confirm saying staff lose access on their next action, the focus on Cancel; `suspend`) / **Enable** (no confirm; `activate`); **Delete** (dialog "Delete this clinic?", the name shown once: the button stays disabled until the name is typed exactly, both sides compared as typable text: NFC, invisible format characters (`\p{Cf}`) removed, white space runs as one space, trimmed; case kept; `DELETE` → the list as it was left, with a toast). Every action runs once per click burst (`useSingleFlight`). "Disabled" (chip and the Disable button) uses `#b45309` (≈ 5:1 on white, `disabledTone.ts`) instead of the theme's warning (≈ 3:1) |
+| `/admin/*` | | → `/admin` |
+| `/platform` | | → `/admin` (the placeholder page is gone) |
+
+| Piece | Role |
+|---|---|
+| `features/admin/components/AdminLayout.tsx` | The admin frame: `AppShell` with "Platform admin" in the app bar, `ADMIN_NAV_ITEMS`, and **"Edit default catalog"** («تعديل الأدوية والمجموعات الافتراضية») below the sections: switches to the template context (`switchContext` with the session's template context, once) and opens `/drugs` (template banner shown there) |
+| `components/layout/AppLayout.tsx` | In the template, for a user who also has the platform context (the super admin), the banner has **"Back to platform admin"**: switches to the platform context and opens `/admin`. The app bar names the template "Template clinic" / «العيادة النموذجية» (`useContextLabel`), not its stored English name |
+| `components/layout/AppShell.tsx` | Shared frame: app bar (logo link, context label, `LanguageMenu`, `UserMenu`), sidebar in a `<nav>` landmark (permanent ≥ md, drawer below), optional banner, the page in a `PageBoundary` (spinner while its chunk loads, "Couldn't load — Reload" when it fails). `AppLayout` (clinic app) and `AdminLayout` are thin wrappers around it. An entry is active on its path (`end`: exactly) and under each `activeFor` path |
+| `app/navigation.tsx` | `ADMIN_NAV_ITEMS` next to the clinic `NAV_ITEMS`: Clinics today; a new section (e.g. M2.1's Forms) is one entry here + its route |
+| `features/admin/clinicTabs.tsx` | `CLINIC_TABS` (`path`, `labelKey`, `element`; `""` = the index tab), mapped to child routes in `App.tsx`; M1.5.5 adds Roles and Staff as two entries (they may be lazy). Overview is imported eagerly (one spinner, not two; it ships in the main chunk because `App.tsx` imports `CLINIC_TABS`). `useTabClinic()` is in `useTabClinic.ts` (no import cycle with the tab components) |
+| `features/admin/api.ts` | `adminClinicKeys` (`all`, `lists` = `[...all, "list"]`, `list(search, status, page, pageSize)`, `detail(id)`); `useAdminClinics` (`keepPreviousData`), `useAdminClinic` (`staleTime: 0`), `useCreateClinic` / `useRenameClinic` (put the answer in the detail cache, reload the lists), `useSetClinicStatus` (updates the cached status, reloads the lists), `useDeleteClinic` (removes the cached lists, so the next list shown loads without the clinic instead of showing it first; the page drops the details with `useForgetClinic` only after leaving, so they aren't loaded again: no stray 404). Lists are reloaded with `refetchType: "all"`: also the list left for the clinic's page, so coming back never shows the old row first. A change answering 404 (deleted meanwhile) reloads the details ("not found") and the lists |
+| `features/admin/listState.ts` | `ClinicsListState` (the list's query, passed as navigation state) and `useClinicsListPath()` (the Back target, kept across tabs) |
+| `features/admin/components/` | `ClinicStatusChip`, `ClinicOverview`, `RenameClinicDialog`, `DeleteClinicDialog`, `disabledTone.ts` |
+| `api/errors.ts` | `getFieldErrors(error)`: field → translated message of its first error (`errors.<code>`); `getOtherErrors(error, inputFields)`: the translated messages of the errors no input shows |
+| Shared (`components/common`, `hooks`) | `PageHeader` (`titleText`: cut after 3 lines with a tooltip; top-aligned leading; subtitle may hold a chip), `BackButton`, `ListPagination` (also on the drugs page; the rows-per-page choice hidden below `sm`), `PageBoundary`, `useConfirm` (long titles wrap; a `destructive` confirm starts on Cancel), `useSingleFlight` (one run at a time; also the drug dialog's and the group editor's Save) |
+| `features/auth` | `useContextLabel()` (platform → "Platform admin", template → "Template clinic", else the clinic name: picker, app bar, lost-context messages); the picker lists the platform first; a lost platform context is handled like a lost clinic (below) |
+| `hooks/useFormatDate.ts` | Dates in the UI language with Latin digits (like the app's counts): `medium` in the list, `long` on the Overview |
+
+- `homeOf(platform)` is `/admin`: the picker and a context switch into the platform land there. The super admin always
+  has two contexts (platform + template), so the login shows the picker; the login's "return to the page" never
+  returns to `/login`, `/select-clinic`, `/platform` or `/admin` (the path or anything below it, compared without case).
+- **Lost platform context** (a super admin removed from `Platform:SuperAdminPhones`, effective at the next start): any
+  admin call answers 403, which reloads `/me`; `/me` then has `context: null` (and `isSuperAdmin: false`), so
+  `AuthProvider` re-checks the session (`recheckLostContext`, the same path as a lost clinic). The demotion revoked the
+  sessions, so the refresh answers 401 → `/login` with "You no longer have access to “Platform admin”. Log in again to
+  continue." (`auth.clinicLostSignedOut`, told only when the refresh itself didn't report a loss); had the refresh kept
+  a session, the picker or the only clinic left would follow with the usual lost-clinic message.
+- A failed page chunk (API down, or a new deployment replaced the chunk names): `PageBoundary` shows "Couldn't load
+  this page. — Reload" instead of a blank app (another page tries again; the same page needs Reload: its failed import stays cached); `app/chunkReload.ts` listens to
+  `vite:preloadError` and reloads the app once if the server answers (a new deployment), at most once per 30 s
+  (`sessionStorage`), never without session storage.
+- i18n: `admin.*` in `en.ts` and `ar.ts`; status "Disabled" / «موقوفة» (and `errors.clinicSuspended` "This clinic is
+  disabled."); "Platform admin" everywhere in English; names in messages inside bidi isolates; the
+  table pagination labels moved to `common.rowsPerPage` / `common.displayedRows` (the drugs page too); the placeholder's
+  `auth.platformTitle`, `platformComingSoon`, `platformTemplateTip` removed. Phones always `dir="ltr"`.
+- The role and staff error codes already have `errors.*` texts (M1.5.3) for the M1.5.5 screens.
 
 ## Edge cases & limitations
 - Delete is final in M1.5 (no endpoint clears `DeletedAt`); restoring = clearing it in the database, the clinic
@@ -244,7 +290,10 @@ have `errors.*` texts in `en.ts` and `ar.ts` for the M1.5.5 screens.
 - Accepted (design D3): a cache load that started just before the commit may store the old row after the
   invalidation; the change then applies when the entry expires (≤ 10 min, 30 s in memory today).
 - Demoting a super admin happens only at startup (`Platform:SuperAdminPhones`); their old platform access token
-  then gets 403 on `/admin/*` (their sessions are revoked by the seeder).
+  then gets 403 on `/admin/*` (their sessions are revoked by the seeder); the SPA notices it on the next admin call and
+  goes to `/login` with a message ([Frontend](#frontend)).
+- Accepted: a double click on a button that opens a dialog (Disable, Delete) opens it and the second click lands on the
+  backdrop, closing it again (nothing is sent).
 - An unknown `status` filter returns an empty page, not a 400.
 - Accepted (design D5): two creates with the same **new** owner phone at the same moment hit the unique phone index;
   one answers 500 and works when sent again. No lock or retry.
@@ -270,6 +319,56 @@ have `errors.*` texts in `en.ts` and `ar.ts` for the M1.5.5 screens.
   staff row; the platform rights don't change).
 
 ## Testing notes
+**M1.5.4 review fixes**, verified in the built-in browser on a scratch database `drags_fix154` (dropped afterwards; the
+main dev DB untouched), API on `:5055` from the Release build serving the built SPA, opened as
+`http://fix154.localhost:5055` (own host, own refresh cookie), English and Arabic, 1280 and 375 px:
+- One request per double click: create (one 201; a second synchronous click in the drug dialog: one `POST /drugs`),
+  rename (one `PUT`), Disable confirm (one `suspend`), Enable (one `activate`), the delete dialog (one `DELETE`, one
+  toast), "Edit default catalog" (one `POST /auth/context`).
+- List: the name is a link (Tab reaches it with a 2 px outline, Enter opens it; rows have no `tabindex`); a long
+  Arabic + Latin name cut after 2 lines with the full `title`; "28 clinics", «عيادة واحدة», "0 clinics" with "No clinics
+  match your search or filter."; the bar shows while a typed search waits; `?search=clinic+2` then the sidebar's
+  "Clinics" → empty search, `/admin`, no request back; `?page=99999999999` → asks page 1,000,000, lands on the last
+  page; pagination fits 375 px (here and on the drugs page). `/admin/clinics/05` → "Clinic not found".
+- "Disabled" chip and button `rgb(180, 83, 9)`; the Disable confirm and the drug delete confirm open with the focus on
+  Cancel (Enter → nothing sent); a 157-character unbroken name: page header cut after 3 lines, the confirm dialog and
+  the delete toast wrap at 375 px (no page scroll), the delete dialog shows the name once.
+- Typed-name delete of `"Two  spaces\u200Bzw"`: "two spaceszw" keeps the button disabled, "Two   spaceszw " enables it.
+- Create: name only → the focus on the phone (required); phone `123` → `invalidPhone` on the phone, the focus there.
+- Rename reopened during the closing animation → the current name, not the cancelled text.
+- Template: app bar and picker show "Template clinic" / «العيادة النموذجية»; the picker lists Platform admin first; the
+  banner's "Back to platform admin" («العودة إلى إدارة المنصة», below the text at 375 px) → `/admin`.
+- API stopped, then Back to the (not yet loaded) list → «تعذّر تحميل هذه الصفحة.» with «إعادة التحميل» (no reload loop);
+  API started, Reload → the list.
+- API restarted with `Platform__SuperAdminPhones__0` set to another phone while on a clinic page; Save in Rename → 403,
+  `/me`, refresh 401 → `/login` with "You no longer have access to “Platform admin”. Log in again to continue." (one
+  toast).
+- Through the API: a clinic name with U+202E or U+2066…U+2069, and an owner name with U+202E → 400
+  `nameInvalid` (`name`, `owner.fullName`); a name with an emoji ZWJ sequence → 201.
+- Console: only the expected 4xx and the refused connections while the API was down; no error in the API logs.
+
+**M1.5.4**, verified in the built-in browser on a **scratch database** `drags_m154` (fresh dev seed; dropped
+afterwards; the main dev DB untouched), API on `:5055` from the Release build serving the built SPA, English and
+Arabic, desktop (1280 px) and phone width (375 px, no horizontal scroll):
+- Super admin login → picker (platform + template) → Platform administration → `/admin`; `/platform` → `/admin`;
+  `/admin/whatever` → `/admin`.
+- Create: empty form → the three required messages; a zero-width-space name, phone `123` and an owner name with
+  U+2028 → `nameRequired`, `invalidPhone`, `nameInvalid` from the API on their inputs; 257 chars → `nameTooLong`; an
+  Arabic name → the new clinic's page with the toast, the owner's phone shown LTR. 22 more clinics created through the
+  API: search (`clinic 2` → 4), page 2 of 20, the disabled filter, `page=99` → the last page; Back from a clinic keeps
+  the page, search and filter.
+- Rename (blank → required; a padded name → trimmed), disable (confirm) → chip, list and filter updated; enable;
+  delete: a wrong-case name keeps the button disabled, the exact name deletes → back to the filtered list, gone, no
+  request for the deleted clinic; its URL, the template's (`/admin/clinics/1`) and `abc` → "Clinic not found". A
+  clinic deleted through the API while its page was open: Disable → the error toast and "not found".
+- Done-when: the new owner's login auto-enters the clinic: 2 drugs and the group "After cataract surgery" (2 drugs);
+  that owner opening `/admin` → `/`.
+- Lockout (the clinic changed through the API while the staff member had it open, then one click): disabled → login
+  with "no access to … or any other clinic" (owner of one clinic); the assistant in Demo clinic with Demo disabled →
+  moved to Second demo clinic with the message; the owner's clinic deleted → login with the message.
+- "Edit default catalog" → the template's `/drugs` with its banner; Switch clinic → Platform → `/admin`.
+- Console: only the expected 4xx (refresh 401s, validation 400s, 404s, lockout 403s); no exception in the API log.
+
 **M1.5.3**, verified manually on a **scratch database** `drags_m153` (`ConnectionStrings__DefaultConnection` for
 `dotnet ef database update` and the API; dropped afterwards; the main dev DB untouched), API on `:5055` from the Release
 build, fresh dev seed, a Python script with the refresh cookie kept by hand (100 checks + 12 extra probes, all pass;

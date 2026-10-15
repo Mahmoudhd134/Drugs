@@ -1,157 +1,70 @@
-import {Suspense, useState} from "react";
-import {Link as RouterLink, NavLink, Outlet} from "react-router-dom";
-import {
-    Alert,
-    AppBar,
-    Box,
-    Drawer,
-    IconButton,
-    List,
-    ListItemButton,
-    ListItemIcon,
-    ListItemText,
-    Toolbar,
-    Tooltip,
-    Typography,
-} from "@mui/material";
-import {alpha} from "@mui/material/styles";
-import MenuIcon from "@mui/icons-material/Menu";
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {Alert, Button} from "@mui/material";
+import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
-import {LanguageMenu} from "./LanguageMenu.tsx";
-import {UserMenu} from "../../features/auth/components/UserMenu.tsx";
-import {useClinic} from "../../features/auth/useAuth.ts";
-import {FullPageSpinner} from "../common/FullPageSpinner.tsx";
+import {AppShell} from "./AppShell.tsx";
+import {useAuth, useClinic} from "../../features/auth/useAuth.ts";
+import {useContextLabel} from "../../features/auth/useContextLabel.ts";
 import {NAV_ITEMS} from "../../app/navigation.tsx";
 import {usePermissions} from "../../features/access/usePermissions.ts";
+import {getErrorMessage} from "../../api/errors.ts";
+import {useSingleFlight} from "../../hooks/useSingleFlight.ts";
 
-const DRAWER_WIDTH = 232;
-
+/** The clinic app's frame: the clinic name in the app bar, the pages the user may open, a banner in the template. */
 export const AppLayout = () => {
     const {t} = useTranslation();
     const clinic = useClinic();
-    const [mobileOpen, setMobileOpen] = useState(false);
     const {can} = usePermissions();
-
-    const navigation = (
-        <List sx={{px: 1.5, py: 2}}>
-            {NAV_ITEMS.filter(item => can(item.permission)).map(item => (
-                <ListItemButton
-                    key={item.to}
-                    component={NavLink}
-                    to={item.to}
-                    end={item.end}
-                    onClick={() => setMobileOpen(false)}
-                    sx={(theme) => ({
-                        borderRadius: 2,
-                        mb: 0.5,
-                        color: "text.secondary",
-                        "& .MuiListItemIcon-root": {color: "inherit", minWidth: 40},
-                        "&.active": {
-                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                            color: "primary.main",
-                            fontWeight: 600,
-                        },
-                    })}
-                >
-                    <ListItemIcon>{item.icon}</ListItemIcon>
-                    <ListItemText primary={t(item.labelKey)} slotProps={{primary: {fontWeight: "inherit"}}}/>
-                </ListItemButton>
-            ))}
-        </List>
-    );
+    const label = useContextLabel()(clinic);
 
     return (
-        <Box sx={{display: "flex", minHeight: "100vh"}}>
-            <AppBar
-                position="fixed"
-                color="inherit"
-                elevation={0}
-                sx={{zIndex: (theme) => theme.zIndex.drawer + 1, borderBottom: 1, borderColor: "divider"}}
-            >
-                <Toolbar>
-                    <Tooltip title={t("nav.openMenu")}>
-                        <IconButton
-                            edge="start"
-                            onClick={() => setMobileOpen(true)}
-                            aria-label={t("nav.openMenu")}
-                            sx={{marginInlineEnd: 1, display: {md: "none"}}}
-                        >
-                            <MenuIcon/>
-                        </IconButton>
-                    </Tooltip>
-                    {/* Logo + name go to the main page (prescription) */}
-                    <Tooltip title={t("nav.home")}>
-                        <Box
-                            component={RouterLink}
-                            to="/"
-                            aria-label={t("nav.home")}
-                            sx={{display: "flex", alignItems: "center", minWidth: 0, textDecoration: "none", borderRadius: 1}}
-                        >
-                            <Box component="img" src="/drug.png" alt="" sx={{width: 28, height: 28, marginInlineEnd: 1.5}}/>
-                            <Typography variant="h6" noWrap sx={{color: "primary.main", display: {xs: "none", sm: "block"}}}>
-                                {t("app.name")}
-                            </Typography>
-                        </Box>
-                    </Tooltip>
-                    {/* The clinic everything on screen belongs to */}
-                    <Typography
-                        noWrap
-                        title={clinic.clinicName}
-                        sx={{
-                            marginInlineStart: {xs: 1, sm: 2},
-                            paddingInlineStart: {sm: 2},
-                            borderInlineStart: {sm: "1px solid"},
-                            borderColor: {sm: "divider"},
-                            fontWeight: 600,
-                            minWidth: 0,
-                        }}
-                    >
-                        {/* dir="auto" only on the name: on the Typography it would flip the spacing side */}
-                        <span dir="auto">{clinic.clinicName}</span>
-                    </Typography>
-                    <Box sx={{flexGrow: 1}}/>
-                    <LanguageMenu/>
-                    <UserMenu/>
-                </Toolbar>
-            </AppBar>
+        <AppShell
+            homeTo="/"
+            homeLabel={t("nav.home")}
+            // dir="auto" only on the name: on the Typography it would flip the spacing side
+            contextLabel={<span dir="auto">{label}</span>}
+            contextTitle={label}
+            navItems={NAV_ITEMS.filter(item => can(item.permission))}
+            banner={clinic.isTemplate && (
+                <Alert
+                    severity="warning"
+                    square
+                    action={<BackToAdminButton/>}
+                    // On a phone the action goes below the text instead of squeezing it
+                    sx={{borderBottom: 1, borderColor: "divider", flexWrap: "wrap", "& .MuiAlert-message": {flex: "1 1 200px"}}}
+                >
+                    {t("auth.templateBanner")}
+                </Alert>
+            )}
+        />
+    );
+};
 
-            {/* Temporary drawer on small screens, permanent on desktop */}
-            <Drawer
-                variant="temporary"
-                open={mobileOpen}
-                onClose={() => setMobileOpen(false)}
-                ModalProps={{keepMounted: true}}
-                sx={{display: {xs: "block", md: "none"}, "& .MuiDrawer-paper": {width: DRAWER_WIDTH}}}
-            >
-                <Toolbar/>
-                {navigation}
-            </Drawer>
-            <Drawer
-                variant="permanent"
-                sx={{
-                    display: {xs: "none", md: "block"},
-                    width: DRAWER_WIDTH,
-                    flexShrink: 0,
-                    "& .MuiDrawer-paper": {width: DRAWER_WIDTH, boxSizing: "border-box"},
-                }}
-            >
-                <Toolbar/>
-                {navigation}
-            </Drawer>
+/** In the template, for the super admin (who has the platform context): back to the platform admin's clinics. */
+const BackToAdminButton = () => {
+    const {t} = useTranslation();
+    const navigate = useNavigate();
+    const {contexts, switchContext} = useAuth();
+    const once = useSingleFlight();
+    const [pending, setPending] = useState(false);
+    const platform = contexts.find(c => c.type === "platform");
+    if (!platform) return null;
 
-            <Box component="main" sx={{flexGrow: 1, minWidth: 0}}>
-                <Toolbar/>
-                {clinic.isTemplate && (
-                    <Alert severity="warning" square sx={{borderBottom: 1, borderColor: "divider"}}>
-                        {t("auth.templateBanner")}
-                    </Alert>
-                )}
-                <Box sx={{p: {xs: 2, md: 3}, maxWidth: 1400, mx: "auto"}}>
-                    <Suspense fallback={<FullPageSpinner/>}>
-                        <Outlet/>
-                    </Suspense>
-                </Box>
-            </Box>
-        </Box>
+    const open = () => once(async () => {
+        setPending(true);
+        try {
+            await switchContext(platform);
+            navigate("/admin", {replace: true});
+        } catch (error) {
+            toast.error(getErrorMessage(error));
+            setPending(false);
+        }
+    });
+
+    return (
+        <Button color="inherit" size="small" onClick={() => void open()} disabled={pending} sx={{whiteSpace: "nowrap"}}>
+            {t("admin.backToAdmin")}
+        </Button>
     );
 };

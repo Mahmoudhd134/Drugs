@@ -51,11 +51,38 @@ export const toApiError = (error: unknown): ApiError | null => {
     };
 };
 
+/** `errors.<code>` when that text exists. */
+const translateCode = (code: string | null) =>
+    code && i18n.exists(`errors.${code}`) ? i18n.t(`errors.${code}`) : null;
+
 /** Translated, user-facing message for an API error (uses the "code" the API returns when present). */
 export const getErrorMessage = (error: unknown): string => {
     if (axios.isAxiosError(error) && !error.response) return i18n.t("errors.network");
     const apiError = toApiError(error);
-    if (apiError?.code && i18n.exists(`errors.${apiError.code}`)) return i18n.t(`errors.${apiError.code}`);
+    const message = translateCode(apiError?.code ?? null);
+    if (message) return message;
     if (apiError?.status === 404) return i18n.t("errors.notFound");
     return i18n.t("errors.generic");
 };
+
+/**
+ * Translated message of the first error of each request field (`name`, `owner.phone`…), to show on the form's inputs.
+ * Empty when the API named no field (show {@link getErrorMessage} instead).
+ */
+export const getFieldErrors = (error: unknown): Record<string, string> => {
+    const result: Record<string, string> = {};
+    for (const item of toApiError(error)?.errors ?? []) {
+        if (item.field && !(item.field in result)) result[item.field] = translateCode(item.code) ?? i18n.t("errors.generic");
+    }
+    return result;
+};
+
+/**
+ * Translated messages (each once) of the errors a form can't show on its inputs: those of no field or of a field not
+ * in `inputFields`. To toast next to the field errors.
+ */
+export const getOtherErrors = (error: unknown, inputFields: readonly string[]): string[] => [
+    ...new Set((toApiError(error)?.errors ?? [])
+        .filter(item => !item.field || !inputFields.includes(item.field))
+        .map(item => translateCode(item.code) ?? i18n.t("errors.generic"))),
+];

@@ -44,7 +44,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
   Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
-  Common/Validation/           .WithError(error), the shared ValidName(maxLength = 256) (nameRequired, nameInvalid, nameTooLong) and
+  Common/Validation/           .WithError(error), the shared ValidName(maxLength = 256) (nameRequired; nameInvalid: control, line/paragraph
+                               separator or bidi override or isolate characters; nameTooLong) and
                                ValidText() (invalidText) rules
   Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
@@ -104,15 +105,16 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
   Program.cs                   settings, DI, middleware, migrate-on-startup, seeding (IStartupSeeder)
 ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot
-  src/app/                     App (routes), AppProviders, theme
+  src/app/                     App (routes), AppProviders, theme, chunkReload (reload once after a new deployment)
   src/api/                     axios client, error → message, shared API types
-  src/components/common/       reusable UI (SearchField, SearchableList, SortableList, …)
-  src/components/layout/       AppLayout (clinic app: app bar + sidebar), SimpleLayout (login etc.), LanguageMenu
-  src/app/navigation.tsx       NAV_ITEMS (sidebar) with the permission each page needs
+  src/components/common/       reusable UI (PageHeader, BackButton, ListPagination, PageBoundary, SearchField, …)
+  src/components/layout/       AppShell (app bar + sidebar + page), navButtonSx, AppLayout (clinic app), SimpleLayout
+                               (login etc.), LanguageMenu
+  src/app/navigation.tsx       NAV_ITEMS (sidebar) with the permission each page needs, ADMIN_NAV_ITEMS (platform admin)
   src/features/<feature>/      api.ts, types.ts, components/, pages/
   src/features/access/         permissions.ts, usePermissions, withPermission, <Can>, Permission* controls,
                                <RequirePermission>
-  src/hooks/                   useLanguage, useDebouncedValue
+  src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
 docs/                          this documentation
@@ -397,13 +399,18 @@ Swagger UI is available in Development at `/swagger`.
   `Toaster`.
 - Routes (`app/App.tsx`), each page lazy-loaded as its own chunk (`Suspense`). Login pages use
   `SimpleLayout`; the clinic app is `AppLayout` behind `RequireAuth context="clinic"`
-  ([login](../features/auth/tech.md)):
+  ([login](../features/auth/tech.md)); the platform admin is `AdminLayout` behind `RequireAuth context="platform"`
+  ([platform admin](../features/platform-admin/tech.md#frontend)):
 
 | Path | Page |
 |---|---|
 | `/login` | `LoginPage` (phone → code) |
 | `/select-clinic` | `SelectClinicPage` (logged in) |
-| `/platform` | `PlatformPage` (platform context; TEMPORARY placeholder until the admin area) |
+| `/admin` | `ClinicsPage` (platform context: search, status filter, paging, kept in the URL query) |
+| `/admin/clinics/new` | `CreateClinicPage` (clinic name + owner phone and name) |
+| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; Roles and Staff in M1.5.5); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
+| `/admin/*` | redirects to `/admin` |
+| `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
 | `/groups` | `DrugGroupsPage` (`groups.list`) |
 | `/groups/new`, `/groups/:id` | `DrugGroupEditorPage` (`groups.create` / `groups.details`; read only without `groups.update`) |
@@ -411,19 +418,28 @@ Swagger UI is available in Development at `/swagger`.
 | `/manage` | redirects to `/drugs` (old URL) |
 | `*` | redirects to `/` |
 
-- `AppLayout`: fixed app bar (logo + app name, a link to `/`; the clinic name; `LanguageMenu`;
-  `UserMenu` with switch clinic and logout), a warning banner in the template clinic, sidebar
-  navigation (`NAV_ITEMS` in `app/navigation.tsx`, each with its `permission`; items the user can't open
-  are hidden; permanent ≥ md, drawer on mobile). Add new modules to `NAV_ITEMS` and `CLINIC_ROUTES`
-  (`app/App.tsx`: each route with its permission, wrapped in `RequirePermission`).
+- `AppShell` (`components/layout`): fixed app bar (logo + app name, a link to the context's home; a context label;
+  `LanguageMenu`; `UserMenu` with switch clinic and logout), sidebar navigation from a list (permanent ≥ md, drawer on
+  mobile; an entry is active on its path, exactly with `end`, and under its `activeFor` paths), an optional item below
+  the entries (the sidebar is a `<nav>` landmark), an optional banner, the page in a `PageBoundary` (`Suspense` + an
+  error boundary: "Couldn't load — Reload" instead of a blank app when a page's chunk fails; `SimpleLayout` and the
+  clinic page's tabs use it too).
+- `AppLayout` (clinic app) = `AppShell` with the clinic name (the template as "Template clinic", translated:
+  `useContextLabel`), a warning banner in the template clinic (with "Back to platform admin" for the super admin), and `NAV_ITEMS`
+  (`app/navigation.tsx`, each with its `permission`; items the user can't open are hidden). Add new modules to
+  `NAV_ITEMS` and `CLINIC_ROUTES` (`app/App.tsx`: each route with its permission, wrapped in `RequirePermission`).
   Pages are re-mounted when the context changes; `useClinic()` gives the current clinic.
+- `AdminLayout` (`features/admin/components`, platform context) = `AppShell` with "Platform admin", `ADMIN_NAV_ITEMS` (Clinics; add
+  new admin sections there) and "Edit default catalog" (switches to the template context, opens its drugs).
 
 ### Internationalization (UI text only)
 
 - Languages are declared once in `src/i18n/languages.ts` (`code`, `label`, `dir`). Default `en`.
 - Strings: `src/i18n/locales/en.ts` is the source; `ar.ts` is typed `Translations` (= `typeof en`),
   so **a missing Arabic key fails the build**. Always add keys to both files.
-- UI counts are written as `"Label: {{count}}"`, not plural forms, to stay correct in Arabic.
+- UI counts are written as `"Label: {{count}}"`, not plural forms, to stay correct in Arabic. Where a sentence reads
+  better (e.g. `admin.clinics.subtitle`, "3 clinics" / «3 عيادات»), use i18next plural keys with all six suffixes
+  (`_zero/_one/_two/_few/_many/_other`) in **both** files (`ar.ts` is typed from `en.ts`).
 - **Prescription output is Arabic in every UI language.** Its wording lives in
   `locales/rxTextAr.ts`, plugged into both locales as `rxText`, and is rendered with
   `i18n.getFixedT("ar")` using Arabic plural suffixes (`_zero/_one/_two/_few/_many/_other`).
@@ -457,26 +473,35 @@ Swagger UI is available in Development at `/swagger`.
 - Queries retry once, and only on network/5xx errors. Any 403 reloads `/me` (permissions may have
   changed); a 403 from a query also toasts the translated reason. A 403 `noAccess`/`clinicSuspended` in a clinic
   is first handled by the refresh interceptor, like a 401: it refreshes the session (as does a `/me` without a
-  context while in a clinic) and follows it: picker, the only clinic left, or login (with a message; a refresh 401
+  context while in a clinic, or in the platform admin of a user no longer super admin) and follows it: picker, the only clinic left, or login (with a message; a refresh 401
   `noContexts` = no clinic left), else replays the request once ([auth](../features/auth/tech.md)). `/me` also reloads when the tab gets the focus back.
   Drug mutations also invalidate group queries (groups embed drug names).
 - `api/errors.ts` is the one place that reads error responses (the refresh interceptor uses it too): `toApiError(error)` parses the API's
   ProblemDetails into a typed `ApiError { status, code, errors, traceId }` (null without an HTTP response);
   `getErrorMessage(error)` maps `code` to `errors.<code>`, else 404 to `errors.notFound`, no response to
-  `errors.network`, else `errors.generic`. Status checks (403 → reload `/me`, retries, the refresh's 401/409) use
+  `errors.network`, else `errors.generic`; `getFieldErrors(error)` maps each request field (`name`, `owner.phone`…) to
+  the translated message of its first error, for forms that show errors on their inputs; `getOtherErrors(error,
+  inputFields)` gives the messages of the errors no input shows (to toast next to them). Status checks (403 → reload `/me`, retries, the refresh's 401/409) use
   `toApiError(error)?.status`.
 
 ### Shared components (`components/common`)
 
 | Component | Use |
 |---|---|
-| `PageHeader` | Page title, subtitle, leading (back button), actions |
+| `PageHeader` | Page title, subtitle (a block: may hold a chip), leading (back button, top-aligned), actions; `titleText` for a title that may be long (cut after 3 lines, full text as tooltip) |
+| `BackButton` | The header's "Back" icon button (arrow flipped in RTL) |
+| `ListPagination` | Translated `TablePagination` with `PAGE_SIZES` (`pageSizes.ts`: 10/20/50); hides the rows-per-page choice below `sm` so it fits a phone |
+| `PageBoundary` | Where a layout shows its page: `Suspense` spinner + error boundary ("Couldn't load this page. — Reload"), reset when the path changes |
 | `SearchField` | Search input with icon and clear button |
 | `SearchableList` | Search + result list with ↑/↓/Enter/Esc keyboard support, loading/error/empty states, "load more" |
 | `SortableList` | dnd-kit vertical list; drag handle per row; mouse, touch and keyboard reordering |
 | `EmptyState` | Icon + title + description + optional action |
-| `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))` |
+| `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
 | `InfoTip` | Small ⓘ icon with a tooltip (opens on tap too) to explain a field or option |
+
+Hooks (`src/hooks`): `useDebouncedValue`, `useLanguage`, `useFormatDate` (dates in the UI language, Latin digits),
+`useSingleFlight` (`once(action)`: a call while the previous one runs is ignored; a mutation's `isPending` re-renders
+too late to stop a double click). Use it for every create/save/delete button.
 
 Permission pieces (`features/access`, [details](../features/access/tech.md#frontend-srcfeaturesaccess)):
 
@@ -496,6 +521,7 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 | `prescription.lines.<clinicId>` | The clinic's current prescription lines (drug snapshot + dosing + note) |
 | `prescription.lines` | Legacy (before login): moved to the first clinic opened, then removed |
 | `prescription.selection` | Legacy (pre-dosing) list of drugs; migrated the same way, then removed |
+| `clinichub:chunkReloadAt` (`sessionStorage`) | When the app last reloaded itself after a failed chunk (`app/chunkReload.ts`: at most once per 30 s) |
 
 Not in storage: the access token (memory only). The refresh token is an `HttpOnly` cookie
 (`clinichub_refresh`, path `/api/v1/auth`) that scripts cannot read.
@@ -573,9 +599,9 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- The admin area has an API only (screens in M1.5.4–M1.5.5): clinics can be created (with their owner), renamed,
-  suspended, re-activated and deleted, and each clinic's roles and staff managed (M1.5.3). Clinics can't manage their
-  own staff or roles yet.
+- The admin area has screens for clinics (M1.5.4: create with the owner, list, rename, disable / enable, delete); each
+  clinic's roles and staff are managed through the API only until M1.5.5. Clinics can't manage their own staff or
+  roles yet.
 - Permission or active-flag changes made outside the admin endpoints (e.g. psql) apply within 30 s
   (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
   on any 403 and whenever the tab gets the focus back).

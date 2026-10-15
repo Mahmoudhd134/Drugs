@@ -1,11 +1,10 @@
-import {Suspense} from "react";
 import {Outlet} from "react-router-dom";
 import {AppBar, Box, Container, Toolbar, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {LanguageMenu} from "./LanguageMenu.tsx";
 import {UserMenu} from "../../features/auth/components/UserMenu.tsx";
 import {useAuth} from "../../features/auth/useAuth.ts";
-import {FullPageSpinner} from "../common/FullPageSpinner.tsx";
+import {PageBoundary} from "../common/PageBoundary.tsx";
 
 /** Shell for pages outside the clinic app (login, choosing a clinic, platform): app bar + centered content. */
 export const SimpleLayout = () => {
@@ -24,9 +23,7 @@ export const SimpleLayout = () => {
                 </Toolbar>
             </AppBar>
             <Container maxWidth="sm" sx={{py: {xs: 3, sm: 6}}}>
-                <Suspense fallback={<FullPageSpinner/>}>
-                    <Outlet/>
-                </Suspense>
+                <PageBoundary><Outlet/></PageBoundary>
             </Container>
         </Box>
     );

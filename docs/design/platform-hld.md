@@ -4,7 +4,8 @@ Status: **agreed design; the MVP (Phase 1) is in progress**: M1.1 clinic isolati
 M1.4 architecture refactor are done ([clinic scoping](../features/clinic-scoping/tech.md),
 [login](../features/auth/tech.md), [access](../features/access/tech.md), [architecture](architecture.md));
 M1.5 platform admin is in progress ([design](m1.5-platform-admin.md); M1.5.1–M1.5.3, the admin API for clinics,
-provisioning, roles and staff, are built: [platform admin](../features/platform-admin/tech.md)). See [Delivery](#12-delivery-phase-1-mvp).
+provisioning, roles and staff, and M1.5.4, the admin area and the clinic screens, are built:
+[platform admin](../features/platform-admin/tech.md)). See [Delivery](#12-delivery-phase-1-mvp).
 Decided in discussion on 2026-10-11.
 When each step is built it gets its own `docs/features/<feature>/` (tech + business) and the
 overviews are updated; this file stays the big picture.
@@ -552,12 +553,12 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 
 | Piece | Design |
 |---|---|
-| Routes | `/login`, `/select-clinic`, clinic app (`/`, `/drugs`, `/groups`…), `/admin/*` (own `AdminLayout`, lazy) |
+| Routes | `/login`, `/select-clinic`, clinic app (`/`, `/drugs`, `/groups`…), `/admin/*` (own `AdminLayout`, lazy; built in M1.5.4: `/admin` clinics list, `/admin/clinics/new`, `/admin/clinics/:id` with tabs as child routes; `/platform` → `/admin`) |
 | `features/auth` | `LoginPage` (phone → code; display mode: alert + auto-fill + auto-submit, visible "OTP display mode" banner), `SelectClinicPage`, `AuthProvider` (access token in memory, `me`, `switchContext`, `logout`), `RequireAuth`, `RequirePermission` |
 | API client | Interceptor adds `Authorization: Bearer`; on 401 calls `/auth/refresh` once (shared promise) and retries, else → `/login` |
 | Permissions | `useCan(permission)` + `<Can permission>`; `NAV_ITEMS` get a `permission`; pages wrapped in `RequirePermission`. The API always enforces. |
-| Layout | App bar shows the clinic name and a user menu (switch clinic, logout); a banner when editing the template |
-| `features/admin` | `ClinicsPage` (list, create, suspend), `ClinicPage` with tabs **Staff** and **Roles** (permission checklist) |
+| Layout | App bar shows the clinic name and a user menu (switch clinic, logout); a banner when editing the template (with "Back to platform admin" for the super admin). Since M1.5.4 `AppLayout` and `AdminLayout` share one `AppShell` (app bar, sidebar from a list, drawer on mobile) |
+| `features/admin` | `ClinicsPage` (list: search, status filter, paging), `CreateClinicPage`, `ClinicPage` with tabs: **Overview** (rename, disable / enable, delete with the name typed; M1.5.4), **Roles** and **Staff** (M1.5.5); "Edit default catalog" in the admin sidebar switches to the template ([platform admin](../features/platform-admin/tech.md#frontend)) |
 | Prescription | `localStorage` key becomes `prescription.lines.<clinicId>` so clinics never mix |
 | Dev | Vite proxies `/api` → `http://localhost:5000` so cookies are same-origin; `VITE_API_BASE_URL` becomes `/api/v1` |
 | i18n | All new strings in `en.ts` and `ar.ts` (`auth.*`, `admin.*`, `permissions.*`, `errors.*`) |
@@ -617,7 +618,7 @@ implementation session and validated before the next (terms in the [status](#hig
 
 | Milestone | Steps | Status |
 |---|---|---|
-| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **M1.5 in progress** (M1.5.1–M1.5.3 built) |
+| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **M1.5 in progress** (M1.5.1–M1.5.4 built) |
 | **M2 Patients** | M2.1 dynamic forms · M2.2 patients · M2.3 patient portal | not started |
 | **M3 Production readiness** | M3.1 frontend enhancements ([12.1](#121-enhancements-m31)) · M3.2 hardening → **launch** | not started |
 
@@ -629,7 +630,7 @@ implementation session and validated before the next (terms in the [status](#hig
 | M1.2 | **Login** (was "phase 2, identity"): users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until M1.3 |
 | M1.3 | **Access** (was "phase 3"): staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (M1.5's role editor) |
 | M1.4 | **Architecture refactor** (was "phase 3.5"; pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | ✅ **Done** (2026-10-14) in three parts plus a layout follow-up; the same endpoints and responses verified manually after each |
-| M1.5 | **In progress** ([design](m1.5-platform-admin.md), five sub-steps; M1.5.1 admin foundations + clinic lifecycle API built; M1.5.2 provisioning, `POST /admin/clinics` and the dev seed through it, with sample template content, built; M1.5.3 roles and staff API with the admin clinic filter built). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; in Development the template gets sample drugs/groups since M1.5.2, copied by provisioning). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
+| M1.5 | **In progress** ([design](m1.5-platform-admin.md), five sub-steps; M1.5.1 admin foundations + clinic lifecycle API built; M1.5.2 provisioning, `POST /admin/clinics` and the dev seed through it, with sample template content, built; M1.5.3 roles and staff API with the admin clinic filter built; M1.5.4 admin area and clinic screens built). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; in Development the template gets sample drugs/groups since M1.5.2, copied by provisioning). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
 | M1.6 | **Test foundation**: automated tests for M1.1–M1.5 (see NFR-7) | Tests green in one command; isolation, permissions, auth and the error contract covered |
 
 ### M2 Patients

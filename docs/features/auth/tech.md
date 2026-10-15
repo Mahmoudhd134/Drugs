@@ -250,11 +250,15 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **Lost clinic** (since M1.5.3, design D7): every `/auth/refresh` re-checks the context (several contexts left →
   cleared → picker; one → entered; none → 401 `noContexts` → `/login`), and the routes follow its answer. A 403
   `noAccess`/`clinicSuspended` gets there through the interceptor's refresh (as a 401 does, e.g. for an expired access
-  token); a `/me` with `context: null` while in a clinic (`AuthProvider`) runs `refreshSession()` too. After any
-  refresh from a clinic context (`callRefresh`), when that clinic is no longer among the returned contexts (not when
+  token); a `/me` with `context: null` while in a context (a clinic, or the platform: also `isSuperAdmin: false` there, M1.5.4)
+  runs `recheckLostContext()` (`AuthProvider`): a refresh, and when it ends the session with another 401 than
+  `noContexts` (a demoted super admin's sessions are revoked), `onClinicLost` with `signedOut` (`auth.clinicLostSignedOut`:
+  "…Log in again to continue."). After any
+  refresh from a clinic or the platform context (`callRefresh`), when that context is no longer among the returned contexts (not when
   another tab merely switched) or the refresh answered 401 `noContexts`, `onClinicLost` (called in a later task, after
   the failed request's own error handling) lets `AuthProvider` dismiss the page's own error toast and say why
-  (`auth.clinicLostChoose` / `clinicLostMoved` / `clinicLostEnded`, the clinic names in bidi isolates), and open `/`
+  (`auth.clinicLostChoose` / `clinicLostMoved` / `clinicLostEnded`, the names in bidi isolates: `useContextLabel`, so
+  the platform reads "Platform admin" and the template "Template clinic"), and open `/`
   of the clinic it was moved to. Any other 401 (logged out in another tab, session expired) → `/login` without a
   message. Not reported: the refresh retried inside a context switch, and page load (no clinic before: after a reload
   the routes follow the refresh without a message, accepted). If the refresh keeps the same clinic (re-added under a
@@ -263,10 +267,11 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   fails (API unreachable) the 403 is handled like `forbidden`. A 403 about a context already left (the request's
   `_contextKey`) is ignored.
 - **Routes** (`app/App.tsx`): `SimpleLayout` (app bar with language + user menu, centered content)
-  holds `/login`, `/select-clinic` (`RequireAuth`) and `/platform` (`RequireAuth context="platform"`,
-  a TEMPORARY placeholder until the admin area). The clinic app (`AppLayout` + pages) is under
+  holds `/login` and `/select-clinic` (`RequireAuth`). The platform admin (`AdminLayout` + pages, `/admin…`) is under
+  `RequireAuth context="platform"` (M1.5.4, [platform admin](../platform-admin/tech.md#frontend); `/platform`, the
+  placeholder page before it, redirects to `/admin`). The clinic app (`AppLayout` + pages) is under
   `RequireAuth context="clinic"`. `RequireAuth`: loading → spinner; offline → "can't reach the server" + retry; anonymous →
-  `/login` (remembers the page); wrong/no context → that context's home (`/`, `/platform` or
+  `/login` (remembers the page); wrong/no context → that context's home (`/`, `/admin` or
   `/select-clinic`). Its outlet is keyed by the context, so every page re-mounts on a switch.
 - **`LoginPage`**: phone → code. In display mode (`GET /auth/otp/mode`, or a response with
   `devCode`) a warning banner ("OTP display mode") is always visible; the code appears in an alert,

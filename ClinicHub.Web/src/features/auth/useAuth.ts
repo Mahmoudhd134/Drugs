@@ -43,4 +43,4 @@ export const useClinic = (): ClinicContext => {
 
 /** Where a context's app starts. */
 export const homeOf = (context: Context | null) =>
-    context === null ? "/select-clinic" : context.type === "platform" ? "/platform" : "/";
+    context === null ? "/select-clinic" : context.type === "platform" ? "/admin" : "/";

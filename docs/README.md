@@ -48,4 +48,4 @@ docs/
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |
 | Drug groups (protocols) | [tech](features/drug-groups/tech.md) | [business](features/drug-groups/business.md) |
 | Prescription builder | [tech](features/prescription/tech.md) | [business](features/prescription/business.md) |
-| Platform admin (M1.5.1: clinic lifecycle API) | [tech](features/platform-admin/tech.md) | [business](features/platform-admin/business.md) |
+| Platform admin (M1.5: clinics API and screens, roles and staff API) | [tech](features/platform-admin/tech.md) | [business](features/platform-admin/business.md) |

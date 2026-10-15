@@ -7,14 +7,20 @@ import {RequireAuth} from "../features/auth/components/RequireAuth.tsx";
 import {RequirePermission} from "../features/access/components/RequirePermission.tsx";
 import {PERMISSIONS, type PermissionRule} from "../features/access/permissions.ts";
 import {FirstAllowedPage} from "./FirstAllowedPage.tsx";
+import {AdminLayout} from "../features/admin/components/AdminLayout.tsx";
+import {CLINIC_TABS} from "../features/admin/clinicTabs.tsx";
 
 // Each page is its own chunk, loaded on first visit
 const LoginPage = lazy(() => import("../features/auth/pages/LoginPage.tsx")
     .then(m => ({default: m.LoginPage})));
 const SelectClinicPage = lazy(() => import("../features/auth/pages/SelectClinicPage.tsx")
     .then(m => ({default: m.SelectClinicPage})));
-const PlatformPage = lazy(() => import("../features/auth/pages/PlatformPage.tsx")
-    .then(m => ({default: m.PlatformPage})));
+const ClinicsPage = lazy(() => import("../features/admin/pages/ClinicsPage.tsx")
+    .then(m => ({default: m.ClinicsPage})));
+const CreateClinicPage = lazy(() => import("../features/admin/pages/CreateClinicPage.tsx")
+    .then(m => ({default: m.CreateClinicPage})));
+const ClinicPage = lazy(() => import("../features/admin/pages/ClinicPage.tsx")
+    .then(m => ({default: m.ClinicPage})));
 const PrescriptionPage = lazy(() => import("../features/prescription/pages/PrescriptionPage.tsx")
     .then(m => ({default: m.PrescriptionPage})));
 const DrugsPage = lazy(() => import("../features/drugs/pages/DrugsPage.tsx")
@@ -50,11 +56,22 @@ export const App = () => (
                     <Route element={<RequireAuth/>}>
                         <Route path="select-clinic" element={<SelectClinicPage/>}/>
                     </Route>
-                    {/* TEMPORARY placeholder until the admin area (M1.5) */}
-                    <Route element={<RequireAuth context="platform"/>}>
-                        <Route path="platform" element={<PlatformPage/>}/>
+                </Route>
+                {/* Platform admin (super admin, platform context) */}
+                <Route element={<RequireAuth context="platform"/>}>
+                    <Route path="admin" element={<AdminLayout/>}>
+                        <Route index element={<ClinicsPage/>}/>
+                        <Route path="clinics/new" element={<CreateClinicPage/>}/>
+                        <Route path="clinics/:id" element={<ClinicPage/>}>
+                            {CLINIC_TABS.map(tab => tab.path
+                                ? <Route key={tab.path} path={tab.path} element={tab.element}/>
+                                : <Route key="index" index element={tab.element}/>)}
+                        </Route>
+                        <Route path="*" element={<Navigate to="/admin" replace/>}/>
                     </Route>
                 </Route>
+                {/* The platform's placeholder page before the admin area (M1.5.4) */}
+                <Route path="platform" element={<Navigate to="/admin" replace/>}/>
                 <Route element={<RequireAuth context="clinic"/>}>
                     <Route element={<AppLayout/>}>
                         {CLINIC_ROUTES.map(({path, page, denied, ...rule}) => {

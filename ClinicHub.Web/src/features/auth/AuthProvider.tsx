@@ -11,13 +11,14 @@ import {
     getSession,
     onClinicLost,
     onContextChanged,
-    refreshSession,
+    recheckLostContext,
     setSession,
     startSession,
     subscribeSession,
     switchSessionContext,
 } from "./session.ts";
 import {useMeQuery} from "./api.ts";
+import {useContextLabel} from "./useContextLabel.ts";
 import {AuthContext, type AuthValue} from "./useAuth.ts";
 import {type AuthResult, type Context, contextKey} from "./types.ts";
 
@@ -38,18 +39,19 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
     }, [queryClient]);
 
     // The routes already follow the new session (picker, login); this says why, and opens the other clinic's home
+    const contextLabel = useContextLabel();
     useEffect(() => {
         onClinicLost((loss: ClinicLoss) => {
             // Replaces the page's own error toast for the failed action
             toast.dismiss();
-            const from = loss.from.clinicName;
+            const from = contextLabel(loss.from);
             const message = loss.outcome === "moved"
-                ? t("auth.clinicLostMoved", {from, to: loss.to.clinicName})
-                : t(loss.outcome === "cleared" ? "auth.clinicLostChoose" : "auth.clinicLostEnded", {from});
+                ? t("auth.clinicLostMoved", {from, to: contextLabel(loss.to)})
+                : t({cleared: "auth.clinicLostChoose", ended: "auth.clinicLostEnded", signedOut: "auth.clinicLostSignedOut"}[loss.outcome], {from});
             toast(message, {id: "clinicLost", duration: 8000});
             if (loss.outcome === "moved") navigate("/", {replace: true});
         });
-    }, [t, navigate]);
+    }, [t, navigate, contextLabel]);
 
     const signIn = useCallback((auth: AuthResult) => setSession(auth), []);
 
@@ -78,17 +80,19 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
     const refetchMe = meQuery.refetch;
     const retryMe = useCallback(() => void refetchMe(), [refetchMe]);
 
-    // /me no longer sees the current clinic (e.g. checked again when the tab gets the focus back): as a 403 noAccess,
-    // a refresh re-checks the context (design D7); still the same clinic after it (e.g. access given back meanwhile):
-    // /me again, with the new token
-    const meLostClinic = auth?.context?.type === "clinic" && me !== undefined && me.context === null;
+    // /me no longer sees the current context (e.g. checked again when the tab gets the focus back, or after a 403): a
+    // clinic lost, or the platform admin of a user who is no longer a super admin. As for a 403 noAccess, a refresh
+    // re-checks the context (design D7); still the same context after it (e.g. access given back meanwhile): /me
+    // again, with the new token
+    const meLostContext = auth?.context != null && me !== undefined
+        && (me.context === null || (auth.context.type === "platform" && !me.user.isSuperAdmin));
     useEffect(() => {
-        if (!meLostClinic) return;
+        if (!meLostContext) return;
         const before = currentContextKey();
-        void refreshSession().then(() => {
+        void recheckLostContext().then(() => {
             if (currentContextKey() === before) void refetchMe();
         });
-    }, [meLostClinic, refetchMe]);
+    }, [meLostContext, refetchMe]);
 
     const value = useMemo<AuthValue>(() => ({
         status: session.status,

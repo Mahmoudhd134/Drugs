@@ -22,6 +22,7 @@ import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {homeOf, useAuth} from "../useAuth.ts";
 import {type Context, contextKey} from "../types.ts";
 import {useContextsQuery} from "../api.ts";
+import {useContextLabel} from "../useContextLabel.ts";
 
 /**
  * Picks the context after login (several clinics, or super admin), and from "Switch clinic". The list is loaded
@@ -33,8 +34,11 @@ export const SelectClinicPage = () => {
     const navigate = useNavigate();
     const {context: current, contexts: sessionContexts, switchContext, logout} = useAuth();
     const contextsQuery = useContextsQuery();
-    const contexts = contextsQuery.data ?? sessionContexts;
+    // The platform admin first, then the clinics in the API's order
+    const contexts = [...(contextsQuery.data ?? sessionContexts)]
+        .sort((a, b) => Number(b.type === "platform") - Number(a.type === "platform"));
     const [pending, setPending] = useState<string | null>(null);
+    const label = useContextLabel();
 
     const choose = async (context: Context) => {
         if (pending) return;
@@ -52,7 +56,6 @@ export const SelectClinicPage = () => {
         }
     };
 
-    const label = (context: Context) => context.type === "platform" ? t("auth.platform") : context.clinicName;
     const hint = (context: Context) => context.type === "platform" ? t("auth.platformHint")
         : context.isTemplate ? t("auth.templateHint") : null;
     const icon = (context: Context) => context.type === "platform" ? <AdminPanelSettingsIcon/>

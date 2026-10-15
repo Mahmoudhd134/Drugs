@@ -8,11 +8,14 @@ import {homeOf, useAuth} from "../useAuth.ts";
 import type {AuthResult} from "../types.ts";
 import {FullPageSpinner} from "../../../components/common/FullPageSpinner.tsx";
 
+/** Pages outside the clinic app, with what is below them (paths match without case, like the router's). */
+const OUTSIDE_CLINIC_APP = ["/login", "/select-clinic", "/platform", "/admin"];
+
 /** Pages a user may come back to after logging in (only inside the clinic app). */
 const returnPath = (auth: AuthResult, from: Location | undefined) => {
-    const path = from ? `${from.pathname}${from.search}` : null;
-    const outsideClinicApp = !path || ["/login", "/select-clinic", "/platform"].some(p => path.startsWith(p));
-    return auth.context?.type === "clinic" && !outsideClinicApp ? path : homeOf(auth.context);
+    const pathname = from?.pathname.toLowerCase();
+    const outsideClinicApp = !pathname || OUTSIDE_CLINIC_APP.some(p => pathname === p || pathname.startsWith(`${p}/`));
+    return auth.context?.type === "clinic" && from && !outsideClinicApp ? `${from.pathname}${from.search}` : homeOf(auth.context);
 };
 
 /**

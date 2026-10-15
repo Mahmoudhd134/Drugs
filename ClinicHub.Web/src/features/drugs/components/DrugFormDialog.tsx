@@ -15,6 +15,7 @@ import {useTheme} from "@mui/material/styles";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
+import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {useSaveDrug} from "../api.ts";
 import type {Drug} from "../types.ts";
 import {DrugText} from "./DrugText.tsx";
@@ -56,15 +57,21 @@ export const DrugFormDialog = ({open, drug, readOnly, onClose}: Props) => {
 
 const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) => {
     const {t} = useTranslation();
-    const save = useSaveDrug();
+    const saveDrug = useSaveDrug();
+    const once = useSingleFlight();
     const [name, setName] = useState(drug?.name ?? "");
     const [description, setDescription] = useState(drug?.description ?? "");
     const [dosing, setDosing] = useState<Dosing>(drug?.defaultDosing ?? {});
     const [showNameRequired, setShowNameRequired] = useState(false);
     const [showDosingErrors, setShowDosingErrors] = useState(false);
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
+        void once(save);
+    };
+
+    // One save at a time (a double click would add the drug twice)
+    const save = async () => {
         if (!name.trim()) {
             setShowNameRequired(true);
             return;
@@ -75,7 +82,7 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
         }
 
         try {
-            await save.mutateAsync({
+            await saveDrug.mutateAsync({
                 id: drug?.id ?? null,
                 name: name.trim(),
                 description: description.trim() || null,
@@ -124,9 +131,9 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
                 </Stack>
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>
-                <Button onClick={onClose} disabled={save.isPending}>{t("common.cancel")}</Button>
-                <Button type="submit" variant="contained" disabled={save.isPending}>
-                    {save.isPending ? t("common.saving") : t("common.save")}
+                <Button onClick={onClose} disabled={saveDrug.isPending}>{t("common.cancel")}</Button>
+                <Button type="submit" variant="contained" disabled={saveDrug.isPending}>
+                    {saveDrug.isPending ? t("common.saving") : t("common.save")}
                 </Button>
             </DialogActions>
         </form>

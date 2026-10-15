@@ -7,22 +7,21 @@ import {
     Chip,
     CircularProgress,
     Grid,
-    IconButton,
     Paper,
     Stack,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import MedicationIcon from "@mui/icons-material/Medication";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {PageHeader} from "../../../components/common/PageHeader.tsx";
+import {BackButton} from "../../../components/common/BackButton.tsx";
 import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
-import {useLanguage} from "../../../hooks/useLanguage.ts";
+import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
 import {DosingLineList} from "../../dosing/components/DosingLineList.tsx";
@@ -74,8 +73,8 @@ export const DrugGroupEditorPage = () => {
 const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: DrugGroup }) => {
     const {t} = useTranslation();
     const navigate = useNavigate();
-    const {dir} = useLanguage();
     const save = useSaveDrugGroup();
+    const once = useSingleFlight();
     const deleteGroup = useDeleteDrugGroup();
     const {confirm, dialog: confirmDialog} = useConfirm();
     const {can} = usePermissions();
@@ -153,7 +152,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
         navigate(exitTo);
     };
 
-    const handleSave = async () => {
+    const handleSave = () => once(async () => {
         if (!name.trim()) {
             setShowNameRequired(true);
             return;
@@ -174,7 +173,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
         } catch (error) {
             toast.error(getErrorMessage(error));
         }
-    };
+    });
 
     const handleDelete = async () => {
         if (groupId === null) return;
@@ -197,13 +196,7 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
     return (
         <>
             <PageHeader
-                leading={
-                    <Tooltip title={t("common.back")}>
-                        <IconButton onClick={() => void leave()} aria-label={t("common.back")}>
-                            <ArrowBackIcon sx={{transform: dir === "rtl" ? "scaleX(-1)" : undefined}}/>
-                        </IconButton>
-                    </Tooltip>
-                }
+                leading={<BackButton onClick={() => void leave()}/>}
                 title={groupId === null ? t("groups.new") : readOnly ? t("groups.view") : t("groups.edit")}
                 actions={
                     <>

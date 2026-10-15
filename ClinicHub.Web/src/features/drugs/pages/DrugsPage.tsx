@@ -10,7 +10,6 @@ import {
     TableCell,
     TableContainer,
     TableHead,
-    TablePagination,
     TableRow,
     Tooltip,
 } from "@mui/material";
@@ -23,6 +22,7 @@ import {useTranslation} from "react-i18next";
 import {PageHeader} from "../../../components/common/PageHeader.tsx";
 import {SearchField} from "../../../components/common/SearchField.tsx";
 import {EmptyState} from "../../../components/common/EmptyState.tsx";
+import {ListPagination} from "../../../components/common/ListPagination.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
@@ -33,8 +33,6 @@ import type {Drug} from "../types.ts";
 import {PERMISSIONS} from "../../access/permissions.ts";
 import {usePermissions} from "../../access/usePermissions.ts";
 import {PermissionButton, PermissionIconButton} from "../../access/components/PermissionControls.tsx";
-
-const PAGE_SIZES = [10, 20, 50];
 
 export const DrugsPage = () => {
     const {t} = useTranslation();
@@ -180,20 +178,15 @@ export const DrugsPage = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
-                        <TablePagination
-                            component="div"
+                        <ListPagination
                             count={totalCount}
                             page={page}
-                            onPageChange={(_, p) => setPage(p)}
+                            onPageChange={setPage}
                             rowsPerPage={pageSize}
-                            rowsPerPageOptions={PAGE_SIZES}
-                            onRowsPerPageChange={(e) => {
-                                setPageSize(Number(e.target.value));
+                            onRowsPerPageChange={(size) => {
+                                setPageSize(size);
                                 setPage(0);
                             }}
-                            labelRowsPerPage={t("drugs.rowsPerPage")}
-                            labelDisplayedRows={({from, to, count}) => t("drugs.displayedRows", {from, to, count})}
-                            getItemAriaLabel={(type) => t(`common.pagination.${type}`)}
                         />
                     </>
                 )}
