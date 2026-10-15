@@ -21,6 +21,11 @@
     <Content Remove="publish\**" />
     <None Remove="publish\**" />
   </ItemGroup>
+
+  <!-- Test settings (environment Testing: integration and e2e tests) never reach a published server -->
+  <ItemGroup>
+    <Content Update="appsettings.Testing.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
   <ItemGroup>
     <_ContentIncludedByDefault Remove="wwwroot\assets\index-Ckzs-B6W.css" />
     <_ContentIncludedByDefault Remove="wwwroot\assets\index-Dr7NlCCc.js" />

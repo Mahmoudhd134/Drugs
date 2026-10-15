@@ -1,0 +1,17 @@
+{
+  "backend": { "lines": 90, "branches": 85 },
+  "critical": {
+    "branches": 95,
+    "modules": [
+      { "name": "Clinic filter + interceptor", "match": ["ClinicHub.Infrastructure.Database.AppDbContext", "ClinicHub.Infrastructure.Database.ClinicAndTimestampsInterceptor"] },
+      { "name": "Identity/Login", "match": ["ClinicHub.Application.Features.Identity.Login."] },
+      { "name": "Identity/Sessions", "match": ["ClinicHub.Application.Features.Identity.Sessions."] },
+      { "name": "Access/Authorization", "match": ["ClinicHub.Application.Features.Access.Authorization."] },
+      { "name": "Access/Roles", "match": ["ClinicHub.Application.Features.Access.Roles."] },
+      { "name": "Access/StaffMembers", "match": ["ClinicHub.Application.Features.Access.StaffMembers."] },
+      { "name": "Platform/*", "match": ["ClinicHub.Application.Features.Platform."] },
+      { "name": "Api/Features/Access", "match": ["ClinicHub.Api.Features.Access."] },
+      { "name": "AdminClinicFilter", "match": ["ClinicHub.Api.Features.Platform.AdminClinicFilter"] }
+    ]
+  }
+}
