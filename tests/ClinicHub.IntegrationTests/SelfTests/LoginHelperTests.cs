@@ -121,6 +121,18 @@ public class LoginHelperTests(AppFixture app) : IntegrationTest(app)
     }
 
     [Fact]
+    public async Task A_shared_session_can_be_read_again_after_an_advance_but_not_made_after_one()
+    {
+        var key = $"probe{Guid.NewGuid():N}";
+        var first = await Login.SharedAsync(key, Login.SuperAdminAsync);
+
+        Clock.Advance(TimeSpan.FromSeconds(10));
+
+        (await Login.SharedAsync(key, Login.SuperAdminAsync)).ShouldBeSameAs(first);
+        await Should.ThrowAsync<InvalidOperationException>(() => Login.SharedAsync($"{key}b", Login.SuperAdminAsync));
+    }
+
+    [Fact]
     public async Task A_login_refused_after_a_correct_code_is_returned_as_is()
     {
         var clinic = await Data.Clinic().Suspended();

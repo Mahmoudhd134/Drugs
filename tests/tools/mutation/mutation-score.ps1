@@ -1,26 +1,23 @@
 <#
 .SYNOPSIS
-  Mutation scores from a Stryker.NET JSON report: overall, per critical module (tests/tools/coverage/gates.json) and per
-  file. Writes <OutDir>/mutation.md and mutation.json. Report only: the 85% gate (design D5) is Stryker's own "break"
-  threshold (tests/stryker-config.json), so the stage fails there.
+  Mutation scores from a Stryker.NET JSON report: overall and per mutated file. Writes <OutDir>/mutation.md and
+  mutation.json. With -Gate, fails (exit 1) when a mutated file scores below it (design D5: 85% on each critical file),
+  or when nothing was mutated at all (a -Mutate glob that matches no file must not pass).
 
 .DESCRIPTION
   Score = detected / (detected + undetected), as Stryker counts it: detected = Killed + Timeout, undetected = Survived +
   NoCoverage. CompileError and RuntimeError mutants are not counted (listed apart: e.g. Stryker's safe mode
   drops the mutants of a method that no longer compiles once mutated, see docs/testing/README.md "Stryker gaps");
-  Ignored mutants (files outside the run's mutate list) are left out.
-  A critical module's files: its gates.json "match" turned into a path (namespace = folder in this repo).
+  Ignored mutants (files outside the run's mutate list) are left out, and so is a file with no tested mutant.
 #>
 param(
     [Parameter(Mandatory)] [string] $Report,
     [Parameter(Mandatory)] [string] $OutDir,
-    [string] $Gates
+    [int] $Gate = 0
 )
 $ErrorActionPreference = 'Stop'
-if (-not $Gates) { $Gates = Join-Path $PSScriptRoot '..\coverage\gates.json' }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $json = Get-Content $Report -Raw -Encoding UTF8 | ConvertFrom-Json
-$modules = (Get-Content $Gates -Raw -Encoding UTF8 | ConvertFrom-Json).critical.modules
 
 function New-Counts { [pscustomobject]@{ Killed = 0; Timeout = 0; Survived = 0; NoCoverage = 0; NotCounted = 0 } }
 
@@ -43,56 +40,62 @@ function Get-Score($c) {
     return [math]::Round(100.0 * $detected / $valid, 1)
 }
 
-# "ClinicHub.Application.Features.Identity.Login." -> "ClinicHub.Application/Features/Identity/Login/"
-# "ClinicHub.Api.Features.Platform.AdminClinicFilter" -> "ClinicHub.Api/Features/Platform/AdminClinicFilter.cs"
-function ConvertTo-PathPattern([string] $match) {
-    $parts = $match.TrimEnd('.') -split '\.'
-    $path = "$($parts[0]).$($parts[1])/" + (($parts | Select-Object -Skip 2) -join '/')
-    if ($match.EndsWith('.')) { return "$path/" }
-    return "$path.cs"
-}
-
 $total = New-Counts
 $files = New-Object System.Collections.ArrayList
-$byModule = [ordered]@{}
-foreach ($m in $modules) { $byModule[$m.name] = New-Counts }
 foreach ($property in $json.files.PSObject.Properties) {
     $path = $property.Name.Replace([char]92, [char]47)
     $counts = New-Counts
-    foreach ($mutant in $property.Value.mutants) { Add-Mutant $counts $mutant.status; Add-Mutant $total $mutant.status }
-    $owners = @($modules | Where-Object { $m = $_; @($m.match | Where-Object { $path -like "*$(ConvertTo-PathPattern $_)*" }).Count -gt 0 })
-    foreach ($owner in $owners) {
-        foreach ($name in @('Killed', 'Timeout', 'Survived', 'NoCoverage', 'NotCounted')) { $byModule[$owner.name].$name += $counts.$name }
-    }
+    foreach ($mutant in $property.Value.mutants) { Add-Mutant $counts $mutant.status }
+    # Files of the mutate list only: the others' mutants are Ignored, or compile errors of code nobody mutated
+    if (($counts.Killed + $counts.Timeout + $counts.Survived + $counts.NoCoverage) -eq 0) { continue }
+    foreach ($name in @('Killed', 'Timeout', 'Survived', 'NoCoverage', 'NotCounted')) { $total.$name += $counts.$name }
     $short = $path; if ($path -match '(ClinicHub\.[^/]+/.*)$') { $short = $Matches[1] }
-    [void]$files.Add([pscustomobject]@{ File = $short; Score = (Get-Score $counts); Counts = $counts })
+    $score = Get-Score $counts
+    [void]$files.Add([pscustomobject]@{ File = $short; Score = $score; Counts = $counts
+        Below = ($Gate -gt 0 -and $null -ne $score -and $score -lt $Gate) })
 }
 
-function Format-Row([string] $scope, $c) {
+function Format-Row([string] $scope, $c, [string] $result) {
     $score = Get-Score $c
     $shown = 'n/a'; if ($null -ne $score) { $shown = "$score%" }
-    "| $scope | $shown | $($c.Killed + $c.Timeout) | $($c.Survived) | $($c.NoCoverage) | $($c.NotCounted) |"
+    "| $scope | $shown | $($c.Killed + $c.Timeout) | $($c.Survived) | $($c.NoCoverage) | $($c.NotCounted) | $result |"
 }
 
+$tested = $total.Killed + $total.Timeout + $total.Survived + $total.NoCoverage
 $md = New-Object System.Text.StringBuilder
-[void]$md.AppendLine('| Scope | Score | Detected | Survived | No coverage | Not counted |')
-[void]$md.AppendLine('|---|---:|---:|---:|---:|---:|')
-[void]$md.AppendLine((Format-Row '**All mutated files**' $total))
-foreach ($name in $byModule.Keys) {
-    if (($byModule[$name].Killed + $byModule[$name].Timeout + $byModule[$name].Survived + $byModule[$name].NoCoverage + $byModule[$name].NotCounted) -gt 0) {
-        [void]$md.AppendLine((Format-Row "Critical: $name" $byModule[$name]))
-    }
-}
+[void]$md.AppendLine('| File | Score | Detected | Survived | No coverage | Not counted | Gate |')
+[void]$md.AppendLine('|---|---:|---:|---:|---:|---:|---|')
 foreach ($f in ($files | Sort-Object File)) {
-    if (($f.Counts.Killed + $f.Counts.Timeout + $f.Counts.Survived + $f.Counts.NoCoverage) -gt 0) { [void]$md.AppendLine((Format-Row $f.File $f.Counts)) }
+    $result = '-'
+    if ($Gate -gt 0) {
+        if ($f.Below) { $result = "**below $Gate%**" } else { $result = 'pass' }
+    }
+    [void]$md.AppendLine((Format-Row $f.File $f.Counts $result))
+}
+[void]$md.AppendLine((Format-Row '**All mutated files**' $total ''))
+if ($tested -eq 0) {
+    [void]$md.AppendLine('')
+    [void]$md.AppendLine('No mutant was tested: the mutate list matched no code (or Stryker could not compile it).')
 }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 [IO.File]::WriteAllText((Join-Path $OutDir 'mutation.md'), $md.ToString(), $utf8)
 $summary = [pscustomobject]@{
-    score = (Get-Score $total); counts = $total
-    modules = @($byModule.Keys | ForEach-Object { [pscustomobject]@{ name = $_; score = (Get-Score $byModule[$_]); counts = $byModule[$_] } })
+    score = (Get-Score $total); tested = $tested; gate = $Gate; counts = $total
+    files = @($files | ForEach-Object { [pscustomobject]@{ file = $_.File; score = $_.Score; below = $_.Below; counts = $_.Counts } })
 }
 [IO.File]::WriteAllText((Join-Path $OutDir 'mutation.json'), ($summary | ConvertTo-Json -Depth 4), $utf8)
+
 $shownTotal = 'n/a'; if ($null -ne $summary.score) { $shownTotal = "$($summary.score)%" }
+Write-Host "  mutated files ($($files.Count)):"
+foreach ($f in ($files | Sort-Object File)) {
+    $s = 'n/a'; if ($null -ne $f.Score) { $s = "$($f.Score)%" }
+    $color = 'Gray'; if ($f.Below) { $color = 'Red' }
+    Write-Host "    $s  $($f.File)" -ForegroundColor $color
+}
 Write-Host "  mutation score: $shownTotal (detected $($total.Killed + $total.Timeout), survived $($total.Survived), no coverage $($total.NoCoverage), not counted $($total.NotCounted))"
+if ($Gate -gt 0) {
+    if ($tested -eq 0) { Write-Host '  No mutant was tested (the mutate list matched nothing): FAIL' -ForegroundColor Red; exit 1 }
+    $below = @($files | Where-Object { $_.Below })
+    if ($below.Count -gt 0) { Write-Host "  Below the $Gate% gate: $(($below | ForEach-Object { $_.File }) -join ', ')" -ForegroundColor Red; exit 1 }
+}
 exit 0

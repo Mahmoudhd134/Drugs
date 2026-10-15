@@ -23,14 +23,14 @@ One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts
 ./test.ps1 -Tier step -Seed 1234    # same random order as a previous run (its seed is in the summary)
 ./test.ps1 -NoBuild                 # reuse the Release build
 ./test.ps1 -Base main               # areas from the changes since main (default: see below)
-./test.ps1 -Tier step -Area auth -Mutate 'ClinicHub.Application/Features/Identity/Login/**/*.cs'   # + Stryker.NET on those files
+./test.ps1 -Tier step -Area auth -Mutate 'ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs'   # + Stryker.NET, scored by the auth tests
 ```
 
 | Tier | Runs | Gates |
 |---|---|---|
 | `step` | all backend unit, all Vitest (`npm run test`), integration **smoke** (`Tier=Smoke`) + the **infra** self-tests + the integration tests of the chosen areas, e2e **smoke** (`npm run e2e -- --grep @smoke`) only when files under `ClinicHub.Web/` changed and an `e2e` script exists, traceability report | unknown case IDs and skips without a bug ID fail |
-| `full` | everything (integration and unit with coverage), Vitest with coverage (`npm run test:coverage`), the whole e2e suite (Chromium projects) | backend coverage (D5: 90% lines, 85% branches; 95% branches per critical module), Vitest coverage (its own thresholds), traceability (100% P0 and P1, 80% P2) |
-| `release` | `full` + Stryker.NET on the critical backend modules (`tests/stryker-config.json`) + StrykerJS (`npm run test:mutation`) + the whole e2e suite on every browser (`CLINICHUB_E2E_BROWSERS=all`: + Firefox and WebKit) | + mutation score ≥ 85% |
+| `full` | everything (integration and unit with coverage), Vitest with coverage (`npm run test:coverage`), the whole e2e suite (Chromium) | backend coverage (D5: 90% lines, 85% branches; 95% branches per critical module), Vitest coverage (its own thresholds), traceability (100% P0 and P1; P2 reported, not gated) |
+| `release` | `full` + Stryker.NET on the 6 critical backend files (`tests/stryker-config.json`, below) + StrykerJS (`npm run test:mutation`); e2e stays Chromium only | + mutation score ≥ 85% on **each** critical file |
 
 - Areas for `step`: `-Area auth,access` (or `all`), else from `git diff` against a base plus uncommitted and untracked
   files. The base: `-Base <ref>` (the merge-base with it), else, on an integration branch (`main`,
@@ -61,9 +61,9 @@ One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts
     `artifacts/coverage/frontend` (`coverage-summary.json`); `test:mutation` = StrykerJS, reports in
     `artifacts/mutation/frontend`.
   - `e2e` = the **whole** Playwright suite. The runner adds `-- --grep @smoke` in `step` (smoke tests carry `@smoke` in
-    their title) and nothing in `full`/`release`. The Playwright config picks its projects from
-    `CLINICHUB_E2E_BROWSERS`: `chromium` (default: the Chromium projects, desktop Arabic + English and phone) or `all`
-    (+ Firefox and WebKit desktop; `release`).
+    their title) and nothing in `full`/`release`. The runner always sets `CLINICHUB_E2E_BROWSERS=chromium`: Chromium
+    projects only (desktop Arabic + English and phone; no Firefox/WebKit, the user's trim of 2026-10-15). E2E tests
+    prove P0 and P1 cases; a P2 case is left to a component or api test where cheap.
 
 ### Reports (`artifacts/`, git-ignored)
 
@@ -73,34 +73,58 @@ One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts
 | `test-results/<unit\|integration>/` | `.trx` results (+ `coverage.cobertura.xml` in full/release) |
 | `coverage/backend/` | merged report (`index.html`), `Cobertura.xml`, `gates.md` |
 | `traceability.md`, `traceability.json` | cases covered / known bug / missing per priority, area and level; unknown IDs; skips without a bug ID |
-| `mutation/backend/` | Stryker.NET `reports/mutation-report.html` / `.json`; `mutation.md` (score overall, per critical module, per file) |
+| `mutation/backend/` | Stryker.NET `reports/mutation-report.html` / `.json`; `mutation.md` (score per mutated file against the 85% gate, and overall); `stryker.log` (its console output) |
 
 Tools come from the local manifest `.config/dotnet-tools.json` (`dotnet tool restore`, done by `full`/`release` and
 `-Mutate`): ReportGenerator, Stryker.NET. Traceability alone: `./tests/tools/traceability/traceability.ps1 [-Gate]
 [-Areas AUTH] [-Levels api]` (scope = "only my areas/levels"); its self-test: `./tests/tools/traceability/selftest.ps1`.
 Traceability rules: a test skipped as a known bug counts (as known bug) only with its `BUG-nnn` ID in the skip reason or
-title; any other skip (`Skip = "later"`, `test.skip`/`test.todo`/`describe.skip` without an ID) is not coverage and fails
-the run; IDs in comments don't count; anything that is not exactly a catalog ID (`@AUTH-0163`, `@auth-189`) is
-reported as unknown.
+title, and in xUnit the reason must be a **plain string literal** (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"`
+skips the test but counts as a skip without a bug ID); any other skip (`Skip = "later"`, `test.skip`/`test.todo`/
+`describe.skip` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
+`owner@clinic-1.test`; anything that is not exactly a catalog ID (`@AUTH-0163`, `@auth-189`) is reported as unknown.
+The gate (`full`, `-Gate`) is 100% of the P0 and P1 cases; P2 is reported, not gated.
 
-### Mutation testing on chosen files (Stryker.NET)
+### Mutation testing (Stryker.NET): the 6 critical files
 
-Integration and e2e tracks prove their tests with Stryker.NET on a few critical files of their area (instead of
-hand-planted bugs; design § 7): `./test.ps1 -Tier step -Area auth -Mutate '<glob>'[, '<glob>']`. Globs are
-repo-relative (`ClinicHub.Application/Features/Identity/Login/**/*.cs`) or start with `**`; they replace the config's
-critical-module list for that run, every test project runs against each mutant (integration tests included: each Stryker
-test process makes its own test databases), and the 85% break threshold applies. Survivors are in
-`artifacts/mutation/backend/reports/mutation-report.html`; a survivor is either a missing assertion (add it) or an
-equivalent mutant (say so in the track report).
+The backend mutation gate (85%, **on each file**) covers only the 6 riskiest files (the user's trim, 2026-10-15; the
+list is `tests/stryker-config.json`, run by `release`):
 
-- Expect minutes per file: an integration-covered mutant reruns the tests that cover it. Mutate a few files at a time.
+| File | Why | Phase-B track (`-Area`) |
+|---|---|---|
+| `ClinicHub.Infrastructure/Database/ClinicAndTimestampsInterceptor.cs` | stamps the clinic, refuses cross-clinic writes | Int-2 (`isolation`) |
+| `ClinicHub.Api/Features/Platform/AdminClinicFilter.cs` | the super admin's per-clinic entry | Int-3 (`admin`) |
+| `ClinicHub.Application/Features/Access/Authorization/PermissionService.cs` | every access decision (noAccess, clinicSuspended, permissions) | Int-2 (`access`) |
+| `ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs` | login | Int-1 (`auth`) |
+| `ClinicHub.Application/Features/Identity/Sessions/Commands/RefreshSession/RefreshSessionCommandHandler.cs` | refresh rotation, reuse grace | Int-1 (`auth`) |
+| `ClinicHub.Application/Features/Access/StaffMembers/MembershipService.cs` | entry refusals, enterable clinics | Int-1 (`auth`) |
+
+An integration track proves its tests on its files: `./test.ps1 -Tier step -Area auth -Mutate '<file>'[,'<file>']`.
+- `-Mutate` takes repo-relative paths or globs (or starting with `**`), comma separated or repeated (also under
+  `powershell -File`); they replace the config's list for that run. The stage lists the files actually mutated with
+  their scores, and it **fails** when the list matched no code ("no mutant in …") or a file scores below 85%.
+- With an explicit `-Area` (not `all`), only that area's **integration** tests run against the mutants (Stryker's
+  `test-case-filter` `(Area=auth)&FullyQualifiedName~ClinicHub.IntegrationTests`), so the score is the track's own
+  (unit tests and other areas' tests don't count; Stryker then warns that the unit test project "did not report any
+  test": expected). Without `-Area` (and in `release`), every .NET test counts.
+- E2E: Stryker.NET only runs the .NET test projects against a mutant, never Playwright, so it says nothing about e2e
+  specs: the e2e track has no Stryker.NET step (it proves its specs with non-security UI plants; StrykerJS covers the
+  SPA's pure logic).
+- Survivors are in `artifacts/mutation/backend/reports/mutation-report.html`: a survivor is either a missing assertion
+  (add it) or an equivalent mutant (say so in the track report).
+- Expect minutes per file: an integration-covered mutant reruns the tests that cover it (each Stryker test process makes
+  its own test databases). Mutate a few files at a time.
 - Paths: keep the worktree path short (e.g. `Drags-wt\<track>`) and use the tool from the manifest (`dotnet tool
   restore`; never install it under a long folder): beyond Windows' 260-character limit Stryker fails with
   "Value cannot be null (path3)".
+- When Stryker itself fails: no report → the stage says "Stryker failed before scoring" (its output is also in
+  `artifacts/mutation/backend/stryker.log`). Seen under load: `CS0518 Predefined type 'System.Attribute' is not
+  defined` / "General Build Failure" (a Buildalyzer hiccup): rerun. Tests that already fail in Stryker's initial run
+  ("N tests are failing … outcome will be impacted") fail the stage: the score would not mean anything; fix or rerun.
 - Stryker gaps (phase C knows them): a mutant that no longer compiles makes Stryker's safe mode drop **every** mutant of
   that method (counted as "not counted", not against the score). Seen: `Api/Features/Access/PlatformAdminHandler.cs`
-  `HandleRequirementAsync` (CS0165 on `userId` from the `is not { } userId` pattern): the super-admin gate gets no tested
-  mutant, so the ADM/ACC integration cases must cover "super admin flag removed → 403" directly.
+  `HandleRequirementAsync` (CS0165 on `userId` from the `is not { } userId` pattern; not a gated file): the ADM/ACC
+  integration cases must cover "super admin flag removed → 403" directly.
 
 ## Integration tests (`tests/ClinicHub.IntegrationTests`)
 
@@ -109,8 +133,9 @@ equivalent mutant (say so in the track report).
 - The real app (`Program`: settings validation, migrations, startup seeder, middleware, auth) in memory, environment
   **`Testing`** (`ClinicHub.Api/appsettings.Testing.json`, never published): the intended OTP limits (5 wrong tries,
   60 s between codes, 5 per hour, 5 min expiry), Display mode (`devCode` in the response), test keys, one test super
-  admin (`+201009990001`), no dev seed. Two test substitutions only (`Harness/Hosting/ClinicHubFactory`): the app's
-  `TimeProvider` is the test clock, and JwtBearer checks token lifetimes against it (see "Time and tokens").
+  admin (`+201009990001`), no dev seed. Three test substitutions only (`Harness/Hosting/ClinicHubFactory`): the app's
+  `TimeProvider` is the test clock, JwtBearer checks token lifetimes against it (the app's own `ValidateLifetime`
+  switch kept), and the access cache (HybridCache) runs on its own clock (see "Time and tokens").
 - PostgreSQL: the compose container. Per test process (run id `CLINICHUB_TEST_RUN`, set by `test.ps1`; generated when
   unset), one **template** `drags_it_<run>_tpl` is migrated and seeded once by booting the app on it; each **collection**
   gets its own copy `drags_it_<run>_<n>` (`CREATE DATABASE … TEMPLATE`). Before each new test class the copy is reset
@@ -118,11 +143,15 @@ equivalent mutant (say so in the track report).
   emptied). Everything of the run is dropped at the end; a crashed or killed run's databases are dropped by the next
   run (each run holds a liveness lock; a database whose run holds none, or older than a day, is stale). A run never
   drops another live run's databases (parallel worktrees are safe), and a second process started with a run id that is
-  already in use stops at once and drops nothing.
+  already in use stops at once and drops nothing. Under load (parallel worktrees, Stryker) `CREATE`/`DROP DATABASE` can
+  wait long for PostgreSQL's checkpoints: the maintenance connection allows 10 minutes per command, and dropping is
+  best effort (a collection's copy at its end, the run's databases at shutdown, other runs' leftovers): a failure is
+  printed at the end of the run (`ClinicHub test databases: could not drop …`) and retried later (at shutdown, else by
+  the next run's cleanup), never a failed test. Only creating the run's own databases fails the run.
 - Safety: the test host only ever connects to a `drags_it_<run>_<n>` database on localhost; anything else (the dev
   database `drags`) stops it before any connection, whatever the settings or a service override say (checked when the
-  app's DbContext options are built and on every connection it opens; `Harness/Databases/DatabaseGuard`, proved by
-  `SelfTests`).
+  app's DbContext options are built, again when the context gets its options (an override that replaces them whole)
+  and on every connection it opens; `Harness/Databases/DatabaseGuard`, proved by `SelfTests`).
 - Order: collections run in parallel (one database each); the classes of a collection one after another; with a seed
   (`CLINICHUB_TEST_SEED`, always set by `test.ps1`), collections, classes and tests are shuffled reproducibly.
 
@@ -192,7 +221,7 @@ public class OtpRequestTests(AppFixture app) : IntegrationTest(app)
 | Read the database | `await App.QueryDbAsync(db => db.OtpCodes.CountAsync())` (clinic-owned tables: `IgnoreQueryFilters()`) |
 | "Changed outside the app" | `App.OutsideTheApp.ExecuteAsync("UPDATE \"Staff\" SET \"IsActive\" = false WHERE \"Id\" = @p0", id)`: only for those cases, never to build data |
 | Other settings or services (startup refusals, a failing sender, a restart) | `await using var variant = App.CreateVariant(settings, services)`; `variant.Start()` throws what startup throws; `new ApiClient(variant)`, `Login.On(variant)…`, `variant.Clock` (see "Restart cases") |
-| One session for the whole class (fast path, opt-in) | `await Login.SharedSuperAdminAsync()` / `Login.SharedAsync("key", () => Login.OwnerAsync(clinic))`: only when no test changes that session; never shared across classes; get it **before** `Clock.Advance` (it throws after) |
+| One session for the whole class (fast path, opt-in) | `await Login.SharedSuperAdminAsync()` / `Login.SharedAsync("key", () => Login.OwnerAsync(clinic))`: only when no test changes that session; never shared across classes; get it **before** `Clock.Advance` (creating it after an advance throws; reading it again is fine) |
 
 Notes for the login helpers: the `Testing` limits are the real ones (60 s, 5 per hour), so a helper login first
 deletes that phone's earlier codes. A test about the limits requests codes itself and does not log the same phone in
@@ -220,10 +249,14 @@ and "at exactly 60 s" / "59 s" cases (AUTH-021, AUTH-023, AUTH-049, AUTH-096, AU
   the next test (refused, `nbf`). That is why `Login.SharedAsync` throws when called after `Clock.Advance`.
 - Timers and elapsed-time measures stay real, and the in-memory cache's own 30 s expiry is real time (the design
   documents the "changed by hand, applies within 30 s" path rather than testing it).
-- The access cache (HybridCache) dates its entries and its invalidations with the clock: an entry cached at the **same
-  instant** as an invalidation of one of its tags is not kept (the next request reads the database again). Tests that
-  need the cache to hold an answer (a "stale for up to 30 s" check) advance the clock by a second after the change. A
-  test that moved the clock leaves no cached answer behind (the fixture empties the cache before the next test).
+- The access cache (HybridCache) works as in production: it dates its entries and tag invalidations with its own clock
+  (`CacheClock`: the real time plus the test clock's advance, never backwards, never twice the same instant), so the
+  answer to the request right after a login is cached, and a change through the app (a builder, the API) invalidates
+  it for the next request. A change made outside the app (`App.OutsideTheApp`) is **not** seen while the answer is
+  cached (that is the "applies within 30 s" path; its 30 s expiry is real time and not waited for). A test that relies
+  on an invalidation can first prove the cache is warm (a change by hand not seen; `SelfTests/AccessCacheTests` shows
+  how), so a missing invalidation fails it. The cache is emptied between test classes (the database is reset), kept
+  between the tests of a class.
 
 ### Restart cases (a variant is the restarted API)
 

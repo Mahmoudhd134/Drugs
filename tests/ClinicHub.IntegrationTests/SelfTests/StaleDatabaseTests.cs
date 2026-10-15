@@ -72,17 +72,19 @@ public class StaleDatabaseTests
     }
 
     /// <summary>
-    /// Runs the cleanup until the database is gone (at most 5 s): another process's cleanup may hold the dead run's lock
-    /// for an instant while it drops the database itself, so one pass of ours may see the run as alive.
+    /// Runs the cleanup until the database is gone (at most 2 min): another process's cleanup may hold the dead run's
+    /// lock while it drops the database itself (a DROP DATABASE can wait long for a checkpoint when other runs create
+    /// and drop databases), so one pass of ours may see the run as alive.
     /// </summary>
     private static async Task ShouldBeDroppedByTheCleanupAsync(string database)
     {
-        for (var attempt = 0; attempt < 50; attempt++)
+        var until = DateTime.UtcNow + TimeSpan.FromMinutes(2);
+        while (DateTime.UtcNow < until)
         {
             await TestRun.DropStaleAsync();
             if (!await ExistsAsync(database))
                 return;
-            await Task.Delay(100);
+            await Task.Delay(200);
         }
         (await ExistsAsync(database)).ShouldBeFalse($"{database} should have been dropped by the cleanup");
     }

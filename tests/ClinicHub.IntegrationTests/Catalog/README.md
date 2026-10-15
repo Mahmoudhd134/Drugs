@@ -5,7 +5,6 @@ Add a collection here like `Auth/AuthCollection.cs` (name `catalog`, then `catal
 How to write them: [docs/testing/README.md](../../../docs/testing/README.md#integration-tests-testsclinichubintegrationtests).
 
 Note for Int-4: DOSE-065 ("all fields empty → normalize returns null **and the drug stores `defaultDosing: null`**") is
-a `unit` case, and the unit tests only prove the first half (`DosingRules.Normalize` returns null). The second half is
-an API outcome: assert it in a drug test (create or update a drug with an all-empty `defaultDosing`, then `GET` it →
-`defaultDosing: null`). The traceability tool counts a case only at its catalog level, so ask the orchestrator to make
-the row `unit+api` before tagging that test `DOSE-065`.
+`unit+api`: the unit tests prove the first half (`DosingRules.Normalize` returns null); tag the drug test that proves
+the second (create or update a drug with an all-empty `defaultDosing`, then `GET` it → `defaultDosing: null`) with
+`DOSE-065` too.

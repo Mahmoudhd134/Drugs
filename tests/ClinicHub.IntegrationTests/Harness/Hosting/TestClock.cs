@@ -9,7 +9,8 @@ namespace ClinicHub.IntegrationTests.Harness.Hosting;
 /// comparison, and an exact boundary (<c>&gt;</c> against <c>&gt;=</c>) is testable.
 /// <para>
 /// Timers and elapsed-time measures (<see cref="TimeProvider.GetTimestamp"/>, <see cref="TimeProvider.CreateTimer"/>)
-/// stay real: nothing in the app waits on the test clock. The in-memory cache's own expiry (30 s) is real time too.
+/// stay real: nothing in the app waits on the test clock. The access cache dates its entries with its own
+/// <see cref="CacheClock"/> (real time plus this clock's advance), and its in-memory expiry (30 s) is real time.
 /// </para>
 /// </summary>
 public sealed class TestClock : TimeProvider
