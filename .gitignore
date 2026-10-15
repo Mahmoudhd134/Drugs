@@ -45,3 +45,9 @@ Thumbs.db
 .env
 .env.*.local
 .env.local
+
+# ---- Tests (test.ps1 reports, test results, coverage, mutation) ----
+artifacts/
+TestResults/
+*.trx
+StrykerOutput/
