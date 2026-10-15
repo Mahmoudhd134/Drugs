@@ -20,9 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\fixtures\dosing-cases.json" Link="fixtures\dosing-cases.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\ClinicHub.Domain\ClinicHub.Domain.csproj" />
     <ProjectReference Include="..\..\ClinicHub.Application\ClinicHub.Application.csproj" />
     <ProjectReference Include="..\..\ClinicHub.Infrastructure\ClinicHub.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\ClinicHub.Api\ClinicHub.Api.csproj" />
   </ItemGroup>
 
 </Project>
