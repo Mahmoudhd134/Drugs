@@ -3,8 +3,8 @@
 Status: **agreed design; the MVP (Phase 1) is in progress**: M1.1 clinic isolation, M1.2 login, M1.3 access and
 M1.4 architecture refactor are done ([clinic scoping](../features/clinic-scoping/tech.md),
 [login](../features/auth/tech.md), [access](../features/access/tech.md), [architecture](architecture.md));
-M1.5 platform admin is in progress ([design](m1.5-platform-admin.md); M1.5.1, the clinic lifecycle API, is built:
-[platform admin](../features/platform-admin/tech.md)). See [Delivery](#12-delivery-phase-1-mvp).
+M1.5 platform admin is in progress ([design](m1.5-platform-admin.md); M1.5.1–M1.5.3, the admin API for clinics,
+provisioning, roles and staff, are built: [platform admin](../features/platform-admin/tech.md)). See [Delivery](#12-delivery-phase-1-mvp).
 Decided in discussion on 2026-10-11.
 When each step is built it gets its own `docs/features/<feature>/` (tech + business) and the
 overviews are updated; this file stays the big picture.
@@ -136,7 +136,8 @@ The current `Features/<Feature>` convention stays; a module may span several fea
 - `IClinicOwned { int ClinicId }` on every clinic-owned entity (`Drugs`, `DrugGroups`,
   `DrugGroupItems`, `Staff`, `Roles`).
 - `IClinicContext { int? ClinicId }`, scoped per request, filled by middleware from the token's
-  `clinic_id` claim. Admin endpoints set it from the `{clinicId}` route value instead.
+  `clinic_id` claim. Admin endpoints set it from the `{clinicId}` route value instead. *(Built in M1.5.3: the
+  admin clinic filter, `[AdminClinic]` on the roles and staff controllers, calls `IClinicScope.EnterAsync`; design D2.)*
 - `AppDbContext` applies `e.ClinicId == clinicContext.ClinicId` to every `IClinicOwned` type.
   No clinic in context → the filter matches nothing (fail closed).
 - On insert, `ClinicId` is filled from the context automatically (interceptor). Saving a
@@ -426,7 +427,10 @@ a clinic cannot be removed, deactivated or lose the Owner role (`lastOwner`).
 revocation**. Suspending, deleting, deactivating or removing take effect on the **next request** through the
 per-request access check: the change clears the access cache after its commit, so that request answers 403
 (`clinicSuspended` for a suspended clinic, `noAccess` for a deleted one or removed staff); refresh and switch
-re-check the contexts. Built for suspend/activate/delete in M1.5.1.)*
+re-check the contexts. Built for suspend/activate/delete in M1.5.1, and for deactivating/removing staff and changing
+or deleting a role in M1.5.3 (`lastOwner` as above). On such a 403 (or a `/me` without a context) the SPA refreshes
+the session: with several contexts left the lost one is cleared (picker), with one it is entered (with a message),
+with none the refresh answers 401 (login).)*
 
 ---
 
@@ -519,7 +523,13 @@ M1.5.1: `GET /admin/clinics`, `GET /admin/clinics/{id}`, `PUT /admin/clinics/{id
 `ClinicDetails` with `owners: { staffId, fullName, phone }[]` instead of `ownerNames`. Missing, deleted or template
 ids → 404 `notFound`. Built in M1.5.2: `POST /admin/clinics` → `201 ClinicDetails` + `Location` (validation:
 `nameRequired`, `nameInvalid`, `nameTooLong` for the clinic name and the owner's `fullName`, `invalidPhone`; a missing `owner` →
-`invalidRequest`). Roles and staff come in M1.5.3; `/admin/permissions` is dropped (D8).)*
+`invalidRequest`). Built in M1.5.3: the roles and staff rows above, under `/admin/clinics/{clinicId}/…` (the admin
+clinic filter: a missing, deleted or template clinic → 404 `notFound`, a suspended one is managed); role names also
+`nameRequired`, `nameInvalid`, `nameTooLong` (100), staff names (256) and a missing `isActive` → `invalidRequest`;
+plus `roleNotFound` (400, a role id not in the clinic); a role or staff id of another clinic → 404 `notFound`.
+`StaffMember.roles` items also carry `isOwner`; a role's `staffCount` counts every holder, active or not. No GET for
+one role or staff member: `Location` is the list. `/admin/permissions` is dropped (D8): the role editor reads
+`GET /permissions`.)*
 
 ```ts
 type ClinicSummary = { id: number; name: string; status: "active" | "suspended"; staffCount: number; createdAt: string };
@@ -534,6 +544,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`, `tooManyRequests`, `noAccess`,
 `clinicSuspended`, `forbidden`, `roleNameTaken`, `unknownPermission`, `roleLocked`, `roleInUse`,
 `rolesRequired`, `staffExists`, `lastOwner`. Each goes in its feature's error class (`<Feature>Errors`, M1.4) and `errors.*` in both locales.
+*(M1.5.3 adds `roleNotFound`; all of these are built: `RoleErrors`, `StaffErrors`, [design § 7](m1.5-platform-admin.md#7-errors-new).)*
 
 ---
 
@@ -606,7 +617,7 @@ implementation session and validated before the next (terms in the [status](#hig
 
 | Milestone | Steps | Status |
 |---|---|---|
-| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **M1.5 in progress** (M1.5.1–M1.5.2 built) |
+| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.4 ✅, **M1.5 in progress** (M1.5.1–M1.5.3 built) |
 | **M2 Patients** | M2.1 dynamic forms · M2.2 patients · M2.3 patient portal | not started |
 | **M3 Production readiness** | M3.1 frontend enhancements ([12.1](#121-enhancements-m31)) · M3.2 hardening → **launch** | not started |
 
@@ -618,7 +629,7 @@ implementation session and validated before the next (terms in the [status](#hig
 | M1.2 | **Login** (was "phase 2, identity"): users, OTP (display), sessions, tokens, contexts, `/me`; login + select-clinic pages | ✅ **Done** (2026-10-11): login, refresh, switch and logout verified in the browser ([login](../features/auth/tech.md)). Also built here: a minimal `Staff` table (no roles) with `Access/MembershipService`. The display-mode guard was built, then relaxed on request: Display is allowed in any environment by config (startup warning outside Development) so demos/staging can run before an SMS provider. Super-admin sessions always use the 12 h lifetime. `/me` permissions are `["*"]` until M1.3 |
 | M1.3 | **Access** (was "phase 3"): staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (M1.5's role editor) |
 | M1.4 | **Architecture refactor** (was "phase 3.5"; pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | ✅ **Done** (2026-10-14) in three parts plus a layout follow-up; the same endpoints and responses verified manually after each |
-| M1.5 | **In progress** ([design](m1.5-platform-admin.md), five sub-steps; M1.5.1 admin foundations + clinic lifecycle API built; M1.5.2 provisioning, `POST /admin/clinics` and the dev seed through it, with sample template content, built). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; in Development the template gets sample drugs/groups since M1.5.2, copied by provisioning). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
+| M1.5 | **In progress** ([design](m1.5-platform-admin.md), five sub-steps; M1.5.1 admin foundations + clinic lifecycle API built; M1.5.2 provisioning, `POST /admin/clinics` and the dev seed through it, with sample template content, built; M1.5.3 roles and staff API with the admin clinic filter built). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; in Development the template gets sample drugs/groups since M1.5.2, copied by provisioning). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog |
 | M1.6 | **Test foundation**: automated tests for M1.1–M1.5 (see NFR-7) | Tests green in one command; isolation, permissions, auth and the error contract covered |
 
 ### M2 Patients

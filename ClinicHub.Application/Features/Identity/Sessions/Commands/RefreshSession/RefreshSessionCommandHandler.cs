@@ -7,8 +7,9 @@ namespace ClinicHub.Application.Features.Identity.Sessions.Commands.RefreshSessi
 
 /// <summary>
 /// A lost context is cleared, or replaced when only one is left. <see cref="IdentityErrors.SessionEnded"/>
-/// when the token is unknown, expired or revoked, or the user has lost every context (the session is then
-/// revoked); <see cref="IdentityErrors.RefreshTokenRotated"/> when a parallel call rotated it moments ago.
+/// when the token is unknown, expired or revoked; <see cref="IdentityErrors.NoContexts"/> when the user has lost
+/// every context (the session is then revoked); <see cref="IdentityErrors.RefreshTokenRotated"/> when a parallel
+/// call rotated it moments ago.
 /// </summary>
 internal sealed class RefreshSessionCommandHandler(IAppDbContext db, ISessionService sessions, ITokenService tokens)
     : ICommandHandler<RefreshSessionCommand, SessionIssue>
@@ -33,7 +34,7 @@ internal sealed class RefreshSessionCommandHandler(IAppDbContext db, ISessionSer
             // Kept although the command fails: it is ICommitOnFailure
             session.RevokedAt = sessions.Now;
             await sessions.TrySaveAsync(cancellationToken);
-            return IdentityErrors.SessionEnded;
+            return IdentityErrors.NoContexts;
         }
 
         var current = contexts.FirstOrDefault(c => c.Matches(session.ContextType, session.ClinicId));

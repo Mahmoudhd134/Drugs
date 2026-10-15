@@ -8,7 +8,9 @@ permission implicitly. Permissions are fixed in code (one per action) and are **
 token**: the API reads them per request from a cache (HybridCache), and the SPA reads them from `/me`.
 The same per-request check makes sure the staff member and the clinic are still active, which closes
 M1.2's "token valid ≤ 15 min after deactivation/suspension" gap (bounded now by the cache, see below).
-Roles come only from seeding in this step; managing them is M1.5.
+Roles came only from seeding in this step; since M1.5.3 the super admin manages each clinic's roles and staff
+through the admin API ([platform admin](../platform-admin/tech.md#roles-and-staff-m153)); clinics can't manage their
+own yet (`roles.*` / `staff.*` keys come with clinic-side screens, M1.5 design D8).
 
 ## How to…
 
@@ -98,7 +100,10 @@ always `noAccess` (even when it is also suspended).
 
 Rules and use cases in `ClinicHub.Application/Features/Access`: `Permissions.cs` and `AccessErrors` at the root,
 then `Authorization/` (catalog, permission set and service, cache interface, `Queries/GetPermissions`), `Roles/`
-(`DefaultRoles`) and `StaffMembers/` (memberships). The cache is in `ClinicHub.Infrastructure/Access`, the
+(`DefaultRoles`; since M1.5.3 also the role use cases, `RoleDto`, `RoleErrors`, `RoleRules`) and `StaffMembers/`
+(memberships; since M1.5.3 also the staff use cases, `StaffMemberDto`, `StaffErrors`, `StaffRules`). Their admin
+controllers are in `ClinicHub.Api/Features/Platform` (the use cases never take a clinic id: the admin clinic filter
+sets the current clinic, so clinic-side endpoints can later send the same commands). The cache is in `ClinicHub.Infrastructure/Access`, the
 endpoint checks in `ClinicHub.Api/Features/Access`.
 
 | Piece | Layer | Role |
@@ -172,9 +177,9 @@ for up to 10 min.
 
 | Change | Invalidate | Called by |
 |---|---|---|
-| staff roles or active flag | `InvalidateStaffAsync(staffId)` | M1.5.3 staff use cases |
-| role permissions | `InvalidateRoleAsync(roleId)` (a rename needs nothing: role names aren't cached) | M1.5.3 role use cases |
-| role deleted | `InvalidateRoleAsync(roleId)` + `InvalidateClinicAsync(clinicId)` | M1.5.3 |
+| staff added, edited (name, roles, active flag) or removed | `InvalidateStaffAsync(staffId)` | `AddStaff`, `UpdateStaff`, `RemoveStaff` (M1.5.3; for an add the id is new: kept for the rule) |
+| role edited (permissions or name) | `InvalidateRoleAsync(roleId)` (on every update: names aren't cached, harmless) | `UpdateRole` (M1.5.3); `CreateRole` needs none (new id, no holder) |
+| role deleted | `InvalidateClinicAsync(clinicId)` (every entry of the clinic, the role's own included; M1.5 design D3) | `DeleteRole` (M1.5.3; only roles nobody holds can be deleted) |
 | clinic suspended, activated or deleted | `InvalidateClinicAsync(clinicId)` (a rename needs none) | `SuspendClinic`, `ActivateClinic`, `DeleteClinic` (M1.5.1; also when nothing changed) |
 | user-level change (e.g. super-admin flag) | `InvalidateUserAsync(userId)` | `IdentitySeeder`, for every user whose flag changes (after its own transaction) |
 | clinic created (`CreateClinicCommand`, M1.5.2) | none: its clinic, roles and staff ids are new, so no entry exists for them; an existing user who becomes the owner has no user-level change (their contexts are read from the database at login, refresh and switch) | — |
@@ -208,8 +213,12 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
 - `NAV_ITEMS` moved to `app/navigation.tsx` with a `permission`; the sidebar hides the rest.
 - Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugPicker`,
   `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`; `DrugPicker` / `GroupPicker` take `enabled`.
-- `AppProviders`: a 403 from a query toasts the translated reason (`errors.forbidden`…, one toast id),
-  and any 403 (query or mutation) reloads `/me` (`authKeys.allMe`), so stale permissions catch up.
+- A 403 `noAccess`/`clinicSuspended` (the clinic itself may be lost) never reaches the pages first: the API client
+  refreshes the session and either follows it (picker, the only clinic left, or login, with a message;
+  [auth](../auth/tech.md), design D7) or, when the clinic is still there (e.g. re-added under a new staff record),
+  replays the request once with the new token. `AppProviders` handles the other 403s (`forbidden`, or one that
+  persists after the replay): a query toasts the translated reason (one toast id), and any 403 (query or mutation)
+  reloads `/me` (`authKeys.allMe`), so stale permissions catch up.
   Queries retry once and only on network/5xx errors (a 4xx answers the same again).
 - Pages:
   - Drugs: Add (`drugs.create`), edit icon (`drugs.update`), delete icon (`drugs.delete`); the Actions
@@ -238,16 +247,17 @@ check answers `noAccess` for a deleted clinic whatever its `Status`.
 prescription page).
 
 ## Edge cases & limitations
-- Cache staleness: with no invalidation (direct DB edits; the admin endpoints invalidate since M1.5.1),
+- Cache staleness: with no invalidation (direct DB edits; the admin endpoints invalidate since M1.5.1, roles and
+  staff since M1.5.3),
   a change applies within 30 s (in-memory cache), at the latest 10 min with a distributed cache.
   The user's next token refresh applies staff changes (roles given or taken, active flag) and clinic
   status at once, but **not** edits to a role's permissions (those need `InvalidateRoleAsync`).
-- The SPA's `/me` is cached 5 min per context: permission changes show in the UI after that, after a
-  reload/switch, or right after the first 403.
+- The SPA's `/me` is cached 5 min per context and reloaded when the tab gets the focus back (since M1.5.3):
+  permission changes show in the UI then, after a reload/switch, or right after the first 403 (no polling).
 - Owner roles have no rows, so `RolePermissions` can't express "Owner minus X" (by design: Owner is locked).
-- `[Requires]` is applied when reading (above), not stored. **M1.5's role editor must save the
-  closure** (`PermissionCatalog.WithRequirements`) so `RolePermissions` stays truthful, and can warn about
-  what it added.
+- `[Requires]` is applied when reading (above) **and**, since M1.5.3, when a role is saved: `CreateRole` /
+  `UpdateRole` store the closure (`PermissionCatalog.WithRequirements`), so `RolePermissions` stays truthful (rows
+  seeded or edited in psql before may still lack requirements; reading adds them anyway).
 - `RolePermission` has no clinic filter of its own; never add a `DbSet` for it or query it directly.
 - `PermissionCatalog` order is reflection order (declaration order in practice).
 - Platform context: `/me` permissions are `[]`. The admin endpoints use the `PlatformAdmin` policy instead of
@@ -293,6 +303,10 @@ to `Initial` and re-applied):
   Delete disabled with the Arabic tooltip. Removing `groups.list` from the Assistant role in psql: the
   next groups request → 403 → Arabic "forbidden" toast, `/me` reloaded, Groups gone from the nav and the
   no-permission page shown. No console errors.
+- M1.5.3 (roles and staff through the admin API, smoke test on `:5055`,
+  [platform admin](../platform-admin/tech.md#testing-notes)), each with the cache warmed first: the Assistant role
+  losing `drugs.create` → the assistant's next `POST /drugs` 403 `forbidden`; deactivated → `noAccess`, reactivated →
+  200 with the same token; removed → `noAccess` and the clinic leaves `/auth/contexts`; re-added → 200 after a refresh.
 - M1.5.1 (clinic lifecycle, smoke test on `:5055`, [platform admin](../platform-admin/tech.md#testing-notes)):
   suspending a clinic → its owner's and assistant's next catalog request 403 `clinicSuspended`, activating → 200
   again, deleting (even while suspended) → 403 `noAccess` and the clinic leaves `/auth/contexts`; all without

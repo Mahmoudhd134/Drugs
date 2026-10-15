@@ -34,6 +34,10 @@ const skipsRefresh = (url = "") => NO_REFRESH.has(url) || url.startsWith("/auth/
 
 type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean; _contextKey?: string };
 
+/** The context a failed request was sent in ("clinic:3"…), to ignore answers about a context already left. */
+export const requestContextKey = (error: unknown) =>
+    axios.isAxiosError(error) ? (error.config as RetriableConfig | undefined)?._contextKey : undefined;
+
 api.interceptors.request.use(config => {
     const token = authHandlers?.getAccessToken();
     if (token && !config.headers.Authorization) config.headers.Authorization = `Bearer ${token}`;
@@ -42,16 +46,30 @@ api.interceptors.request.use(config => {
     return config;
 });
 
-// 401 = missing or expired access token: refresh once and retry. If the session is gone the store
-// becomes anonymous and the routes send the user to /login.
+/** 403 codes saying the clinic itself can't be entered any more (staff deactivated or removed, clinic suspended or deleted). */
+const CLINIC_LOST_CODES = new Set(["noAccess", "clinicSuspended"]);
+
+/**
+ * 401 = missing or expired access token. A 403 `noAccess`/`clinicSuspended` in a clinic = the clinic may be lost
+ * (design D7), or the token is out of date (e.g. re-added under a new staff record). Either way: refresh once (one
+ * shared call, which also re-checks the context) and replay. If the session is gone the store becomes anonymous and
+ * the routes send the user to /login; a 403 that persists after the replay is handled as any other 403.
+ */
+const needsRefresh = (error: unknown, config: RetriableConfig) => {
+    const apiError = toApiError(error);
+    return apiError?.status === 401 || (apiError?.status === 403 && CLINIC_LOST_CODES.has(apiError.code ?? "")
+        && config._contextKey?.startsWith("clinic:") === true);
+};
+
 api.interceptors.response.use(undefined, async (error: unknown) => {
-    if (!axios.isAxiosError(error) || toApiError(error)?.status !== 401 || !error.config || !authHandlers) throw error;
+    if (!axios.isAxiosError(error) || !error.config || !authHandlers) throw error;
     const config = error.config as RetriableConfig;
-    if (config._retried || skipsRefresh(config.url)) throw error;
+    if (config._retried || skipsRefresh(config.url) || !needsRefresh(error, config)) throw error;
 
     const token = await authHandlers.refresh();
-    // The session moved to another clinic meanwhile (e.g. switched in another tab): replaying
-    // would act in the wrong clinic, so the request fails (the pages re-mount in the new clinic)
+    // The session moved to another clinic meanwhile (switched in another tab, or this one was lost:
+    // the session store tells the user): replaying would act in the wrong clinic, so the request
+    // fails (the pages re-mount in the new clinic)
     if (!token || authHandlers.getContextKey() !== config._contextKey) throw error;
     config._retried = true;
     config.headers.Authorization = `Bearer ${token}`;

@@ -29,6 +29,14 @@ public static class IdentityErrors
         new(CommonErrors.Unauthorized.Code, "The session is unknown, expired or revoked.", ErrorType.Unauthorized);
 
     /// <summary>
+    /// Code <c>noContexts</c> (401): the session was live, but the user has lost every context (no clinic left,
+    /// design D7). The session is revoked and the Api clears the cookie, as for <see cref="SessionEnded"/>; the
+    /// code lets the SPA say why.
+    /// </summary>
+    public static readonly Error NoContexts =
+        new("noContexts", "The user has no clinic left; the session was ended.", ErrorType.Unauthorized);
+
+    /// <summary>
     /// Code <c>unauthorized</c>: the refresh cookie is missing or belongs to another session. The cookie is
     /// kept (it may belong to another, valid session).
     /// </summary>

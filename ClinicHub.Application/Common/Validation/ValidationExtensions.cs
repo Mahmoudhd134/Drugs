@@ -18,13 +18,15 @@ public static class ValidationExtensions
     /// <summary>
     /// Not blank (only spaces or invisible format characters such as a zero-width space count as blank), no
     /// control characters nor line/paragraph separators once trimmed (a NUL can't be stored; a line break would
-    /// end up in the Word copy), and at most <see cref="FieldLimits.NameMaxLength"/> characters once trimmed.
+    /// end up in the Word copy), and at most <paramref name="maxLength"/> characters once trimmed (the column's limit:
+    /// <see cref="FieldLimits.NameMaxLength"/> by default, <see cref="FieldLimits.RoleNameMaxLength"/> for roles).
     /// </summary>
-    public static IRuleBuilderOptions<T, string> ValidName<T>(this IRuleBuilder<T, string> rule) =>
+    public static IRuleBuilderOptions<T, string> ValidName<T>(this IRuleBuilder<T, string> rule,
+        int maxLength = FieldLimits.NameMaxLength) =>
         rule
             .Must(name => !IsBlank(name)).WithError(CommonErrors.NameRequired)
             .Must(name => IsBlank(name) || !name.Trim().Any(IsLineOrControl)).WithError(CommonErrors.NameInvalid)
-            .Must(name => name is null || name.Trim().Length <= FieldLimits.NameMaxLength).WithError(CommonErrors.NameTooLong);
+            .Must(name => name is null || name.Trim().Length <= maxLength).WithError(CommonErrors.NameTooLong);
 
     /// <summary>Optional free text (e.g. a drug's description): no NUL (it can't be stored); line breaks and tabs are
     /// fine.</summary>

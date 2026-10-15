@@ -69,7 +69,7 @@ descriptions are in `IdentityErrors` (+ `AccessErrors` for the 403s, `TooManyReq
 | GET | `/auth/otp/mode` | anonymous | — | `{ mode: "Display" \| "Sms" }` (not in HLD 8.1: lets the login page show the display-mode banner up front) | — |
 | POST | `/auth/otp/request` | anonymous | `{ phone }` | `{ expiresInSeconds, resendAfterSeconds, devCode? }` | 400 `invalidPhone`; 429 `tooManyRequests` (+ `Retry-After`) |
 | POST | `/auth/otp/verify` | anonymous | `{ phone, code }` | `AuthResult` + refresh cookie | 400 `invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`; 403 `noAccess` |
-| POST | `/auth/refresh` | refresh cookie | — | `AuthResult`, cookie rotated | 401 `unauthorized` (cookie cleared); 409 `conflict` the cookie was rotated by a parallel call less than 30 s ago (cookie kept, no tokens) |
+| POST | `/auth/refresh` | refresh cookie | — | `AuthResult`, cookie rotated | 401 `unauthorized` (cookie cleared); 401 `noContexts` the user has no context left: session revoked (cookie cleared; M1.5.3); 409 `conflict` the cookie was rotated by a parallel call less than 30 s ago (cookie kept, no tokens) |
 | POST | `/auth/context` | access token (any context) **and** this session's refresh cookie | `{ type: "clinic" \| "platform", clinicId? }` | `AuthResult`, cookie rotated | 403 `noAccess`, `clinicSuspended`; 401 session gone, or cookie missing/of another session (cookie kept); 409 as above |
 | GET | `/auth/contexts` | access token | — | `Context[]` | 401 |
 | POST | `/auth/logout` | refresh cookie | — | 204, session revoked, cookie cleared | — |
@@ -112,7 +112,7 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **`IUserAccounts` / `UserAccounts`** (scoped, M1.5.2): `GetOrCreateAsync(phone)`, the **one way to find or create a
   user by phone** (an already normalized E.164 phone): finds the user or adds and saves a new one (the caller's
   transaction).
-  Used by the super-admin seeding, clinic provisioning (the owner) and the dev seed; M1.5.3's "add staff" will use it
+  Used by the super-admin seeding, clinic provisioning (the owner), the dev seed and the admin's "add staff" (M1.5.3)
   too. Login never creates users. Accepted (M1.5 design D5): two requests creating the same new phone at the same
   moment hit the unique index; one fails with a 500 and works when sent again.
 - **Request** (`RequestOtpCommandHandler`): deletes codes older than a day; then takes
@@ -155,7 +155,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
     which only the controller reads, for the cookie.
 - **Refresh**: live session (not revoked, not expired) by token hash; re-checks the context
   against current contexts (lost → cleared, or replaced if only one is left; none left → session
-  revoked, 401). Every rotation keeps the old hash as `PreviousRefreshTokenHash` + `RotatedAt`:
+  revoked, 401 `IdentityErrors.NoContexts`, code `noContexts`, so the SPA can tell it from a session that ended
+  otherwise). Every rotation keeps the old hash as `PreviousRefreshTokenHash` + `RotatedAt`:
   a token that matches it within **30 s** (a parallel call won the race, before or after its commit)
   gets **409**, no tokens, and its cookie is **not** cleared (the winner's `Set-Cookie` is the valid one).
   Older tokens → 401. A reused old token does **not** revoke the session (no reuse detection).
@@ -170,7 +171,7 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 - **`AuthController`** (`api/v1/auth`), **`MeController`** (`api/v1/me`): thin, they send the use cases.
   The refresh cookie stays in `AuthController`: it passes the cookie's value to the commands and, from the
   `Result`, sets the rotated cookie on success, **clears** it on `IdentityErrors.SessionEnded` (401: no live
-  session) and on logout, and leaves it for every other failure (`RefreshTokenRejected` 401, 403, 409).
+  session) and `IdentityErrors.NoContexts` (401: revoked, no context left) and on logout, and leaves it for every other failure (`RefreshTokenRejected` 401, 403, 409).
   Cookie `clinichub_refresh`: `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`, `Expires` = session
   expiry. Browsers accept `Secure` cookies on `http://localhost`, so dev works over http; **any other host
   needs HTTPS** (on plain http the browser drops the cookie: every reload asks for a new login).
@@ -231,17 +232,36 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   - When the context key changes, `setSession` calls the context-changed handler **before** notifying, which cancels in-flight
     queries and clears the TanStack Query cache, so another clinic's data never shows.
 - **`api/client.ts`**: request interceptor adds `Authorization: Bearer` and records the context the
-  request was made in; on a 401 (except `/auth/otp/*`, `/auth/refresh`, `/auth/logout`,
-  `/auth/context`, which refreshes itself inside the queue) it refreshes once and retries once,
-  **unless the refresh changed the context** (e.g. another tab switched clinic): then the request
-  fails instead of being replayed in the wrong clinic. The store registers itself with
+  request was made in; on a 401, and on a 403 `noAccess`/`clinicSuspended` of a request made in a clinic (since
+  M1.5.3: the clinic may be lost, or the token out of date), except for `/auth/otp/*`, `/auth/refresh`,
+  `/auth/logout` and `/auth/context` (which refreshes itself inside the queue), it refreshes once (one shared call)
+  and retries once, **unless the refresh changed the context** (e.g. another tab switched clinic, or the clinic was
+  lost): then the request fails instead of being replayed in the wrong clinic. A 403 that persists after the replay
+  reaches the 403 handling in `AppProviders` (toast + `/me` reload, as for `forbidden`). The store registers itself with
   `setAuthHandlers` (no import cycle).
 - **`features/auth/api.ts`**: `requestOtp`, `verifyOtp`; `useOtpMode()` (`authKeys.otpMode`,
-  `staleTime: Infinity`); `useMeQuery` (`authKeys.me(contextKey)`).
+  `staleTime: Infinity`); `useMeQuery` (`authKeys.me(contextKey)`; also reloaded whenever the tab gets the focus
+  back, `refetchOnWindowFocus: "always"`, since M1.5.3); `useContextsQuery` (`GET /auth/contexts`, loaded on every
+  mount and focus).
 - **`AuthProvider`** (inside `AppProviders`): starts the session on load (`/auth/refresh`), and
   `useAuth()` exposes `status`, `context`, `contexts`, `me` (`GET /me`, query key `["me", contextKey]`),
   `signIn`, `switchContext`, `logout` (then opens `/login`), `retry` (offline). `useClinic()` returns
   the current clinic context inside the clinic app.
+- **Lost clinic** (since M1.5.3, design D7): every `/auth/refresh` re-checks the context (several contexts left →
+  cleared → picker; one → entered; none → 401 `noContexts` → `/login`), and the routes follow its answer. A 403
+  `noAccess`/`clinicSuspended` gets there through the interceptor's refresh (as a 401 does, e.g. for an expired access
+  token); a `/me` with `context: null` while in a clinic (`AuthProvider`) runs `refreshSession()` too. After any
+  refresh from a clinic context (`callRefresh`), when that clinic is no longer among the returned contexts (not when
+  another tab merely switched) or the refresh answered 401 `noContexts`, `onClinicLost` (called in a later task, after
+  the failed request's own error handling) lets `AuthProvider` dismiss the page's own error toast and say why
+  (`auth.clinicLostChoose` / `clinicLostMoved` / `clinicLostEnded`, the clinic names in bidi isolates), and open `/`
+  of the clinic it was moved to. Any other 401 (logged out in another tab, session expired) → `/login` without a
+  message. Not reported: the refresh retried inside a context switch, and page load (no clinic before: after a reload
+  the routes follow the refresh without a message, accepted). If the refresh keeps the same clinic (re-added under a
+  new staff record, access given back) the request is replayed once with the new token, so it succeeds quietly (a
+  save too: the API answered the 403 before running it), and `/me` is loaded again for the `/me` case. If the refresh
+  fails (API unreachable) the 403 is handled like `forbidden`. A 403 about a context already left (the request's
+  `_contextKey`) is ignored.
 - **Routes** (`app/App.tsx`): `SimpleLayout` (app bar with language + user menu, centered content)
   holds `/login`, `/select-clinic` (`RequireAuth`) and `/platform` (`RequireAuth context="platform"`,
   a TEMPORARY placeholder until the admin area). The clinic app (`AppLayout` + pages) is under
@@ -252,7 +272,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   `devCode`) a warning banner ("OTP display mode") is always visible; the code appears in an alert,
   is filled in and submitted automatically. Resend button with countdown; "change number".
 - **`SelectClinicPage`**: the contexts (clinics, template, platform), current one marked; picking
-  calls `/auth/context` and opens that context's home.
+  calls `/auth/context` and opens that context's home. The list is `GET /auth/contexts`, loaded fresh on opening (a
+  spinner meanwhile; the session's list if it fails), so a clinic lost or given since the last refresh shows as it is.
 - **`AppLayout`**: clinic name in the app bar, `UserMenu` (name + phone, "Switch clinic" when there
   are several contexts, "Log out"), and a warning banner in the template clinic.
 - **Prescription** (`usePrescriptionLines(clinicId)`): `localStorage["prescription.lines.<clinicId>"]`.
@@ -276,7 +297,8 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   (a demo/staging setup, not real patients' data: anyone can log in as any phone).
 - Per-IP rate limiting of `/auth/otp/*` is M3.2.
 - Outside Development the template starts empty (dev seed: sample content, M1.5.2).
-- Users are created only by seeding and `POST /admin/clinics` (owner); staff management is M1.5.3.
+- Users are created only by seeding, `POST /admin/clinics` (owner) and `POST /admin/clinics/{clinicId}/staff`
+  (M1.5.3); the latter two reuse an existing user of the phone.
 
 ## Testing notes
 Verified manually on a reset DB (API on :5000 in Development, Vite on :5173). With a Python script

@@ -67,9 +67,9 @@ Paths below are the current ones (after the [layout follow-up](#part-3-follow-up
   `CurrentUser` and policies read it from there. `AuthPolicies` stays in the Api (`IdentitySetup.cs`).
 - **The refresh cookie stays in `AuthController`**: login, refresh and switch return a `SessionIssue` (the
   `AuthResult` body + the refresh token and its expiry, `[JsonIgnore]`); the controller sets the cookie on
-  success, clears it on `IdentityErrors.SessionEnded` (401, no live session) and on logout, and leaves it on
-  every other failure (`RefreshTokenRejected` 401, 403, 409). The two 401s are distinct `Error`s with the
-  same code `unauthorized`.
+  success, clears it on `IdentityErrors.SessionEnded` (401, no live session; and on `NoContexts` since M1.5.3) and on
+  logout, and leaves it on every other failure (`RefreshTokenRejected` 401, 403, 409). `SessionEnded` and
+  `RefreshTokenRejected` are distinct `Error`s with the same code `unauthorized`.
 - **Access** (`Application/Features/Access`): `IPermissionService`/`PermissionService` (returns `Error`s, not code
   strings), `MembershipService` (`StaffMembers/`), `Permissions` + `PermissionCatalog` + `RequiresAttribute`, `DefaultRoles`
   (names and permissions; `DefaultRolesSeeder` creates them since M1.5.2), `PermissionSet`, `GetPermissionsQuery`. The Api keeps
@@ -82,7 +82,8 @@ Paths below are the current ones (after the [layout follow-up](#part-3-follow-up
   (not a use case: it runs before the app serves requests) on `IAppDbContext` + `ITransactionRunner` only, so
   it fits Application; it invalidates the cache after the commit. `Database.MigrateAsync()` stays in `Program.cs`.
 - **Errors**: `IdentityErrors` (`invalidPhone`, `invalidCode`, `codeExpired`, `tooManyAttempts`, and the session
-  outcomes `SessionEnded`/`RefreshTokenRejected` (`unauthorized` 401) and `RefreshTokenRotated` (`conflict` 409));
+  outcomes `SessionEnded`/`RefreshTokenRejected` (`unauthorized` 401) and `RefreshTokenRotated` (`conflict` 409); since
+  M1.5.3 also `NoContexts` (`noContexts` 401: the refresh revoked the session, no clinic left));
   `AccessErrors` (`noAccess`, `clinicSuspended`); `forbidden`, `unauthorized` from `CommonErrors`. The OTP 429 is a
   `TooManyRequestsError` (§ 6). `ErrorCodes` and `BaseApiController.ApiError` are deleted. Codes and statuses are
   unchanged; the `detail`/`description` texts are now the errors' own (they were generic per status), and
@@ -367,6 +368,13 @@ public interface IAppDbContext
   super admin's per-clinic admin endpoints (`ClinicErrors.NotFound` for a missing, deleted or template clinic;
   suspended allowed; switching to a *different* clinic once one is set throws) and `using (scope.Use(clinicId))`
   for non-HTTP code (sets it for a block, restores the previous one; nestable).
+- **The admin clinic filter** (M1.5.3, `Api/Features/Platform/AdminClinicFilter.cs`): `[AdminClinic]` on
+  `AdminRolesController` and `AdminStaffController` (routes `api/v1/admin/clinics/{clinicId:int}/roles…`,
+  `/staff…`, with the `PlatformAdmin` policy, which guarantees no clinic is set yet). A resource filter: it runs
+  after authorization and before model binding, calls `EnterAsync(clinicId)` with the route value, and answers its
+  failure through the usual `Result` → ProblemDetails mapping (404 `notFound`, even for a malformed body). The role
+  and staff use cases then run in that clinic like the Catalog ones: the query filter hides another clinic's role
+  or staff id (404), and the save interceptor stamps the clinic.
 - **Cross-clinic work** (Platform code only): reads across clinics are explicit, `IgnoreQueryFilters()`, read
   only (e.g. the admin clinic list's staff counts, `ClinicQueries.SelectDetails`' staff count and owners); writes go one clinic
   at a time through `scope.Use(clinicId)`; the save interceptor refuses a row of another clinic. Deleted clinics
@@ -422,8 +430,11 @@ ClinicHub.Application/
     Authorization/
       PermissionCatalog.cs  PermissionSet.cs  IPermissionService.cs  PermissionService.cs  IAccessCache.cs
       Queries/GetPermissions/
-    Roles/                       DefaultRoles.cs
-    StaffMembers/                IMembershipService.cs  MembershipService.cs
+    Roles/                       DefaultRoles.cs  RoleDto.cs (+ RoleMappings)  RoleErrors.cs  RoleRules.cs
+      Commands/CreateRole/  Commands/UpdateRole/  Commands/DeleteRole/  Queries/GetRoles/
+    StaffMembers/                IMembershipService.cs  MembershipService.cs  StaffMemberDto.cs (+ StaffRoleDto,
+                                 StaffMappings.SelectDto)  StaffErrors.cs  StaffRules.cs
+      Commands/AddStaff/  Commands/UpdateStaff/  Commands/RemoveStaff/  Queries/GetStaff/
    Platform/
     Clinics/                     ClinicErrors.cs  ClinicDto.cs  ClinicQueries.cs (NotDeleted, Manageable, SelectDetails)  ClinicScope.cs
       Commands/CreateClinic/  Commands/RenameClinic/  Commands/SuspendClinic/  Commands/ActivateClinic/  Commands/DeleteClinic/
@@ -433,7 +444,13 @@ ClinicHub.Application/
 ```
 
 Platform has no module-wide errors class yet (only `Clinics/ClinicErrors.cs`); the Api side is
-`Api/Features/Platform/AdminClinicsController.cs`. The provisioner is internal: only the `CreateClinicCommand` handler
+`Api/Features/Platform/` (`AdminClinicsController`, `AdminRolesController`, `AdminStaffController`,
+`AdminClinicFilter`). The role and staff use cases live in **Access** (they are clinic data, sent later by clinic-side
+endpoints too); only their admin controllers are Platform's. `RoleRules` and `StaffRules` are pure static helpers
+(no interface, like `ClinicQueries`): `IQueryable` extensions the commands compose and run themselves
+(`db.Roles.WithName(name).AnyAsync()`, `db.Staff.ActiveOwners()`…) plus in-memory rules; they never run a query.
+Role names are compared case-insensitively with provider-neutral LINQ (`Name.ToLower()` in SQL against the new
+name lowered with the invariant culture), so Application references no database provider. The provisioner is internal: only the `CreateClinicCommand` handler
 calls it (so it always runs in that command's transaction); everyone else, the dev seed included, sends the command.
 
 - **A module root holds only `<Module>Errors.cs`** (Access also holds `Permissions.cs`, § 7.1). Everything else
@@ -448,7 +465,8 @@ calls it (so it always runs in that command's transaction); everyone else, the d
 - **Every service and seeder is used through an interface** (even with one implementation), registered under
   that interface. Static helpers and value types are exempt (e.g. `OtpHash`, `DosingRules`, `Paging`,
   `PermissionCatalog`, `SessionRules`, `JwtValidation`, `ConfigPhones`; the `PermissionSet` value; the `DefaultRoles`
-  constants). Nothing static writes to the database.
+  constants; `IQueryable` extensions that only compose a query, such as `ClinicQueries`, `RoleRules`, `StaffRules`).
+  No static helper runs a query or writes to the database: that is for handlers and services.
 - Callers never reference the concrete class (DI registration code may, e.g. `AccessCache.Expiration` in
   `AddInfrastructure`); constants and static members that callers need go on the interface or in a small static
   class next to it (`SessionRules`, Infrastructure's `JwtValidation`). An interface of an `internal` class may

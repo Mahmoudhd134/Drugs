@@ -1,6 +1,6 @@
 import {api, setAuthHandlers} from "../../api/client.ts";
 import {toApiError} from "../../api/errors.ts";
-import {type AuthResult, contextKey} from "./types.ts";
+import {type AuthResult, type ClinicContext, contextKey} from "./types.ts";
 
 /**
  * The login session, outside React so the axios interceptor can use it. The access token lives
@@ -64,16 +64,29 @@ const status = (error: unknown) => toApiError(error)?.status;
 /** Calls made while holding the cross-tab lock must not hang forever on a stalled API. */
 const AUTH_TIMEOUT = {timeout: 15_000};
 
-const callRefresh = async (): Promise<string | null> => {
+/**
+ * Every refresh re-checks the context (design D7): a clinic lost meanwhile is cleared (several contexts left), replaced
+ * by the only one left, or ends the session (none left). `reportsLoss` tells {@link onClinicLost} when the clinic the
+ * session was in is no longer one of the user's contexts (not when another tab merely switched). Off for the retry
+ * inside a context switch; nothing to report on page load (no clinic before).
+ */
+const callRefresh = async (reportsLoss = true): Promise<string | null> => {
+    const before = state;
     for (let attempt = 0; ; attempt++) {
         try {
             const {data} = await api.post<AuthResult>("/auth/refresh", null, AUTH_TIMEOUT);
             setSession(data);
+            if (reportsLoss) reportClinicLoss(before);
             return data.accessToken;
         } catch (error) {
             // 409: another tab rotated the cookie at the same moment; the browser now has its new one
             if (status(error) === 409 && attempt === 0) continue;
-            if (status(error) === 401) setSession(null);
+            if (status(error) === 401) {
+                setSession(null);
+                // Only `noContexts` says the clinics are gone; any other 401 (logged out in another tab, session
+                // expired) is a plain logout
+                if (reportsLoss && toApiError(error)?.code === "noContexts") reportClinicLoss(before);
+            }
             // API unreachable or failing: keep the session (the request fails with its own error),
             // except on page load, where there is nothing to keep
             else if (state.status === "loading") setState({status: "offline"});
@@ -86,7 +99,7 @@ let refreshing: Promise<string | null> | null = null;
 
 /** Gets a new access token with the refresh cookie; concurrent callers share one call. Null when it fails. */
 export const refreshSession = (): Promise<string | null> => {
-    refreshing ??= exclusive(callRefresh).finally(() => {
+    refreshing ??= exclusive(() => callRefresh()).finally(() => {
         refreshing = null;
     });
     return refreshing;
@@ -115,12 +128,46 @@ export const switchSessionContext = (type: "clinic" | "platform", clinicId?: num
             response = await post();
         } catch (error) {
             if (status(error) === 409) response = await post();
-            else if (status(error) === 401 && await callRefresh()) response = await post();
+            else if (status(error) === 401 && await callRefresh(false)) response = await post();
             else throw error;
         }
         setSession(response.data);
         return response.data;
     });
+
+/**
+ * How a lost clinic ended (see {@link callRefresh}): the context was cleared (several contexts left: the picker),
+ * replaced by the only one left (`to`), or the session ended (none left: login).
+ */
+export type ClinicLoss =
+    | { from: ClinicContext; outcome: "cleared" | "ended" }
+    | { from: ClinicContext; outcome: "moved"; to: ClinicContext };
+
+let clinicLostHandler: ((loss: ClinicLoss) => void) | null = null;
+
+/** Runs after a lost clinic changed the session (the provider tells the user and opens the new clinic's home). */
+export const onClinicLost = (handler: (loss: ClinicLoss) => void) => {
+    clinicLostHandler = handler;
+};
+
+/**
+ * After a refresh: tells {@link onClinicLost} if the session was in a clinic that is no longer one of the user's
+ * contexts (`ended`: the refresh answered 401 `noContexts`). Told in a later task, after the failed request's own
+ * error handling (e.g. a page's error toast, which the provider's message replaces).
+ */
+const reportClinicLoss = (before: SessionState) => {
+    if (before.status !== "authenticated" || before.auth.context?.type !== "clinic") return;
+    const from = before.auth.context;
+    const now: SessionState = state;
+    let loss: ClinicLoss;
+    if (now.status === "anonymous") loss = {from, outcome: "ended"};
+    else if (now.status === "authenticated"
+        && !now.auth.contexts.some(c => c.type === "clinic" && c.clinicId === from.clinicId)) {
+        const to = now.auth.context;
+        loss = to?.type === "clinic" ? {from, outcome: "moved", to} : {from, outcome: "cleared"};
+    } else return;
+    setTimeout(() => clinicLostHandler?.(loss));
+};
 
 /**
  * Revokes the session after any refresh in flight (whose result would otherwise log the user back

@@ -84,6 +84,9 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 
 - Since M1.2 the request's clinic comes from the token's `clinic_id`: `UseClinicFromToken()` in the Api's
   `Features/Identity/IdentitySetup` (reads `ICurrentUser`, whose interface is in `Application/Common/Abstractions`).
+  Only exception (M1.5.3): the super admin's per-clinic admin routes (`/admin/clinics/{clinicId}/roles…`, `/staff…`),
+  where the admin clinic filter enters the route's clinic (`IClinicScope.EnterAsync`; a platform token carries none);
+  the use cases then run under the same filter and interceptor ([platform admin](../platform-admin/tech.md#roles-and-staff-m153)).
 
 ## Frontend
 No changes. The SPA never sends a clinic; the API decides it.

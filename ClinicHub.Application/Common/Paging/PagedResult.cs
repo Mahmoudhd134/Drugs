@@ -22,5 +22,5 @@ public static class Paging
     /// sent to the database); null or empty means no filter.
     /// </summary>
     public static string SearchTerm(string search) =>
-        search is null ? null : new string(search.Where(c => !char.IsControl(c)).ToArray()).Trim().ToLower();
+        search is null ? null : new string(search.Where(c => !char.IsControl(c)).ToArray()).Trim().ToLowerInvariant();
 }

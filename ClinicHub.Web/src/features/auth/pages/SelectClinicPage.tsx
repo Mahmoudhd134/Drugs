@@ -21,12 +21,19 @@ import {getErrorMessage} from "../../../api/errors.ts";
 import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {homeOf, useAuth} from "../useAuth.ts";
 import {type Context, contextKey} from "../types.ts";
+import {useContextsQuery} from "../api.ts";
 
-/** Picks the context after login (several clinics, or super admin), and from "Switch clinic". */
+/**
+ * Picks the context after login (several clinics, or super admin), and from "Switch clinic". The list is loaded
+ * fresh on opening (a clinic lost or given since the last login or refresh shows as it is now); if that fails,
+ * the session's list.
+ */
 export const SelectClinicPage = () => {
     const {t} = useTranslation();
     const navigate = useNavigate();
-    const {context: current, contexts, switchContext, logout} = useAuth();
+    const {context: current, contexts: sessionContexts, switchContext, logout} = useAuth();
+    const contextsQuery = useContextsQuery();
+    const contexts = contextsQuery.data ?? sessionContexts;
     const [pending, setPending] = useState<string | null>(null);
 
     const choose = async (context: Context) => {
@@ -58,7 +65,9 @@ export const SelectClinicPage = () => {
                 <Typography variant="body2" color="text.secondary">{t("auth.selectSubtitle")}</Typography>
             </div>
             <Card variant="outlined">
-                {contexts.length === 0 ? (
+                {contextsQuery.isPending ? (
+                    <Stack sx={{alignItems: "center", py: 4}}><CircularProgress/></Stack>
+                ) : contexts.length === 0 ? (
                     <EmptyState icon={<LocalHospitalIcon/>} title={t("auth.noContexts")}/>
                 ) : (
                     <List disablePadding>

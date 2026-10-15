@@ -44,7 +44,7 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
   Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
-  Common/Validation/           .WithError(error), the shared ValidName() (nameRequired, nameInvalid, nameTooLong) and
+  Common/Validation/           .WithError(error), the shared ValidName(maxLength = 256) (nameRequired, nameInvalid, nameTooLong) and
                                ValidText() (invalidText) rules
   Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
@@ -61,8 +61,10 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                [PermissionModule], + RequiresAttribute, PermissionModuleAttribute); sub-features:
     Authorization/             PermissionCatalog, PermissionSet, IPermissionService/PermissionService, IAccessCache;
                                Queries/GetPermissions
-    Roles/                     DefaultRoles
-    StaffMembers/              IMembershipService/MembershipService
+    Roles/                     DefaultRoles, RoleDto, RoleErrors, RoleRules; Commands/ (CreateRole, UpdateRole,
+                               DeleteRole), Queries/GetRoles
+    StaffMembers/              IMembershipService/MembershipService, StaffMemberDto, StaffErrors, StaffRules; Commands/
+                               (AddStaff, UpdateStaff, RemoveStaff), Queries/GetStaff
   Features/Platform/Clinics/   ClinicErrors, ClinicDto (ClinicSummary, ClinicDetails), ClinicQueries (NotDeleted,
                                Manageable, SelectDetails), ClinicScope (IClinicScope); Commands/ (CreateClinic, RenameClinic,
                                SuspendClinic, ActivateClinic, DeleteClinic), Queries/ (GetClinics, GetClinic)
@@ -93,7 +95,9 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   Features/Drugs, DrugGroups/  thin controllers (+ their request records)
   Features/Identity/           AuthController (+ the refresh cookie), MeController, CurrentUser (ICurrentUser
                                from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
-  Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy)
+  Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy),
+                               AdminRolesController + AdminStaffController (…/clinics/{clinicId}/roles, /staff) with
+                               the admin clinic filter ([AdminClinic], AdminClinicFilter: the route's clinic)
   Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, PlatformAdminHandler, the 403 answers
                                (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
                                PermissionsController, AccessSetup (DI)
@@ -185,9 +189,10 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   one; a NUL would fail in the database): they are dropped from the term.
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
-  `IdentityErrors`, `AccessErrors`, `ClinicErrors`). Add new codes
+  `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`, `StaffErrors`). Add new codes
   there **and** under `errors.*` in both locale files. The transport codes (`unauthorized`, `invalidRequest`,
-  `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them.
+  `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;
+  nor has `noContexts` (the refresh's 401 when no clinic is left: the SPA logs out with its own `auth.*` message).
 - `Nullable` is disabled in every csproj.
 - **Clinic-owned data:** a clinic's entity implements `IClinicOwned` (and `IHasTimestamps`); the
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
@@ -336,14 +341,25 @@ Drugs                       DrugGroups
 | PUT | `/admin/clinics/{id}` | Rename `{ name }` → `ClinicDetails` |
 | POST | `/admin/clinics/{id}/suspend`, `/admin/clinics/{id}/activate` | → 204 (idempotent) |
 | DELETE | `/admin/clinics/{id}` | Soft delete → 204 (final for now) |
+| GET | `/admin/clinics/{clinicId}/roles` | `Role[]`, Owner first then by name (`permissions` in catalog order; the Owner's = every key; `staffCount` = holders, active or not) |
+| POST | `/admin/clinics/{clinicId}/roles` | Create `{ name, permissions[] }` → 201 + `Role` (keys stored with their requirements; `Location` = the list) |
+| PUT | `/admin/clinics/{clinicId}/roles/{roleId}` | Rename + replace permissions → `Role` (not the Owner: `roleLocked`) |
+| DELETE | `/admin/clinics/{clinicId}/roles/{roleId}` | → 204 (`roleLocked`, `roleInUse`) |
+| GET | `/admin/clinics/{clinicId}/staff?search=&page=1&pageSize=20` | Paged `StaffMember` (active or not) by name; `search` = name, or phone digits |
+| POST | `/admin/clinics/{clinicId}/staff` | Add `{ phone, fullName, roleIds[] }` → 201 + `StaffMember` (user reused by phone or created; `Location` = the list) |
+| PUT | `/admin/clinics/{clinicId}/staff/{staffId}` | `{ fullName, isActive, roleIds[] }` → `StaffMember` (phone can't change; `lastOwner`) |
+| DELETE | `/admin/clinics/{clinicId}/staff/{staffId}` | Remove (real delete) → 204 (`lastOwner`) |
 
 Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
 (`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
 permission (e.g. `drugs.delete`, [table](../features/access/tech.md#api)), else 403 `forbidden`;
 inactive staff or a deleted clinic → 403 `noAccess`, suspended clinic → 403 `clinicSuspended`. Auth contracts:
 [login tech](../features/auth/tech.md). Admin routes (`/admin/*`) need a platform-context token of a
-current super admin (else 403 `forbidden`); a missing, deleted or template clinic id → 404 `notFound`
-([platform admin](../features/platform-admin/tech.md)).
+current super admin (else 403 `forbidden`); a missing, deleted or template clinic id → 404 `notFound`, also on the
+roles and staff routes (a suspended clinic is managed); a role or staff id of another clinic → 404 `notFound`. Role
+and staff errors: `roleNameTaken`, `roleLocked`, `roleInUse`, `staffExists`, `lastOwner` (409); `unknownPermission`,
+`rolesRequired`, `roleNotFound`, `invalidPhone` and the name codes (400)
+([platform admin](../features/platform-admin/tech.md#api)).
 
 Swagger UI is available in Development at `/swagger`.
 
@@ -429,9 +445,9 @@ Swagger UI is available in Development at `/swagger`.
 ### Data fetching
 
 - `api/client.ts`: one axios instance (`baseURL` = `VITE_API_BASE_URL` or `/api/v1`). Interceptors add
-  `Authorization: Bearer <access token>` and, on a 401, refresh once (shared promise) and retry
-  (not if the refresh moved to another clinic); a 401 from the refresh logs out (→ `/login`), a
-  network error doesn't. The access token lives only in memory
+  `Authorization: Bearer <access token>` and, on a 401 (or a 403 `noAccess`/`clinicSuspended` in a clinic), refresh
+  once (shared promise) and retry once (not if the refresh moved to another clinic); a 401 from the refresh logs out
+  (→ `/login`), a network error doesn't. The access token lives only in memory
   (`features/auth/session.ts`), never in storage.
 - A context switch or logout cancels in-flight queries and clears the whole query cache.
 - Each feature has `api.ts` with a query-key factory (`drugKeys`, `drugGroupKeys`) and hooks:
@@ -439,7 +455,10 @@ Swagger UI is available in Development at `/swagger`.
   `useSaveX` / `useDeleteX` mutations that invalidate the feature's keys. Query hooks take
   `{enabled}` (`QueryOptions`), so pages never call endpoints the user can't use.
 - Queries retry once, and only on network/5xx errors. Any 403 reloads `/me` (permissions may have
-  changed); a 403 from a query also toasts the translated reason.
+  changed); a 403 from a query also toasts the translated reason. A 403 `noAccess`/`clinicSuspended` in a clinic
+  is first handled by the refresh interceptor, like a 401: it refreshes the session (as does a `/me` without a
+  context while in a clinic) and follows it: picker, the only clinic left, or login (with a message; a refresh 401
+  `noContexts` = no clinic left), else replays the request once ([auth](../features/auth/tech.md)). `/me` also reloads when the tab gets the focus back.
   Drug mutations also invalidate group queries (groups embed drug names).
 - `api/errors.ts` is the one place that reads error responses (the refresh interceptor uses it too): `toApiError(error)` parses the API's
   ProblemDetails into a typed `ApiError { status, code, errors, traceId }` (null without an HTTP response);
@@ -554,11 +573,12 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 > Planned direction (clinics, staff, roles, phone + OTP login, super admin):
 > [platform high-level design](../design/platform-hld.md).
 
-- Staff and roles come only from seeding and clinic creation until the admin area (M1.5.3–M1.5.5). Clinics can be
-  created (M1.5.2, with their owner), renamed, suspended, re-activated and deleted through the admin API (no screens yet).
-- Permission or active-flag changes made outside the (future) admin endpoints apply within 30 s
+- The admin area has an API only (screens in M1.5.4–M1.5.5): clinics can be created (with their owner), renamed,
+  suspended, re-activated and deleted, and each clinic's roles and staff managed (M1.5.3). Clinics can't manage their
+  own staff or roles yet.
+- Permission or active-flag changes made outside the admin endpoints (e.g. psql) apply within 30 s
   (in-memory access cache) or at the next token refresh; the SPA's `/me` is cached 5 min (reloaded
-  on any 403).
+  on any 403 and whenever the tab gets the focus back).
 - No SMS sender yet: a deployed server must run with `Otp__Mode=Display` (code on screen; anyone can
   log in as any phone), so it suits a demo/staging server only.
 - No per-IP limit on OTP requests yet (M3.2): one person can request codes for many numbers

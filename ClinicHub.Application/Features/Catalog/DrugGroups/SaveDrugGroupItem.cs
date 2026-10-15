@@ -6,6 +6,9 @@ namespace ClinicHub.Application.Features.Catalog.DrugGroups;
 /// <param name="Dosing">The group's override (null = the drug's default).</param>
 public record SaveDrugGroupItem(int DrugId, Dosing Dosing)
 {
+    /// <summary>At most this many lines in a group (validation: <c>invalidRequest</c> beyond it).</summary>
+    public const int MaxItems = 1000;
+
     /// <summary>The non-null items, in the given order, with their dosing normalized.</summary>
     public static List<SaveDrugGroupItem> Normalize(List<SaveDrugGroupItem> items) =>
         (items ?? [])

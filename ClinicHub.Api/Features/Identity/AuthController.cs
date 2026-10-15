@@ -48,7 +48,10 @@ public class AuthController(ISender sender) : BaseApiController
         CancellationToken cancellationToken) =>
         Respond(await sender.Send(new VerifyOtpCommand(request.Phone, request.Code), cancellationToken));
 
-    /// <summary>401 = no valid session (cookie cleared); 409 = a parallel refresh already rotated this cookie.</summary>
+    /// <summary>
+    /// 401 = no valid session (cookie cleared; code <c>noContexts</c> when it ended because the user has no clinic
+    /// left); 409 = a parallel refresh already rotated this cookie.
+    /// </summary>
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResult>> Refresh(CancellationToken cancellationToken) =>
         Respond(await sender.Send(new RefreshSessionCommand(Request.Cookies[RefreshCookie]), cancellationToken));
@@ -81,8 +84,9 @@ public class AuthController(ISender sender) : BaseApiController
             Response.Cookies.Append(RefreshCookie, result.Data.RefreshToken, RefreshCookieOptions(result.Data.RefreshExpiresAt));
             return Ok(result.Data.Result);
         }
-        // By reference: the two 401s share code and type
-        if (ReferenceEquals(result.Error, IdentityErrors.SessionEnded))
+        // By reference: SessionEnded and RefreshTokenRejected share code and type
+        if (ReferenceEquals(result.Error, IdentityErrors.SessionEnded)
+            || ReferenceEquals(result.Error, IdentityErrors.NoContexts))
             DeleteRefreshCookie();
         return result.ToProblem();
     }

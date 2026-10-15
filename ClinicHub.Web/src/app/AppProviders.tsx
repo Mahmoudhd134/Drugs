@@ -11,27 +11,29 @@ import {createAppTheme} from "./theme.ts";
 import {useLanguage} from "../hooks/useLanguage.ts";
 import {AuthProvider} from "../features/auth/AuthProvider.tsx";
 import {getErrorMessage, toApiError} from "../api/errors.ts";
+import {requestContextKey} from "../api/client.ts";
 import {authKeys} from "../features/auth/api.ts";
-
-const isForbidden = (error: unknown) => toApiError(error)?.status === 403;
+import {currentContextKey} from "../features/auth/session.ts";
 
 /**
- * A 403 means the permissions shown are out of date (changed by an admin, staff deactivated, clinic
- * suspended): reload them from /me so the UI catches up. Queries also toast the translated reason
- * (pages already toast their own mutation errors).
+ * A 403 means the permissions shown are out of date (changed by an admin): reload them from /me so the UI catches
+ * up. Queries also toast the translated reason (pages already toast their own mutation errors). A lost clinic
+ * (`noAccess`, `clinicSuspended`) reaches this only when it persists after the API client's refresh and replay
+ * (design D7, `api/client.ts`). Answers about a context already left (another tab switched, or the clinic was
+ * lost and the session moved on) are ignored.
  */
+const onForbidden = (error: unknown, toastReason: boolean) => {
+    if (toApiError(error)?.status !== 403 || requestContextKey(error) !== currentContextKey()) return;
+    if (toastReason) toast.error(getErrorMessage(error), {id: "forbidden"});
+    void queryClient.invalidateQueries({queryKey: authKeys.allMe});
+};
+
 const queryClient: QueryClient = new QueryClient({
     queryCache: new QueryCache({
-        onError: (error) => {
-            if (!isForbidden(error)) return;
-            toast.error(getErrorMessage(error), {id: "forbidden"});
-            void queryClient.invalidateQueries({queryKey: authKeys.allMe});
-        },
+        onError: (error) => onForbidden(error, true),
     }),
     mutationCache: new MutationCache({
-        onError: (error) => {
-            if (isForbidden(error)) void queryClient.invalidateQueries({queryKey: authKeys.allMe});
-        },
+        onError: (error) => onForbidden(error, false),
     }),
     defaultOptions: {
         queries: {

@@ -67,6 +67,14 @@ const en = {
         noAccess: "This number has no access. Ask your clinic to add you.",
         clinicSuspended: "This clinic is suspended.",
         forbidden: "You are not allowed to do this.",
+        roleNameTaken: "Another role in this clinic already has this name.",
+        unknownPermission: "One of the permissions doesn't exist.",
+        roleLocked: "The Owner role can't be changed or deleted.",
+        roleInUse: "This role is assigned to staff members. Remove it from them first.",
+        rolesRequired: "Choose at least one role.",
+        roleNotFound: "One of the roles no longer exists.",
+        staffExists: "This number already belongs to a staff member of this clinic.",
+        lastOwner: "The clinic must keep at least one active owner.",
     },
     auth: {
         loginTitle: "Log in",
@@ -99,6 +107,10 @@ const en = {
         account: "Account",
         switchContext: "Switch clinic",
         logout: "Log out",
+        // A clinic the user was working in can't be entered any more (deactivated, removed, clinic suspended)
+        clinicLostChoose: "You no longer have access to “\u2068{{from}}\u2069”. Choose where to continue.",
+        clinicLostMoved: "You no longer have access to “\u2068{{from}}\u2069”. You are now in “\u2068{{to}}\u2069”.",
+        clinicLostEnded: "You no longer have access to “\u2068{{from}}\u2069” or to any other clinic.",
     },
     prescription: {
         title: "Prescription",

@@ -37,7 +37,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 |---|---|---|---|---|
 | GET | `/drug-groups?search=&page=1&pageSize=20` | query | `PagedResult<DrugGroupDto>` | |
 | GET | `/drug-groups/{id}` | | `DrugGroupDto` | 404 `notFound` |
-| POST | `/drug-groups` | `SaveDrugGroupRequest` | 201 `DrugGroupDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `drugsRequired`, `invalidDosing`, `duplicateGroupItem`, `drugNotFound` |
+| POST | `/drug-groups` | `SaveDrugGroupRequest` | 201 `DrugGroupDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `drugsRequired`, `invalidRequest` (> 1000 items), `invalidDosing`, `duplicateGroupItem`, `drugNotFound` |
 | PUT | `/drug-groups/{id}` | `SaveDrugGroupRequest` | `DrugGroupDto` | 400 (as above, checked first), 404 `notFound` |
 | DELETE | `/drug-groups/{id}` | | 204 | 404 `notFound` |
 
@@ -60,7 +60,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   `duplicateGroupItem`, `DrugNotFound`), `SaveDrugGroupItem(drugId, dosing)` with `Normalize(items)` (drops null
   items, normalizes each dosing, keeps the order), used by the validators and the handlers.
 - Validators (create and update, one each), in report order: name (`ValidName()`) → at least one non-null item
-  (`drugsRequired`, field `items`) → each item's dosing valid with `allowAskEye: true` (`invalidDosing`, field
+  (`drugsRequired`, field `items`) → at most `SaveDrugGroupItem.MaxItems` (1000) items (`invalidRequest`, field
+  `items`; beyond it the item rules are skipped, so a huge list can't build a huge answer) → each item's dosing valid with `allowAskEye: true` (`invalidDosing`, field
   `items[i].dosing`; a custom frequency text with a NUL is invalid) → no duplicate `(drugId, override eye)`
   (`duplicateGroupItem`, field `items`). All failures are returned.
 - The handlers then check that every drug exists in the clinic (`drugNotFound`, 400): it reads the database,
