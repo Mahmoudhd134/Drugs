@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/features/dosing/types.ts",
+    "src/features/dosing/dosingText.ts",
+    "src/features/dosing/taper.ts",
+    "src/features/prescription/prescriptionText.ts",
+    "src/features/prescription/usePrescriptionLines.ts",
+    "src/features/drugGroups/editorItem.ts",
+    "src/features/roles/permissionChoice.ts",
+    "src/api/errors.ts",
+    "src/api/dataScope.ts",
+    "src/app/chunkReload.ts",
+    "src/hooks/useSingleFlight.ts",
+    "src/utils/clipboard.ts"
+  ],
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "htmlReporter": {
+    "fileName": "../artifacts/mutation/frontend/mutation.html"
+  },
+  "jsonReporter": {
+    "fileName": "../artifacts/mutation/frontend/mutation.json"
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 85,
+    "break": 85
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": "always",
+  "concurrency": 4,
+  "timeoutMS": 20000
+}
