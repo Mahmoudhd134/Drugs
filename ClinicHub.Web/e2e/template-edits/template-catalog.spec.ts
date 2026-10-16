@@ -1,0 +1,48 @@
+import {expect, signIn, superAdminPhone, test} from "../support/fixtures.ts";
+import {unique} from "../support/phones.ts";
+import {expectContextLabel, expectToast, navTo} from "../support/ui.ts";
+
+/**
+ * Changes the template's catalog, which every new clinic copies: this project runs alone, after all the others
+ * (playwright.config.ts), so no clinic created by another test copies these changes.
+ */
+test.describe("The template clinic's catalog @area:auth", () => {
+    test("a super admin adds and edits a drug and a group in the template, as in any clinic @AUTH-181", async ({page, t}) => {
+        const u = unique();
+        const drug = `Template drug ${u}`;
+        const group = `Template group ${u}`;
+        await signIn(page, superAdminPhone(), "template", "/drugs");
+        await expectContextLabel(page, t.template);
+
+        // Add a drug, then edit it
+        await page.getByRole("button", {name: t.addDrug}).click();
+        let dialog = page.getByRole("dialog");
+        await dialog.getByRole("textbox", {name: t.drugName}).fill(drug);
+        await dialog.getByRole("button", {name: t.save}).click();
+        await expectToast(page, t.drugAdded);
+        await page.getByRole("cell", {name: drug, exact: true}).click();
+        dialog = page.getByRole("dialog", {name: t.editDrug});
+        await dialog.getByRole("textbox", {name: t.drugName}).fill(`${drug} edited`);
+        await dialog.getByRole("button", {name: t.save}).click();
+        await expectToast(page, t.drugUpdated);
+        await expect(page.getByRole("cell", {name: `${drug} edited`, exact: true})).toBeVisible();
+
+        // Add a group with it, then edit the group
+        await navTo(page, t, t.navGroups);
+        await page.getByRole("link", {name: t.newGroup}).click();
+        await page.getByRole("textbox", {name: t.groupName}).fill(group);
+        await page.getByPlaceholder(t.searchDrugs).fill(`${drug} edited`);
+        await page.getByRole("option", {name: new RegExp(`${drug} edited`)}).click();
+        await page.getByRole("button", {name: t.save, exact: true}).click();
+        await expectToast(page, t.groupCreated);
+        await expect(page).toHaveURL(/\/groups$/);
+
+        await page.getByText(group, {exact: true}).click();
+        await expect(page.getByRole("heading", {level: 1, name: t.editGroup})).toBeVisible();
+        await page.getByRole("textbox", {name: t.groupName}).fill(`${group} edited`);
+        await page.getByRole("button", {name: t.save, exact: true}).click();
+        await expectToast(page, t.groupUpdated);
+        await expect(page.getByText(`${group} edited`, {exact: true})).toBeVisible();
+        await expectContextLabel(page, t.template);
+    });
+});
