@@ -6,3 +6,4 @@ describe.skip(
         test("inside @FIX-002", () => {});
     },
 );
+test.fails("expected to fail, no bug id @FIX-005", () => {});

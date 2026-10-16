@@ -1,4 +1,5 @@
 using System.Net;
+using ClinicHub.Api.Features.Drugs;
 using ClinicHub.Application.Common.Paging;
 using ClinicHub.Application.Common.Results;
 using ClinicHub.Application.Features.Catalog.Drugs;
@@ -56,14 +57,16 @@ public class UnexpectedErrorTests(AppFixture app) : IntegrationTest(app)
         variant.Start();
         var owner = await Login.On(variant).OwnerAsync(clinic);
 
-        var malformed = await owner.SendRawAsync(HttpMethod.Post, "/api/v1/drugs", """{"name": 123}""");
+        const string body = """{"name": 123}""";
+        var malformed = await owner.SendRawAsync(HttpMethod.Post, "/api/v1/drugs", body);
         var failing = await owner.GetAsync("/api/v1/drugs");
 
         var invalid = await malformed.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
         var error = invalid.Errors.ShouldHaveSingleItem();
         error.Field.ShouldBe("name");
-        error.Description.ShouldNotBe(CommonErrors.InvalidRequest.Description);
-        error.Description.ShouldNotBeNullOrWhiteSpace();
+        // The parser's own message for this body (architecture § 6: "it names CLR types"), not a fixed text
+        error.Description.ShouldBe(ParserMessage(body));
+        error.Description.ShouldContain(typeof(SaveDrugRequest).FullName);
         var unexpected = await failing.ShouldBeProblemAsync(HttpStatusCode.InternalServerError, "unexpected");
         unexpected.Detail.ShouldBe(Secret);
         var exception = (string)unexpected.Body["exception"];
@@ -72,6 +75,10 @@ public class UnexpectedErrorTests(AppFixture app) : IntegrationTest(app)
         exception.ShouldContain(Secret);
         exception.ShouldContain(nameof(Throwing));
     }
+
+    /// <summary>What System.Text.Json (the API's parser, web defaults) says about <paramref name="body"/> as a drug body.</summary>
+    private static string ParserMessage(string body) =>
+        Should.Throw<System.Text.Json.JsonException>(() => Json.Read<SaveDrugRequest>(body)).Message;
 
     private sealed class Throwing : IPipelineBehavior<GetDrugsQuery, Result<PagedResult<DrugDto>>>
     {

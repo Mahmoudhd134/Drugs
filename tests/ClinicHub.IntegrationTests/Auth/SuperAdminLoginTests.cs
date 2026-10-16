@@ -24,7 +24,7 @@ public class SuperAdminLoginTests(AppFixture app) : IntegrationTest(app)
 
         await response.ShouldBeOkAsync();
         var body = (await response.ReadNodeAsync()).AsObject();
-        body["context"].ShouldBeNull();
+        body.ShouldHaveNull("context");
         var contexts = body["contexts"]!.AsArray();
         contexts.Count.ShouldBe(2);
         var template = contexts[0]!.AsObject();

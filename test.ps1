@@ -5,7 +5,8 @@
 .DESCRIPTION
   step     all backend unit + all Vitest + integration smoke (Tier=Smoke) + the infra self-tests + the integration tests
            of the chosen areas (-Area, else from git diff); e2e smoke (npm run e2e -- --grep @smoke) only when UI files
-           changed and an e2e script exists; traceability report (unknown case IDs fail).
+           changed and an e2e script exists; traceability report (unknown case IDs, skips without a bug ID and
+           known-bug tests that never run fail).
   full     everything: all unit, Vitest with coverage gates, all integration with coverage, the whole e2e suite
            (Chromium), the backend coverage gates (D5), the traceability gate (100% P0 and P1; P2 reported, not gated).
   release  full + Stryker.NET on the 6 critical backend files of tests/stryker-config.json (gate 85% on each) +
@@ -477,7 +478,7 @@ try {
         if ($Tier -ne 'step') { $arguments += '-Gate' }
         $code = Invoke-Script (Join-Path $root 'tests\tools\traceability\traceability.ps1') $arguments
         $result = 'passed'; if ($code -ne 0) { $result = 'FAILED' }
-        $note = 'report only (unknown IDs and skips without a bug ID fail)'; if ($Tier -ne 'step') { $note = 'gate: 100% P0 and P1 (P2 reported)' }
+        $note = 'report only (unknown IDs, skips without a bug ID and known-bug tests that never run fail)'; if ($Tier -ne 'step') { $note = 'gate: 100% P0 and P1 (P2 reported)' }
         return @{ Result = $result; Note = $note }
     }
 
@@ -568,7 +569,15 @@ if (Test-Path $traceFile) {
     }
     # A blank line first: a line right under a table renders as one of its rows
     if (@($t.unknownIds).Count -gt 0) { [void]$md.AppendLine(''); [void]$md.AppendLine("Unknown IDs: $($t.unknownIds -join '; ')") }
-    if (@($t.skippedWithoutBug).Count -gt 0) { [void]$md.AppendLine(''); [void]$md.AppendLine("Skipped without a bug ID (not counted): $($t.skippedWithoutBug -join '; ')") }
+    if (@($t.skippedWithoutBug).Count -gt 0) { [void]$md.AppendLine(''); [void]$md.AppendLine("Skipped or expected to fail without a bug ID (not counted): $($t.skippedWithoutBug -join '; ')") }
+    if (@($t.knownBugTestsNotRun).Count -gt 0) { [void]$md.AppendLine(''); [void]$md.AppendLine("Known-bug tests that never run (FAIL; use test.fails / test.fail): $($t.knownBugTestsNotRun -join '; ')") }
+    # A choice the user confirmed: a component test proves the unit level of a case without a ui level; shown, not hidden
+    if ($null -ne $t.unitByComponentTest) {
+        $unitIds = @($t.unitByComponentTest)
+        $unitText = 'none'; if ($unitIds.Count -gt 0) { $unitText = $unitIds -join ', ' }
+        [void]$md.AppendLine('')
+        [void]$md.AppendLine("Unit level proven by a component test only (cases without a ui level): $($unitIds.Count) ($unitText).")
+    }
     [void]$md.AppendLine('')
     [void]$md.AppendLine('Details: artifacts/traceability.md')
 }
@@ -597,7 +606,8 @@ if (Test-Path $traceFile) {
     if ($null -ne $t.knownBugIds) {
         $all = 'none'; if (@($t.knownBugIds).Count -gt 0) { $all = @($t.knownBugIds) -join ', ' }
         $perTool = @('xunit', 'vitest', 'playwright' | ForEach-Object { "$_ $(@($t.knownBugTests.$_).Count)" }) -join ', '
-        $line = "$knownBugRows entries in docs/testing/known-bugs*.md. Known-bug tests (skip/fixme with a BUG id) in the sources: $perTool; BUG ids: $all. Skipped known-bug .NET tests in this run: $bugTests."
+        $line = "$knownBugRows entries in docs/testing/known-bugs*.md. Known-bug tests (a BUG id in test.fails / test.fail, run and expected to fail; xUnit Skip) in the sources: $perTool; BUG ids: $all. Skipped known-bug .NET tests in this run: $bugTests."
+        if (@($t.knownBugTestsNotRun).Count -gt 0) { $line += " known-bug tests that never run (test.skip/test.fixme; use test.fails/test.fail): $(@($t.knownBugTestsNotRun) -join '; ')." }
     }
 }
 [void]$md.AppendLine($line)

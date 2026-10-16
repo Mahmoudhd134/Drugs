@@ -32,6 +32,23 @@ public class InvalidBodyTests(AppFixture app) : IntegrationTest(app)
     }
 
     [Fact]
+    [Trait("Case", "ERR-010")]
+    public async Task Two_unreadable_values_answer_one_error_each_with_its_field()
+    {
+        // The parser stops at a body's first problem (one model-state error), so two independent ones come from the
+        // query: each value that can't be read is its own model-state error (tech overview § Errors: one error per
+        // model-state error, with its field)
+        var owner = await OwnerAsync();
+
+        var response = await owner.GetAsync("/api/v1/drugs?page=first&pageSize=many");
+
+        var problem = await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
+        problem.Errors.Select(e => (e.Code, e.Field)).ShouldBe(
+            [("invalidRequest", "page"), ("invalidRequest", "pageSize")], ignoreOrder: true);
+        problem.Errors.ShouldAllBe(e => e.Description == Generic);
+    }
+
+    [Fact]
     [Trait("Case", "ERR-011")]
     public async Task A_wrong_type_answers_invalid_request_naming_the_field()
     {

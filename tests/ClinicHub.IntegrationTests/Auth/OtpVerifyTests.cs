@@ -265,11 +265,9 @@ public class OtpVerifyTests(AppFixture app) : IntegrationTest(app)
         variant.Start();
         var browser = new ApiClient(variant);
         var first = (await (await browser.RequestOtpAsync(clinic.Owner.Phone)).ReadAsync<OtpRequestResponse>()).DevCode;
-        var second = (await (await browser.RequestOtpAsync(clinic.Owner.Phone)).ReadAsync<OtpRequestResponse>()).DevCode;
+        var second = await NewerCodeAsync(browser, clinic.Owner.Phone, first, () => { });
 
-        if (first != second)
-            await (await browser.VerifyOtpAsync(clinic.Owner.Phone, first)).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidCode");
-
+        await (await browser.VerifyOtpAsync(clinic.Owner.Phone, first)).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidCode");
         await (await browser.VerifyOtpAsync(clinic.Owner.Phone, second)).ShouldBeOkAsync();
     }
 
@@ -289,13 +287,28 @@ public class OtpVerifyTests(AppFixture app) : IntegrationTest(app)
     public async Task Only_the_latest_code_counts()
     {
         var (browser, phone, codeA) = await CodeForAsync();
-        Clock.Advance(TimeSpan.FromSeconds(60));
-        var codeB = (await (await browser.RequestOtpAsync(phone)).ReadAsync<OtpRequestResponse>()).DevCode;
+        var codeB = await NewerCodeAsync(browser, phone, codeA, () => Clock.Advance(TimeSpan.FromSeconds(60)));
 
-        if (codeA != codeB)
-            await (await browser.VerifyOtpAsync(phone, codeA)).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidCode");
-
+        await (await browser.VerifyOtpAsync(phone, codeA)).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidCode");
         await (await browser.VerifyOtpAsync(phone, codeB)).ShouldBeOkAsync();
+    }
+
+    /// <summary>
+    /// A newer code for <paramref name="phone"/> that differs from <paramref name="older"/>: requested again (at most 3
+    /// times, within the 5 codes an hour) only when the random code repeats by chance (about 1 in a million), so the
+    /// "older code refused" half always runs. A generator that keeps giving the same code fails here.
+    /// </summary>
+    private static async Task<string> NewerCodeAsync(ApiClient browser, string phone, string older, Action beforeEachRequest)
+    {
+        var newer = older;
+        for (var i = 0; i < 3 && newer == older; i++)
+        {
+            beforeEachRequest();
+            newer = (await (await browser.RequestOtpAsync(phone)).ReadAsync<OtpRequestResponse>()).DevCode;
+        }
+
+        newer.ShouldNotBe(older, "3 new codes in a row equal to the older one: the codes are not random");
+        return newer;
     }
 
     [Fact]

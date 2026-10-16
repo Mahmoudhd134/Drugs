@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json.Nodes;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -38,5 +39,14 @@ public class BuilderTests(AppFixture app) : IntegrationTest(app)
 
         response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/problem+json");
         await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "noAccess");
+    }
+
+    [Fact]
+    public void ShouldHaveNull_needs_the_key_present_with_a_null_value()
+    {
+        JsonNode.Parse("""{"context":null,"staff":1}""").ShouldHaveNull("context");
+
+        foreach (var json in new[] { "{}", """{"context":1}""", """{"Context":null}""", """{"context":{}}""" })
+            Should.Throw<ShouldAssertException>(() => JsonNode.Parse(json).ShouldHaveNull("context"), json);
     }
 }

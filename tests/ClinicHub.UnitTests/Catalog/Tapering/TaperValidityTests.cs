@@ -156,6 +156,25 @@ public class TaperValidityTests
     }
 
     [Fact]
+    [Trait("Case", "TAPER-080")]
+    public void A_first_step_dose_without_a_unit_is_invalid_on_a_drug_default_and_a_group_line()
+    {
+        // tapering tech § Backend: "Step 1's dose becomes the dosing's dose (above), so it needs the unit like any dose
+        // (invalidDosing without it)"; unlike a later step's dose (TAPER-016), a group line can't inherit it
+        var noUnit = new Dosing { TaperSteps = [Step("daily", 4, "weeks", 1, 2), Daily(3)] };
+        var askEye = new Dosing { Eye = "ask", TaperSteps = [Step("daily", 4, "weeks", 1, 2), Daily(3)] };
+
+        Accepted(noUnit).ShouldBeFalse("drug default");
+        Accepted(noUnit, groupLine: true).ShouldBeFalse("group line");
+        Accepted(askEye, groupLine: true).ShouldBeFalse("group line with the ask eye");
+
+        // The same schedule with the unit is accepted
+        var withUnit = new Dosing { DoseUnit = "drop", TaperSteps = [Step("daily", 4, "weeks", 1, 2), Daily(3)] };
+        Accepted(withUnit).ShouldBeTrue("drug default with the unit");
+        Accepted(withUnit, groupLine: true).ShouldBeTrue("group line with the unit");
+    }
+
+    [Fact]
     [Trait("Case", "TAPER-007")]
     public void Steps_with_a_dosing_frequency_and_duration_are_accepted_once_normalized()
     {
