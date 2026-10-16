@@ -12,10 +12,14 @@ Both test suites run every case of this file (`DOSE-066`), so the two can't drif
 - **xUnit** (`tests/ClinicHub.UnitTests/Catalog/Parity`): `DosingRules.Normalize` + `IsValid`, and the drug or group
   validator with the API's error mapping (`errors`).
 - **Vitest** (`ClinicHub.Web/src/features/dosing/parity.test.ts`): `dosingErrors` (valid = no errors; not for `apiOnly`
-  rows) and `normalizeDosing` / `isDosingEmpty` against `normalized`. It does not check `errors` (the SPA's per-field
+  rows) and `normalizeDosing` / `isDosingEmpty` against `normalized`. An `apiOnly` row the API refuses has nothing to
+  check there and is left out of the Vitest rows (the C# side runs it), so no parity test passes with no assertion. It does not check `errors` (the SPA's per-field
   errors are its own) nor `ar`. Stryker leaves it out (`vitest.stryker.config.ts`: it reads a file outside
-  `ClinicHub.Web`). Rows where the two sides disagree are known bugs there (`test.skip("BUG-nnn: …")`), today BUG-590
-  (a whitespace-only code).
+  `ClinicHub.Web`). Rows where the two sides disagree are known bugs there, run as expected failures
+  (`test.fails.each(rows)("BUG-nnn: … %s @DOSE-064", …)`, checked in full, `valid` too), tagged with their narrow case
+  only (not `@DOSE-066`, which the other rows keep covered): today BUG-590 (a whitespace-only code, `@DOSE-064`: «blank
+  strings for codes normalize to null», «blank unit next to a set eye: only the eye stays», «dose amount with a blank
+  unit»).
 
 ### Shape
 
@@ -51,6 +55,8 @@ no row relies on number formatting (`2` vs `2.0`).
 
 ### Adding a row
 
-Take the expected values from the docs. When C# and TypeScript disagree on a row, the docs decide which one is wrong
+Take the expected values from the docs. Mark a row `apiOnly` only when the SPA can't produce its input (the list in
+`apiOnly` above); a rule both sides enforce (e.g. TAPER-080, a first step dose without a unit, drug default and group
+line) is not `apiOnly`, so the TypeScript side checks it too. When C# and TypeScript disagree on a row, the docs decide which one is wrong
 (a known bug, [D9](../../docs/design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)); a rule the docs
 don't settle is a question for the user, and the row stays out until it is answered.

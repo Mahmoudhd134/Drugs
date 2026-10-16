@@ -410,6 +410,9 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 });
 ```
 
+- The file decides the level: a `*.test.ts` file proves `unit`, a `*.test.tsx` file `ui` ([traceability](#the-test-catalog-and-traceability)).
+  A known bug: `test.fails("BUG-nnn: … @CASE", …)` (or `test.fails.each(…)` for table rows): it runs and must fail
+  ([Known bugs](#known-bugs)).
 - Pure logic (`dosingText.ts`, `taper.ts`, `prescriptionText.ts`, `api/errors.ts`, …): plain function tests, one per
   rule and boundary (both sides of each limit). It carries the coverage and StrykerJS gates ([Mutation
   testing](#mutation-testing)).
@@ -432,8 +435,8 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 
 | Need | Helper |
 |---|---|
-| Render a component in the app's providers (theme + RTL, i18n, router, auth, QueryClient, toasts) | `renderWithProviders(ui, {lang, route, path, user, auth, clipboard})` |
-| The whole app on a page load (real AuthProvider, session store, API client) | `startApp({route, lang, clipboard})`, `sessionIn`, `refreshSequence`, `meByContext`, `contextOfRequest`, `expectPath` |
+| Render a component in the app's providers (theme + RTL, i18n, router, auth, QueryClient, toasts) | `renderWithProviders(ui, {lang, route, path, user, auth, clipboard})`: `user.permissions` are expanded with their requirements, as `/me` returns them (so a set the API can't produce never reaches a test); a query retries a 5xx or network error once, as in the app; a query answering 403 **fails the test** (the app's 403 toast and `/me` reload exist only in `startApp`: use it for 403 flows) |
+| The whole app on a page load (real AuthProvider, session store, API client) | `startApp({route, lang, clipboard})`, `sessionIn`, `refreshSequence`, `meByContext`, `contextOfRequest`, `expectPath`; `recordPaths()` (`src/test/app.tsx`: every path the app navigates to, in order, for "never opens X" even when a guard redirects before X mounts) |
 | API answers (as the tech docs define them) | `drugsHandlers`, `drugGroupsHandlers`, `meHandler`, …, `problem(status, code)`, `networkError()`; builders `aDrug`, `aGroup`, `aMe`, … |
 | What the SPA sent | `recordRequests()` → `requests`, `writes()` (every method but GET) |
 | Toasts | `findToast()` (newest), `toastTexts()`, `expectToasts(...texts)` (exactly these) |
@@ -444,6 +447,7 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 | The clipboard | the `clipboard` option (or `stubClipboard()` after `userEvent.setup()`) → `write`, `execCommand`, `written()` |
 | A name inside a message | `isolate(name)` (the bidi isolates the locale files put around it) |
 | Storage failures, phone width | `breakStorage()`, `setViewportWidth(375)` |
+| A dialog that must not close ("not closable while saving"): Esc or a backdrop click, then check | `clickOutside(user, dialog)`, `expectStillOpen(dialog)` (waits past MUI's exit transition, then expects the same dialog shown, not fading out), `pastExitTransition()` (`src/test/mui.ts`): a closing MUI dialog stays in the document during its fade-out, so never assert "still open" right after the key |
 
 - A feature's page or dialog with its API lives in `src/test/pages/` (imported by path, so tests that don't need it
   stay light): `admin.tsx` (`renderAdmin`, `navigateInApp`; its `AdminRoutes.tsx` copies App.tsx's `/admin` routes:
@@ -516,7 +520,7 @@ entries collected during M1.6 are fixed after it, one per commit ([design D9](..
 
 Marking (the ID in the marker, the case tags kept). The test **runs and is expected to fail**, so the run notices a
 bug that got fixed (the expected failure then passes, which fails the run):
-- Vitest: `test.fails("BUG-612: <one line> @DOSE-012", …)`;
+- Vitest: `test.fails("BUG-612: <one line> @DOSE-012", …)` (table rows: `test.fails.each(rows)("BUG-612: … %s @DOSE-012", …)`);
 - Playwright: `test.fail("BUG-612: <one line> @RX-004", …)`; an axe finding: a `KNOWN_AXE` entry (`checks.ts`) and the
   bug's own test checks with `expectHealthyPage(…, {onlyBug: "BUG-612"})` (fails on that bug only);
 - xUnit (no expected-failure marker): `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a **plain

@@ -64,19 +64,19 @@ Cases per area and priority, and per level (a case with two levels counts once i
 
 | Area | P0 | P1 | P2 | Total | unit | api | ui | e2e | manual |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 50 | 52 | 1 |
+| [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 54 | 48 | 1 |
 | [ISO](#iso--clinic-isolation) | 20 | 17 | 6 | 43 | 0 | 39 | 1 | 4 | 0 |
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
-| [ADM](#adm--platform-admin) | 58 | 142 | 91 | 291 | 4 | 165 | 77 | 48 | 0 |
-| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 22 | 16 | 0 |
-| [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 39 | 25 | 0 |
+| [ADM](#adm--platform-admin) | 58 | 142 | 91 | 291 | 4 | 165 | 78 | 48 | 0 |
+| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 23 | 15 | 0 |
+| [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 40 | 24 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 4 | 0 | 15 | 21 | 2 |
-| **All** | **352** | **518** | **320** | **1190** | **195** | **532** | **284** | **241** | **7** |
+| **All** | **352** | **518** | **320** | **1190** | **195** | **532** | **291** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -243,7 +243,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-129 | Given the picker lists clinic A, suspended meanwhile, when A is picked, then «العيادة «A» موقوفة.» (en "“A” is disabled.") and the user stays on the picker | P1 | ui+e2e | [auth § الرسائل](../features/auth/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | AUTH-130 | Given the picker lists a clinic deleted (or the user removed from it) meanwhile, when it is picked, then «هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك.» | P1 | ui | [access § الرسائل](../features/access/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | AUTH-131 | Given the picker lists clinic A where the user was deactivated meanwhile, when A is picked, then «تم إيقاف حسابك في «A». تواصل مع مالك العيادة.» and the user stays on the picker | P1 | ui+e2e | [auth § الرسائل](../features/auth/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| AUTH-132 | Given the picker, when a clinic is double-clicked, then exactly one `POST /auth/context` is sent | P2 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-132 | Given the picker, when a clinic is double-clicked, then exactly one `POST /auth/context` is sent | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 
 ### Switching context (API)
 
@@ -296,9 +296,9 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-167 | Given a deployment over HTTPS (not localhost), when a logged-in user reloads, then they stay logged in; over plain http they must log in again | P1 | manual | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
 | AUTH-168 | Given an anonymous user, when any app route (`/`, `/drugs`, `/groups/1`, `/admin`, `/select-clinic`) opens, then `/login` | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
 | AUTH-169 | Given an anonymous user opened `/drugs`, when the login lands in a clinic, then `/drugs` opens | P1 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
-| AUTH-170 | Given an anonymous user opened `/drugs`, when the login lands on the picker (several contexts), or opened `/admin…`, then the remembered page is not reopened (the context's home instead) | P2 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-170 | Given an anonymous user opened `/drugs`, when the login lands on the picker (several contexts), or opened `/admin…`, then the remembered page is not reopened (the context's home instead) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-171 | Given a clinic context, when `/admin` (or `/admin/clinics/new`, `/admin/clinics/{id}`) opens, then `/` and no admin page or admin request shows; given the platform context, when `/drugs` opens, then `/admin`; given no context, when `/` opens, then `/select-clinic` | P0 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
-| AUTH-172 | Given a logged-in user, when `/login` opens, then their context's home opens (`/`, `/admin` or `/select-clinic`) | P2 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-172 | Given a logged-in user, when `/login` opens, then their context's home opens (`/`, `/admin` or `/select-clinic`) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 
 ### Offline start
 
@@ -315,7 +315,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 |---|---|---|---|---|
 | AUTH-177 | Given a clinic context, then the clinic name is always in the app bar (the template as «العيادة النموذجية») | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
 | AUTH-178 | Given the account menu, then it shows the staff name and phone, «تبديل العيادة» only when there are several contexts, and «تسجيل الخروج» | P1 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
-| AUTH-179 | Given a clinic page with state (e.g. a search typed), when the context switches, then the page re-mounts (state reset) | P2 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-179 | Given a clinic page with state (e.g. a search typed), when the context switches, then the page re-mounts (state reset) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-180 | Given a super admin in the template clinic, then the banner «أنت تعدّل العيادة النموذجية. التغييرات تُنسخ إلى العيادات التي تُنشأ لاحقًا، وليس إلى العيادات الحالية.» (en "You are editing the template clinic. Changes are copied to clinics created later, not to existing ones.") shows with «العودة إلى إدارة المنصة», which switches to the platform and opens `/admin` | P1 | e2e | [auth § الرسائل](../features/auth/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | AUTH-181 | Given a super admin in the template clinic, when they add and edit a drug and a group, then it works as in any clinic | P1 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
 
@@ -534,7 +534,7 @@ requirements → 403 `forbidden`.
 | ACC-064 | Given Groups without `groups.create` / `groups.update` / `groups.delete`, then «مجموعة جديدة», the edit link and the delete icon are hidden each, and the actions bar is hidden when neither edit nor delete applies | P1 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-065 | Given Groups without `groups.details`, then a card doesn't open the group | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-066 | Given an Assistant in the group editor, then Delete is shown disabled, and hovering or tapping it shows «ليست لديك صلاحية» (en "You don't have permission") | P1 | ui+e2e | [access § الرسائل](../features/access/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| ACC-067 | Given the group editor, when Save, Cancel or Back is used, then `/groups` opens, or `/` for a role without `groups.list` | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
+| ACC-067 | Given the group editor, when Save, Cancel or Back is used, then `/groups` opens | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-068 | Given the prescription page, then the Groups tab shows only with `groups.list` and the Drugs tab only with `drugs.list`, and the visible one has the focus | P1 | ui | [access § الصلاحيات](../features/access/business.md#الصلاحيات) |
 | ACC-069 | Given a catalog panel with neither tab allowed (component test), then «ليست لديك صلاحية للبحث في الأدوية أو المجموعات.» | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-070 | Given `PermissionButton` / `PermissionIconButton` / `PermissionMenuItem` / `PermissionFab` / `withPermission` / `<Can>`, then denied → hidden by default, `whenDenied="disable"` → disabled with the tooltip on a wrapping span; `anyOf` / `allOf` rules hold | P1 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
@@ -903,7 +903,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-191 | Given the permission catalog is loading or failed, then the editor shows a spinner, or "Couldn't load" with Retry | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
 | ADM-192 | Given a role holding a key the loaded catalog doesn't know, when saved unchanged, then the key is still sent | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
 | ADM-193 | Given the editor saving, then it can't be closed until the answer | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
-| ADM-194 | Given a phone (375 px), then the role editor is full screen, only its content scrolls and Save/Cancel stay visible | P2 | e2e | [tech roles/staff screens][adm-t-rsui] |
+| ADM-194 | Given a phone (375 px), then the role editor is full screen, only its content scrolls and Save/Cancel stay visible | P2 | ui+e2e | [tech roles/staff screens][adm-t-rsui] |
 | ADM-195 | Given the Roles tab request fails, then «تعذّر تحميل البيانات.» with Retry | P2 | ui | [business: messages][adm-b-msg] |
 
 ### Staff: API
@@ -1193,7 +1193,7 @@ Sources: [drugs business](../features/drugs/business.md), [drugs tech](../featur
 | DRUG-084 | Given the delete confirmation, when confirming «حذف», then the toast «تم حذف الدواء» (English "Drug deleted") appears and the row disappears | P0 | e2e | [drugs § الرسائل](../features/drugs/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | DRUG-085 | Given the only row of the last page (page > 1), when it is deleted, then the table steps back one page | P2 | ui | [drugs tech § Edge](../features/drugs/tech.md#edge-cases--limitations) |
 | DRUG-086 | Given a group whose only drug is deleted, then the group's card shows «الأدوية: 0»; when the group is opened, it shows «لا توجد أدوية في هذه المجموعة» and saving it says «أضف دواءً واحدًا على الأقل.» (en "Add at least one drug.") until a drug is added | P1 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| DRUG-087 | Given a drug already deleted in another window, when it is deleted here, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
+| DRUG-087 | Given a drug already deleted in another window, when it is deleted here, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 
 ## GRP — Drug groups
 
@@ -1283,7 +1283,7 @@ Sources: [groups business](../features/drug-groups/business.md), [groups tech](.
 | GRP-060 | Given `/groups/abc` or `/groups/1.5`, when opened, then the app redirects to `/groups` | P2 | ui | [overview § App shell](../tech/overview.md#app-shell) |
 | GRP-061 | Given `/groups/{id}` of a deleted or unknown group, when opened, then an error «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» is shown instead of the form | P1 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 | GRP-062 | Given the editor's Delete button, when confirmed, then «تم حذف المجموعة» and the app goes back to the list | P1 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-063 | Given a group deleted in another window, when this editor saves, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
+| GRP-063 | Given a group deleted in another window, when this editor saves, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 | GRP-064 | Given a user with `groups.details` but not `groups.update`, when opening a group, then the title is «المجموعة», the name is read-only and there is no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle | P1 | e2e | [groups § المستخدمون](../features/drug-groups/business.md#المستخدمون) |
 | GRP-065 | Given two windows editing the same group, when both save, then the last save wins (all lines replaced) and no error is shown | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
 
