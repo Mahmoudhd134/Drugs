@@ -1,0 +1,10 @@
+# Known bugs: e2e-ux track (M1.6.8, stage 2: I18N and UX journeys)
+
+Found by the Playwright specs (`ClinicHub.Web/e2e/i18n`, `ClinicHub.Web/e2e/ux`); to be folded into
+[known-bugs.md](known-bugs.md). Each one has a `test.fixme("BUG-<id>: …")` naming the cases it proves. (The Edit & copy
+editor's Quill toolbar without accessible names, also met here, is the e2e-rx track's BUG-570: the stage-2 page checks
+leave the toolbar out of their scan, `e2e/support/ux.ts` `pageChecks`.)
+
+| ID | Case IDs | Doc line (link + quote) | What happens | How to reproduce | Severity |
+|---|---|---|---|---|---|
+| BUG-586 | UX-024 | [test catalog UX-024](test-catalog.md): "Given the new-drug dialog, when double-clicking Save (or pressing Enter twice fast), then exactly one drug is created"; [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon): "`useSingleFlight` (`once(action)`: a call while the previous one runs is ignored …). Use it for every create/save/delete button." | `useSingleFlight` only blocks while the save runs. When the API answers fast (~20 ms on a LAN), the save ends and the dialog starts closing, but its form stays mounted and focused during the fade-out (~200 ms): the second Enter, or the second click of a double click landing after the answer, submits again and creates a second drug with the same name. (Seen in the full run on the phone: two `POST /api/v1/drugs` 53 ms apart, the first answered in 19 ms.) When the focus is already back on «إضافة دواء», the second Enter instead reopens the dialog with the name just saved (the form is not remounted while it closes; see the track's questions). | As an owner on `/drugs`: «إضافة دواء», type a name, press Enter, and press Enter again ~30 ms after the POST's answer (or click Save, then click it again right after the answer): the drug exists twice. Test: `e2e/ux/interaction.spec.ts` "BUG-586" (it waits for the first answer before the second Enter / click; unmarked it fails in `ar-desktop`, 2 drugs from the double click; on the phone the closing timing may hide it). | P0 |

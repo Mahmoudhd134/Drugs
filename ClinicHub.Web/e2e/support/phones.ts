@@ -5,15 +5,21 @@ import {runState} from "./run.ts";
 
 /**
  * Phones of a run. The database is new for every run, so phones only need to be unique inside it.
- * - Super admins: a pool of `+20100998xxxx` given to the API at startup (`Platform:SuperAdminPhones`); the first is
+ * - Super admins: a pool of `+20100<run prefix>xxxx` given to the API at startup (`Platform:SuperAdminPhones`); the first is
  *   global setup's, every other one is claimed by at most one login of the run (an exclusive file per phone), so the
  *   OTP limits of a phone (5 codes per hour) are never reached by the many super admin logins.
  * - Everyone else: `+2012` + the worker's index + a counter (local form `012…`).
  */
 export const SUPER_ADMIN_POOL = 400;
 
-export const superAdminPhones = () =>
-    Array.from({length: SUPER_ADMIN_POOL}, (_, i) => `+20100998${String(i).padStart(4, "0")}`);
+export const superAdminPhones = (runId: string) => {
+    // Its own prefix per run (100–998: never the dev phones +2010000…, nor the Testing super admin +201009990001), so a
+    // run that reached another run's API by mistake is refused (403) instead of logging in there
+    let hash = 0;
+    for (const char of runId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    const prefix = 100 + (hash % 899);
+    return Array.from({length: SUPER_ADMIN_POOL}, (_, i) => `+20100${prefix}${String(i).padStart(4, "0")}`);
+};
 
 let nextClaim = 1;
 

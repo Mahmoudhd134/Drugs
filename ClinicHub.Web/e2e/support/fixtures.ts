@@ -1,6 +1,6 @@
 import {type BrowserContext, expect, type Page, test as base} from "@playwright/test";
 import type {AuthResult} from "./api.ts";
-import {expectHealthyPage, watchConsole} from "./checks.ts";
+import {type ConsolePolicy, expectHealthyPage, watchConsole} from "./checks.ts";
 import {Data} from "./data.ts";
 import {claimSuperAdminPhone} from "./phones.ts";
 import {runState} from "./run.ts";
@@ -27,6 +27,13 @@ type Fixtures = {
     newBrowser: () => Promise<{ context: BrowserContext; page: Page }>;
     /** Every console error / uncaught exception of the test's pages (checked at the end) */
     consoleErrors: string[];
+    /** What the console check lets through (see `allowNetworkErrors`) */
+    consolePolicy: ConsolePolicy;
+    /** The test cuts the API off on purpose (`route.abort`): the browser's "net::ERR_…" lines for /api/v1 are expected */
+    allowNetworkErrors: () => void;
+    /** The other pages and browsers the test opened (newTab, newBrowser): the end-of-test page checks run on these
+     * pages too; the browsers close after them */
+    opened: { pages: Page[]; contexts: BrowserContext[] };
 };
 
 type WorkerFixtures = {
@@ -56,38 +63,49 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
         await provide(errors);
         expect(errors, "no console error or uncaught exception").toEqual([]);
     },
-    page: async ({page, consoleErrors, lang}, provide, testInfo) => {
-        watchConsole(page, consoleErrors);
+    // eslint-disable-next-line no-empty-pattern
+    consolePolicy: async ({}, provide) => provide({networkErrors: false}),
+    allowNetworkErrors: async ({consolePolicy}, provide) => provide(() => { consolePolicy.networkErrors = true; }),
+    // eslint-disable-next-line no-empty-pattern
+    opened: async ({}, provide) => {
+        const opened = {pages: [] as Page[], contexts: [] as BrowserContext[]};
+        await provide(opened);
+        for (const context of opened.contexts) await context.close();
+    },
+    page: async ({page, consoleErrors, consolePolicy, opened, lang}, provide, testInfo) => {
+        watchConsole(page, consoleErrors, consolePolicy);
         await provide(page);
-        // Every test ends with the page checks on the page it left (besides its own `healthy()` calls)
-        if (testInfo.status === "passed" && !page.isClosed() && page.url().startsWith("http")) {
-            const stored = await page.evaluate(() => localStorage.getItem("language")).catch(() => null);
-            await expectHealthyPage(page, stored === "ar" || stored === "en" ? stored : lang, testInfo);
+        // Every test ends with the page checks on each page it left open (besides its own `healthy()` calls)
+        if (testInfo.status !== "passed") return;
+        for (const open of [page, ...opened.pages]) {
+            if (open.isClosed() || !open.url().startsWith("http")) continue;
+            const stored = await open.evaluate(() => localStorage.getItem("language")).catch(() => null);
+            await expectHealthyPage(open, stored === "ar" || stored === "en" ? stored : lang, testInfo);
         }
     },
     healthy: async ({page, lang}, provide, testInfo) => {
         await provide(target => expectHealthyPage(target ?? page, lang, testInfo));
     },
-    newTab: async ({context, consoleErrors}, provide) => {
+    newTab: async ({context, consoleErrors, consolePolicy, opened}, provide) => {
         await provide(async () => {
             const tab = await context.newPage();
-            watchConsole(tab, consoleErrors);
+            watchConsole(tab, consoleErrors, consolePolicy);
+            opened.pages.push(tab);
             return tab;
         });
     },
-    newBrowser: async ({browser, consoleErrors}, provide, testInfo) => {
-        const opened: BrowserContext[] = [];
+    newBrowser: async ({browser, consoleErrors, consolePolicy, opened}, provide, testInfo) => {
         await provide(async () => {
             const {locale, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent} = testInfo.project.use;
             const context = await browser.newContext({
                 baseURL: runState().baseURL, locale, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent,
             });
-            opened.push(context);
+            opened.contexts.push(context);
             const page = await context.newPage();
-            watchConsole(page, consoleErrors);
+            watchConsole(page, consoleErrors, consolePolicy);
+            opened.pages.push(page);
             return {context, page};
         });
-        for (const context of opened) await context.close();
     },
 });
 
