@@ -1,6 +1,8 @@
 import type {Page} from "@playwright/test";
 import {expect, loginViaUi, test} from "../support/fixtures.ts";
 import {uniquePhone} from "../support/phones.ts";
+import {UX_TEXTS} from "../support/texts-ux.ts";
+import {expectContextLabel, navTo} from "../support/ui.ts";
 
 /**
  * As if codes went by SMS: the request's answer reaches the page without `devCode`, so the code step waits for the
@@ -27,12 +29,15 @@ const countRequests = (page: Page, path: string) => {
 };
 
 test.describe("Login page @area:auth", () => {
-    test("display mode: the banner shows before any code is requested @AUTH-002", async ({page, t, healthy}) => {
-        await page.goto("/login");
-        await expect(page.getByRole("alert").filter({hasText: t.displayModeBanner})).toHaveText(t.displayModeBanner);
-        await expect(page.getByRole("textbox", {name: t.phone})).toBeVisible();
-        await healthy();
-    });
+    test("display mode: the banner shows before any code is requested; the language menu is there and the page fits (375 px: no horizontal scroll) @AUTH-002 @AUTH-091",
+        async ({page, t, lang, healthy}) => {
+            await page.goto("/login");
+            await expect(page.getByRole("alert").filter({hasText: t.displayModeBanner})).toHaveText(t.displayModeBanner);
+            await expect(page.getByRole("textbox", {name: t.phone})).toBeVisible();
+            await expect(page.getByRole("button", {name: UX_TEXTS[lang].language}), "the language menu").toBeVisible();
+            // dir/lang, no horizontal scroll (the phone project is 375 px), axe
+            await healthy();
+        });
 
     test("a staff member of one clinic logs in: the code is shown, filled in and sent for them, and the clinic opens @AUTH-004 @AUTH-089 @AUTH-177 @smoke",
         async ({page, t, data, healthy}) => {
@@ -61,9 +66,17 @@ test.describe("Login page @area:auth", () => {
             await expect(page.getByRole("heading", {level: 1, name: t.navPrescription})).toBeVisible();
             await expect(page.getByRole("banner")).toContainText(clinic.name);
             await healthy();
+            // The clinic's name stays in the app bar on the clinic's other pages
+            for (const [entry, path] of [[t.navDrugs, /\/drugs$/], [t.navGroups, /\/groups$/]] as const) {
+                await navTo(page, t, entry);
+                await expect(page).toHaveURL(path);
+                await expectContextLabel(page, clinic.name);
+            }
         });
 
-    test("an invalid phone is refused on the phone step @AUTH-017", async ({page, t, healthy}) => {
+    test("an invalid phone is refused on the phone step @AUTH-017", async ({page, t, healthy, allowApiErrors}) => {
+        // An invalid phone refused: the test's subject
+        allowApiErrors({status: 400, method: "POST", path: /^\/api\/v1\/auth\/otp\/request$/});
         await page.goto("/login");
         const phone = page.getByRole("textbox", {name: t.phone});
         await phone.fill("0123");
@@ -76,7 +89,9 @@ test.describe("Login page @area:auth", () => {
         await healthy();
     });
 
-    test("too many codes for a phone: the 429 is explained @AUTH-030", async ({page, t}) => {
+    test("too many codes for a phone: the 429 is explained @AUTH-030", async ({page, t, allowApiErrors}) => {
+        // The code request over the hourly limit: the test's subject
+        allowApiErrors({status: 429, method: "POST", path: /^\/api\/v1\/auth\/otp\/request$/});
         const phone = uniquePhone();
         // The hour's 5 codes (Testing: 5 per phone per hour)
         for (let i = 0; i < 5; i++) {
@@ -102,14 +117,18 @@ test.describe("Login page @area:auth", () => {
         expect(requests).toHaveLength(1);
     });
 
-    test("a right code for a phone with no access: the generic refusal @AUTH-074", async ({page, t, healthy}) => {
+    test("a right code for a phone with no access: the generic refusal @AUTH-074", async ({page, t, healthy, allowApiErrors}) => {
+        // The login refused: the test's subject
+        allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/auth\/otp\/verify$/});
         await loginViaUi(page, t, uniquePhone());
         await expect(page.getByRole("alert").filter({hasText: t.noAccess})).toHaveText(t.noAccess);
         await expect(page).toHaveURL(/\/login$/);
         await healthy();
     });
 
-    test("a right code for staff deactivated in their only clinic: the clinic is named @AUTH-075", async ({page, t, data}) => {
+    test("a right code for staff deactivated in their only clinic: the clinic is named @AUTH-075", async ({page, t, data, allowApiErrors}) => {
+        // The login refused: the test's subject
+        allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/auth\/otp\/verify$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await data.deactivate(staff);
@@ -120,7 +139,9 @@ test.describe("Login page @area:auth", () => {
         await expect(page).toHaveURL(/\/login$/);
     });
 
-    test("a right code for staff of a suspended clinic only: the clinic is named @AUTH-078", async ({page, t, data}) => {
+    test("a right code for staff of a suspended clinic only: the clinic is named @AUTH-078", async ({page, t, data, allowApiErrors}) => {
+        // The login refused: the test's subject
+        allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/auth\/otp\/verify$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await data.suspend(clinic);
@@ -131,7 +152,9 @@ test.describe("Login page @area:auth", () => {
         await expect(page).toHaveURL(/\/login$/);
     });
 
-    test("a wrong code is refused with its message @AUTH-081", async ({page, t, data, healthy}) => {
+    test("a wrong code is refused with its message @AUTH-081", async ({page, t, data, healthy, allowApiErrors}) => {
+        // A wrong code refused: the test's subject
+        allowApiErrors({status: 400, method: "POST", path: /^\/api\/v1\/auth\/otp\/verify$/});
         const clinic = await data.clinic();
         const codes = await withoutDisplayedCode(page);
         await loginViaUi(page, t, clinic.owner.phone);

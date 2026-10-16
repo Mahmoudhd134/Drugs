@@ -1,5 +1,6 @@
 import {expect, loginViaUi, signIn, superAdminPhone, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {UX_TEXTS} from "../support/texts-ux.ts";
 import {
     expectContextLabel,
     expectPicker,
@@ -12,8 +13,8 @@ import {
 } from "../support/ui.ts";
 
 test.describe("Clinic picker @area:auth", () => {
-    test("a user with several clinics logs in: «اختر العيادة» opens, without the template; picking a clinic switches and opens it @AUTH-090 @AUTH-121 @ISO-029 @smoke",
-        async ({page, t, data, healthy}) => {
+    test("a user with several clinics logs in: «اختر العيادة» opens, without the template; picking a clinic switches and opens it; the language menu is there and the picker fits (375 px: no horizontal scroll) @AUTH-090 @AUTH-121 @ISO-029 @AUTH-091 @smoke",
+        async ({page, t, lang, data, healthy}) => {
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});
@@ -27,6 +28,8 @@ test.describe("Clinic picker @area:auth", () => {
             await expect(pickerEntries(page).nth(0)).toContainText(a.name);
             await expect(pickerEntries(page).nth(1)).toContainText(b.name);
             await expect(page.getByText(t.template, {exact: true})).toHaveCount(0);
+            await expect(page.getByRole("button", {name: UX_TEXTS[lang].language}), "the language menu").toBeVisible();
+            // dir/lang, no horizontal scroll (the phone project is 375 px), axe
             await healthy();
 
             const switches = recordRequests(page, "POST", /\/api\/v1\/auth\/context$/);
@@ -114,7 +117,9 @@ test.describe("Clinic picker @area:auth", () => {
             expect(loads.length).toBeGreaterThanOrEqual(1);
         });
 
-    test("picking a clinic suspended meanwhile: «العيادة «A» موقوفة.» and the picker stays @AUTH-129", async ({page, t, data}) => {
+    test("picking a clinic suspended meanwhile: «العيادة «A» موقوفة.» and the picker stays @AUTH-129", async ({page, t, data, allowApiErrors}) => {
+        // The switch refused: the test's subject
+        allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/auth\/context$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -132,7 +137,9 @@ test.describe("Clinic picker @area:auth", () => {
     });
 
     test("picking a clinic where the user was deactivated meanwhile: «تم إيقاف حسابك في «A»…» and the picker stays @AUTH-131",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // The switch refused: the test's subject
+            allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/auth\/context$/});
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});
@@ -169,7 +176,9 @@ test.describe("Clinic picker @area:auth", () => {
             await expect(page.getByRole("button", {name: t.delete}).first()).toBeVisible();
         });
 
-    test("removed from a clinic, then added again: it shows again in «تبديل العيادة» and they enter it @ADM-270", async ({page, t, data}) => {
+    test("removed from a clinic, then added again: it shows again in «تبديل العيادة» and they enter it @ADM-270", async ({page, t, data, allowApiErrors}) => {
+        // Removed from the clinic while in it: its next request is refused (the test's setup)
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});

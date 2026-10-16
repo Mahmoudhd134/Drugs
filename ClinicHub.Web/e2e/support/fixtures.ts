@@ -1,6 +1,6 @@
 import {type BrowserContext, expect, type Page, test as base} from "@playwright/test";
 import type {AuthResult} from "./api.ts";
-import {type ConsolePolicy, expectHealthyPage, watchConsole} from "./checks.ts";
+import {type ApiErrorSpec, type ConsolePolicy, expectHealthyPage, unexpectedApiErrors, watchConsole} from "./checks.ts";
 import {Data} from "./data.ts";
 import {claimSuperAdminPhone} from "./phones.ts";
 import {runState} from "./run.ts";
@@ -31,6 +31,12 @@ type Fixtures = {
     consolePolicy: ConsolePolicy;
     /** The test cuts the API off on purpose (`route.abort`): the browser's "net::ERR_…" lines for /api/v1 are expected */
     allowNetworkErrors: () => void;
+    /**
+     * The API error answers (400–499) the test's pages are expected to get (its subject: a refused request, a 404, a
+     * 401 it fakes…); any other one fails the test at the end. A page load without a session (`POST /auth/refresh`
+     * → 401) is always expected.
+     */
+    allowApiErrors: (...errors: ApiErrorSpec[]) => void;
     /** The other pages and browsers the test opened (newTab, newBrowser): the end-of-test page checks run on these
      * pages too; the browsers close after them */
     opened: { pages: Page[]; contexts: BrowserContext[] };
@@ -57,15 +63,15 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
         await provide(data);
         await data.dispose();
     },
-    // eslint-disable-next-line no-empty-pattern
-    consoleErrors: async ({}, provide) => {
+    consoleErrors: async ({consolePolicy}, provide) => {
         const errors: string[] = [];
         await provide(errors);
-        expect(errors, "no console error or uncaught exception").toEqual([]);
+        expect([...errors, ...unexpectedApiErrors(consolePolicy)], "no console error, uncaught exception or undeclared API error").toEqual([]);
     },
     // eslint-disable-next-line no-empty-pattern
-    consolePolicy: async ({}, provide) => provide({networkErrors: false}),
+    consolePolicy: async ({}, provide) => provide({networkErrors: false, apiErrors: [], seen: []}),
     allowNetworkErrors: async ({consolePolicy}, provide) => provide(() => { consolePolicy.networkErrors = true; }),
+    allowApiErrors: async ({consolePolicy}, provide) => provide((...errors) => { consolePolicy.apiErrors.push(...errors); }),
     // eslint-disable-next-line no-empty-pattern
     opened: async ({}, provide) => {
         const opened = {pages: [] as Page[], contexts: [] as BrowserContext[]};

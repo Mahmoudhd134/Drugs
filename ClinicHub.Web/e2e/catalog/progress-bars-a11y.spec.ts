@@ -41,7 +41,7 @@ const scanWhileSearching = async (page: Page, placeholder: string, term: string)
 };
 
 test.describe("Loading bars of the lists @area:ux", () => {
-    test.fixme("BUG-551: the drugs page's, the groups page's and the pickers' loading bars have an accessible name (axe aria-progressbar-name) @UX-036",
+    test.fail("BUG-551: the drugs page's, the groups page's and the pickers' loading bars have an accessible name (axe aria-progressbar-name) @UX-036",
         async ({page, t, data}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Bar ${unique()}`);

@@ -118,7 +118,7 @@ test.describe("Permissions in the UI @area:access", () => {
             await expect(page.getByRole("tooltip")).toHaveText(t.noPermissionTooltip);
         });
 
-    test.fixme("BUG-504: an Assistant on a phone taps the disabled Delete of the group editor: «ليست لديك صلاحية» shows @ACC-066",
+    test.fail("BUG-504: an Assistant on a phone taps the disabled Delete of the group editor: «ليست لديك صلاحية» shows @ACC-066",
         async ({page, t, data, isMobile}) => {
             test.skip(!isMobile, "touch only");
             const {group, staff} = await setUp(data, "Assistant");
@@ -163,7 +163,9 @@ test.describe("Permissions changed while working @area:access", () => {
     };
 
     test("Groups taken away from an Assistant on the Groups page: one «غير مسموح لك بهذا الإجراء.», /me reloads, Groups leaves the sidebar, no-permission page @ACC-074 @smoke",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // The groups list refused once the role lost groups.list: the test's subject
+            allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drug-groups$/});
             const {clinic, staff, roleId} = await setUp(data, "Assistant");
             await signIn(page, staff.phone, "asIs", "/groups");
             await expect(page.getByRole("heading", {level: 1, name: t.groupsTitle})).toBeVisible();
@@ -180,7 +182,9 @@ test.describe("Permissions changed while working @area:access", () => {
         });
 
     test("an Assistant saving a drug after «تعديل الأدوية» was taken away: refused, nothing saved, the edit controls disappear @ACC-075",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // The save refused once the role lost drugs.update: the test's subject
+            allowApiErrors({status: 403, method: "PUT", path: /^\/api\/v1\/drugs\/\d+$/});
             const {clinic, drug, staff, roleId} = await setUp(data, "Assistant");
             await signIn(page, staff.phone, "asIs", "/drugs");
             const row = page.getByRole("row").filter({hasText: drug.name});

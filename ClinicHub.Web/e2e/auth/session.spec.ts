@@ -50,6 +50,39 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
             await expect(page.getByRole("alert")).toHaveText([t.displayModeBanner]);
         });
 
+    test("two tabs: one logs out; the other's next refresh in the middle of its work (its access token expired) opens /login without a message @AUTH-159",
+        async ({page, t, data, newTab, allowApiErrors}) => {
+            // The 401 the test fakes (an expired access token)
+            allowApiErrors({status: 401, method: "GET", path: /^\/api\/v1\/drugs$/});
+            const clinic = await data.clinic();
+            const drug = await data.drug(clinic);
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await expect(page.getByRole("cell", {name: drug.name})).toBeVisible();
+            const other = await newTab();
+            await other.goto("/");
+            await expectContextLabel(other, clinic.name);
+            await logout(other, t);
+            await expect(other).toHaveURL(/\/login$/);
+
+            // The page's access token has expired by now: its next API answer is a 401, so it refreshes (no reload)
+            const term = `zz${unique()}`;
+            await page.route(`**/api/v1/drugs?*search=${term}*`, route =>
+                route.fulfill({status: 401, contentType: "application/problem+json", json: {status: 401, code: "unauthorized"}}));
+            const refreshes: number[] = [];
+            page.on("response", response => {
+                if (new URL(response.url()).pathname === "/api/v1/auth/refresh") refreshes.push(response.status());
+            });
+            await page.evaluate(() => { (window as unknown as { sameLoad: boolean }).sameLoad = true; });
+            await page.getByPlaceholder(t.searchDrugs).fill(term);
+
+            await expect(page).toHaveURL(/\/login$/);
+            await expect(page.getByRole("textbox", {name: t.phone})).toBeVisible();
+            expect(refreshes, "one refresh, refused (the session ended in the other tab)").toEqual([401]);
+            expect(await page.evaluate(() => (window as unknown as { sameLoad?: boolean }).sameLoad ?? false), "no page load").toBe(true);
+            await expect(toasts(page)).toHaveCount(0);
+            await expect(page.getByRole("alert")).toHaveText([t.displayModeBanner]);
+        });
+
     test("a reload, or a new page after closing, keeps the user logged in, in the same clinic @AUTH-160 @smoke", async ({page, t, data, context}) => {
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
@@ -117,7 +150,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
         }
     });
 
-    test.fixme("BUG-503: anonymous on /drugs: after a login that lands in a clinic, /drugs opens @AUTH-169", async ({page, t, data}) => {
+    test.fail("BUG-503: anonymous on /drugs: after a login that lands in a clinic, /drugs opens @AUTH-169", async ({page, t, data}) => {
         const clinic = await data.clinic();
         await page.goto("/drugs");
         await expect(page).toHaveURL(/\/login$/);
@@ -188,7 +221,9 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
 
 test.describe("Several tabs and sessions @area:auth", () => {
     test("logged out in one tab and in again in another: the stale tab's switch gets 401, the new session's cookie survives and still refreshes @AUTH-151",
-        async ({page, t, data, newTab}) => {
+        async ({page, t, data, newTab, allowApiErrors}) => {
+            // The stale tab's switch refused: the test's subject
+            allowApiErrors({status: 401, method: "POST", path: /^\/api\/v1\/auth\/context$/});
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});
@@ -260,7 +295,9 @@ test.describe("Several tabs and sessions @area:auth", () => {
         });
 
     test("tab 1 switched to B: tab 2's request that needs a refresh fails instead of being replayed in B, without a clinic-lost message @AUTH-194",
-        async ({page, t, data, newTab}) => {
+        async ({page, t, data, newTab, allowApiErrors}) => {
+            // The 401 the test fakes (an expired access token)
+            allowApiErrors({status: 401, method: "GET", path: /^\/api\/v1\/drugs$/});
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});
@@ -299,7 +336,9 @@ test.describe("Several tabs and sessions @area:auth", () => {
         });
 
     test("a stale tab on the picker after another user signed in elsewhere: it follows that user, says so, sends the switch once, shows none of the old user's data @AUTH-199 @AUTH-201",
-        async ({page, t, data, newTab}) => {
+        async ({page, t, data, newTab, allowApiErrors}) => {
+            // The stale tab's switch refused (another user's session now): the test's subject
+            allowApiErrors({status: 401, method: "POST", path: /^\/api\/v1\/auth\/context$/});
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});

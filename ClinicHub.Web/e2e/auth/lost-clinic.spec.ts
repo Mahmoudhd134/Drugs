@@ -15,7 +15,9 @@ const expectNoSuspendedMessage = async (page: Page, t: Texts, clinic: string) =>
 
 test.describe("Losing the clinic while working in it @area:auth", () => {
     test("deactivated in A with two other places: «…اختر أين تريد المتابعة.» and the picker opens @AUTH-182 @smoke",
-        async ({page, t, data, healthy}) => {
+        async ({page, t, data, healthy, allowApiErrors}) => {
+            // The clinic lost: its next request is refused (the test's subject)
+            allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
             const u = unique();
             const [a, b, c] = [await data.clinic({name: `A ${u}`}), await data.clinic({name: `B ${u}`}), await data.clinic({name: `C ${u}`})];
             const inA = await data.staff(a);
@@ -34,7 +36,9 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
             await healthy();
         });
 
-    test("lost A with exactly one other clinic B: «…أنت الآن في «B».» and B's / opens @AUTH-183", async ({page, t, data}) => {
+    test("lost A with exactly one other clinic B: «…أنت الآن في «B».» and B's / opens @AUTH-183", async ({page, t, data, allowApiErrors}) => {
+        // The clinic lost: its next request is refused (the test's subject)
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -51,7 +55,9 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
         await expectContextLabel(page, b.name);
     });
 
-    test("lost A with no other place: «…ولا أي عيادة أخرى.» and /login opens @AUTH-184", async ({page, t, data}) => {
+    test("lost A with no other place: «…ولا أي عيادة أخرى.» and /login opens @AUTH-184", async ({page, t, data, allowApiErrors}) => {
+        // The clinic lost: its next request is refused (the test's subject)
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await signIn(page, staff.phone);
@@ -64,7 +70,9 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
         await expect(page).toHaveURL(/\/login$/);
     });
 
-    test("the clinic suspended while working in it: the lost-clinic message, never a «موقوفة» one @AUTH-185", async ({page, t, data}) => {
+    test("the clinic suspended while working in it: the lost-clinic message, never a «موقوفة» one @AUTH-185", async ({page, t, data, allowApiErrors}) => {
+        // The clinic lost: its next request is refused (the test's subject)
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -81,7 +89,9 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
         await expectNoSuspendedMessage(page, t, a.name);
     });
 
-    test("the clinic deleted while working in it: the lost-clinic message @AUTH-186", async ({page, t, data}) => {
+    test("the clinic deleted while working in it: the lost-clinic message @AUTH-186", async ({page, t, data, allowApiErrors}) => {
+        // The clinic lost: its next request is refused (the test's subject)
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await signIn(page, staff.phone);
@@ -94,7 +104,9 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
         await expect(page).toHaveURL(/\/login$/);
     });
 
-    test("removed from the clinic while working in it: the lost-clinic message @AUTH-187", async ({page, t, data}) => {
+    test("removed from the clinic while working in it: the lost-clinic message @AUTH-187", async ({page, t, data, allowApiErrors}) => {
+        // The clinic lost: its next request is refused (the test's subject)
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
         const u = unique();
         const [a, b, c] = [await data.clinic({name: `A ${u}`}), await data.clinic({name: `B ${u}`}), await data.clinic({name: `C ${u}`})];
         const inA = await data.staff(a);
@@ -111,7 +123,9 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
     });
 
     test("removed and added again (a new staff record): the refused save is replayed once and succeeds quietly @AUTH-190",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // The save refused once (the old staff record): the test's subject
+            allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/drugs$/});
             const clinic = await data.clinic();
             const staff = await data.staff(clinic, {roles: ["Doctor"]});
             await signIn(page, staff.phone, "asIs", "/drugs");

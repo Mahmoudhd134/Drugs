@@ -2,7 +2,7 @@ import {expect, signIn, superAdminPhone, test} from "../support/fixtures.ts";
 import {expectContextLabel, recordRequests} from "../support/ui.ts";
 
 test.describe("The template clinic (super admin) @area:auth", () => {
-    test("in the template: the warning banner, and «العودة إلى إدارة المنصة» switches to the platform and opens /admin @AUTH-180",
+    test("in the template: the warning banner, and «العودة إلى إدارة المنصة» switches to the platform and opens /admin; the app bar names the template «العيادة النموذجية» @AUTH-180 @AUTH-177",
         async ({page, t, healthy}) => {
             await signIn(page, superAdminPhone(), "template", "/drugs");
             await expectContextLabel(page, t.template);

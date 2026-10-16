@@ -130,7 +130,7 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
             await settled(page);
         });
 
-    test.fixme("BUG-550: editing the name and default dosing of a drug in two groups: both groups' editors, opened before, show the new name and sentence without a reload @DRUG-071",
+    test.fail("BUG-550: editing the name and default dosing of a drug in two groups: both groups' editors, opened before, show the new name and sentence without a reload @DRUG-071",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();

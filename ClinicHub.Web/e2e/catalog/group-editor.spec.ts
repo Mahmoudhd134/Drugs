@@ -19,7 +19,7 @@ import {
     updateDrug,
 } from "../support/catalog.ts";
 import {CATALOG_TEXTS, SENTENCES} from "../support/texts-catalog.ts";
-import {expectToast} from "../support/ui.ts";
+import {expectToast, recordRequests} from "../support/ui.ts";
 
 /** The group editor: create, edit, keyboard, reorder, two eyes, clashes, delete, read-only (docs/features/drug-groups). */
 
@@ -180,8 +180,46 @@ test.describe("The group editor @area:catalog", () => {
             await healthy();
         });
 
-    test("saving a group after one of its drugs was deleted in another window: «أحد الأدوية لم يعد موجودًا.» and the editor keeps the changes @GRP-034",
+    test("clashing lines: Save shows the alert's text as an error toast and sends nothing; one line's eye changed in its dialog, the chips and the alert go and Save succeeds @GRP-085",
         async ({page, t, lang, data}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const u = unique();
+            const clinic = await data.clinic();
+            const drug = await createDrug(data, clinic, `Eye clash ${u}`, {dosing: DOSINGS.dropRight4x});
+            const group = await createGroup(data, clinic, `Clash ${u}`, [{drug}, {drug, dosing: {eye: "left"}}]);
+            await updateDrug(data, clinic, drug, {defaultDosing: {...DOSINGS.dropRight4x, eye: "left"}});
+            const puts = recordRequests(page, "PUT", new RegExp(`/api/v1/drug-groups/${group.id}$`));
+            await signIn(page, clinic.owner.phone, "asIs", `/groups/${group.id}`);
+            const lines = editorLines(page, ct);
+            await expect(lines).toHaveCount(2);
+            const chips = page.getByText(ct.eyeClash, {exact: true});
+            const alert = page.getByRole("alert").filter({hasText: ct.eyeClashSave});
+            await expect(chips).toHaveCount(2);
+
+            await page.getByRole("button", {name: t.save, exact: true}).click();
+            await expectToast(page, ct.eyeClashSave);
+            expect(puts, "no request").toHaveLength(0);
+
+            // The first line (the drug's default eye, now left) gets the right eye in its dialog
+            await lines.nth(0).getByRole("button", {name: ct.editLine}).click();
+            const lineDialog = page.getByRole("dialog").filter({hasText: ct.itemDosing});
+            await lineDialog.getByRole("button", {name: ct.eyes.right, exact: true}).click();
+            await lineDialog.getByRole("button", {name: t.save, exact: true}).click();
+            await expect(lineDialog).toHaveCount(0);
+            await expect(chips, "the chips go").toHaveCount(0);
+            await expect(alert, "the alert goes").toHaveCount(0);
+
+            await page.getByRole("button", {name: t.save, exact: true}).click();
+            await expectToast(page, t.groupUpdated);
+            expect(puts, "one save").toHaveLength(1);
+            const items = (puts[0].postDataJSON() as { items: { dosing: { eye?: string } | null }[] }).items;
+            expect(items.map(i => i.dosing?.eye ?? null), "the eyes sent").toEqual(["right", "left"]);
+        });
+
+    test("saving a group after one of its drugs was deleted in another window: «أحد الأدوية لم يعد موجودًا.» and the editor keeps the changes @GRP-034",
+        async ({page, t, lang, data, allowApiErrors}) => {
+            // The save refused (drugNotFound): the test's subject
+            allowApiErrors({status: 400, method: "PUT", path: /^\/api\/v1\/drug-groups\/\d+$/});
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
@@ -199,7 +237,9 @@ test.describe("The group editor @area:catalog", () => {
         });
 
     test("/groups/{id} of a deleted or unknown group: «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» instead of the form @GRP-061",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // A deleted or unknown group: the test's subject
+            allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Drug ${unique()}`);
             const group = await createGroup(data, clinic, `Deleted ${unique()}`, [{drug}]);
@@ -214,7 +254,9 @@ test.describe("The group editor @area:catalog", () => {
             }
         });
 
-    test("the editor's Delete, confirmed: «تم حذف المجموعة» and back to the list @GRP-062", async ({page, t, lang, data}) => {
+    test("the editor's Delete, confirmed: «تم حذف المجموعة» and back to the list @GRP-062", async ({page, t, lang, data, allowApiErrors}) => {
+        // After the delete the editor's own query of the deleted group is fetched once more as it closes (404, answer unused)
+        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
         const ct = CATALOG_TEXTS[lang];
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Drug ${unique()}`);

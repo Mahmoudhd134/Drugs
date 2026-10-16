@@ -23,7 +23,9 @@ const hold = async (page: Page, pattern: string) => {
 };
 
 test.describe("Platform admin: a clinic's Overview @area:admin", () => {
-    test("an unknown clinic: «العيادة غير موجودة», and «العودة إلى العيادات» opens the list @ADM-095", async ({page, t, healthy}) => {
+    test("an unknown clinic: «العيادة غير موجودة», and «العودة إلى العيادات» opens the list @ADM-095", async ({page, t, healthy, allowApiErrors}) => {
+        // An unknown clinic: the test's subject
+        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/admin\/clinics\/999999$/});
         await signInSuperAdmin(page, "/admin/clinics/999999");
         await expectNotFound(page, t);
         await healthy();
@@ -31,7 +33,9 @@ test.describe("Platform admin: a clinic's Overview @area:admin", () => {
         await expect(page).toHaveURL(/\/admin$/);
     });
 
-    test("a deleted clinic's URL and the template's URL: «العيادة غير موجودة» @ADM-136 @ADM-141", async ({page, t, data}) => {
+    test("a deleted clinic's URL and the template's URL: «العيادة غير موجودة» @ADM-136 @ADM-141", async ({page, t, data, allowApiErrors}) => {
+        // A deleted clinic and the template are not found: the test's subject
+        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/admin\/clinics\/\d+$/});
         const clinic = await data.clinic();
         await data.deleteClinic(clinic);
         const template = data.admin.auth!.contexts.find(c => c.type === "clinic" && c.isTemplate);
@@ -65,15 +69,27 @@ test.describe("Platform admin: a clinic's Overview @area:admin", () => {
         await signInSuperAdmin(page, `/admin/clinics/${clinic.id}`);
         await page.getByRole("button", {name: t.rename}).click();
         const dialog = page.getByRole("dialog", {name: t.renameTitle});
-        await dialog.getByRole("textbox", {name: t.clinicName}).fill(`Renamed ${unique()}`);
+        const renamed = `Renamed ${unique()}`;
+        const input = dialog.getByRole("textbox", {name: t.clinicName});
+        await input.fill(renamed);
 
         const puts = recordRequests(page, "PUT", new RegExp(`/api/v1/admin/clinics/${clinic.id}$`));
         const release = await hold(page, `**/api/v1/admin/clinics/${clinic.id}`);
         await dialog.getByRole("button", {name: t.save}).dblclick();
         await expect.poll(() => puts.length).toBe(1);
+        // A dialog that closes stays in the DOM while it fades out (~200 ms) and still counts as visible: each check
+        // waits past that transition, then the dialog must still be there, fully opaque, with the typed name
+        const stillOpen = async (after: string) => {
+            await page.waitForTimeout(600);
+            await expect(dialog, `still open after ${after}`).toBeVisible();
+            // (MUI fades the dialog's container, the paper's parent)
+            await expect(dialog.locator("xpath=.."), `not fading out after ${after}`).toHaveCSS("opacity", "1");
+            await expect(input, `the typed name kept after ${after}`).toHaveValue(renamed);
+        };
         await page.keyboard.press("Escape");
+        await stillOpen("Esc");
         await page.mouse.click(5, 5);
-        await expect(dialog).toBeVisible();
+        await stillOpen("a backdrop click");
 
         release();
         await expectToast(page, t.clinicRenamed);
@@ -166,7 +182,14 @@ test.describe("Platform admin: a clinic's Overview @area:admin", () => {
         });
 
     test("A deleted in another window while its Overview is open: Rename-Save, Disable, Enable and Delete each answer «هذا العنصر لم يعد موجودًا.» and «العيادة غير موجودة» @ADM-272",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // Every action on the deleted clinic answers 404 (and its page's reload): the test's subject
+            allowApiErrors(
+                {status: 404, method: "GET", path: /^\/api\/v1\/admin\/clinics\/\d+$/},
+                {status: 404, method: "PUT", path: /^\/api\/v1\/admin\/clinics\/\d+$/},
+                {status: 404, method: "DELETE", path: /^\/api\/v1\/admin\/clinics\/\d+$/},
+                {status: 404, method: "POST", path: /^\/api\/v1\/admin\/clinics\/\d+\/(suspend|activate)$/},
+            );
             const actions: { name: string; suspended?: boolean; run: (clinicName: string) => Promise<void> }[] = [
                 {
                     name: "rename", run: async () => {

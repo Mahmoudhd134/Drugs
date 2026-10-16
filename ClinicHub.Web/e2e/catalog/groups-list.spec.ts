@@ -3,6 +3,9 @@ import {unique} from "../support/phones.ts";
 import {createDrug, createDrugs, createGroup, dialog, drugRow, groupCard, groupCards, option} from "../support/catalog.ts";
 import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {expectToast, navTo} from "../support/ui.ts";
+import {expectHealthyPage} from "../support/checks.ts";
+import {type Lang, TEXTS} from "../support/texts.ts";
+import {setLanguage} from "../support/ux.ts";
 
 /** The groups page: cards, search, open, delete; the prescription's group search (docs/features/drug-groups). */
 test.describe("The groups list @area:catalog", () => {
@@ -102,16 +105,23 @@ test.describe("The groups list @area:catalog", () => {
             await expect(drugRow(page, drug.name)).toBeVisible();
         });
 
-    test("the prescription's Groups tab: typing «عمليه» lists «بعد عملية المياه» @GRP-097", async ({page, t, data, healthy}) => {
-        const clinic = await data.clinic();
-        const drug = await createDrug(data, clinic, `Drug ${unique()}`);
-        await createGroup(data, clinic, "بعد عملية المياه", [{drug}]);
-        await createGroup(data, clinic, "جفاف العين", [{drug}]);
-        await signIn(page, clinic.owner.phone);
-        await expect(page.getByRole("tab", {name: t.rxTabGroups})).toHaveAttribute("aria-selected", "true");
-        await page.getByPlaceholder(t.searchGroups).filter({visible: true}).fill("عمليه");
-        await expect(option(page, "بعد عملية المياه").filter({visible: true})).toBeVisible();
-        await expect(page.getByRole("option").filter({visible: true})).toHaveCount(1);
-        await healthy();
-    });
+    test("the prescription's Groups tab: typing «عمليه» lists «بعد عملية المياه» (desktop in the project's language; the 375 px phone in Arabic and English) @GRP-097",
+        async ({page, lang, data, isMobile}) => {
+            const clinic = await data.clinic();
+            const drug = await createDrug(data, clinic, `Drug ${unique()}`);
+            await createGroup(data, clinic, "بعد عملية المياه", [{drug}]);
+            await createGroup(data, clinic, "جفاف العين", [{drug}]);
+            await signIn(page, clinic.owner.phone);
+            for (const ui of isMobile ? ["ar", "en"] as Lang[] : [lang]) {
+                await test.step(ui, async () => {
+                    const t = TEXTS[ui];
+                    if (ui !== lang) await setLanguage(page, ui);
+                    await expect(page.getByRole("tab", {name: t.rxTabGroups})).toHaveAttribute("aria-selected", "true");
+                    await page.getByPlaceholder(t.searchGroups).filter({visible: true}).fill("عمليه");
+                    await expect(option(page, "بعد عملية المياه").filter({visible: true})).toBeVisible();
+                    await expect(page.getByRole("option").filter({visible: true})).toHaveCount(1);
+                    await expectHealthyPage(page, ui, test.info());
+                });
+            }
+        });
 });
