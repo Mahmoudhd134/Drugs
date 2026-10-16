@@ -159,7 +159,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
         });
 
     test("API unreachable on page load: «تعذّر الاتصال بالخادم» with «إعادة المحاولة»; once it is back, Retry restores the session in the same clinic @AUTH-173 @AUTH-174",
-        async ({page, t, data, healthy}) => {
+        async ({page, t, data, healthy, allowNetworkErrors}) => {
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});
@@ -168,6 +168,8 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
             await signIn(page, staff.phone, {clinicId: b.id});
             await expectContextLabel(page, b.name);
 
+            // The API unreachable: its "net::ERR_…" console lines are expected
+            allowNetworkErrors();
             await page.route("**/api/v1/**", route => route.abort("connectionrefused"));
             await page.reload();
             await expect(page.getByText(t.network, {exact: true})).toBeVisible();

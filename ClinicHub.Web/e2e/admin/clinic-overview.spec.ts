@@ -102,10 +102,17 @@ test.describe("Platform admin: a clinic's Overview @area:admin", () => {
             await expect(page.getByText(t.suspendedInfo, {exact: true})).toBeVisible();
             expect(suspends).toHaveLength(1);
 
+            // Back to the list, then its Disabled filter: both from the app's cache, no page load
+            await page.evaluate(() => { (window as unknown as { sameLoad: boolean }).sameLoad = true; });
             await page.getByRole("button", {name: t.back}).first().click();
             await expect(page.locator("tbody tr").first()).toContainText(t.statusDisabled);
-            await page.goto(`/admin?search=${token}&status=suspended`);
+            await page.getByRole("combobox", {name: t.statusFilter}).click();
+            await page.getByRole("option", {name: t.statusDisabled, exact: true}).click();
+            await expect(page).toHaveURL(/status=suspended/);
             await expect(page.locator("tbody tr")).toHaveCount(1);
+            await expect(page.locator("tbody tr").first()).toContainText(clinic.name);
+            await expect(page.locator("tbody tr").first()).toContainText(t.statusDisabled);
+            expect(await page.evaluate(() => (window as unknown as { sameLoad?: boolean }).sameLoad), "no page load").toBe(true);
         });
 
     test("Enable (double click): no confirm, one activate, «تم تفعيل العيادة» and the chip «نشطة» @ADM-120 @ADM-121", async ({page, t, data}) => {
