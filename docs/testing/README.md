@@ -497,8 +497,9 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 | Test data through the real API (the worker's super admin; an owner for drugs and groups) | `data.clinic()`, `data.staff(clinic, …)`, `data.role(clinic, permissions)`, `data.drug(clinic)`, `data.group(clinic, drugs)`, `data.suspend` / `deleteClinic` / `deactivate` / `removeStaff`, … (`data.ts`); every name and phone unique in the run (`unique()`, `uniquePhone()`) |
 | A logged-in page | `signIn(page, phone, target, path)` (OTP through the browser's own request context, so the cookie is the browser's; `target` = `"asIs"`, `"platform"`, `"template"`, `{clinicId}`), `signInSuperAdmin(page)`; through the login page itself: `loginViaUi(page, t, phone)` (for the login cases) |
 | Another tab (same cookies) or another browser (own cookies, a second user) | `newTab()`, `newBrowser()` |
-| Page checks | `healthy()`: `dir`/`lang` of the UI language, no horizontal scroll, axe-core (serious/critical fail); run by itself on every page left open at the end of a passing test, which also fails on any console error or uncaught exception |
+| Page checks | `healthy()`: `dir`/`lang` of the UI language, no horizontal scroll, axe-core (serious/critical fail); run by itself on every page left open at the end of a passing test, which also fails on any console error, uncaught exception or undeclared API error (below) |
 | The API cut off on purpose (`page.route(…).abort()`) | `allowNetworkErrors()` (the browser's `net::ERR_…` lines are then expected) |
+| API error answers the test expects (its subject: a refused request, a 404, a 401 it fakes…) | `allowApiErrors({status, method?, path?})` (`path` a RegExp on the pathname): every `/api/v1` answer of 400–499 a test's pages get must be declared, or the test fails at its end; `POST /api/v1/auth/refresh` → 401 (a page load without a session) is always allowed |
 | Page loaded, toasts, the sidebar, area steps | `settled(page)`, `expectToast`, `openSidebar` / `navTo` (`ui.ts`), `catalog.ts`, `rx.ts`, `ux.ts` |
 
 - Locate by role and accessible name in the project's language (`getByRole("button", {name: t.addDrug})`), like a
@@ -506,8 +507,14 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 - Wait with Playwright's web-first assertions (`await expect(…).toBeVisible()`), never `waitForTimeout`.
 - Each test makes its own clinic and users: tests run in parallel against one database and never see each other's
   data. Don't change the template clinic outside `e2e/template-edits/`.
-- An axe finding that is a known bug is listed in `KNOWN_AXE` (`checks.ts`) with its `BUG-nnn`, limited to the
-  elements its row documents: reported, not failed, so the rest of the scan still guards every page.
+- An axe finding that is a known bug is listed in `KNOWN_AXE` (`checks.ts`) with its `BUG-nnn`, limited to the rule
+  and the elements its row documents: reported (the test's attachments), not failed, so the rest of the scan still
+  guards every page. Cut text that is a known bug is listed the same way in `KNOWN_CUT` (`ux.ts`, used by
+  `expectNoCutOrOverlap`; today BUG-591's group cards).
+- A known-bug test is `test.fail("BUG-nnn: … @CASE", …)`: it runs and must fail (a project where the bug doesn't show:
+  a conditional `test.skip(condition, "<why> (BUG-nnn)")` at its top). An axe bug's own test checks the page with
+  `expectHealthyPage(page, lang, testInfo, {onlyBug: "BUG-nnn"})`: that bug's allowance is dropped, the other known
+  bugs still let through, so it fails on its own bug only and passes once that one is fixed ([Known bugs](#known-bugs)).
 - `npm run e2e` first type-checks and lints the specs (`tsc -p e2e`, ESLint): fix those errors first.
 
 ## Known bugs
