@@ -82,8 +82,10 @@ test.describe("Prescription: adding a group @area:prescription", () => {
             await expect(dialog).toBeVisible();
             await page.keyboard.press("Escape");
             await expect(dialog).toBeHidden();
+            await page.waitForTimeout(500);
             await expect(rx.lines).toHaveCount(0);
             await expect(rx.count).toHaveText("0");
+            await expect(toasts(page)).toHaveCount(0);
 
             await rx.addGroup(group.name);
             await expect(dialog).toBeVisible();
