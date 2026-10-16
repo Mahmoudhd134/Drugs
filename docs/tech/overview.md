@@ -287,7 +287,7 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 | Use case failure (`Result`) | `ToOk` / `ToCreated` / `ToNoContent` | the handler's or validator's |
 | No/invalid/expired token | JwtBearer `OnChallenge` | `unauthorized` (401; the SPA refreshes by status) |
 | Permission / context | `AccessAuthorizationResultHandler`, JwtBearer `OnForbidden` | `forbidden`, `noAccess`, `clinicSuspended` (login and the clinic picker also `staffInactive`, from the use cases) |
-| Malformed JSON, wrong types, empty body | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error, with its `field`; the parser's message only in Development) |
+| Malformed JSON, wrong types, empty body, unreadable query values (`?page=first`) | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error, with its `field`; the parser's message only in Development) |
 | Unknown route / wrong method | `UseProblemStatusCodePages` | `notFound` 404 / `methodNotAllowed` 405 |
 | Unhandled exception | `UnexpectedExceptionHandler` | `unexpected` 500; message and stack only in Development |
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |

@@ -590,7 +590,7 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ERR-010 | Given malformed JSON on `POST /drugs`, then 400 `invalidRequest` with one error per model-state error | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
+| ERR-010 | Given a request the model binding can't read (malformed JSON on `POST /drugs`, or unreadable query values: `GET /drugs?page=first&pageSize=many`), then 400 `invalidRequest` with one error per model-state error, each with its `field` (the query case: two errors, on `page` and `pageSize`) | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-011 | Given a wrong type (e.g. `name: 123`, `items: "x"`), then 400 `invalidRequest` with the field named | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-012 | Given an empty body on `POST /drugs` and `POST /auth/otp/verify`, then 400 `invalidRequest` | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-013 | Given a malformed body outside Development (the Testing environment), then each error keeps its `field` but the description is generic (no parser message, no CLR type names) | P1 | api | [architecture § 6](../design/architecture.md#6-errors-problemdetails) |
