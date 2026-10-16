@@ -59,8 +59,8 @@ public sealed class AppFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         DatabaseName = await TestRun.CreateCopyAsync();
-        Factory = new ClinicHubFactory(TestRun.ConnectionString(DatabaseName));
-        Factory.Start();
+        var connectionString = TestRun.ConnectionString(DatabaseName);
+        Factory = await TestRun.StartAppAsync(() => new ClinicHubFactory(connectionString), $"the app of {DatabaseName}");
     }
 
     public async Task DisposeAsync()
@@ -91,11 +91,12 @@ public sealed class AppFixture : IAsyncLifetime
         Clock.Reset();
         if (testClass == currentClass && !dirty)
             return;
-        currentClass = testClass;
         await DisposePerClassAsync();
-        // A fresh copy is already clean
+        // A fresh copy is already clean. The class counts as started only once reset: a failed reset (a connection
+        // failure under load) fails this test, and the next test of the class tries the reset again
         if (used || dirty)
             await ResetAsync();
+        currentClass = testClass;
         used = true;
         dirty = false;
     }

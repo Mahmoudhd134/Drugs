@@ -21,7 +21,9 @@ namespace ClinicHub.IntegrationTests.Harness.Databases;
 /// checkpoints, so the maintenance connection has a long command timeout (<see cref="AdminCommandTimeoutSeconds"/>).
 /// Only creating this run's databases fails loudly: dropping (other runs' leftovers, a collection's copy at its end,
 /// the run's own at shutdown) is best effort, logged (<see cref="Warn"/>) and retried later (at shutdown, else by the
-/// next run's stale cleanup, the run being gone), never a failed test.
+/// next run's stale cleanup, the run being gone), never a failed test. Opening a connection can also be slow then
+/// (several runs, a build): every connection allows <see cref="ConnectTimeoutSeconds"/>, and an app that fails to
+/// start on a connection failure is started again (<see cref="StartAppAsync"/>).
 /// </para>
 /// </summary>
 public static class TestRun
@@ -34,6 +36,13 @@ public static class TestRun
     private const string CommentPrefix = "clinichub-it created=";
     /// <summary>CREATE/DROP DATABASE under load wait for checkpoints well past Npgsql's default 30 s.</summary>
     public const int AdminCommandTimeoutSeconds = 600;
+    /// <summary>
+    /// Opening a connection (TCP + authentication) under load: Npgsql's default 15 s timed out when a collection's app
+    /// started while other runs and a build kept the machine busy.
+    /// </summary>
+    public const int ConnectTimeoutSeconds = 60;
+    /// <summary>How many times a collection's (or the template's) app is started when its start fails on a connection.</summary>
+    public const int AppStartAttempts = 3;
 
     public static string Id { get; } = ResolveId(Environment.GetEnvironmentVariable(RunIdVariable));
     public static string TemplateName => $"{DatabaseGuard.Prefix}{Id}_tpl";
@@ -58,7 +67,10 @@ public static class TestRun
 
     /// <summary>A guarded connection string to one of the run's databases (pooled, at most 20 connections).</summary>
     public static string ConnectionString(string database) =>
-        DatabaseGuard.Ensure(new NpgsqlConnectionStringBuilder(Server) { Database = database, MaxPoolSize = 20 }.ConnectionString);
+        DatabaseGuard.Ensure(new NpgsqlConnectionStringBuilder(Server)
+        {
+            Database = database, MaxPoolSize = 20, Timeout = ConnectTimeoutSeconds,
+        }.ConnectionString);
 
     private static string Server => Environment.GetEnvironmentVariable(ServerVariable) is { Length: > 0 } server ? server : DefaultServer;
 
@@ -70,6 +82,7 @@ public static class TestRun
             var builder = new NpgsqlConnectionStringBuilder(Server)
             {
                 Database = "postgres", Pooling = false, CommandTimeout = AdminCommandTimeoutSeconds,
+                Timeout = ConnectTimeoutSeconds,
             };
             DatabaseGuard.EnsureLocal(builder.Host);
             return builder.ConnectionString;
@@ -105,11 +118,61 @@ public static class TestRun
         // Booting the app migrates the database and runs the startup seeder (template clinic, test super admin),
         // exactly as on a real start
         var templateConnection = ConnectionString(TemplateName);
-        await using (var factory = new ClinicHubFactory(templateConnection))
-            factory.Start();
+        await using (await StartAppAsync(() => new ClinicHubFactory(templateConnection), "the template's app"))
+        {
+        }
         // A template must have no open connection when it is copied
         NpgsqlConnection.ClearPool(new NpgsqlConnection(templateConnection));
         Log.Enqueue($"template {TemplateName} ready");
+    }
+
+    /// <summary>
+    /// Creates and starts an app (migrations and startup seeder run); a start that fails on a connection failure (a
+    /// connect timeout under load, a dropped connection) is retried with a new app, up to <see cref="AppStartAttempts"/>
+    /// times, each retry reported (<paramref name="report"/>, default: a warning of the run). Any other startup failure
+    /// throws at once.
+    /// </summary>
+    public static async Task<ClinicHubFactory> StartAppAsync(Func<ClinicHubFactory> create, string what,
+        Action<string> report = null)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var factory = create();
+            try
+            {
+                factory.Start();
+                return factory;
+            }
+            catch (Exception e) when (attempt < AppStartAttempts && IsConnectionFailure(e))
+            {
+                (report ?? Warn)($"{what} did not start (attempt {attempt} of {AppStartAttempts}, started again): {e.GetBaseException().Message}");
+                await factory.DisposeAsync();
+                NpgsqlConnection.ClearPool(new NpgsqlConnection(factory.ConnectionString));
+                await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
+            }
+            catch
+            {
+                await factory.DisposeAsync();
+                throw;
+            }
+        }
+    }
+
+    /// <summary>A failure to reach PostgreSQL (timeout, transient Npgsql error) anywhere in the exception chain.</summary>
+    public static bool IsConnectionFailure(Exception exception)
+    {
+        var pending = new Stack<Exception>([exception]);
+        while (pending.TryPop(out var e))
+        {
+            if (e is TimeoutException or NpgsqlException { IsTransient: true })
+                return true;
+            if (e is AggregateException aggregate)
+                foreach (var inner in aggregate.InnerExceptions)
+                    pending.Push(inner);
+            else if (e.InnerException is not null)
+                pending.Push(e.InnerException);
+        }
+        return false;
     }
 
     /// <summary>A new copy of the template for one collection: <c>drags_it_&lt;run&gt;_&lt;n&gt;</c>.</summary>

@@ -10,8 +10,11 @@
     - Vitest                 ClinicHub.Web/src/**/*.test.ts(x)         "@DOSE-012" in a title         -> levels unit, ui
     - Playwright             ClinicHub.Web/e2e/**/*.spec.ts            "@RX-004" in a title           -> level e2e
   A test marked as a known bug (xUnit Skip = "BUG-0nn: ..." as a plain string literal, Vitest test.skip("BUG-1nn: ..."),
-  Playwright test.fixme("BUG-1nn: ...")) counts its cases as covered-but-known-bug: they count for the gates and are
-  listed apart. Any other skip (no BUG-nnn id; a Skip that is not a plain literal: a const, $"...", @"..."; also .todo
+  Playwright test.fixme("BUG-1nn: ...")) counts its cases as covered-with-known-bug: they count for the gates and are
+  listed apart. A known bug wins over a passing test of the same case and level (a case proven by a passing test and
+  also marked by a known-bug test is still reported as a known bug). Every BUG-nnn id of a known-bug test (xUnit,
+  Vitest, Playwright; with or without a case tag; also a conditional test.fixme(cond, "BUG-nnn: ...")) is listed
+  (knownBugIds, knownBugTests in the json; test.ps1's summary shows them). Any other skip (no BUG-nnn id; a Skip that is not a plain literal: a const, $"...", @"..."; also .todo
   and the tests of a describe.skip) is not coverage, nor is an ID in a comment. Fails (exit 1) when a test names an ID
   that is not exactly a catalog ID, when a test is skipped without a BUG-nnn id, when the catalog repeats an ID, and,
   with -Gate, when the coverage of the P0 or P1 cases in scope is below 100% (P2 is reported, not gated; manual cases
@@ -72,6 +75,8 @@ if ($duplicates.Count -gt 0) { throw "Duplicate case IDs in $($Catalog): $(($dup
 # ---- Tests ----
 # { Id, Levels, State (covered | knownBug | skipped), File, Line }; "skipped" = skipped without a BUG-nnn id: not counted
 $found = New-Object System.Collections.ArrayList
+# { Bug, Tool (xunit | vitest | playwright), File, Line }: every known-bug test, whether or not it names a case
+$bugTests = New-Object System.Collections.ArrayList
 
 function Get-Files([string] $dir, [string[]] $patterns) {
     if (-not (Test-Path $dir)) { return @() }
@@ -130,6 +135,12 @@ function Add-Found([string] $id, [string[]] $levels, [string] $state, [string] $
     [void]$found.Add([pscustomobject]@{ Id = $id; Levels = $levels; State = $state; File = $file.Substring($Root.Length + 1); Line = $line })
 }
 
+function Add-BugTest([string] $text, [string] $tool, [string] $file, [int] $line) {
+    foreach ($m in [regex]::Matches($text, 'BUG-\d{3}')) {
+        [void]$bugTests.Add([pscustomobject]@{ Bug = $m.Value; Tool = $tool; File = $file.Substring($Root.Length + 1); Line = $line })
+    }
+}
+
 # xUnit: the attributes above one member (continuation lines of a multi-line attribute included) share its Skip
 function Add-CSharp([string] $dir, [string[]] $levels) {
     $quotes = [char[]]@('"')
@@ -149,7 +160,10 @@ function Add-CSharp([string] $dir, [string[]] $levels) {
                 $all = ($block | ForEach-Object { $_.Text }) -join ' '
                 # Any Skip skips (xUnit takes a const or an interpolated string too); a known bug only as a plain literal
                 $state = 'covered'
-                if ($all -match '(?<![\w$@])Skip\s*=\s*"\s*BUG-\d{3}') { $state = 'knownBug' }
+                if ($all -match '(?<![\w$@])Skip\s*=\s*"\s*(BUG-\d{3})') {
+                    $state = 'knownBug'
+                    Add-BugTest $Matches[1] 'xunit' $file.FullName $block[0].Line
+                }
                 elseif ($all -match '\bSkip\s*=') { $state = 'skipped' }
                 foreach ($entry in $block) {
                     foreach ($m in [regex]::Matches($entry.Text, "Trait\(\s*""Case""\s*,\s*""([^""]+)""\s*\)")) {
@@ -165,7 +179,7 @@ function Add-CSharp([string] $dir, [string[]] $levels) {
 
 # Vitest / Playwright: "@ID" tokens in a test or describe title. The title belongs to the nearest call opened on its
 # line or up to 5 lines above (prettier wraps long titles); inside a describe.skip/fixme block every test is skipped too.
-function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels) {
+function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels, [string] $tool) {
     $quotes = [char[]]@('"', "'", '`')
     $opener = '\b(test|it|describe)((\.\w+)*)\s*\('
     foreach ($file in Get-Files $dir $patterns) {
@@ -175,6 +189,15 @@ function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels) {
         $pending = $null                                           # a describe.skip whose body has not opened yet
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $text = $lines[$i]
+            # A known-bug test (or describe): the BUG-nnn ids of its call up to its body ("=>", "function", ");"), the
+            # title possibly wrapped over the next lines; also a conditional test.fixme(cond, "BUG-nnn: ...") in a body
+            if ($text -match $opener -and $Matches[2] -match '\.(skip|fixme|todo)\b') {
+                $call = ($lines[$i..[math]::Min($lines.Count - 1, $i + 5)] -join ' ')
+                $call = $call.Substring($call.IndexOf($Matches[0]))
+                $end = [regex]::Match($call, '=>|\bfunction\b|\)\s*;')
+                if ($end.Success) { $call = $call.Substring(0, $end.Index) }
+                Add-BugTest $call $tool $file.FullName ($i + 1)
+            }
             # Not an e-mail address ("owner@clinic-1.test"): nothing word-like right before the "@"
             $tokens = [regex]::Matches($text, '(?<![\w.%+-])@([A-Za-z][A-Za-z0-9]*-\d+)\b')
             if ($tokens.Count -gt 0) {
@@ -215,15 +238,16 @@ function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels) {
 
 Add-CSharp (Join-Path $Root 'tests\ClinicHub.UnitTests') @('unit')
 Add-CSharp (Join-Path $Root 'tests\ClinicHub.IntegrationTests') @('api')
-Add-Script (Join-Path $Root 'ClinicHub.Web\src') @('*.test.ts', '*.test.tsx') @('unit', 'ui')
-Add-Script (Join-Path $Root 'ClinicHub.Web\e2e') @('*.spec.ts') @('e2e')
+Add-Script (Join-Path $Root 'ClinicHub.Web\src') @('*.test.ts', '*.test.tsx') @('unit', 'ui') 'vitest'
+Add-Script (Join-Path $Root 'ClinicHub.Web\e2e') @('*.spec.ts') @('e2e') 'playwright'
 
 # ---- Matching ----
 # Anything not exactly a catalog ID (a typo, "@AUTH-0163", "@auth-189") is unknown
 $unknown = @($found | Where-Object { -not $cases.Contains($_.Id) -or $_.Id -cnotmatch "^$idPattern$" })
 $skippedWithoutBug = @($found | Where-Object { $_.State -eq 'skipped' })
-# case|level -> 'covered' | 'knownBug'
+# case|level -> 'covered' | 'knownBug': a known bug wins over a passing test (the bug must stay visible)
 $status = @{}
+$alsoPassing = @{}
 $offLevel = New-Object System.Collections.ArrayList
 foreach ($test in ($found | Where-Object { $_.State -ne 'skipped' -and $cases.Contains($_.Id) -and $_.Id -cmatch "^$idPattern$" })) {
     $case = $cases[$test.Id]
@@ -234,9 +258,11 @@ foreach ($test in ($found | Where-Object { $_.State -ne 'skipped' -and $cases.Co
     }
     foreach ($level in $matched) {
         $key = "$($test.Id)|$level"
-        # A passing test wins over a known-bug one
-        if ($test.State -eq 'covered') { $status[$key] = 'covered' }
-        elseif (-not $status.ContainsKey($key)) { $status[$key] = 'knownBug' }
+        if ($test.State -eq 'covered') {
+            $alsoPassing[$key] = $true
+            if (-not $status.ContainsKey($key)) { $status[$key] = 'covered' }
+        }
+        else { $status[$key] = 'knownBug' }
     }
 }
 
@@ -249,7 +275,8 @@ foreach ($case in $cases.Values) {
         if ($status.ContainsKey($key)) { $state = $status[$key] }
         $inScope = (($Areas.Count -eq 0) -or ($Areas -contains $case.Area)) -and (($Levels.Count -eq 0) -or ($Levels -contains $level))
         [void]$rows.Add([pscustomobject]@{
-            Id = $case.Id; Area = $case.Area; Priority = $case.Priority; Level = $level; State = $state; InScope = $inScope })
+            Id = $case.Id; Area = $case.Area; Priority = $case.Priority; Level = $level; State = $state; InScope = $inScope
+            AlsoPassing = ($state -eq 'knownBug' -and $alsoPassing.ContainsKey($key)) })
     }
 }
 
@@ -289,7 +316,9 @@ $md = New-Object System.Text.StringBuilder
 [void]$md.AppendLine('')
 [void]$md.AppendLine('## Gate (in scope)')
 [void]$md.AppendLine('')
-[void]$md.AppendLine('| Priority | Gate | Total | Covered | Known bug | Missing | % | Result |')
+[void]$md.AppendLine('Covered with known bug: a known-bug test marks the case (with or without a passing test); it counts as covered.')
+[void]$md.AppendLine('')
+[void]$md.AppendLine('| Priority | Gate | Total | Covered | Covered with known bug | Missing | % | Result |')
 [void]$md.AppendLine('|---|---:|---:|---:|---:|---:|---:|---|')
 foreach ($g in $gateResults) {
     $result = 'pass'; if (-not $g.Passed) { $result = '**FAIL**' }
@@ -329,9 +358,23 @@ if ($unknown.Count -gt 0) {
 $bugs = @($rows | Where-Object { $_.State -eq 'knownBug' })
 if ($bugs.Count -gt 0) {
     [void]$md.AppendLine('')
-    [void]$md.AppendLine('## Covered by a known-bug test only')
+    [void]$md.AppendLine('## Covered with a known bug')
     [void]$md.AppendLine('')
-    foreach ($b in $bugs) { [void]$md.AppendLine("- $($b.Id) ($($b.Priority), $($b.Level))") }
+    foreach ($b in $bugs) {
+        $how = 'known-bug test only'; if ($b.AlsoPassing) { $how = 'also a passing test' }
+        [void]$md.AppendLine("- $($b.Id) ($($b.Priority), $($b.Level)): $how")
+    }
+}
+$knownBugIds = @($bugTests | ForEach-Object { $_.Bug } | Sort-Object -Unique)
+$byTool = [ordered]@{}
+foreach ($tool in @('xunit', 'vitest', 'playwright')) {
+    $byTool[$tool] = @($bugTests | Where-Object { $_.Tool -eq $tool } | ForEach-Object { "$($_.Bug) $($_.File):$($_.Line)" })
+}
+if ($bugTests.Count -gt 0) {
+    [void]$md.AppendLine('')
+    [void]$md.AppendLine("## Known-bug tests ($($bugTests.Count); $($knownBugIds -join ', '))")
+    [void]$md.AppendLine('')
+    foreach ($tool in $byTool.Keys) { foreach ($t in $byTool[$tool]) { [void]$md.AppendLine("- $($tool): $t") } }
 }
 if ($offLevel.Count -gt 0) {
     [void]$md.AppendLine('')
@@ -351,6 +394,9 @@ $json = [pscustomobject]@{
     gate = $gateResults; unknownIds = @($unknown | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" })
     skippedWithoutBug = @($skippedWithoutBug | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" })
     knownBugCases = @($bugs | ForEach-Object { "$($_.Id)|$($_.Level)" })
+    knownBugCasesAlsoPassing = @($bugs | Where-Object { $_.AlsoPassing } | ForEach-Object { "$($_.Id)|$($_.Level)" })
+    knownBugIds = $knownBugIds
+    knownBugTests = $byTool
     missing = @($scoped | Where-Object { $_.State -eq 'missing' } | ForEach-Object { "$($_.Id)|$($_.Priority)|$($_.Level)" })
 } | ConvertTo-Json -Depth 5
 [IO.File]::WriteAllText((Join-Path $OutDir 'traceability.json'), $json, $utf8)
@@ -358,7 +404,7 @@ $json = [pscustomobject]@{
 # ---- Console + exit code ----
 foreach ($g in $gateResults) {
     $gateText = 'reported, no gate'; if ($null -ne $g.Gate) { $gateText = "gate $($g.Gate)%" }
-    Write-Host ("  {0}: {1}% of {2} (covered {3}, known bug {4}, missing {5}; {6})" -f $g.Priority, $g.Percent, $g.Total, $g.Covered, $g.KnownBug, $g.Missing, $gateText)
+    Write-Host ("  {0}: {1}% of {2} (covered {3}, covered with known bug {4}, missing {5}; {6})" -f $g.Priority, $g.Percent, $g.Total, $g.Covered, $g.KnownBug, $g.Missing, $gateText)
 }
 $failed = $false
 if ($unknown.Count -gt 0) {
