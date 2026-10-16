@@ -20,8 +20,8 @@ Read the docs, they are the source of truth for how and why things work:
   (tech in English, business in Arabic). Update both overviews if you add endpoints, tables, pages
   or user-visible capabilities. Update docs in the same commit as the code.
 - Tests: add the feature's cases to `docs/testing/test-catalog.md` (fix the ones whose behavior changed) and write a
-  test at each case's level (unit, api, ui, e2e), tagged with the case IDs, in the same commit
-  (`docs/testing/README.md` "Adding a test"). Never weaken a test to make it pass.
+  test at each case's level (unit, api, ui, e2e), tagged with the case IDs, merged with the code on the feature branch
+  (`docs/testing/README.md` "Adding a test"; who writes them: "Feature workflow" below). Never weaken a test to make it pass.
 - UI strings go in `ClinicHub.Web/src/i18n/locales/en.ts` **and** `ar.ts`; check the UI in Arabic (RTL).
 - Migrations: nothing in production yet; once deployed they must preserve data (see "Migrations" in the tech overview).
 
@@ -35,4 +35,51 @@ Read the docs, they are the source of truth for how and why things work:
   `--project ClinicHub.Infrastructure --startup-project ClinicHub.Api` (+ `--configuration Release` if Rider runs
   the API; for `dotnet ef`, `-c` means `--context`),
   e.g. `dotnet ef migrations add <Name> …`, `dotnet ef database update …`. Never regenerate migrations.
-- Commit directly on `main`, only when asked. Never push unless asked.
+- Small fixes the user asks for may be committed on `main`; features and bug rounds live on their own branch + git
+  worktree, and their sessions commit validated work there. Merging to `main` only with the user's OK. Never push unless asked.
+
+## Feature workflow (agreed 2026-10-17)
+Roles: a **program orchestrator** session starts one **feature session** per feature (and merges to `main` on the
+user's OK); the feature session designs with the user and runs T1–T6 with **separate** agents (edge-case finder, coders,
+test writers, reviewers, code fixer, test fixer, acceptance tester). The user only walks through the result for about a
+minute and never tests by hand: the tests must be reliable and cheap.
+
+- **Size:** about 1 day of build, at most 4 parallel tracks, one migration, about 150 new cases or fewer, mergeable to
+  `main` on its own (`full` green). Bigger: split into several features.
+- **Environment:** feature branch + worktree `Drags-wt\<feature>` from `main`; each track its own worktree, branch
+  `<feature>/<track>`, scratch DB `drags_<feature>_<track>` and ports. Never touch `drags`, Rider (:5000) or Vite (:5173).
+  At most 4 agents at once. Commits: plain messages, no AI attribution, never pushed.
+- **T0 Design** (user + session): Arabic business doc, tech, decisions; test-case draft (given/when/then, P0–P2, level,
+  source); an **edge-case agent** maps every rule sentence to a case, adds edge cases (borders, empty states, double
+  clicks, permissions, Arabic/RTL, phone, stale screens) and lists the existing cases the feature changes or retires; the
+  **contract as compiled code**, committed before T1 (DTOs, route stubs, error codes, i18n keys and texts, accessible
+  names, screen structure, MSW handlers, builders and test data); the work split (code tracks, test tracks, each case
+  assigned to a test track); one reviewer; the **user's approval** is the gate.
+- **T1 Build** (parallel): **coders** write the code and the feature docs (moved from the design, no rule rewrites) and
+  run build (0 warnings), tsc, eslint and the EF pending-changes check; **test writers** write the catalog rows and the
+  tests from the docs and the contract only, never from the code (they compile against the contract; component tests run
+  against MSW). A rule or contract change goes through the session to both sides.
+- **T2 First run:** merge everything, run `./test.ps1 -Tier full` in **report mode** plus the new tests 3 times in
+  random order: a failure report for the reviewers, not a verdict (a green T2 counts for nothing).
+- **T3 Review** (parallel, read-only, no test runs): 2–3 code reviewers (fit to the design, bugs, security and clinic
+  isolation, browser/RTL/phone for UI) and 2 test reviewers (each test matches the doc, "would it fail if the rule
+  broke?", every case and edge case covered, nothing weakened). Every T2 failure is labeled code bug / test bug / doc
+  unclear. Each finding cites the doc line and the code or test line and passes a verify step (confidence ≥ 80).
+- **T4 Fix:** for a code bug the **test fixer writes a failing test first** (if none exists), then the **code fixer**
+  makes it pass. The code fixer never edits tests; the test fixer never edits code and changes a test only when the doc
+  proves it wrong. An unclear doc goes to the user. Each fix names the finding it closes.
+- **T5 Prove** (gate): `full` + diff coverage of the feature's changed code (≥ 90% lines / 85% branches) + Stryker on
+  all the feature's new logic (≥ 85%) + an **acceptance agent** that uses the app from the business doc only (Arabic,
+  English, phone) and explores freely; its findings become cases and go to T4. Repeat T4–T5 until green (after 3
+  rounds, ask the user); one reviewer on the fix diff only if it was large or touched security.
+- **T6 Done** (gate): rebase on `main`, `full` again, then a **ready report**: a 3–5 click script for the "done when"
+  scenario, an e2e screenshot gallery (Arabic, English, phone) and the numbers (cases covered, coverage, mutation, flaky
+  runs 0, known bugs 0). The user's one-minute walkthrough (findings go to T4), then the user's merge OK.
+- **Test rules:** every business rule is a catalog case with a test; the feature's new and changed cases 100% covered
+  (P2 included), the app's P0/P1 100%; the lowest level that proves the rule (unit → api → component → e2e); e2e for the
+  P0 and P1 cases whose level includes `e2e` (one journey spec may tag several cases); `step` during the work, the whole
+  e2e suite only in `full`; no retries (a flaky test is a bug); axe, cut-text and RTL checks on every e2e page; known
+  bugs at merge 0 unless the user defers one; `release` tier at a milestone's end.
+- **Stop and ask the user:** a business rule the docs don't settle, a contract change that changes behavior, a fix loop
+  that doesn't settle after 3 rounds, usage limits, or the session's context above about 60% (save state, hand over).
+- Bug rounds keep their own rule: fix → independent validate + review agent → fix → second cycle → fix.
