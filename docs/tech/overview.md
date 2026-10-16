@@ -203,7 +203,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   (e.g. `drugNotFound`) are done in the handler, after validation.
 - Entities never leave the API; always return DTOs (avoids JSON cycles and over-posting).
 - Lists return `PagedResult<T>` = `{ items, totalCount, page, pageSize }` (page is 1-based;
-  `Paging.Normalize`: page ≥ 1, pageSize 1–100).
+  `Paging.Normalize`: page ≥ 1, pageSize 1–100; a huge page is capped at `int.MaxValue / pageSize`, so the offset
+  `(page - 1) × pageSize` always fits an `int`: such a page is simply empty, never an error).
 - **Search** (drugs, groups, admin clinics, admin staff by name) is a case-insensitive, **Arabic-normalized**
   `Contains` (M1.6.1): the searched tables (`Drugs`, `DrugGroups`, `Clinics`, `Staff`) have a **stored generated
   column** `SearchName` = the name (`FullName` for staff) lower-cased, with أ إ آ ٱ and the superscript alef U+0670
@@ -276,7 +277,10 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
   field).
 - Status from the first error's `ErrorType`: Validation 400, Unauthorized 401, Forbidden 403, NotFound 404,
   Conflict 409, Failure 500; `tooManyRequests` 429 and `methodNotAllowed` 405 by code. A `TooManyRequestsError`
-  (e.g. the OTP limits) also sets `Retry-After`.
+  (e.g. the OTP limits) also sets `Retry-After`. A caller may pass an explicit status, which then wins over the
+  mapping (`ApiProblemFactory.Create(httpContext, error, status)`). A problem built from no error at all is 500
+  `unexpected`; for a problem that has a `code` but no `detail`, `errors[0].description` is the status's
+  reason phrase (409 → "Conflict") and `detail` stays empty.
 
 | Source | Hook | Code |
 |---|---|---|
@@ -445,6 +449,13 @@ Swagger UI is available in Development at `/swagger`.
   refetch on focus), emotion cache per direction (`rtl` cache adds the stylis RTL plugin), MUI theme
   from `createAppTheme(direction)`, `CssBaseline`, `AuthProvider` (session restore, `useAuth()`),
   `Toaster`.
+- **Toasts** (`react-hot-toast`'s `Toaster`, bottom-center; `white-space: pre-line`, so a message's parts joined with
+  `\n` show on their own lines, and `overflow-wrap: anywhere`, so a long name wraps): success, error or neutral
+  (plain) style; each closes by itself after the library's time (some longer, e.g. 8 s for the lost-clinic messages).
+  **Dismissing** (the user's decision, 2026-10-16): every toast also has a small × icon button (tooltip and accessible
+  name «إغلاق» / "Close", `common.close`) that closes it at once, and on a touch phone swiping it sideways closes it;
+  closing one toast leaves the others. Not built yet: today a toast can only wait to close by itself
+  ([BUG-621](../testing/known-bugs.md), built after M1.6).
 - Routes (`app/App.tsx`), each page lazy-loaded as its own chunk (`Suspense`). Login pages use
   `SimpleLayout`; the clinic app is `AppLayout` behind `RequireAuth context="clinic"`
   ([login](../features/auth/tech.md)); the platform admin is `AdminLayout` behind `RequireAuth context="platform"`
@@ -547,11 +558,11 @@ Swagger UI is available in Development at `/swagger`.
 | `ListPagination` | Translated `TablePagination` with `PAGE_SIZES` (`pageSizes.ts`: 10/20/50); hides the rows-per-page choice below `sm` so it fits a phone; the choice also has its own `aria-label` |
 | `PageBoundary` | Where a layout shows its page: `Suspense` spinner + error boundary ("Couldn't load this page. — Reload"), reset when the path changes |
 | `SearchField` | Search input with icon and clear button |
-| `SearchableList` | Search + result list with ↑/↓/Enter/Esc keyboard support, loading/error/empty states, "load more"; a double click on an item selects it once (`event.detail > 1` ignored) |
+| `SearchableList` | Search + result list with ↑/↓/Enter/Esc keyboard support (the first result is highlighted from the start and again when the search changes; ↑/↓ stop at the edges; Enter picks the highlighted one; Esc clears the search), loading/error/empty states, "load more"; a double click on an item selects it once (`event.detail > 1` ignored) |
 | `SortableList` | dnd-kit vertical list; drag handle per row; mouse, touch and keyboard reordering |
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
-| `InfoTip` | Small ⓘ icon with a tooltip (opens on tap too) to explain a field or option |
+| `InfoTip` | Small ⓘ icon with a tooltip (on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s, `leaveTouchDelay` 5000) to explain a field or option |
 | `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs |
 
 Hooks (`src/hooks`): `useDebouncedValue`, `useLanguage`, `useFormatDate` (dates in the UI language, Latin digits),
@@ -576,7 +587,7 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 | `prescription.lines.<clinicId>` | The clinic's current prescription lines (drug snapshot + dosing + note) |
 | `prescription.lines` | Legacy (before login): moved to the first clinic opened, then removed |
 | `prescription.selection` | Legacy (pre-dosing) list of drugs; migrated the same way, then removed |
-| `clinichub:chunkReloadAt` (`sessionStorage`) | When the app last reloaded itself after a failed chunk (`app/chunkReload.ts`: at most once per 30 s) |
+| `clinichub:chunkReloadAt` (`sessionStorage`) | When the app last reloaded itself after a failed chunk (`app/chunkReload.ts`: at most once per 30 s, and only when the server answers `/` with a success: unreachable, or an answer that isn't ok (e.g. 5xx), means no reload, and the page shows "Couldn't load — Reload"; without `sessionStorage` it never reloads by itself) |
 
 Not in storage: the access token (memory only). The refresh token is an `HttpOnly` cookie
 (`clinichub_refresh`, path `/api/v1/auth`) that scripts cannot read.
@@ -683,7 +694,10 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
 - No automated database backups yet.
-- Name ordering follows the database's default collation (not tuned for Arabic).
+- Name ordering follows the database's default collation (not tuned for Arabic). With the `postgres:17` image's default
+  (`en_US.utf8`: dev and tests) letters compare ignoring case first (`alpha` before `Zeta`) and Latin names come before
+  Arabic ones; a database created with another collation (e.g. `C`, or a Windows locale) orders them differently, so
+  the production database should be created with the same collation (`en_US.utf8`) or the orders above change.
   Search folds the common Arabic spelling variants and lower-cases (`ToLowerInvariant` for the term, the database's
   `lower()` for the name: they agree for Latin and Arabic; a few special letters, e.g. Turkish "İ", may differ).
   Not folded: Persian letters (ی, ک), a lone hamza ء, look-alike letters of other scripts.

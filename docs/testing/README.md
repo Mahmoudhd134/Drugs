@@ -8,7 +8,7 @@ Bugs found by tests: [known bugs](known-bugs.md). Before the client's test: [dre
 |---|---|---|---|
 | `unit`, backend | xUnit + Shouldly | `tests/ClinicHub.UnitTests/<Module>/<SubFeature>/` | `[Trait("Case", "DOSE-012")]` per test, `[Trait("Area", "catalog")]` per class |
 | `api` (integration) | xUnit + `WebApplicationFactory<Program>` + PostgreSQL + Respawn | `tests/ClinicHub.IntegrationTests/<Area>/` | same + `[Trait("Tier", "Smoke")]` |
-| `unit` (frontend pure logic), `ui` (component) | Vitest + Testing Library + MSW | next to the code: `ClinicHub.Web/src/**/*.test.ts(x)` | `@DOSE-012 @area:catalog @smoke` in the title |
+| `unit` (frontend pure logic), `ui` (component) | Vitest + Testing Library + MSW | next to the code: `unit` in `ClinicHub.Web/src/**/*.test.ts`, `ui` in `*.test.tsx` (the file decides the level) | `@DOSE-012 @area:catalog @smoke` in the title |
 | `e2e` | Playwright (Chromium) | `ClinicHub.Web/e2e/<area>/` | same |
 | `manual` | by hand | the [dress rehearsal](dress-rehearsal.md) | none |
 
@@ -107,7 +107,7 @@ cd ClinicHub.Web; npm run e2e -- e2e/auth/login.spec.ts --project ar-desktop   #
 | `test-results/<unit\|integration>/` | `.trx` results (+ `coverage.cobertura.xml` in full/release) |
 | `coverage/backend/` | merged report (`index.html`), `Cobertura.xml`, `gates.md` |
 | `coverage/frontend/` | Vitest coverage (`index.html`, `coverage-summary.json`) |
-| `traceability.md`, `traceability.json` | cases covered / covered with known bug / missing per priority, area and level; the known-bug tests per tool and their IDs; unknown IDs; skips without a bug ID |
+| `traceability.md`, `traceability.json` | cases covered / covered with known bug / missing per priority, area and level; the known-bug tests per tool and their IDs; Vitest/Playwright known-bug tests still marked `test.skip`/`test.fixme` (with a BUG id: listed as known bugs not run, to turn into `test.fails`/`test.fail`); unknown IDs; skips or expected failures without a bug ID |
 | `e2e/report/` (`index.html`), `e2e/results.json`, `e2e/test-results/` | Playwright's report; a failed test's trace and screenshot (`npx playwright show-trace <trace.zip>`) |
 | `mutation/backend/` | Stryker.NET `reports/mutation-report.html` / `.json`; `mutation.md` (score per mutated file against the 85% gate, and overall); `stryker.log` (its console output) |
 | `mutation/frontend/` | StrykerJS `mutation.html` / `.json` |
@@ -177,13 +177,18 @@ the expected values of the docs, never from what the app does today.
   `e2e` is covered by a component or `api` test where that is cheap, else left open (reported).
 - Run it alone: `./tests/tools/traceability/traceability.ps1 [-Gate] [-Areas AUTH] [-Levels api]` (scope = "only my
   areas/levels"); its self-test: `./tests/tools/traceability/selftest.ps1`.
-- Rules: a test skipped as a known bug counts (as covered with known bug, also when a passing test proves the same
-  case at that level: the bug stays visible) only with its `BUG-nnn` ID in the skip reason or title,
-  and in xUnit the reason must be a **plain string literal** (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"` skips
-  the test but counts as a skip without a bug ID); any other skip (`Skip = "later"`, `test.skip`/`test.todo`/
-  `describe.skip` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
+- Rules: a known-bug test (Vitest `test.fails`, Playwright `test.fail`: run and expected to fail; xUnit `Skip`) counts
+  (as covered with known bug, also when a passing test proves the same case at that level: the bug stays visible) only
+  with its `BUG-nnn` ID in the title or skip reason, and in xUnit the reason must be a **plain string literal**
+  (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"` skips the test but counts as a skip without a bug ID); any other
+  skip **or expected failure** (`Skip = "later"`, `test.skip`/`test.fixme`/`test.todo`/`describe.skip`/`test.fail`/
+  `test.fails` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
   `owner@clinic-1.test`; anything that is not exactly a catalog ID (`@AUTH-0163`, `@auth-189`) is reported as unknown
   and fails the run.
+- Vitest levels come from the file: a `*.test.ts` file (functions, hooks through `renderHook`, the locale files) proves
+  `unit`; a `*.test.tsx` file (it renders components) proves `ui`. A `unit+ui` case needs one test of each; a component
+  test also proves the `unit` level of a case **without** a `ui` level (e.g. `unit+e2e`: logic only reachable through
+  the page), listed apart in the report (`unitByComponentTest`). So put pure-logic tests in a `.test.ts` file.
 
 **Every later step adds its cases and tests**, in the same commit as its code and docs:
 1. Update the feature's `business.md` / `tech.md` (the rule comes first).
@@ -201,7 +206,7 @@ Pick the level from the case's `Level` column; one test per behavior, named afte
 |---|---|---|
 | `unit` (backend: a pure rule, a validator) | `tests/ClinicHub.UnitTests/<Module>/<SubFeature>/` | [Backend unit tests](#backend-unit-tests-testsclinichubunittests) |
 | `api` | `tests/ClinicHub.IntegrationTests/<Area>/` | [Integration tests](#integration-tests-testsclinichubintegrationtests) |
-| `unit` (frontend pure logic), `ui` | next to the code, `<name>.test.ts(x)` | [Component tests](#component-and-frontend-unit-tests-vitest) |
+| `unit` (frontend pure logic), `ui` | next to the code: `<name>.test.ts` for `unit`, `<name>.test.tsx` for `ui` (a component test also proves the `unit` level of a case without a `ui` level) | [Component tests](#component-and-frontend-unit-tests-vitest) |
 | `e2e` | `ClinicHub.Web/e2e/<area>/<journey>.spec.ts` | [End-to-end tests](#end-to-end-tests-playwright-clinichubwebe2e) |
 | `manual` | not automated | the [dress rehearsal](dress-rehearsal.md) runs it |
 
@@ -509,10 +514,13 @@ unchanged). Only a bug that can't be fixed there (outside the step's scope, or d
 listed in [known-bugs.md](known-bugs.md); a rule the docs don't settle is a question for the user, not a bug. The
 entries collected during M1.6 are fixed after it, one per commit ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)).
 
-Marking (the ID in the marker, the case tags kept):
-- xUnit: `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a **plain string literal**;
-- Vitest: `test.skip("BUG-612: <one line> @DOSE-012", …)`;
-- Playwright: `test.fixme("BUG-612: <one line> @RX-004", …)`.
+Marking (the ID in the marker, the case tags kept). The test **runs and is expected to fail**, so the run notices a
+bug that got fixed (the expected failure then passes, which fails the run):
+- Vitest: `test.fails("BUG-612: <one line> @DOSE-012", …)`;
+- Playwright: `test.fail("BUG-612: <one line> @RX-004", …)`; an axe finding: a `KNOWN_AXE` entry (`checks.ts`) and the
+  bug's own test checks with `expectHealthyPage(…, {onlyBug: "BUG-612"})` (fails on that bug only);
+- xUnit (no expected-failure marker): `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a **plain
+  string literal**.
 
 Known-bug tests count as covered with known bug in the traceability report (even when a passing test covers the same
 case) and their IDs are listed in `artifacts/summary.md` (all three levels);

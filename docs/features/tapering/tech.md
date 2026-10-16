@@ -53,8 +53,9 @@ Invalid schedules return 400 `invalidDosing`.
 - `taper.ts`: `startSchedule` (2 steps from the current frequency/duration), `addStep` (copies
   the last step with one time a day less; an open-ended last step stays last), `taperTotal`,
   `generateTaper` (start, reduce by, down to, step length → steps; always ends at "down to").
-- `dosingText.ts`: steps joined with «، ثم »; a step's dose is written only when it differs from
-  the step before; a fixed-length last step ends with «، ثم يتوقف». Wording in `rxTextAr.ts`
+- `dosingText.ts`: steps joined with «، ثم »; a step's dose is written only when its **value** differs from
+  the step before, even when the words are the same (ointment: «طبقة رقيقة» for any value, so it is repeated when the
+  value changes; the user's decision, 2026-10-16); a fixed-length last step ends with «، ثم يتوقف». Wording in `rxTextAr.ts`
   (`rxText.taper.then`, `rxText.taper.stop`).
 - `components/DosingFields.tsx`: «تقليل تدريجي» switch (+ ⓘ). On: frequency/duration rows are
   replaced by `TaperStepsEditor`, pre-filled from the current (or, in inherit mode, the inherited)
@@ -63,7 +64,8 @@ Invalid schedules return 400 `invalidDosing`.
 - `components/TaperStepsEditor.tsx`: one row per step: dose (step 1 shows the dose above,
   locked; disabled without a unit), frequency + value, period + value, remove; "Add step",
   `TaperGenerator`, total-duration chip, and a hint when an open-ended period is not last.
-  Grid uses 14 columns on ≥ sm; on phones each step wraps onto 2–3 lines with a divider.
+  Grid uses 14 columns on ≥ sm; on phones each step wraps onto 2–3 lines with a divider, and step 1's dose field
+  is hidden (it is the dose above, already shown there).
 - `components/TaperGenerator.tsx`: "Generate…" button + popover; shows the step count or an error.
 - Dosing dialogs (drug form, group line, prescription line) are `maxWidth="md"` so a step row fits.
 - Shared `components/common/InfoTip.tsx`: ⓘ icon with a tooltip (tap-friendly).

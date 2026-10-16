@@ -77,8 +77,10 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   request is otherwise valid, and (update) before an unknown group's 404.
 - Update **replaces** all lines (remove + insert) and the name, and touches the group's `UpdatedAt`.
   Create and update reload the group with its drugs for the response. Each command is one transaction.
-- List/detail include items → drug; ordered by `Name`, then `Id`. Search: the term folded by `SearchText.Term`
-  `Contains` in `SearchName` (Arabic-normalized, case-insensitive, M1.6.1; no prefix ranking for groups).
+- List/detail include items → drug; ordered by `Name` (the database's default collation: case-insensitive first, Latin
+  before Arabic, [tech overview](../../tech/overview.md#known-limitations--tech-debt)), then `Id`. Search: the term
+  folded by `SearchText.Term` `Contains` in `SearchName` (Arabic-normalized, case-insensitive, M1.6.1; no prefix
+  ranking for groups).
 - `GET /drugs/{id}/groups` (drugs controller) lists the groups using a drug, for the delete warning.
 
 ## Frontend (`src/features/drugGroups/`)
@@ -88,8 +90,11 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   `effectiveDosing` (= `mergeDosing(drug.defaultDosing, dosing)`), `itemIdentity` (drug + effective
   eye), `toSaveItems` (empty override → `null`), `itemsSignature` (unsaved-changes check).
 - **List page** `pages/DrugGroupsPage.tsx` (`/groups`): search, card grid (12/page), each card shows
-  the line count and first 4 drug names.
-- **Editor page** `pages/DrugGroupEditorPage.tsx` (`/groups/new`, `/groups/:id`):
+  the group name, the line count and the first 4 drug names. A long name (group or drug, even one unbroken 256-character
+  word) wraps inside the card, never cut with "…" (the user's decision, 2026-10-16; today the card cuts them:
+  [BUG-591](../../testing/known-bugs.md)).
+- **Editor page** `pages/DrugGroupEditorPage.tsx` (`/groups/new`, `/groups/:id`): a new group opens with the focus in
+  the name field and the empty state «لا توجد أدوية في هذه المجموعة» / "No drugs in this group".
   - Lines use the shared `DosingLineList`: number, drug, `LineDetails` with the **effective** dosing (its
     sentence; or the drug description when it has no dose, frequency, duration or tapering, followed by the eye part
     if any: [prescription](../prescription/tech.md#text-formats-prescriptiontextts); an `ask`-only line shows the
@@ -102,12 +107,14 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     default: empty fields display "Drug default", preview shows the merged result) with
     `allowAskEye`, plus a "Use drug default" button that clears the override.
   - Save validates name and ≥ 1 line on the client. Unsaved-changes guard on Back/Cancel and
-    `beforeunload`.
+    `beforeunload`: it compares the **trimmed** name with the saved one and `itemsSignature` (the lines as they would be
+    saved: drug, override, order) with the loaded lines, so a change undone by hand (a line dragged away and back, an
+    override set then reset, the name edited back, only spaces added at the end) leaves without asking.
   - Lines whose effective eyes clash (`clashingItemKeys` in `editorItem.ts`: same `itemIdentity`; possible after a
     drug's default eye changed) get an error chip `groups.eyeClash` ("Same drug and eye as another line"); editors see
     an alert `groups.eyeClashSave` above the lines, and Save is blocked with the same message as a toast until a line
     is removed or its eye changed (M1.6.0).
-- **`GroupPicker`** (prescription page): name, line count, drug names.
+- **`GroupPicker`** (prescription page): name, line count («الأدوية: N»), the drug names joined with " · ".
 - **`api.ts`**: `drugGroupKeys`; `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`,
   `useSaveDrugGroup` (`{ id, name, items }`), `useDeleteDrugGroup`.
 - Adding a group to a prescription (eye question, conflicts): see [prescription tech](../prescription/tech.md).
