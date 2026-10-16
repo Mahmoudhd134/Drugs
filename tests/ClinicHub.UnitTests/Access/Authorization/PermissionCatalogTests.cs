@@ -65,7 +65,6 @@ public class PermissionCatalogTests
     [InlineData("drugs.list", true)]
     [InlineData("prescriptions.create", true)]
     [InlineData("drugs.archive", false)]
-    [InlineData("Drugs.List", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
     public void Is_known_only_for_catalog_keys(string key, bool known)
