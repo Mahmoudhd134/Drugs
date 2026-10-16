@@ -59,6 +59,7 @@ public class DemotedSuperAdminTests(AppFixture app) : IntegrationTest(app)
         var me = await stale.MeAsync();
         me.User.IsSuperAdmin.ShouldBeFalse();
         me.Context.ShouldBeNull();
+        (await stale.MeNodeAsync()).ShouldHaveNull("context");
         (await stale.RefreshAsync()).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 

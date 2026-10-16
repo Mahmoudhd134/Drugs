@@ -60,6 +60,7 @@ public class MeTests(AppFixture app) : IntegrationTest(app)
         me.Context.Type.ShouldBe("platform");
         me.Staff.ShouldBeNull();
         me.Permissions.ShouldBeEmpty();
+        (await admin.MeNodeAsync()).ShouldHaveNull("staff");
     }
 
     [Fact]
@@ -76,6 +77,7 @@ public class MeTests(AppFixture app) : IntegrationTest(app)
 
         me.Context.ShouldBeNull();
         me.Permissions.ShouldBeEmpty();
+        (await user.MeNodeAsync()).ShouldHaveNull("context");
     }
 
     [Fact]

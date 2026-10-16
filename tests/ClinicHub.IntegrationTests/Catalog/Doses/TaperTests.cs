@@ -238,6 +238,24 @@ public class TaperTests(AppFixture app) : CatalogTest(app)
     }
 
     [Fact]
+    [Trait("Case", "TAPER-080")]
+    public async Task A_first_step_dose_without_a_unit_is_invalidDosing_on_a_drug_default_and_a_group_line()
+    {
+        // tapering tech § Backend: step 1's dose becomes the dosing's dose, so it needs the unit (invalidDosing without it)
+        var owner = await OwnerAsync();
+        var drug = await CreateDrugAsync(owner, "Pred Forte", defaultDosing: new { doseAmount = 1, doseUnit = "drop" });
+        var noUnit = new Dosing { TaperSteps = [Daily(4, doseAmount: 2), Daily(3)] };
+
+        var onDrug = await PostDrugAsync(owner, "Unitless first step", defaultDosing: noUnit);
+        var onGroup = await PostGroupAsync(owner, "Unitless first step", Item(drug.Id, noUnit));
+
+        (await onDrug.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidDosing")).ShouldHaveError("defaultDosing", "invalidDosing");
+        (await onGroup.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidDosing")).ShouldHaveError("items[0].dosing", "invalidDosing");
+        (await SearchDrugNamesAsync(owner, "Unitless first step")).ShouldBeEmpty();
+        (await SearchGroupNamesAsync(owner, "Unitless first step")).ShouldBeEmpty();
+    }
+
+    [Fact]
     [Trait("Case", "TAPER-017")]
     public async Task The_first_step_dose_becomes_the_dosing_dose()
     {

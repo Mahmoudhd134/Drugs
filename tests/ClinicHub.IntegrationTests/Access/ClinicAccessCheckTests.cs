@@ -228,8 +228,7 @@ public class ClinicAccessCheckTests(AppFixture app) : IntegrationTest(app)
 
         await response.ShouldBeOkAsync();
         var me = await response.ReadNodeAsync();
-        me["context"].ShouldBeNull();
-        me["staff"].ShouldBeNull();
+        me.ShouldHaveNull("context").ShouldHaveNull("staff");
         me["permissions"]!.AsArray().ShouldBeEmpty();
     }
 

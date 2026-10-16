@@ -7,16 +7,26 @@
   counts on its own) and collects the case IDs the tests name:
     - backend unit tests     tests/ClinicHub.UnitTests/**/*.cs         [Trait("Case", "DOSE-012")]  -> level unit
     - integration tests      tests/ClinicHub.IntegrationTests/**/*.cs  [Trait("Case", "AUTH-036")]  -> level api
-    - Vitest                 ClinicHub.Web/src/**/*.test.ts(x)         "@DOSE-012" in a title         -> levels unit, ui
+    - Vitest                 ClinicHub.Web/src/**/*.test.ts            "@DOSE-012" in a title         -> level unit
+                             ClinicHub.Web/src/**/*.test.tsx           "@ADM-031" in a title          -> level ui
     - Playwright             ClinicHub.Web/e2e/**/*.spec.ts            "@RX-004" in a title           -> level e2e
-  A test marked as a known bug (xUnit Skip = "BUG-0nn: ..." as a plain string literal, Vitest test.skip("BUG-1nn: ..."),
-  Playwright test.fixme("BUG-1nn: ...")) counts its cases as covered-with-known-bug: they count for the gates and are
-  listed apart. A known bug wins over a passing test of the same case and level (a case proven by a passing test and
-  also marked by a known-bug test is still reported as a known bug). Every BUG-nnn id of a known-bug test (xUnit,
-  Vitest, Playwright; with or without a case tag; also a conditional test.fixme(cond, "BUG-nnn: ...")) is listed
-  (knownBugIds, knownBugTests in the json; test.ps1's summary shows them). Any other skip (no BUG-nnn id; a Skip that is not a plain literal: a const, $"...", @"..."; also .todo
-  and the tests of a describe.skip) is not coverage, nor is an ID in a comment. Fails (exit 1) when a test names an ID
-  that is not exactly a catalog ID, when a test is skipped without a BUG-nnn id, when the catalog repeats an ID, and,
+  The Vitest level is the file's: a .test.tsx file holds JSX, so it renders components (a component test: ui); a
+  .test.ts file tests functions, hooks (renderHook) and the locale files (unit). A unit+ui case needs one of each. A
+  component test also proves the unit level of a case WITHOUT a ui level (e.g. unit+e2e: logic only reachable through
+  the page); those are listed apart (unitByComponentTest), never a unit+ui case's unit level.
+  A known-bug test RUNS and is expected to fail, so a fixed bug is noticed: Vitest test.fails("BUG-6nn: ..."),
+  Playwright test.fail("BUG-5nn: ...") (also a conditional test.fail(cond, "BUG-nnn: ...") in a body). xUnit has no
+  expected failure: there it is skipped, Skip = "BUG-0nn: ..." as a plain string literal. Vitest test.skip / Playwright
+  test.fixme with a BUG-nnn id are still read as known bugs, but fail the run (knownBugTestsNotRun, below). Its cases
+  count as covered-with-known-bug: they count for the gates and are listed apart. A known bug wins over a passing test
+  of the same case and level (a case proven by a passing test and also marked by a known-bug test is still reported as
+  a known bug). Every BUG-nnn id of a known-bug test (xUnit, Vitest, Playwright; with or without a case tag; also a
+  conditional one) is listed (knownBugIds, knownBugTests in the json; test.ps1's summary shows them). Any other skip or
+  expected failure (no BUG-nnn id; a Skip that is not a plain literal: a const, $"...", @"..."; also .todo and the tests
+  of a describe.skip; an in-body test.fail/test.fixme without a BUG-nnn id) is not coverage, nor is an ID in a comment.
+  Fails (exit 1) when a test names an ID that is not exactly a catalog ID, when a test is skipped or expected to fail
+  without a BUG-nnn id, when a Vitest/Playwright known-bug test never runs (test.skip/test.fixme with a BUG-nnn id: a
+  declaration always, an in-body conditional one when its bug has no running test), when the catalog repeats an ID, and,
   with -Gate, when the coverage of the P0 or P1 cases in scope is below 100% (P2 is reported, not gated; manual cases
   are never counted).
   Writes <OutDir>/traceability.md and traceability.json.
@@ -73,10 +83,14 @@ if ($cases.Count -eq 0) { throw "No case found in $Catalog" }
 if ($duplicates.Count -gt 0) { throw "Duplicate case IDs in $($Catalog): $(($duplicates | Sort-Object -Unique) -join ', ')" }
 
 # ---- Tests ----
-# { Id, Levels, State (covered | knownBug | skipped), File, Line }; "skipped" = skipped without a BUG-nnn id: not counted
+# { Id, Levels, State (covered | knownBug | skipped), File, Line }; "skipped" = skipped or expected to fail without a
+# BUG-nnn id: not counted
 $found = New-Object System.Collections.ArrayList
-# { Bug, Tool (xunit | vitest | playwright), File, Line }: every known-bug test, whether or not it names a case
+# { Bug, Tool (xunit | vitest | playwright), Marker (expectedFailure | skip), File, Line }: every known-bug test,
+# whether or not it names a case
 $bugTests = New-Object System.Collections.ArrayList
+# { Id, File, Line }: an in-body test.fail / test.fixme without a BUG-nnn id (reported with the skips without one)
+$inBodyWithoutBug = New-Object System.Collections.ArrayList
 
 function Get-Files([string] $dir, [string[]] $patterns) {
     if (-not (Test-Path $dir)) { return @() }
@@ -135,9 +149,11 @@ function Add-Found([string] $id, [string[]] $levels, [string] $state, [string] $
     [void]$found.Add([pscustomobject]@{ Id = $id; Levels = $levels; State = $state; File = $file.Substring($Root.Length + 1); Line = $line })
 }
 
-function Add-BugTest([string] $text, [string] $tool, [string] $file, [int] $line) {
+# $conditional: an in-body call with a condition first (test.fixme(isMobile, "BUG-nnn: ...")), not a test's declaration
+function Add-BugTest([string] $text, [string] $tool, [string] $marker, [string] $file, [int] $line, [bool] $conditional = $false) {
     foreach ($m in [regex]::Matches($text, 'BUG-\d{3}')) {
-        [void]$bugTests.Add([pscustomobject]@{ Bug = $m.Value; Tool = $tool; File = $file.Substring($Root.Length + 1); Line = $line })
+        [void]$bugTests.Add([pscustomobject]@{
+            Bug = $m.Value; Tool = $tool; Marker = $marker; Conditional = $conditional; File = $file.Substring($Root.Length + 1); Line = $line })
     }
 }
 
@@ -162,7 +178,7 @@ function Add-CSharp([string] $dir, [string[]] $levels) {
                 $state = 'covered'
                 if ($all -match '(?<![\w$@])Skip\s*=\s*"\s*(BUG-\d{3})') {
                     $state = 'knownBug'
-                    Add-BugTest $Matches[1] 'xunit' $file.FullName $block[0].Line
+                    Add-BugTest $Matches[1] 'xunit' 'skip' $file.FullName $block[0].Line
                 }
                 elseif ($all -match '\bSkip\s*=') { $state = 'skipped' }
                 foreach ($entry in $block) {
@@ -179,24 +195,37 @@ function Add-CSharp([string] $dir, [string[]] $levels) {
 
 # Vitest / Playwright: "@ID" tokens in a test or describe title. The title belongs to the nearest call opened on its
 # line or up to 5 lines above (prettier wraps long titles); inside a describe.skip/fixme block every test is skipped too.
-function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels, [string] $tool) {
+# $levelOf: the levels of a file's tests.
+function Add-Script([string] $dir, [string[]] $patterns, [scriptblock] $levelOf, [string] $tool) {
     $quotes = [char[]]@('"', "'", '`')
     $opener = '\b(test|it|describe)((\.\w+)*)\s*\('
+    # Not run as a passing test: skipped (skip, fixme, todo) or expected to fail (fail, fails)
+    $notPassing = '\.(skip|fixme|todo|fail|fails)\b'
     foreach ($file in Get-Files $dir $patterns) {
+        $fileLevels = @(& $levelOf $file)
         $lines = Remove-Comments ([IO.File]::ReadAllLines($file.FullName, $utf8)) $quotes
         $braces = 0
         $skippedBlocks = New-Object System.Collections.ArrayList   # { Depth, Bug }
         $pending = $null                                           # a describe.skip whose body has not opened yet
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $text = $lines[$i]
-            # A known-bug test (or describe): the BUG-nnn ids of its call up to its body ("=>", "function", ");"), the
-            # title possibly wrapped over the next lines; also a conditional test.fixme(cond, "BUG-nnn: ...") in a body
-            if ($text -match $opener -and $Matches[2] -match '\.(skip|fixme|todo)\b') {
+            # A known-bug test (or describe): the BUG-nnn ids of its call up to its body ("=> {", "function", ");"; an
+            # arrow in the arguments, as in test.fails.each(rows(r => ...))("BUG-nnn: ..."), is not the body), the title
+            # possibly wrapped over the next lines; also a conditional test.fixme/fail(cond, "BUG-nnn: ...") in a body
+            $called = [regex]::Match($text, $opener)
+            if ($called.Success -and $called.Groups[2].Value -match $notPassing) {
+                $marker = 'skip'; if ($called.Groups[2].Value -match '\.(fail|fails)\b') { $marker = 'expectedFailure' }
                 $call = ($lines[$i..[math]::Min($lines.Count - 1, $i + 5)] -join ' ')
-                $call = $call.Substring($call.IndexOf($Matches[0]))
-                $end = [regex]::Match($call, '=>|\bfunction\b|\)\s*;')
+                $call = $call.Substring($call.IndexOf($called.Value))
+                $end = [regex]::Match($call, '=>\s*\{|\bfunction\b|\)\s*;')
                 if ($end.Success) { $call = $call.Substring(0, $end.Index) }
-                Add-BugTest $call $tool $file.FullName ($i + 1)
+                # A declaration has its title first (or is an .each); an in-body call has a condition (or nothing) first
+                $declaration = $called.Groups[2].Value -match '\.each\b' -or $call.Substring($called.Value.Length).TrimStart() -match '^["''`]'
+                Add-BugTest $call $tool $marker $file.FullName ($i + 1) (-not $declaration)
+                # An in-body test.fail / test.fixme without a BUG id: that project's run doesn't prove the case (fails)
+                if (-not $declaration -and $called.Groups[2].Value -match '\.(fail|fails|fixme)\b' -and $call -notmatch 'BUG-\d{3}') {
+                    [void]$inBodyWithoutBug.Add([pscustomobject]@{ Id = "in-body test$($called.Groups[2].Value)()"; File = $file.FullName.Substring($Root.Length + 1); Line = $i + 1 })
+                }
             }
             # Not an e-mail address ("owner@clinic-1.test"): nothing word-like right before the "@"
             $tokens = [regex]::Matches($text, '(?<![\w.%+-])@([A-Za-z][A-Za-z0-9]*-\d+)\b')
@@ -210,11 +239,11 @@ function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels, [st
                 $modifiers = ''
                 if ($call -match $opener) { $modifiers = $Matches[2] }
                 $bug = $call -match 'BUG-\d{3}'
-                if ($modifiers -match '\.(skip|fixme|todo)\b') { if ($bug) { $state = 'knownBug' } else { $state = 'skipped' } }
+                if ($modifiers -match $notPassing) { if ($bug) { $state = 'knownBug' } else { $state = 'skipped' } }
                 elseif ($skippedBlocks.Count -gt 0) {
                     if ($bug -or @($skippedBlocks | Where-Object { $_.Bug }).Count -gt 0) { $state = 'knownBug' } else { $state = 'skipped' }
                 }
-                foreach ($m in $tokens) { Add-Found $m.Groups[1].Value $levels $state $file.FullName ($i + 1) }
+                foreach ($m in $tokens) { Add-Found $m.Groups[1].Value $fileLevels $state $file.FullName ($i + 1) }
             }
             # A describe.skip/fixme skips the tests of the body it opens (its "{" may come a few lines later, after a
             # wrapped title); one that opens no body (describe.skip("x", suite);) skips nothing below it
@@ -238,22 +267,32 @@ function Add-Script([string] $dir, [string[]] $patterns, [string[]] $levels, [st
 
 Add-CSharp (Join-Path $Root 'tests\ClinicHub.UnitTests') @('unit')
 Add-CSharp (Join-Path $Root 'tests\ClinicHub.IntegrationTests') @('api')
-Add-Script (Join-Path $Root 'ClinicHub.Web\src') @('*.test.ts', '*.test.tsx') @('unit', 'ui') 'vitest'
-Add-Script (Join-Path $Root 'ClinicHub.Web\e2e') @('*.spec.ts') @('e2e') 'playwright'
+# Vitest: a .test.tsx file renders components (ui), a .test.ts file doesn't (unit)
+# ("unit-if-no-ui": also the unit level of a case that has no ui level)
+Add-Script (Join-Path $Root 'ClinicHub.Web\src') @('*.test.ts', '*.test.tsx') { param($f) if ($f.Extension -eq '.tsx') { 'ui'; 'unit-if-no-ui' } else { 'unit' } } 'vitest'
+Add-Script (Join-Path $Root 'ClinicHub.Web\e2e') @('*.spec.ts') { param($f) 'e2e' } 'playwright'
 
 # ---- Matching ----
 # Anything not exactly a catalog ID (a typo, "@AUTH-0163", "@auth-189") is unknown
 $unknown = @($found | Where-Object { -not $cases.Contains($_.Id) -or $_.Id -cnotmatch "^$idPattern$" })
-$skippedWithoutBug = @($found | Where-Object { $_.State -eq 'skipped' })
+$skippedWithoutBug = @(@($found | Where-Object { $_.State -eq 'skipped' }) + @($inBodyWithoutBug))
 # case|level -> 'covered' | 'knownBug': a known bug wins over a passing test (the bug must stay visible)
 $status = @{}
 $alsoPassing = @{}
 $offLevel = New-Object System.Collections.ArrayList
+$unitByUnitTest = @{}       # case|unit -> a unit test (xUnit, Vitest .test.ts) names it
+$unitByComponent = @{}      # case|unit -> a component test (.test.tsx) names it, the case having no ui level
 foreach ($test in ($found | Where-Object { $_.State -ne 'skipped' -and $cases.Contains($_.Id) -and $_.Id -cmatch "^$idPattern$" })) {
     $case = $cases[$test.Id]
-    $matched = @($test.Levels | Where-Object { $case.Levels -contains $_ })
+    $testLevels = @(foreach ($l in $test.Levels) {
+        if ($l -ne 'unit-if-no-ui') { $l }
+        elseif ($case.Levels -notcontains 'ui') { 'unit'; $unitByComponent["$($test.Id)|unit"] = $true }
+    })
+    if ($test.Levels -contains 'unit') { $unitByUnitTest["$($test.Id)|unit"] = $true }
+    $matched = @($testLevels | Where-Object { $case.Levels -contains $_ })
     if ($matched.Count -eq 0) {
-        [void]$offLevel.Add("$($test.Id) ($($case.Levels -join '+')) named by a $($test.Levels -join '/') test: $($test.File):$($test.Line)")
+        $named = @($test.Levels | Where-Object { $_ -ne 'unit-if-no-ui' }) -join '/'
+        [void]$offLevel.Add("$($test.Id) ($($case.Levels -join '+')) named by a $named test: $($test.File):$($test.Line)")
         continue
     }
     foreach ($level in $matched) {
@@ -343,9 +382,9 @@ foreach ($areaGroup in ($rows | Group-Object Area)) {
 }
 if ($skippedWithoutBug.Count -gt 0) {
     [void]$md.AppendLine('')
-    [void]$md.AppendLine('## Skipped without a BUG-nnn id (not counted): FAIL')
+    [void]$md.AppendLine('## Skipped or expected to fail without a BUG-nnn id (not counted): FAIL')
     [void]$md.AppendLine('')
-    [void]$md.AppendLine('A test is skipped only as a known bug (Skip = "BUG-0nn: ..." as a plain string literal, test.skip/fixme("BUG-1nn: ...")); any other skip is not coverage.')
+    [void]$md.AppendLine('A test is skipped or expected to fail only as a known bug (Vitest test.fails("BUG-nnn: ..."), Playwright test.fail("BUG-nnn: ..."), xUnit Skip = "BUG-nnn: ..." as a plain string literal); any other skip or expected failure is not coverage.')
     [void]$md.AppendLine('')
     foreach ($k in $skippedWithoutBug) { [void]$md.AppendLine("- $($k.Id): $($k.File):$($k.Line)") }
 }
@@ -370,17 +409,41 @@ $byTool = [ordered]@{}
 foreach ($tool in @('xunit', 'vitest', 'playwright')) {
     $byTool[$tool] = @($bugTests | Where-Object { $_.Tool -eq $tool } | ForEach-Object { "$($_.Bug) $($_.File):$($_.Line)" })
 }
+# Vitest/Playwright known-bug tests that never run (test.skip / test.fixme with a BUG-nnn id; xUnit has no other way):
+# a fix would go unnoticed, so they fail the run. Every such declaration counts; an in-body conditional skip (a
+# project or language condition) only when its bug has no running test.fail(s) at all.
+$running = @($bugTests | Where-Object { $_.Marker -eq 'expectedFailure' } | ForEach-Object { $_.Bug })
+$notRun = @($bugTests | Where-Object { $_.Marker -eq 'skip' -and $_.Tool -ne 'xunit' -and (-not $_.Conditional -or $running -notcontains $_.Bug) } |
+    ForEach-Object { "$($_.Bug) $($_.Tool) $($_.File):$($_.Line)" })
+$markers = [ordered]@{}
+foreach ($marker in @('expectedFailure', 'skip')) {
+    $markers[$marker] = @($bugTests | Where-Object { $_.Marker -eq $marker }).Count
+}
 if ($bugTests.Count -gt 0) {
     [void]$md.AppendLine('')
     [void]$md.AppendLine("## Known-bug tests ($($bugTests.Count); $($knownBugIds -join ', '))")
     [void]$md.AppendLine('')
+    [void]$md.AppendLine("Run and expected to fail: $($markers['expectedFailure']); skipped: $($markers['skip']) (xUnit: always skipped).")
+    [void]$md.AppendLine('')
     foreach ($tool in $byTool.Keys) { foreach ($t in $byTool[$tool]) { [void]$md.AppendLine("- $($tool): $t") } }
+    if ($notRun.Count -gt 0) {
+        [void]$md.AppendLine('')
+        [void]$md.AppendLine("**FAIL**: Vitest/Playwright known-bug tests that never run (use test.fails / test.fail): $($notRun -join '; ')")
+    }
 }
 if ($offLevel.Count -gt 0) {
     [void]$md.AppendLine('')
     [void]$md.AppendLine('## Tests at a level the case does not list (not counted)')
     [void]$md.AppendLine('')
     foreach ($o in $offLevel) { [void]$md.AppendLine("- $o") }
+}
+# The unit level proven only by a component test (allowed for a case without a ui level; shown so it stays a choice)
+$unitOnlyByComponent = @($unitByComponent.Keys | Where-Object { -not $unitByUnitTest.ContainsKey($_) } | Sort-Object | ForEach-Object { ($_ -split '\|')[0] })
+if ($unitOnlyByComponent.Count -gt 0) {
+    [void]$md.AppendLine('')
+    [void]$md.AppendLine("## Unit level proven by a component test only ($($unitOnlyByComponent.Count); cases without a ui level)")
+    [void]$md.AppendLine('')
+    [void]$md.AppendLine($unitOnlyByComponent -join ', ')
 }
 $missingTop = @($scoped | Where-Object { $_.State -eq 'missing' -and $_.Priority -ne 'P2' })
 [void]$md.AppendLine('')
@@ -397,6 +460,9 @@ $json = [pscustomobject]@{
     knownBugCasesAlsoPassing = @($bugs | Where-Object { $_.AlsoPassing } | ForEach-Object { "$($_.Id)|$($_.Level)" })
     knownBugIds = $knownBugIds
     knownBugTests = $byTool
+    knownBugMarkers = $markers
+    unitByComponentTest = $unitOnlyByComponent
+    knownBugTestsNotRun = $notRun
     missing = @($scoped | Where-Object { $_.State -eq 'missing' } | ForEach-Object { "$($_.Id)|$($_.Priority)|$($_.Level)" })
 } | ConvertTo-Json -Depth 5
 [IO.File]::WriteAllText((Join-Path $OutDir 'traceability.json'), $json, $utf8)
@@ -412,8 +478,15 @@ if ($unknown.Count -gt 0) {
     $failed = $true
 }
 if ($skippedWithoutBug.Count -gt 0) {
-    Write-Host "  Tests skipped without a BUG-nnn id: $(($skippedWithoutBug | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" }) -join '; ')" -ForegroundColor Red
+    Write-Host "  Tests skipped or expected to fail without a BUG-nnn id: $(($skippedWithoutBug | ForEach-Object { "$($_.Id) $($_.File):$($_.Line)" }) -join '; ')" -ForegroundColor Red
     $failed = $true
+}
+if ($notRun.Count -gt 0) {
+    Write-Host "  Known-bug tests that never run (test.skip/test.fixme with a BUG id; use test.fails/test.fail): $($notRun -join '; ')" -ForegroundColor Red
+    $failed = $true
+}
+if ($unitOnlyByComponent.Count -gt 0) {
+    Write-Host "  Unit level proven by a component test only (cases without a ui level): $($unitOnlyByComponent.Count): $($unitOnlyByComponent -join ', ')"
 }
 if ($Gate -and $gateFailed) {
     Write-Host '  Traceability gate missed (see artifacts/traceability.md).' -ForegroundColor Red

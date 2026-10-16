@@ -72,7 +72,7 @@ public partial class DosingFixtureTests
             "DOSE-063", "DOSE-064", "DOSE-065",
             "TAPER-002", "TAPER-003", "TAPER-004", "TAPER-005", "TAPER-006", "TAPER-007", "TAPER-008", "TAPER-009",
             "TAPER-010", "TAPER-011", "TAPER-012", "TAPER-013", "TAPER-014", "TAPER-015", "TAPER-016", "TAPER-017",
-            "TAPER-018", "TAPER-019",
+            "TAPER-018", "TAPER-019", "TAPER-080",
         ];
 
         var covered = DosingFixture.Cases.SelectMany(r => r.Ids).ToHashSet();

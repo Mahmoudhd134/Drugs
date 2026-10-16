@@ -21,6 +21,10 @@
 
   <ItemGroup>
     <None Include="..\fixtures\dosing-cases.json" Link="fixtures\dosing-cases.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The SPA's copies of backend contracts (permission keys, error texts), read by TestSupport/SpaSources -->
+    <None Include="..\..\ClinicHub.Web\src\features\access\permissions.ts" Link="spa\permissions.ts" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\ClinicHub.Web\src\i18n\locales\en.ts" Link="spa\en.ts" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\ClinicHub.Web\src\i18n\locales\ar.ts" Link="spa\ar.ts" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

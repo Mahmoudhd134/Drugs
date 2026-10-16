@@ -115,5 +115,16 @@ public sealed class ApiClient : IDisposable
     /// <summary><c>GET /me</c> (asserts 200).</summary>
     public async Task<MeDto> MeAsync() => await (await GetAsync("/api/v1/me")).ReadAsync<MeDto>();
 
+    /// <summary>
+    /// <c>GET /me</c> (asserts 200) as raw JSON: to check that a documented <c>null</c> (<c>context</c>, <c>staff</c>) is
+    /// really there (<see cref="JsonAssertions.ShouldHaveNull"/>), which a read into <see cref="MeDto"/> can't tell.
+    /// </summary>
+    public async Task<System.Text.Json.Nodes.JsonObject> MeNodeAsync()
+    {
+        var response = await GetAsync("/api/v1/me");
+        await response.ShouldBeOkAsync();
+        return (await response.ReadNodeAsync()).AsObject();
+    }
+
     public void Dispose() => Http.Dispose();
 }

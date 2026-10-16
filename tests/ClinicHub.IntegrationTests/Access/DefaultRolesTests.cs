@@ -114,6 +114,7 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         var me = await admin.MeAsync();
         me.Permissions.ShouldBe(AllKeys);
         me.Staff.ShouldBeNull();
+        (await admin.MeNodeAsync()).ShouldHaveNull("staff");
 
         var created = await (await admin.PostAsync("/api/v1/drugs", new { name = "Pred Forte " + Guid.NewGuid() }))
             .ReadAsync<DrugDto>();

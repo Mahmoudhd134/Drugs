@@ -43,6 +43,23 @@ public sealed record Problem(
 
 public sealed record ProblemItem(string Code, string Description, string Field);
 
+/// <summary>
+/// Checks on raw JSON. Reading into a DTO can't tell a missing property from <c>null</c> (both read as null), and the
+/// docs require some keys present with a null value (e.g. <c>/me</c>'s <c>context: null</c>, <c>staff: null</c>).
+/// </summary>
+public static class JsonAssertions
+{
+    /// <summary>Asserts <paramref name="key"/> (exact name, camelCase) is in the object and is JSON <c>null</c>.</summary>
+    public static JsonObject ShouldHaveNull(this JsonNode node, string key)
+    {
+        node.ShouldNotBeNull();
+        var json = node.AsObject();
+        json.ContainsKey(key).ShouldBeTrue($"'{key}' is missing; expected it present and null: {json.ToJsonString()}");
+        json[key].ShouldBeNull($"'{key}' should be null: {json.ToJsonString()}");
+        return json;
+    }
+}
+
 public static class HttpAssertions
 {
     /// <summary>Asserts the status (the body is in the failure message); returns the body.</summary>

@@ -95,22 +95,29 @@ public class OtpModeAndStartupTests(AppFixture app) : IntegrationTest(app)
         Should.Throw<Exception>(variant.Start).ToString().ShouldContain("Platform:SuperAdminPhones");
     }
 
+    /// <remarks>
+    /// The docs don't word the refusal (only "stop the app"), so the message is checked for its section only. What
+    /// proves the refusal is about this value: the same restart with the documented default of the same key (auth tech
+    /// § Configuration) starts.
+    /// </remarks>
     [Theory]
     [Trait("Case", "AUTH-009")]
-    [InlineData("Otp:Length", "3")]
-    [InlineData("Otp:Length", "10")]
-    [InlineData("Otp:MaxAttempts", "0")]
-    [InlineData("Otp:ExpiryMinutes", "0")]
-    [InlineData("Otp:MaxPerPhonePerHour", "0")]
-    [InlineData("Otp:ResendSeconds", "-1")]
-    [InlineData("Auth:AccessTokenMinutes", "0")]
-    [InlineData("Auth:RefreshTokenDays", "0")]
-    [InlineData("Auth:PlatformSessionHours", "0")]
-    public void Startup_is_refused_with_out_of_range_numbers(string key, string value)
+    [InlineData("Otp:Length", "3", "6")]
+    [InlineData("Otp:Length", "10", "6")]
+    [InlineData("Otp:MaxAttempts", "0", "5")]
+    [InlineData("Otp:ExpiryMinutes", "0", "5")]
+    [InlineData("Otp:MaxPerPhonePerHour", "0", "5")]
+    [InlineData("Otp:ResendSeconds", "-1", "60")]
+    [InlineData("Auth:AccessTokenMinutes", "0", "15")]
+    [InlineData("Auth:RefreshTokenDays", "0", "30")]
+    [InlineData("Auth:PlatformSessionHours", "0", "12")]
+    public void Startup_is_refused_with_out_of_range_numbers(string key, string value, string documentedDefault)
     {
-        using var variant = App.CreateVariant(new Dictionary<string, string> { [key] = value });
+        using var refused = App.CreateVariant(new Dictionary<string, string> { [key] = value });
+        using var started = App.CreateVariant(new Dictionary<string, string> { [key] = documentedDefault });
 
-        Should.Throw<InvalidOperationException>(variant.Start).Message.ShouldContain(key.Split(':')[0]);
+        Should.Throw<InvalidOperationException>(refused.Start).Message.ShouldContain(key.Split(':')[0]);
+        Should.NotThrow(started.Start, $"{key} = {documentedDefault} (the documented default)");
     }
 
     private sealed class CapturingLoggerProvider : ILoggerProvider
