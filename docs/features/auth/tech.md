@@ -246,6 +246,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 | `Platform:DevOwnerPhone` | — | `+201000000002` | (dev seed only) |
 | `Platform:DevAssistantPhone` | — | `+201000000003` | (dev seed only) |
 
+Startup refuses a configuration outside these ranges (`AppSettings.Validate`, the app doesn't start): `Otp:Length` 4–9;
+`Otp:MaxAttempts`, `Otp:ExpiryMinutes` and `Otp:MaxPerPhonePerHour` at least 1; `Otp:ResendSeconds` at least 0;
+`Auth:AccessTokenMinutes`, `Auth:RefreshTokenDays` and `Auth:PlatformSessionHours` at least 1; `Auth:Jwt:Issuer` and
+`Audience` not blank; `Auth:Jwt:SigningKey` and `Otp:HashKey` at least 32 bytes (in every environment); `Otp:Mode`
+`Display` only, any case (`Sms` has no sender yet).
+
 ## Frontend
 - **Dev proxy:** `vite.config.ts` proxies `/api` → `http://localhost:5000`; `.env.development` sets
   `VITE_API_BASE_URL=/api/v1`, so the SPA and API share an origin (the `SameSite=Strict` cookie works).

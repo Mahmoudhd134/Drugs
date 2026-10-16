@@ -68,15 +68,15 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ISO](#iso--clinic-isolation) | 20 | 17 | 6 | 43 | 0 | 39 | 1 | 4 | 0 |
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
-| [ADM](#adm--platform-admin) | 58 | 142 | 91 | 291 | 4 | 165 | 78 | 48 | 0 |
+| [ADM](#adm--platform-admin) | 58 | 142 | 91 | 291 | 3 | 165 | 78 | 48 | 0 |
 | [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 23 | 15 | 0 |
 | [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 40 | 24 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
-| [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 4 | 0 | 15 | 21 | 2 |
-| **All** | **352** | **518** | **320** | **1190** | **195** | **532** | **291** | **235** | **7** |
+| [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 2 | 0 | 15 | 21 | 2 |
+| **All** | **352** | **518** | **320** | **1190** | **192** | **532** | **291** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -825,7 +825,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-128 | Given O is owner of A and B, when A is deleted, then O's user and B are untouched and O still works in B | P0 | api | [business: rules][adm-b-rules] |
 | ADM-129 | Given the Delete button, then the dialog shows «حذف هذه العيادة؟», the explanation, «للتأكيد، اكتب اسم العيادة:» with the name once in bold without quotes, and under the input «اكتب الاسم تمامًا كما يظهر» | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-130 | Given the delete dialog, then the Delete button stays disabled until the typed name equals the clinic name; a wrong case ("demo clinic" for "Demo clinic") keeps it disabled | P0 | ui | [business: screens][adm-b-screens] |
-| ADM-131 | Given name `"Two  spaces​zw"`, when typing `"Two   spaceszw "`, then Delete is enabled (white space runs, trailing spaces and invisible format characters ignored); `"two spaceszw"` keeps it disabled | P1 | unit+ui | [tech frontend][adm-t-fe] |
+| ADM-131 | Given name `"Two  spaces​zw"`, when typing `"Two   spaceszw "`, then Delete is enabled (white space runs, trailing spaces and invisible format characters ignored); `"two spaceszw"` keeps it disabled | P1 | ui | [tech frontend][adm-t-fe] |
 | ADM-132 | Given a name stored in NFC and typed in NFD (decomposed accents), then Delete is enabled | P2 | unit | [tech frontend][adm-t-fe] |
 | ADM-133 | Given an Arabic clinic name typed exactly in the Arabic UI, then Delete is enabled | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-134 | Given the name typed, when confirming, then one `DELETE`, the list as it was left (search/page) opens with the toast «تم حذف «اسم العيادة»» / "Clinic “…” deleted", the row never shows (not even briefly), and no request for the deleted clinic's details follows | P1 | e2e | [business: messages][adm-b-msg] |
@@ -1798,8 +1798,8 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | UX-029 | Given a new version deployed while the app is open, when opening a page whose chunk no longer exists, then the app reloads itself once and the page opens | P0 | e2e | [tech overview § Browser storage](../tech/overview.md#browser-storage) |
-| UX-030 | Given a chunk reload happened less than 30 s ago (`sessionStorage["clinichub:chunkReloadAt"]`), when another chunk fails, then no second reload; the page shows «تعذّر تحميل هذه الصفحة.» / «تحقّق من الاتصال، ثم أعد تحميل الصفحة.» with «إعادة التحميل» | P1 | unit+ui | [tech overview § App shell](../tech/overview.md#app-shell) |
-| UX-031 | Given the server unreachable, when a page's chunk fails, then no automatic reload; the "couldn't load" state shows and «إعادة التحميل» reloads | P1 | unit+ui | [tech overview § App shell](../tech/overview.md#app-shell) |
+| UX-030 | Given a chunk reload happened less than 30 s ago (`sessionStorage["clinichub:chunkReloadAt"]`), when another chunk fails, then no second reload; the page shows «تعذّر تحميل هذه الصفحة.» / «تحقّق من الاتصال، ثم أعد تحميل الصفحة.» with «إعادة التحميل» | P1 | ui | [tech overview § App shell](../tech/overview.md#app-shell) |
+| UX-031 | Given the server unreachable, when a page's chunk fails, then no automatic reload; the "couldn't load" state shows and «إعادة التحميل» reloads | P1 | ui | [tech overview § App shell](../tech/overview.md#app-shell) |
 | UX-032 | Given `sessionStorage` unavailable, when a chunk fails, then the app never reloads by itself and shows the "couldn't load" state | P2 | unit | [tech overview § Browser storage](../tech/overview.md#browser-storage) |
 | UX-033 | Given the "couldn't load" state on one page, when navigating to another page, then that page loads normally (boundary reset) | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-034 | Given a page crashing while rendering, then the "couldn't load" state shows instead of a blank app | P1 | ui | [tech overview § App shell](../tech/overview.md#app-shell) |
