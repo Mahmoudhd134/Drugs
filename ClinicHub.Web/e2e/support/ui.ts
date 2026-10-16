@@ -19,10 +19,15 @@ export const expectToast = async (page: Page, text: string) => {
     await expect(toast(page, text)).toHaveText(text, {timeout: 20_000});
 };
 
-/** The sidebar as shown: on a phone (menu button shown) the drawer is opened first. Returns whether it opened one. */
+/** Below MUI's `md` breakpoint (900 px) the sidebar is a drawer behind the menu button (AppShell). */
+const DRAWER_BELOW = 900;
+
+/** The sidebar as shown: on a phone (narrow screen) the drawer is opened first. Returns whether it opened one. */
 export const openSidebar = async (page: Page, t: Texts) => {
     const menu = page.getByRole("button", {name: t.navMenu});
-    const phone = await menu.isVisible();
+    // From the viewport, not from the menu's visibility: right after a dialog closes the page is still aria-hidden
+    // (exit transition), so the menu button can't be found by role for a moment
+    const phone = (page.viewportSize()?.width ?? DRAWER_BELOW) < DRAWER_BELOW;
     if (phone) {
         // A drawer still closing (from an earlier step) would take the click on its backdrop
         await expect(page.locator(".MuiDrawer-modal")).toBeHidden();
