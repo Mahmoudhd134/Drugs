@@ -20,7 +20,7 @@ type Spot = {
 };
 
 /**
- * Axe findings that are known app bugs (docs/testing/known-bugs.e2e.md), each limited to the elements its row
+ * Axe findings that are known app bugs (docs/testing/known-bugs.md), each limited to the elements its row
  * documents. They are reported in the test's attachments, not failed, so the rest of the scan still guards every page;
  * the same rule on any other element fails.
  */
