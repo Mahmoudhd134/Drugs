@@ -1,15 +1,22 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {delay, http, HttpResponse} from "msw";
-import {aClinicContext, api, contextsHandler, PLATFORM_CONTEXT, problem, recordRequests, renderWithProviders, server} from "../../../test";
+import {
+    aClinicContext,
+    api,
+    contextsHandler,
+    PLATFORM_CONTEXT,
+    problem,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Context} from "../types.ts";
 import {SelectClinicPage} from "./SelectClinicPage.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // The clinic picker: docs/features/auth/tech.md "Frontend" (SelectClinicPage), business.md «المستخدمون» and
 // «الرسائل التي تظهر للمستخدم».
 
-patientWaits();
 
 const clinicA = aClinicContext({clinicId: 1, clinicName: "Clinic A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "Clinic B"});

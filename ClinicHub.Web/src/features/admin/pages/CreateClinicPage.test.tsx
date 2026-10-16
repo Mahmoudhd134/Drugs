@@ -1,9 +1,17 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicDetails, adminClinicsHandlers, api, findToast, problem, recordRequests, server} from "../../../test";
-import {renderAdmin} from "../../../test/fe-admin/adminApp.tsx";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
+import {
+    aClinicDetails,
+    adminClinicsHandlers,
+    api,
+    fillIn,
+    findToast,
+    problem,
+    recordRequests,
+    server,
+} from "../../../test";
+import {renderAdmin} from "../../../test/pages/admin.tsx";
 
 // The create page: docs/features/platform-admin/business.md "الشاشات" (عيادة جديدة), "سيناريوهات الاستخدام" and
 // "الرسائل التي تظهر للمستخدم"; tech.md "API" (POST /admin/clinics: 400 codes with `field` name / owner.phone /

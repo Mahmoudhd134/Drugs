@@ -2,11 +2,9 @@ import {describe, expect, test} from "vitest";
 import {screen, within} from "@testing-library/react";
 import {aClinicContext, aMe, renderWithProviders} from "../../../test";
 import {UserMenu} from "./UserMenu.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // The account menu: docs/features/auth/tech.md "Frontend" (AppLayout: UserMenu).
 
-patientWaits();
 
 const clinicA = aClinicContext({clinicId: 1, clinicName: "Clinic A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "Clinic B"});

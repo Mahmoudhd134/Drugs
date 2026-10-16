@@ -1,10 +1,9 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicDetails, adminClinicsHandlers, api, problem, recordRequests, server} from "../../../test";
-import {renderAdmin} from "../../../test/fe-admin/adminApp.tsx";
-import {holdTimers} from "../../../test/fe-admin/timers.ts";
+import {aClinicDetails, adminClinicsHandlers, api, holdTimers, problem, recordRequests, server} from "../../../test";
 import type {ClinicDetails} from "../types.ts";
+import {renderAdmin} from "../../../test/pages/admin.tsx";
 
 // The clinics list: docs/features/platform-admin/business.md "الشاشات" (قائمة العيادات) and "الرسائل التي تظهر
 // للمستخدم", tech.md "Frontend" (/admin: ClinicsPage) and useFormatDate (UI language, Latin digits, browser time zone).

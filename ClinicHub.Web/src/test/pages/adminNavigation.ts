@@ -8,7 +8,7 @@ export const setNavigate = (navigate: NavigateFunction | null) => {
     navigateTo = navigate;
 };
 
-/** Goes to `to` as a link or the browser's Back would (the app stays mounted). */
+/** Goes to `to` as a link or the browser's Back would (the admin app stays mounted). */
 export const navigateInApp = (to: string) => act(async () => {
     if (!navigateTo) throw new Error("The admin app is not rendered");
     await navigateTo(to);

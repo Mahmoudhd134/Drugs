@@ -1,17 +1,26 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aDrug, aGroup, anItem, api, drugGroupsHandlers, drugsHandlers, renderWithProviders, server} from "../../../test";
+import {
+    aDrug,
+    aGroup,
+    anItem,
+    api,
+    drugGroupsHandlers,
+    drugsHandlers,
+    hoverTooltip,
+    leaveTooltip,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Permission} from "../../access/permissions.ts";
 import type {DrugGroup} from "../types.ts";
 import {DrugGroupsPage} from "./DrugGroupsPage.tsx";
 import {DrugGroupEditorPage} from "./DrugGroupEditorPage.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // Groups list and editor by permission: docs/features/access/tech.md "Frontend" (Pages: Groups, Group editor),
 // access business.md «الرسائل التي تظهر للمستخدم» («ليست لديك صلاحية»).
 
-patientWaits();
 
 const tobradex = aDrug({name: "Tobradex"});
 const group = aGroup({name: "Post cataract", items: [anItem(tobradex)]});
@@ -78,21 +87,19 @@ const ASSISTANT: Permission[] = ["drugs.list", "drugs.details", "drugs.create", 
 
 describe("group editor by permission @area:access", () => {
     test("an Assistant sees Delete disabled; hovering it shows «ليست لديك صلاحية» @ACC-066", async () => {
-        const {user} = await openEditor(ASSISTANT);
+        await openEditor(ASSISTANT);
         const remove = await screen.findByRole("button", {name: "حذف"});
         expect(remove).toBeDisabled();
-        await user.hover(remove.parentElement!);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("ليست لديك صلاحية");
+        expect(await hoverTooltip(remove.parentElement!)).toBe("ليست لديك صلاحية");
     });
 
     test("in English the tooltip says \"You don't have permission\" @ACC-066", async () => {
         server.use(...drugGroupsHandlers([group]), ...drugsHandlers([tobradex]));
-        const {user} = await renderWithProviders(<DrugGroupEditorPage/>, {
+        await renderWithProviders(<DrugGroupEditorPage/>, {
             lang: "en", route: `/groups/${group.id}`, path: "/groups/:id", user: {permissions: ASSISTANT},
         });
         const remove = await screen.findByRole("button", {name: "Delete"});
-        await user.hover(remove.parentElement!);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("You don't have permission");
+        expect(await hoverTooltip(remove.parentElement!)).toBe("You don't have permission");
     });
 
     test("Save, Cancel and Back go to /groups @ACC-067", async () => {
@@ -127,13 +134,11 @@ describe("group editor by permission @area:access", () => {
 
 describe("group card icon buttons @area:ux", () => {
     test("the card's edit ✎ and delete icons have a tooltip and an Arabic accessible name @UX-012", async () => {
-        const {user} = await openList(["groups.list", "groups.details", "groups.update", "groups.delete"]);
+        await openList(["groups.list", "groups.details", "groups.update", "groups.delete"]);
         for (const [role, name] of [["link", "تعديل"], ["button", "حذف"]] as const) {
             const control = screen.getByRole(role, {name});
-            await user.hover(control);
-            expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
-            await user.unhover(control);
-            await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+            expect(await hoverTooltip(control)).toBe(name);
+            await leaveTooltip(control);
         }
     });
 });

@@ -4,7 +4,7 @@ import type {Dosing} from "../../features/dosing/types.ts";
 
 /**
  * `DosingFields` with its own state, as the dialogs use it (`onChange` is the state setter). The current value is
- * printed as JSON for `harnessValue()` (dosingQueries.ts).
+ * printed as JSON for `harnessValue()` (dosing.ts).
  */
 export const DosingHarness = ({initial = {}, inheritFrom, allowAskEye}: { initial?: Dosing; inheritFrom?: Dosing | null; allowAskEye?: boolean }) => {
     const [dosing, setDosing] = useState<Dosing>(initial);

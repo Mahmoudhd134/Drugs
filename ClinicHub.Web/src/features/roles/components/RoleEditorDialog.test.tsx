@@ -3,8 +3,9 @@ import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aClinicDetails,
-    aRole,
     api,
+    aRole,
+    fillIn,
     findToast,
     PERMISSION_CATALOG,
     permissionsHandler,
@@ -14,10 +15,9 @@ import {
     rolesHandler,
     server,
 } from "../../../test";
-import {RoleEditorHarness} from "../../../test/fe-admin/EditorHarness.tsx";
-import {defaultRoles} from "../../../test/fe-admin/rolesTab.ts";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
 import type {Role} from "../types.ts";
+import {RoleEditorHarness} from "../../../test/pages/EditorHarness.tsx";
+import {defaultRoles} from "../../../test/pages/rolesTab.ts";
 
 // The role editor: docs/features/platform-admin/business.md "الشاشات" (دور جديد / تعديل دور), "الأدوار" and "الرسائل
 // التي تظهر للمستخدم"; tech.md "Roles and staff screens" (RoleEditorDialog, PermissionPicker: a ticked permission's
@@ -57,7 +57,6 @@ const openEditor = async (options: { lang?: "ar" | "en"; role?: Role } = {}) => 
     return {...rendered, clinic, dialog, name, save};
 };
 
-const writes = (requests: { method: string }[]) => requests.filter(r => r.method === "POST" || r.method === "PUT");
 
 describe("role editor: the picker @area:admin", () => {
     test("\"New role\": the name (max 100), «الأدوية والمجموعات» and «الروشتة», 11 labelled boxes, «المختار: 0 من 11.» @ADM-179", async () => {
@@ -140,7 +139,7 @@ describe("role editor: saving @area:admin", () => {
         await save();
         expect(name).toHaveAccessibleDescription("الاسم مطلوب.");
         expect(name).toHaveFocus();
-        expect(writes(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
         expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
@@ -160,7 +159,7 @@ describe("role editor: saving @area:admin", () => {
 
         await waitFor(() => expect(name).toHaveAccessibleDescription("يوجد دور آخر في هذه العيادة بنفس الاسم."));
         await waitFor(() => expect(name).toHaveFocus());
-        expect(writes(recorded.requests)).toEqual([expect.objectContaining({body: {name: "doctor", permissions: ["drugs.list"]}})]);
+        expect(recorded.writes()).toEqual([expect.objectContaining({body: {name: "doctor", permissions: ["drugs.list"]}})]);
     });
 
     test("roleNameTaken in English: \"Another role in this clinic already has this name.\" @ADM-187", async () => {
@@ -212,7 +211,7 @@ describe("role editor: saving @area:admin", () => {
         server.use(http.put(api(`/admin/clinics/${clinic.id}/roles/${printer.id}`), () => HttpResponse.json(printer)));
         await save();
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-        expect(writes(recorded.requests)).toEqual([expect.objectContaining({
+        expect(recorded.writes()).toEqual([expect.objectContaining({
             method: "PUT",
             body: {name: "Printer", permissions: ["drugs.list", "prescriptions.print"]},
         })]);

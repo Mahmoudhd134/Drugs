@@ -7,14 +7,14 @@ import {
     anOwnerRole,
     api,
     aStaffMember,
+    fillIn,
     problem,
     recordRequests,
     rolesHandler,
     server,
     staffHandler,
 } from "../../../test";
-import {navigateInApp, renderAdmin} from "../../../test/fe-admin/adminApp.tsx";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
+import {navigateInApp, renderAdmin} from "../../../test/pages/admin.tsx";
 
 // The clinic page: docs/features/platform-admin/business.md "الشاشات" (صفحة العيادة) and "الرسائل التي تظهر
 // للمستخدم"; tech.md "Frontend" (/admin/clinics/:id: ClinicPage) and "Roles and staff screens" (ClinicPage keys its
@@ -109,6 +109,7 @@ describe("clinic page @area:admin", () => {
         let deleted = false;
         server.use(
             http.get(api(`/admin/clinics/${a.id}`), () => (deleted ? problem(404, "notFound") : HttpResponse.json(a))),
+            rolesHandler(a.id, [anOwnerRole()]),
             http.get(api(`/admin/clinics/${a.id}/staff`), () => (deleted
                 ? problem(404, "notFound")
                 : HttpResponse.json({items: [aStaffMember({fullName: "Dr. Sara"})], totalCount: 1, page: 1, pageSize: 20}))),

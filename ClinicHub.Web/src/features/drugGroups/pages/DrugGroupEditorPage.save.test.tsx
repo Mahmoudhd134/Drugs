@@ -2,10 +2,27 @@ import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {http} from "msw";
-import {aDrug, aGroup, anItem, api, findToast, problem, recordRequests, renderWithProviders, server} from "../../../test";
-import {discardDialog, isRed, layoutSortableRows, lineRows, lineSummary, openEditor} from "../../../test/fe-catalog";
+import {
+    aDrug,
+    aGroup,
+    anItem,
+    api,
+    findToast,
+    isRed,
+    problem,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {DrugGroup} from "../types.ts";
 import {DrugGroupEditorPage} from "./DrugGroupEditorPage.tsx";
+import {
+    discardDialog,
+    layoutSortableRows,
+    lineRows,
+    lineSummary,
+    openEditor,
+} from "../../../test/pages/groupEditor.tsx";
 
 // The group editor's save, load and leave: docs/features/drug-groups/business.md ("القواعد", "الرسائل", "تعديل أو
 // حذف مجموعة") and tech.md "Frontend" (client checks, eye clash, unsaved-changes guard), docs/tech/overview.md
@@ -13,7 +30,6 @@ import {DrugGroupEditorPage} from "./DrugGroupEditorPage.tsx";
 
 const nameField = () => screen.getByRole("textbox", {name: "اسم المجموعة"});
 const saveButton = () => screen.getByRole("button", {name: "حفظ"});
-const writes = (requests: { method: string }[]) => requests.filter(r => r.method !== "GET");
 const twoDrugGroup = () => aGroup({name: "Post cataract", items: [anItem(aDrug({name: "Tobradex"})), anItem(aDrug({name: "Vigamox"}))]});
 
 /** Moves line `from` (1-based) by `steps` places with dnd-kit's keyboard sensor (Space, arrows, Space). */
@@ -76,7 +92,7 @@ describe("group editor: checks before saving @area:catalog", () => {
         await user.type(nameField(), "   ");
         await user.click(saveButton());
         expect(nameField()).toHaveAccessibleDescription("الاسم مطلوب.");
-        expect(writes(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
     });
 
     test("in English the empty name reads \"Name is required.\" @GRP-049", async () => {
@@ -91,7 +107,7 @@ describe("group editor: checks before saving @area:catalog", () => {
         await user.type(nameField(), "Post cataract");
         await user.click(saveButton());
         expect(await findToast()).toBe("أضف دواءً واحدًا على الأقل.");
-        expect(writes(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
     });
 
     test("in English: \"Add at least one drug.\" @GRP-050", async () => {
@@ -137,15 +153,16 @@ describe("group editor: two lines of a drug for the same eye @area:catalog", () 
 
         await user.click(saveButton());
         expect(await findToast()).toBe(clashText);
-        expect(writes(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
 
         await user.click(within(lineRows()[1]).getByRole("button", {name: "إزالة"}));
         expect(marked()).toHaveLength(0);
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
         await user.click(saveButton());
-        await waitFor(() => expect(location().pathname).toBe("/groups"));
-        expect(writes(recorded.requests)).toHaveLength(1);
+        // The success toast first: it leaves after 2 s, which a busy machine can spend waiting for the navigation
         expect(await findToast()).toBe("تم تحديث المجموعة");
+        await waitFor(() => expect(location().pathname).toBe("/groups"));
+        expect(recorded.writes()).toHaveLength(1);
     });
 
     test("in English: \"Same drug and eye as another line\" and the clash text on Save @GRP-085", async () => {
@@ -166,8 +183,7 @@ describe("group editor: two lines of a drug for the same eye @area:catalog", () 
     });
 });
 
-// Drags and dialogs make these the slowest tests here: more time on a busy machine (they never wait on a timer)
-describe("group editor: the unsaved-changes guard @area:catalog", {timeout: 60_000}, () => {
+describe("group editor: the unsaved-changes guard @area:catalog", () => {
     const back = (user: UserEvent) => user.click(screen.getByRole("button", {name: "رجوع"}));
 
     test("no changes: «رجوع» leaves without asking @GRP-090", async () => {

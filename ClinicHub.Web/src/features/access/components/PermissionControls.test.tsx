@@ -2,18 +2,16 @@ import {describe, expect, test} from "vitest";
 import {screen} from "@testing-library/react";
 import {Chip, Menu, Tooltip} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import {renderWithProviders} from "../../../test";
+import {hoverTooltip, leaveTooltip, renderWithProviders} from "../../../test";
 import {withPermission} from "../withPermission.tsx";
 import {Can} from "./Can.tsx";
 import {PermissionButton, PermissionFab, PermissionIconButton, PermissionMenuItem} from "./PermissionControls.tsx";
 import {NoPermissionPage, RequirePermission} from "./RequirePermission.tsx";
 import {FirstAllowedPage} from "../../../app/FirstAllowedPage.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // The permission pieces: docs/features/access/tech.md "Frontend (src/features/access)", docs/tech/overview.md
 // "Shared components" (Permission pieces); access business.md «الرسائل التي تظهر للمستخدم» («ليست لديك صلاحية»).
 
-patientWaits();
 
 const NO_PERMISSION = "ليست لديك صلاحية";
 
@@ -42,7 +40,7 @@ describe("gated controls @area:access", () => {
     });
 
     test("whenDenied=\"disable\" → disabled, with «ليست لديك صلاحية» on a wrapping span (also replacing an outer tooltip) @ACC-070", async () => {
-        const {user} = await renderWithProviders(
+        await renderWithProviders(
             <>
                 <PermissionButton permission="drugs.create" whenDenied="disable">Add drug</PermissionButton>
                 <Tooltip title="Delete">
@@ -55,16 +53,14 @@ describe("gated controls @area:access", () => {
         const add = screen.getByRole("button", {name: "Add drug"});
         expect(add).toBeDisabled();
         expect(add.parentElement?.tagName).toBe("SPAN");
-        await user.hover(add.parentElement!);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent(NO_PERMISSION);
-        await user.unhover(add.parentElement!);
+        expect(await hoverTooltip(add.parentElement!)).toBe(NO_PERMISSION);
+        await leaveTooltip(add.parentElement!);
 
         const remove = screen.getByRole("button", {name: "Delete drug"});
         expect(remove).toBeDisabled();
-        await user.hover(remove.parentElement!);
-        const tooltips = await screen.findAllByRole("tooltip");
-        expect(tooltips.map(t => t.textContent)).toContain(NO_PERMISSION);
-        expect(tooltips.map(t => t.textContent)).not.toContain("Delete");
+        // The permission's tooltip replaces the button's own ("Delete")
+        expect(await hoverTooltip(remove.parentElement!)).toBe(NO_PERMISSION);
+        expect(screen.getAllByRole("tooltip")).toHaveLength(1);
 
         expect(screen.getByRole("button", {name: "New group"})).toBeDisabled();
     });
@@ -109,12 +105,11 @@ describe("gated controls @area:access", () => {
     });
 
     test("the tooltip in English: \"You don't have permission\" @ACC-070", async () => {
-        const {user} = await renderWithProviders(
+        await renderWithProviders(
             <PermissionButton permission="drugs.create" whenDenied="disable">Add drug</PermissionButton>,
             {lang: "en", user: {permissions: []}},
         );
-        await user.hover(screen.getByRole("button", {name: "Add drug"}).parentElement!);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("You don't have permission");
+        expect(await hoverTooltip(screen.getByRole("button", {name: "Add drug"}).parentElement!)).toBe("You don't have permission");
     });
 });
 

@@ -5,22 +5,24 @@ import {
     aClinicDetails,
     adminClinicsHandlers,
     ALL_PERMISSIONS,
-    aRole,
     anOwnerRole,
     api,
+    aRole,
     findToast,
+    hoverTooltip,
+    isolate,
+    leaveTooltip,
     PERMISSION_CATALOG,
     permissionsHandler,
     problem,
     server,
 } from "../../../test";
-import {renderAdmin} from "../../../test/fe-admin/adminApp.tsx";
-import {defaultRoles, openRolesTab, ROLE_KEYS, roleRow, roleRows} from "../../../test/fe-admin/rolesTab.ts";
+import {renderAdmin} from "../../../test/pages/admin.tsx";
+import {defaultRoles, openRolesTab, ROLE_KEYS, roleRow, roleRows} from "../../../test/pages/rolesTab.ts";
 
 // The Roles tab: docs/features/platform-admin/business.md "الشاشات" (تبويب «الأدوار»), "الأدوار" and "الرسائل التي تظهر
 // للمستخدم"; tech.md "Roles and staff screens" (RoleList) and the Owner label (M1.6.0, roleLabel.ts).
 
-const isolate = (name: string) => `⁨${name}⁩`;
 const summaryOf = (row: HTMLElement) => row.querySelector("td p")?.textContent;
 const deleteButton = (row: HTMLElement) => within(row).getByRole("button", {name: /^(Delete|حذف) /});
 
@@ -96,21 +98,17 @@ describe("roles list @area:admin", () => {
         expect(held).not.toBeDisabled();
         held.focus();
         expect(held).toHaveFocus();
-        await user.hover(held);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.");
+        expect(await hoverTooltip(held)).toBe("ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.");
         await user.click(held);
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-        await user.unhover(held);
-        await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+        await leaveTooltip(held);
 
-        await user.hover(deleteButton(roleRow("Viewer")));
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("ممنوح لموظف واحد. أزِل هذا الدور من موظفيه أولًا.");
+        expect(await hoverTooltip(deleteButton(roleRow("Viewer")))).toBe("ممنوح لموظف واحد. أزِل هذا الدور من موظفيه أولًا.");
     });
 
     test("the held tooltip in English: \"Held by 3 staff members. Take it away from them first.\" @ADM-176", async () => {
-        const {user} = await openRolesTab([anOwnerRole(), aRole({name: "Assistant", staffCount: 3})]);
-        await user.hover(deleteButton(roleRow("Assistant")));
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("Held by 3 staff members. Take it away from them first.");
+        await openRolesTab([anOwnerRole(), aRole({name: "Assistant", staffCount: 3})]);
+        expect(await hoverTooltip(deleteButton(roleRow("Assistant")))).toBe("Held by 3 staff members. Take it away from them first.");
     });
 
     test("deleting an unused role: the confirm «حذف الدور «X»؟ …» opens with the focus on Cancel @ADM-177", async () => {

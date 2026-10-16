@@ -1,3 +1,4 @@
+import {expect} from "vitest";
 import {waitFor} from "@testing-library/react";
 
 /** The texts of the toasts shown now (react-hot-toast's `<Toaster>`, which renderWithProviders mounts), newest first. */
@@ -10,3 +11,9 @@ export const findToast = () => waitFor(() => {
     if (newest === undefined) throw new Error("No toast is shown");
     return newest;
 });
+
+/**
+ * Waits until the toasts shown are exactly `texts`, newest first (none: `expectToasts()`); a dismissed toast leaves the
+ * screen after its exit animation.
+ */
+export const expectToasts = (...texts: string[]) => waitFor(() => expect(toastTexts()).toEqual(texts));

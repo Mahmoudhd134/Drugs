@@ -1,20 +1,29 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aDrug, api, drugsHandlers, findToast, networkError, problem, recordRequests, renderWithProviders, server} from "../../../test";
+import {
+    aDrug,
+    api,
+    drugsHandlers,
+    findToast,
+    hoverTooltip,
+    isolate,
+    leaveTooltip,
+    networkError,
+    problem,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Permission} from "../../access/permissions.ts";
 import type {LanguageCode} from "../../../i18n/languages.ts";
 import type {Drug} from "../types.ts";
 import {DrugsPage} from "./DrugsPage.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // The drugs page through the cross-cutting rules: permissions (docs/features/access/tech.md "Frontend", Pages: Drugs),
 // error toasts (docs/tech/overview.md "Conventions", "Data fetching"), dialogs and keyboard ("Shared components"),
 // i18n ("Internationalization"; docs/features/drugs/tech.md "Frontend").
 
-patientWaits();
-
-const isolate = (name: string) => `⁨${name}⁩`;
 
 const openDrugs = async (drugs: Drug[], {lang = "ar", permissions}: { lang?: LanguageCode; permissions?: Permission[] } = {}) => {
     server.use(...drugsHandlers(drugs));
@@ -129,7 +138,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
         await startNewDrug(user);
         await user.keyboard("{Escape}");
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-        expect(requests.requests.filter(r => r.method !== "GET")).toEqual([]);
+        expect(requests.writes()).toEqual([]);
     });
 
     test("Esc on the delete confirmation closes it as Cancel: nothing deleted @UX-017", async () => {
@@ -151,15 +160,11 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
         const {user} = await openDrugs([aDrug({name: "Tobradex"})]);
         for (const name of ["تعديل", "حذف"]) {
             const button = screen.getByRole("button", {name});
-            await user.hover(button);
-            expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
-            await user.unhover(button);
-            await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+            expect(await hoverTooltip(button)).toBe(name);
+            await leaveTooltip(button);
         }
         await user.type(screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"}), "x");
-        const clear = screen.getByRole("button", {name: "مسح"});
-        await user.hover(clear);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("مسح");
+        expect(await hoverTooltip(screen.getByRole("button", {name: "مسح"}))).toBe("مسح");
     });
 
     test("loading shows a progress bar; a new search keeps the previous rows with a thin progress bar @UX-035", async () => {

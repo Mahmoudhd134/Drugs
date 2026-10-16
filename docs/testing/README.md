@@ -270,6 +270,41 @@ startup seeder runs (it promotes and demotes super admins there). After `variant
 - the next test (of this class too) starts on a reset database, as if it were a new class; dispose the variant in the
   test (`await using`).
 
+## Component tests (Vitest, `ClinicHub.Web/src/**/*.test.ts(x)`)
+
+### How to write a component test
+
+- Global set-up (`src/test/setup.ts`, `vite.config.ts`), so no test file tunes its own: `findBy…` / `waitFor` wait up
+  to 20 s (a passing wait returns at once), a test may take 60 s, half the cores run test files (CPU-bound: more
+  workers only slow each test down), `scrollIntoView` is a no-op (spy on it to check the calls), a request no MSW
+  handler answers fails the test (add the handler the page needs, even for a call the test doesn't look at), and after
+  each test: unmount, toasts removed, handlers, mocks, globals, timers, clipboard, storage, language and viewport
+  reset. Tests run shuffled: never depend on another test.
+- Keep them fast: paste text (`fillIn`), tooltips on fake timers, and in helpers that run on every layout or query
+  call, no DOM search per call (`getByLabelText` and `querySelector` with `:scope` cost seconds on a big page).
+  A success toast leaves after 2 s: check it before waiting for anything slower (e.g. the navigation).
+- One way per need, from `src/test` (import `…/test`):
+
+| Need | Helper |
+|---|---|
+| Render a component in the app's providers (theme + RTL, i18n, router, auth, QueryClient, toasts) | `renderWithProviders(ui, {lang, route, path, user, auth, clipboard})` |
+| The whole app on a page load (real AuthProvider, session store, API client) | `startApp({route, lang, clipboard})`, `sessionIn`, `refreshSequence`, `meByContext`, `contextOfRequest`, `expectPath` |
+| API answers (as the tech docs define them) | `drugsHandlers`, `drugGroupsHandlers`, `meHandler`, …, `problem(status, code)`, `networkError()`; builders `aDrug`, `aGroup`, `aMe`, … |
+| What the SPA sent | `recordRequests()` → `requests`, `writes()` (every method but GET) |
+| Toasts | `findToast()` (newest), `toastTexts()`, `expectToasts(...texts)` (exactly these) |
+| Text longer than a few characters, when the keystrokes don't matter | `fillIn(user, input, text)` (one paste) |
+| MUI selects and field errors | `choose`, `optionsOf`, `openSelect`, `isRed` |
+| Tooltips (on fake timers: no real delays) | `hoverTooltip(el)` → its text, `leaveTooltip(el)`, `hoverPastDelay(el)` (then check that none opened) |
+| "Before the timer fires" (debounces, toasts) | `holdTimers()` → `advance(ms)`, `release()` |
+| The clipboard | the `clipboard` option (or `stubClipboard()` after `userEvent.setup()`) → `write`, `execCommand`, `written()` |
+| A name inside a message | `isolate(name)` (the bidi isolates the locale files put around it) |
+| Storage failures, phone width | `breakStorage()`, `setViewportWidth(375)` |
+
+- A feature's page or dialog with its API lives in `src/test/pages/` (imported by path, so tests that don't need it
+  stay light): `admin.tsx` (`renderAdmin`, `navigateInApp`; its `AdminRoutes.tsx` copies App.tsx's `/admin` routes:
+  keep them in step), `groupEditor.tsx`, `prescription.tsx`, `rolesTab.ts`, `staffTab.ts`, `EditorHarness.tsx`,
+  `DosingHarness.tsx` + `dosing.ts`.
+
 ## Known bugs
 
 See [known-bugs.md](known-bugs.md): mark the test (xUnit `Skip = "BUG-0nn: …"`, Vitest `test.skip("BUG-1nn: … @ID")`,

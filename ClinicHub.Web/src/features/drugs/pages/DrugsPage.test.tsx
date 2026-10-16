@@ -2,8 +2,17 @@ import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {http, HttpResponse} from "msw";
-import {aDrug, api, drugsHandlers, networkError, problem, recordRequests, renderWithProviders, server} from "../../../test";
-import {isolate} from "../../../test/fe-catalog";
+import {
+    aDrug,
+    api,
+    drugsHandlers,
+    isolate,
+    networkError,
+    problem,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Drug} from "../types.ts";
 import {DrugsPage} from "./DrugsPage.tsx";
 
@@ -110,7 +119,7 @@ describe("drugs page: the edit dialog @area:catalog", () => {
         expect(await screen.findByRole("heading", {name: "تعديل الدواء"})).toBeInTheDocument();
         expect(screen.getByRole("textbox", {name: "الاسم"})).toHaveValue("Tobradex");
         expect(screen.getByRole("textbox", {name: "الوصف"})).toHaveValue("Antibiotic + steroid");
-        expect(recorded.requests.filter(r => r.method !== "GET")).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
     });
 });
 

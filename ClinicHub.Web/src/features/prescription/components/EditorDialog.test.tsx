@@ -1,7 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
 import {aDrug, aLine, renderWithProviders} from "../../../test";
-import "../../../test/fe-admin/patience.ts";
 import {EditorDialog} from "./EditorDialog.tsx";
 
 // The "Edit & copy" editor: docs/features/prescription/business.md "النسخ" (عريض، مائل، تسطير، قوائم مرقمة أو نقطية،

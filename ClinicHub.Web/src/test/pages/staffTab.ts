@@ -6,7 +6,7 @@ import type {StaffMember} from "../../features/staff/types.ts";
 import {aClinicDetails, aRole, anOwnerRole} from "../data.ts";
 import {adminClinicsHandlers, rolesHandler, staffHandler} from "../msw.ts";
 import {server} from "../server.ts";
-import {renderAdmin} from "./adminApp.tsx";
+import {renderAdmin} from "./admin.tsx";
 
 /** A clinic's default roles (Owner, Doctor, Assistant). */
 export const staffRoles = () => ({owner: anOwnerRole(), doctor: aRole({name: "Doctor"}), assistant: aRole({name: "Assistant"})});

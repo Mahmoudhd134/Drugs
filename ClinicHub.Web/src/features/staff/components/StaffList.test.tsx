@@ -1,10 +1,18 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicDetails, adminClinicsHandlers, api, aStaffMember, problem, server} from "../../../test";
-import {renderAdmin} from "../../../test/fe-admin/adminApp.tsx";
-import {asStaffRole, openStaffTab, staffRoles, staffRows, staffSubtitle} from "../../../test/fe-admin/staffTab.ts";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
+import {
+    aClinicDetails,
+    adminClinicsHandlers,
+    api,
+    aStaffMember,
+    fillIn,
+    problem,
+    rolesHandler,
+    server,
+} from "../../../test";
+import {renderAdmin} from "../../../test/pages/admin.tsx";
+import {asStaffRole, openStaffTab, staffRoles, staffRows, staffSubtitle} from "../../../test/pages/staffTab.ts";
 
 // The Staff tab: docs/features/platform-admin/business.md "الشاشات" (تبويب «الموظفون»), "الموظفون" and "الرسائل التي
 // تظهر للمستخدم"; tech.md "Roles and staff screens" (StaffList: subtitle plural forms, search, paging, remove).
@@ -111,6 +119,8 @@ describe("staff list @area:admin", () => {
         let calls = 0;
         server.use(
             ...adminClinicsHandlers([clinic]),
+            // The Staff tab also asks for the clinic's roles (adminRolesApi, for the staff editor)
+            rolesHandler(clinic.id, Object.values(staffRoles())),
             http.get(api(`/admin/clinics/${clinic.id}/staff`), () => (++calls === 1
                 ? problem(500, "unexpected")
                 : HttpResponse.json({items: [aStaffMember({fullName: "نور"})], totalCount: 1, page: 1, pageSize: 20}))),
@@ -123,7 +133,11 @@ describe("staff list @area:admin", () => {
 
     test("the staff request fails, in English: \"Couldn't load data.\" with Retry @ADM-256", async () => {
         const clinic = aClinicDetails();
-        server.use(...adminClinicsHandlers([clinic]), http.get(api(`/admin/clinics/${clinic.id}/staff`), () => problem(500, "unexpected")));
+        server.use(
+            ...adminClinicsHandlers([clinic]),
+            rolesHandler(clinic.id, Object.values(staffRoles())),
+            http.get(api(`/admin/clinics/${clinic.id}/staff`), () => problem(500, "unexpected")),
+        );
         await renderAdmin(`/admin/clinics/${clinic.id}/staff`);
         expect(await screen.findByText("Couldn't load data.")).toBeInTheDocument();
         expect(screen.getByRole("button", {name: "Retry"})).toBeInTheDocument();

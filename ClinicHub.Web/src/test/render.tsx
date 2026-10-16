@@ -16,6 +16,7 @@ import {createAppTheme} from "../app/theme.ts";
 import {AuthContext, type AuthValue} from "../features/auth/useAuth.ts";
 import type {Context, Me} from "../features/auth/types.ts";
 import type {Permission} from "../features/access/permissions.ts";
+import {type ClipboardOptions, stubClipboard} from "./clipboard.ts";
 import {aClinicContext, aMe, ALL_PERMISSIONS, anAuthResult, PLATFORM_CONTEXT} from "./data.ts";
 import {LocationProbe} from "./LocationProbe.tsx";
 
@@ -48,6 +49,8 @@ export type RenderWithProvidersOptions = Omit<RenderOptions, "wrapper"> & {
     auth?: Partial<AuthValue>;
     /** Your own QueryClient (default: a new one, retries off) */
     queryClient?: QueryClient;
+    /** A stubbed async clipboard and execCommand (see stubClipboard), returned as `clipboard` */
+    clipboard?: ClipboardOptions;
 };
 
 /** A QueryClient like the app's (AppProviders) but without retries, so an error shows at once. */
@@ -96,13 +99,13 @@ export const buildAuth = (user: TestUser = {}, overrides: Partial<AuthValue> = {
  * Renders `ui` inside the app's real providers: MUI theme (+ RTL emotion cache in Arabic), i18n in `lang` (and
  * `<html lang dir>`), a fresh QueryClient (no retries), a MemoryRouter at `route`, the auth context of `user`, and the
  * Toaster (toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
- * `queryClient` and `location()`.
+ * `queryClient`, `location()` and `clipboard` (with the `clipboard` option).
  *
  * @example
  * const {user, auth} = await renderWithProviders(<DrugsPage/>, {lang: "ar", user: {permissions: ["drugs.list"]}});
  */
 export const renderWithProviders = async (ui: ReactElement, options: RenderWithProvidersOptions = {}) => {
-    const {lang = "en", route = "/", path = "*", user, auth: authOverrides, queryClient = createTestQueryClient(), ...rest} = options;
+    const {lang = "en", route = "/", path = "*", user, auth: authOverrides, queryClient = createTestQueryClient(), clipboard, ...rest} = options;
     await act(async () => {
         await i18n.changeLanguage(lang);
     });
@@ -138,10 +141,13 @@ export const renderWithProviders = async (ui: ReactElement, options: RenderWithP
         </Routes>,
         {wrapper: Providers, ...rest},
     );
+    // No pause between keystrokes: same events, faster tests
+    const userEvents = userEvent.setup({delay: null});
     return {
         ...result,
-        // No pause between keystrokes: same events, faster tests
-        user: userEvent.setup({delay: null}),
+        user: userEvents,
+        /** The stubbed clipboard (`clipboard` option; installed after userEvent.setup(), which installs its own) */
+        clipboard: clipboard ? stubClipboard(clipboard) : undefined,
         auth,
         queryClient,
         /** Where the app is now (after navigations) */

@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen} from "@testing-library/react";
-import {renderWithProviders} from "../../../test";
+import {fillIn, renderWithProviders} from "../../../test";
 import {DeleteClinicDialog} from "./DeleteClinicDialog.tsx";
 
 // The typed name: docs/features/platform-admin/tech.md "Frontend" (/admin/clinics/:id Overview, Delete): both sides
@@ -13,11 +13,9 @@ const renderDialog = (clinicName: string) => {
     ).then(rendered => ({...rendered, onConfirm}));
 };
 
-const typeName = async (user: Awaited<ReturnType<typeof renderDialog>>["user"], text: string) => {
-    const input = screen.getByRole("textbox", {name: "Clinic name"});
-    await user.clear(input);
-    if (text) await user.type(input, text);
-};
+/** Replaces the typed name with `text` (pasted: the keystrokes are not what these cases are about). */
+const typeName = (user: Awaited<ReturnType<typeof renderDialog>>["user"], text: string) =>
+    fillIn(user, screen.getByRole("textbox", {name: "Clinic name"}), text);
 
 const deleteButton = () => screen.getByRole("button", {name: "Delete clinic"});
 

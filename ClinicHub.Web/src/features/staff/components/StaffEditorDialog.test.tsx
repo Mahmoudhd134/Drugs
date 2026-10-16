@@ -1,12 +1,23 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicDetails, api, aStaffMember, findToast, problem, recordRequests, renderWithProviders, rolesHandler, server, staffHandler} from "../../../test";
-import {StaffEditorHarness} from "../../../test/fe-admin/EditorHarness.tsx";
-import {asStaffRole, openStaffTab, staffRoles} from "../../../test/fe-admin/staffTab.ts";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
+import {
+    aClinicDetails,
+    api,
+    aStaffMember,
+    fillIn,
+    findToast,
+    problem,
+    recordRequests,
+    renderWithProviders,
+    rolesHandler,
+    server,
+    staffHandler,
+} from "../../../test";
 import type {Role} from "../../roles/types.ts";
 import type {StaffMember} from "../types.ts";
+import {StaffEditorHarness} from "../../../test/pages/EditorHarness.tsx";
+import {asStaffRole, openStaffTab, staffRoles} from "../../../test/pages/staffTab.ts";
 
 // The staff editor: docs/features/platform-admin/business.md "الشاشات" (إضافة موظف / تعديل موظف), "الموظفون" and
 // "الرسائل التي تظهر للمستخدم"; tech.md "API" (staff: 400 invalidPhone `phone`, rolesRequired / roleNotFound `roleIds`,
@@ -36,7 +47,6 @@ const openAdd = async (lang: "ar" | "en" = "ar") => {
     return {...rendered, dialog, phone, fullName, submit};
 };
 
-const writes = (requests: { method: string }[]) => requests.filter(r => r.method !== "GET");
 
 describe("add a staff member @area:admin", () => {
     test("the dialog: the phone (LTR, its hint), the full name, a box per role (the Owner as \"Owner\" with \"Every permission\") @ADM-244", async () => {
@@ -72,7 +82,7 @@ describe("add a staff member @area:admin", () => {
         expect(fullName).toHaveAccessibleDescription("الاسم مطلوب.");
         expect(within(dialog).getByText("اختر دورًا واحدًا على الأقل.")).toBeInTheDocument();
         await waitFor(() => expect(phone).toHaveFocus());
-        expect(writes(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
     });
 
     test("submitted empty, in English @ADM-245", async () => {

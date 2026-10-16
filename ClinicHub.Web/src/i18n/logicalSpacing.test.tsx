@@ -2,12 +2,10 @@ import {describe, expect, test} from "vitest";
 import {screen} from "@testing-library/react";
 import {renderWithProviders} from "../test";
 import {AppShell} from "../components/layout/AppShell.tsx";
-import {patientWaits} from "../test/fe-access/patience.ts";
 
 // RTL spacing: docs/tech/overview.md "Internationalization (UI text only)": logical properties (marginInlineStart…)
 // or left/right; the ms/me/ps/pe shorthands are not applied by this MUI version (they render as zero).
 
-patientWaits();
 
 /** Every app source file (tests and test helpers aside), as text. */
 const SOURCES = Object.entries(import.meta.glob<string>(["../**/*.{ts,tsx}", "!../**/*.test.{ts,tsx}", "!../test/**"], {

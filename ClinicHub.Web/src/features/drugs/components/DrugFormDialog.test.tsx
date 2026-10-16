@@ -1,11 +1,22 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aDrug, api, findToast, problem, recordRequests, renderWithProviders, server} from "../../../test";
-import {choose, isRed, stepRow} from "../../../test/fe-catalog";
+import {
+    aDrug,
+    api,
+    choose,
+    fillIn,
+    findToast,
+    isRed,
+    problem,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Drug, SaveDrug} from "../types.ts";
 import type {TaperStep} from "../../dosing/types.ts";
 import {DrugFormDialog} from "./DrugFormDialog.tsx";
+import {stepRow} from "../../../test/pages/dosing.ts";
 
 // The drug dialog: docs/features/drugs/business.md "إضافة دواء", "الرسائل", tech.md "Frontend" (DrugFormDialog) and
 // "API"; error messages: docs/tech/overview.md "Data fetching" (errors.<code>), ar.ts / en.ts.
@@ -25,7 +36,7 @@ const renderDialog = async (drug: Drug | null = null, lang: "ar" | "en" = "ar") 
 const nameField = (label = "الاسم") => screen.getByRole("textbox", {name: label});
 const combo = (name: string) => screen.getByRole("combobox", {name});
 const number = (name: string) => screen.getByRole("spinbutton", {name});
-const saves = (requests: { method: string; path: string }[]) => requests.filter(r => r.method !== "GET");
+// Text is pasted (fillIn): typing re-renders the whole form per key (slow), and the keystrokes are not what these cases test
 
 describe("drug dialog: opening and the name @area:catalog", () => {
     test("new drug: title «دواء جديد», the focus in the name, every field empty @DRUG-062", async () => {
@@ -56,7 +67,7 @@ describe("drug dialog: opening and the name @area:catalog", () => {
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(isRed(nameField())).toBe(true);
         expect(screen.getByText("الاسم مطلوب.")).toBeInTheDocument();
-        expect(saves(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
         expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
@@ -80,7 +91,7 @@ describe("drug dialog: API refusals as toasts @area:catalog", () => {
     const refuse = async (code: string, field: string, lang: "ar" | "en" = "ar") => {
         server.use(http.post(api("/drugs"), () => problem(400, code, {errors: [{code, field}]})));
         const {user, onClose} = await renderDialog(null, lang);
-        await user.type(nameField(lang === "ar" ? "الاسم" : "Name"), "Tobradex");
+        await fillIn(user, nameField(lang === "ar" ? "الاسم" : "Name"), "Tobradex");
         await user.click(screen.getByRole("button", {name: lang === "ar" ? "حفظ" : "Save"}));
         return {toast: await findToast(), onClose};
     };
@@ -128,11 +139,11 @@ describe("drug dialog: the default dosing @area:catalog", () => {
     test("«مرات في اليوم» without the number: the field turns red and nothing is saved @DRUG-065", async () => {
         const recorded = recordRequests();
         const {user, onClose} = await renderDialog();
-        await user.type(nameField(), "Tobradex");
+        await fillIn(user, nameField(), "Tobradex");
         await choose(user, combo("عدد المرات"), "مرات في اليوم");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(isRed(number("العدد"))).toBe(true);
-        expect(saves(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
         expect(onClose).not.toHaveBeenCalled();
     });
 
@@ -142,7 +153,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         await choose(user, combo("عدد المرات"), "مرات في اليوم");
         await choose(user, combo("الفترة"), "أيام");
         for (const field of [number("الجرعة"), combo("الوحدة"), number("العدد"), number("المدة")]) expect(isRed(field)).toBe(false);
-        await user.type(nameField(), "Tobradex");
+        await fillIn(user, nameField(), "Tobradex");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(isRed(number("الجرعة"))).toBe(true);
     });
@@ -150,7 +161,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
     test("after a save attempt exactly the invalid fields are red, and fixing one removes its red @DOSE-084", async () => {
         const recorded = recordRequests();
         const {user} = await renderDialog();
-        await user.type(nameField(), "Tobradex");
+        await fillIn(user, nameField(), "Tobradex");
         await user.type(number("الجرعة"), "1500");
         await choose(user, combo("عدد المرات"), "مرات في اليوم");
         await choose(user, combo("الفترة"), "أيام");
@@ -184,22 +195,22 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         const text = screen.getByRole("textbox", {name: "نص عدد المرات"});
         expect(isRed(text)).toBe(true);
-        await user.type(text, "صباحًا ومساءً");
+        await fillIn(user, text, "صباحًا ومساءً");
         expect(isRed(text)).toBe(false);
-        expect(saves(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
     });
 
     test("only empty dosing fields: the request sends `defaultDosing: null` @DRUG-069", async () => {
         server.use(...saveHandlers());
         const recorded = recordRequests();
         const {user, onClose} = await renderDialog();
-        await user.type(nameField(), "Tobradex");
+        await fillIn(user, nameField(), "Tobradex");
         // A unit chosen then cleared again leaves an empty dosing behind
         await choose(user, combo("الوحدة"), "نقطة");
         await choose(user, combo("الوحدة"), "—");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(onClose).toHaveBeenCalled());
-        expect(saves(recorded.requests)).toEqual([
+        expect(recorded.writes()).toEqual([
             expect.objectContaining({method: "POST", path: "/drugs", body: {name: "Tobradex", description: null, defaultDosing: null}}),
         ]);
     });
@@ -213,7 +224,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
             return HttpResponse.json({id: 501, ...body}, {status: 201});
         }));
         const {user, onClose} = await renderDialog();
-        await user.type(nameField(), "Tobradex");
+        await fillIn(user, nameField(), "Tobradex");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         const saving = await screen.findByRole("button", {name: "جارٍ الحفظ…"});
         expect(saving).toBeDisabled();
@@ -225,7 +236,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
     test("while saving in English: \"Saving…\" @DRUG-070", async () => {
         server.use(http.post(api("/drugs"), () => new Promise<never>(() => undefined)));
         const {user} = await renderDialog(null, "en");
-        await user.type(nameField("Name"), "Tobradex");
+        await fillIn(user, nameField("Name"), "Tobradex");
         await user.click(screen.getByRole("button", {name: "Save"}));
         expect(await screen.findByRole("button", {name: "Saving…"})).toBeDisabled();
         expect(screen.getByRole("button", {name: "Cancel"})).toBeDisabled();
@@ -250,7 +261,7 @@ describe("drug dialog: tapering steps on save @area:catalog", () => {
         // The other fields stay normal
         expect(isRed(field(1, "العدد"))).toBe(false);
         expect(isRed(field(2, "المدة"))).toBe(false);
-        expect(saves(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
         expect(onClose).not.toHaveBeenCalled();
     });
 
@@ -264,7 +275,7 @@ describe("drug dialog: tapering steps on save @area:catalog", () => {
         expect(period).toHaveTextContent("بصفة مستمرة");
         expect(isRed(period)).toBe(true);
         expect(screen.getByText("المرحلة الأخيرة فقط يمكن أن تكون «بصفة مستمرة» أو «حتى الزيارة القادمة».")).toBeInTheDocument();
-        expect(saves(recorded.requests)).toEqual([]);
+        expect(recorded.writes()).toEqual([]);
         expect(onClose).not.toHaveBeenCalled();
     });
 });
