@@ -219,7 +219,7 @@ test.describe("Drugs: delete @area:catalog", () => {
 });
 
 test.describe("Tapering in the drug dialog @area:catalog", () => {
-    test("a drug saved with a taper: reopened, the switch is on and the steps are as saved @TAPER-078 @smoke",
+    test("a drug saved with a taper: reopened, the switch is on and the steps are as saved @TAPER-078",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();

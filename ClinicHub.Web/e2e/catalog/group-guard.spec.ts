@@ -27,7 +27,7 @@ const change = async (page: Page, t: Texts, text: string) => {
 
 test.describe("The group editor's unsaved-changes guard @area:catalog", () => {
     for (const how of ["cancel", "back"] as const) {
-        test(`with unsaved changes, «${how === "cancel" ? "إلغاء" : "رجوع"}» asks «تجاهل التغييرات؟» with «تجاهل» and «إلغاء»; «إلغاء» keeps the changes @GRP-087 @GRP-088${how === "cancel" ? " @smoke" : ""}`,
+        test(`with unsaved changes, «${how === "cancel" ? "إلغاء" : "رجوع"}» asks «تجاهل التغييرات؟» with «تجاهل» and «إلغاء»; «إلغاء» keeps the changes @GRP-087 @GRP-088${how === "cancel" ? "" : ""}`,
             async ({page, t, lang, data, healthy}) => {
                 const ct = CATALOG_TEXTS[lang];
                 const {group} = await setUp(data, page);

@@ -2,11 +2,11 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {createDrug, createDrugs, createGroup, dialog, drugRow, groupCard, groupCards, option} from "../support/catalog.ts";
 import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
-import {expectToast} from "../support/ui.ts";
+import {expectToast, navTo} from "../support/ui.ts";
 
 /** The groups page: cards, search, open, delete; the prescription's group search (docs/features/drug-groups). */
 test.describe("The groups list @area:catalog", () => {
-    test("cards show the name, «الأدوية: N» and the first 4 drugs; 6 drugs also show «+2 أخرى» @GRP-036 @smoke",
+    test("cards show the name, «الأدوية: N» and the first 4 drugs; 6 drugs also show «+2 أخرى» @GRP-036",
         async ({page, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -98,12 +98,11 @@ test.describe("The groups list @area:catalog", () => {
             await expect(groupCard(page, group.name)).toHaveCount(0);
             await expect(confirm).toHaveCount(0);
 
-            // (A fresh load of the drugs page: on the phone, the menu tapped right after the toast sometimes didn't open)
-            await page.goto("/drugs");
+            await navTo(page, t, t.navDrugs);
             await expect(drugRow(page, drug.name)).toBeVisible();
         });
 
-    test("the prescription's Groups tab: typing «عمليه» lists «بعد عملية المياه» @GRP-097 @smoke", async ({page, t, data, healthy}) => {
+    test("the prescription's Groups tab: typing «عمليه» lists «بعد عملية المياه» @GRP-097", async ({page, t, data, healthy}) => {
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Drug ${unique()}`);
         await createGroup(data, clinic, "بعد عملية المياه", [{drug}]);

@@ -101,7 +101,7 @@ test.describe("The group editor @area:catalog", () => {
         await expect(editorLines(page, ct).first()).toContainText(`Kbd ${u} B`);
     });
 
-    test("dragging the third line to the top by its handle, then saving: reopened, the new order is kept @GRP-056 @smoke",
+    test("dragging the third line to the top by its handle, then saving: reopened, the new order is kept @GRP-056",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -125,7 +125,7 @@ test.describe("The group editor @area:catalog", () => {
             await expect(lines.nth(2)).toContainText(drugs[1].name);
         });
 
-    test("the right and left lines of one drug with different doses keep their own dosing once saved and reopened @GRP-083 @smoke",
+    test("the right and left lines of one drug with different doses keep their own dosing once saved and reopened @GRP-083",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();

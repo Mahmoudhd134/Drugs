@@ -6,7 +6,7 @@ import {recordRequests} from "../support/ui.ts";
 
 /** The drugs page: search, paging, no results (docs/features/drugs/business.md "البحث عن دواء"). */
 test.describe("The drugs list @area:catalog", () => {
-    test("the search updates the list while typing (debounced, no button) and goes back to the first page @DRUG-051 @smoke",
+    test("the search updates the list while typing (debounced, no button) and goes back to the first page @DRUG-051",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -76,7 +76,7 @@ test.describe("The drugs list @area:catalog", () => {
         await healthy();
     });
 
-    test("typing «اسبرين» lists «أسبرين ممتد», «اسبرين أطفال» and «قرص أسبرين», in that order @DRUG-102 @smoke",
+    test("typing «اسبرين» lists «أسبرين ممتد», «اسبرين أطفال» and «قرص أسبرين», in that order @DRUG-102",
         async ({page, t, data, healthy}) => {
             const clinic = await data.clinic();
             for (const name of ["قرص أسبرين", "اسبرين أطفال", "أسبرين ممتد", "باراسيتامول"]) await createDrug(data, clinic, name);
