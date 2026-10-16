@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "e2e": "tsc -p e2e && eslint e2e playwright.config.ts && playwright test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
