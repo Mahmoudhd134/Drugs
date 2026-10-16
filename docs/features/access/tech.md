@@ -236,7 +236,8 @@ whatever its `Status`.
   - Group editor: without `groups.create`/`groups.update` it is **read only** (title "Group", name
     read-only, `DosingLineList readOnly`, no picker, no Cancel/Save). Delete: `groups.delete`, shown
     disabled with the tooltip to editors who lack it. The drug picker also needs `drugs.list`. Save,
-    Cancel and Back go to `/groups`, or to `/` without `groups.list`.
+    Cancel and Back go to `/groups` (every group permission requires `groups.list`, so whoever opens the editor can
+    open the list).
   - Prescription: `CatalogPanel` shows the Groups tab with `groups.list` and the Drugs tab with
     `drugs.list` (each picker `enabled` only then; the visible one gets the focus); neither → a short message (`access.nothingToPick`;
     unreachable today, since `prescriptions.create` requires `drugs.list`).
