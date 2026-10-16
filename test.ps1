@@ -10,7 +10,7 @@
            (Chromium), the backend coverage gates (D5), the traceability gate (100% P0 and P1; P2 reported, not gated).
   release  full + Stryker.NET on the 6 critical backend files of tests/stryker-config.json (gate 85% on each) +
            StrykerJS (npm run test:mutation). E2E stays Chromium only (CLINICHUB_E2E_BROWSERS=chromium).
-  -Mutate  (any tier) also runs Stryker.NET on the files you name (a phase-B track proving its tests).
+  -Mutate  (any tier) also runs Stryker.NET on the files you name (to prove the tests of a file you changed).
   PostgreSQL: the compose container (docker compose up -d). Test databases: drags_it_<run>_* (dropped at the end).
   Exit code: 0 when every stage passed and every gate held, else 1 (also when the runner itself fails). Missing pieces
   (no npm script yet, no e2e) are skipped with a visible note.
@@ -560,7 +560,7 @@ if (Test-Path $traceFile) {
     [void]$md.AppendLine('')
     [void]$md.AppendLine('## Traceability (D2)')
     [void]$md.AppendLine('')
-    [void]$md.AppendLine('| Priority | Covered | Known bug | Missing | % | Gate |')
+    [void]$md.AppendLine('| Priority | Covered | Covered with known bug | Missing | % | Gate |')
     [void]$md.AppendLine('|---|---:|---:|---:|---:|---:|')
     foreach ($g in $t.gate) {
         $gateText = 'reported'; if ($null -ne $g.Gate) { $gateText = "$($g.Gate)%" }
@@ -590,7 +590,17 @@ foreach ($s in $stages) {
 [void]$md.AppendLine('## Known bugs (D9)')
 [void]$md.AppendLine('')
 $idsText = 'none'; if ($bugIds.Count -gt 0) { $idsText = @($bugIds) -join ', ' }
-[void]$md.AppendLine("$knownBugRows entries in docs/testing/known-bugs*.md; $bugTests skipped known-bug .NET tests ($idsText).")
+$line = "$knownBugRows entries in docs/testing/known-bugs*.md; $bugTests skipped known-bug .NET tests in this run ($idsText)."
+# Every level (xUnit, Vitest, Playwright): the known-bug tests the traceability tool found in the test sources
+if (Test-Path $traceFile) {
+    $t = Get-Content $traceFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -ne $t.knownBugIds) {
+        $all = 'none'; if (@($t.knownBugIds).Count -gt 0) { $all = @($t.knownBugIds) -join ', ' }
+        $perTool = @('xunit', 'vitest', 'playwright' | ForEach-Object { "$_ $(@($t.knownBugTests.$_).Count)" }) -join ', '
+        $line = "$knownBugRows entries in docs/testing/known-bugs*.md. Known-bug tests (skip/fixme with a BUG id) in the sources: $perTool; BUG ids: $all. Skipped known-bug .NET tests in this run: $bugTests."
+    }
+}
+[void]$md.AppendLine($line)
 
 $summaryPath = Join-Path $artifacts 'summary.md'
 New-Item -ItemType Directory -Force -Path $artifacts | Out-Null

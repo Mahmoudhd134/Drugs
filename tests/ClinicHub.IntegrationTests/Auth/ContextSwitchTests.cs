@@ -334,6 +334,39 @@ public class ContextSwitchTests(AppFixture app) : IntegrationTest(app)
         response.ShouldClearRefreshCookie();
     }
 
+    [Theory]
+    [InlineData("sub")]
+    [InlineData("sid")]
+    public async Task A_token_without_its_user_or_session_claim_cannot_switch(string claim)
+    {
+        // auth tech § Backend: a switch needs the access token of a session and that session's cookie. A token signed
+        // with the app's key but naming no user or no session (claims: auth tech § ITokenService) is refused
+        var (_, b, _, _, user) = await StaffOfTwoAsync();
+        var forged = AuthKit.Browser(App.Factory, user.RefreshCookie,
+            Admin.ForgedTokens.WithAppKey(App, user.AccessToken, payload => payload.Remove(claim)));
+
+        var response = await forged.SwitchContextAsync("clinic", b.Id);
+
+        await response.ShouldBeProblemAsync(HttpStatusCode.Unauthorized, "unauthorized");
+        await (await user.RefreshAsync()).ShouldBeOkAsync();
+    }
+
+    [Fact]
+    public async Task An_ended_sessions_token_without_a_cookie_is_a_session_gone_and_clears_the_cookie()
+    {
+        // auth tech § API: "401 session gone (checked first): cookie cleared", before the missing-cookie rule
+        // (AUTH-147: live session, no cookie → 401, no Set-Cookie)
+        var (_, b, _, _, user) = await StaffOfTwoAsync();
+        var token = user.AccessToken;
+        await (await user.LogoutAsync()).ShouldBeAsync(HttpStatusCode.NoContent);
+        var tokenOnly = AuthKit.Browser(App.Factory, null, token);
+
+        var response = await tokenOnly.SwitchContextAsync("clinic", b.Id);
+
+        await response.ShouldBeProblemAsync(HttpStatusCode.Unauthorized, "unauthorized");
+        response.ShouldClearRefreshCookie();
+    }
+
     [Fact]
     [Trait("Tier", "Smoke")]
     [Trait("Case", "AUTH-151")]

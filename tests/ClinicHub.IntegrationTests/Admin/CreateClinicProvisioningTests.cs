@@ -431,6 +431,32 @@ public class CreateClinicFromAnEmptyTemplateTests(AppFixture app) : IntegrationT
     }
 }
 
+/// <summary>A template with drugs but no group (the class starts on a fresh template: no drugs, no groups).</summary>
+[Collection(AdminCollection3.Name)]
+[Trait("Area", "admin")]
+public class CreateClinicFromATemplateWithoutGroupsTests(AppFixture app) : IntegrationTest(app)
+{
+    private static string DrugContent(DrugDto drug) =>
+        JsonSerializer.Serialize(new { drug.Name, drug.Description, drug.DefaultDosing }, Harness.Assertions.Json.Options);
+
+    [Fact]
+    public async Task The_clinic_gets_a_copy_of_the_templates_drugs_and_no_groups()
+    {
+        // Provisioning copies the template's drugs, then its groups (platform-admin tech "Provisioning"): none to copy
+        var admin = await Login.SuperAdminAsync();
+        var templateId = await App.TemplateClinicIdAsync();
+        var drug = await Data.Drug(templateId).Named(Unique.Name("Only drug", "دواء وحيد")).WithDosing(Dosings.Drops());
+        (await App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters().CountAsync(g => g.ClinicId == templateId))).ShouldBe(0);
+        var phone = Unique.Phone();
+
+        await admin.CreateClinicAsync(phone);
+
+        var owner = await Login.AsAsync(phone);
+        DrugContent((await owner.DrugsAsync()).Items.ShouldHaveSingleItem()).ShouldBe(DrugContent(drug));
+        (await owner.GroupsAsync()).ShouldBeEmpty();
+    }
+}
+
 /// <summary>
 /// All or nothing (business "القواعد التشغيلية": a failing part creates neither the clinic nor the owner's account):
 /// the restarted API has one more seeder that throws after the given one.

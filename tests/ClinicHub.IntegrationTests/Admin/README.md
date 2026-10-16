@@ -6,9 +6,9 @@ How to write them: [docs/testing/README.md](../../../docs/testing/README.md#inte
 
 | Collection | Classes |
 |---|---|
-| `admin` | `AdminAuthorizationTests`, `DemotedSuperAdminTests` (restart cases), `ClinicNotFoundTests` (missing, deleted, template), `LockoutAfterAdminChangeTests`, `AdminClinicFilterGuardTests` |
+| `admin` | `AdminAuthorizationTests`, `DemotedSuperAdminTests` (restart cases), `ClinicNotFoundTests` (missing, deleted, template), `LockoutAfterAdminChangeTests`, `AdminClinicFilterGuardTests`, `ClinicScopeContractTests` (`IClinicScope` called directly) |
 | `admin-2` | `ClinicListTests`, `ClinicListPagingTests` (exactly 25 clinics per class), `ClinicArabicSearchTests`, `CatalogRegressionPortTests` |
-| `admin-3` | `CreateClinicValidationTests`, `CreateClinicProvisioningTests`, `CreateClinicFromAnEmptyTemplateTests`, `CreateClinicRollbackTests` (a failing seeder on a variant app) |
+| `admin-3` | `CreateClinicValidationTests`, `CreateClinicProvisioningTests`, `CreateClinicFromAnEmptyTemplateTests`, `CreateClinicFromATemplateWithoutGroupsTests`, `CreateClinicRollbackTests` (a failing seeder on a variant app) |
 | `admin-4` | `ClinicDetailsAndRenameTests`, `SuspendAndActivateTests`, `DeleteClinicTests` |
 | `admin-5` | `RoleTests`, `OwnerLabelTests` |
 | `admin-6` | `StaffListTests`, `StaffChangeTests`, `LastOwnerTests` |

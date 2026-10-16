@@ -22,8 +22,9 @@ entry ([testing README § Known bugs](README.md#known-bugs)).
      `ClinicHub.Web/e2e/support/checks.ts`, limited to the elements the row documents.
 3. Add a row below. Whoever validates the step checks the entry (app vs doc) before accepting it.
 
-Known-bug tests don't count against the gates: the traceability report counts their cases as covered-but-known-bug and
-lists them; `artifacts/summary.md` shows the count.
+Known-bug tests don't count against the gates: the traceability report counts their cases as covered with known bug
+(also when a passing test covers the same case) and lists them; `artifacts/summary.md` lists the known-bug tests of
+xUnit, Vitest and Playwright and their IDs.
 
 ## How to clear an entry
 

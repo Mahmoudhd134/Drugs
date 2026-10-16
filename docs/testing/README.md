@@ -103,11 +103,11 @@ cd ClinicHub.Web; npm run e2e -- e2e/auth/login.spec.ts --project ar-desktop   #
 
 | File | Content |
 |---|---|
-| `summary.md` | per stage: result, counts (passed/failed/skipped from each test result), time; coverage gates; traceability; mutation scores; known bugs (skipped `BUG-nnn` tests and their IDs); the seed |
+| `summary.md` | per stage: result, counts (passed/failed/skipped from each test result), time; coverage gates; traceability; mutation scores; known bugs (the known-bug tests of xUnit, Vitest and Playwright and their `BUG-nnn` IDs, from the traceability tool; the skipped .NET ones of the run); the seed |
 | `test-results/<unit\|integration>/` | `.trx` results (+ `coverage.cobertura.xml` in full/release) |
 | `coverage/backend/` | merged report (`index.html`), `Cobertura.xml`, `gates.md` |
 | `coverage/frontend/` | Vitest coverage (`index.html`, `coverage-summary.json`) |
-| `traceability.md`, `traceability.json` | cases covered / known bug / missing per priority, area and level; unknown IDs; skips without a bug ID |
+| `traceability.md`, `traceability.json` | cases covered / covered with known bug / missing per priority, area and level; the known-bug tests per tool and their IDs; unknown IDs; skips without a bug ID |
 | `e2e/report/` (`index.html`), `e2e/results.json`, `e2e/test-results/` | Playwright's report; a failed test's trace and screenshot (`npx playwright show-trace <trace.zip>`) |
 | `mutation/backend/` | Stryker.NET `reports/mutation-report.html` / `.json`; `mutation.md` (score per mutated file against the 85% gate, and overall); `stryker.log` (its console output) |
 | `mutation/frontend/` | StrykerJS `mutation.html` / `.json` |
@@ -177,7 +177,8 @@ the expected values of the docs, never from what the app does today.
   `e2e` is covered by a component or `api` test where that is cheap, else left open (reported).
 - Run it alone: `./tests/tools/traceability/traceability.ps1 [-Gate] [-Areas AUTH] [-Levels api]` (scope = "only my
   areas/levels"); its self-test: `./tests/tools/traceability/selftest.ps1`.
-- Rules: a test skipped as a known bug counts (as known bug) only with its `BUG-nnn` ID in the skip reason or title,
+- Rules: a test skipped as a known bug counts (as covered with known bug, also when a passing test proves the same
+  case at that level: the bug stays visible) only with its `BUG-nnn` ID in the skip reason or title,
   and in xUnit the reason must be a **plain string literal** (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"` skips
   the test but counts as a skip without a bug ID); any other skip (`Skip = "later"`, `test.skip`/`test.todo`/
   `describe.skip` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
@@ -263,7 +264,11 @@ zero-width space, a name of exactly n characters). A rule whose answer depends o
   wait long for PostgreSQL's checkpoints: the maintenance connection allows 10 minutes per command, and dropping is
   best effort (a collection's copy at its end, the run's databases at shutdown, other runs' leftovers): a failure is
   printed at the end of the run (`ClinicHub test databases: could not drop …`) and retried later (at shutdown, else by
-  the next run's cleanup), never a failed test. Only creating the run's own databases fails the run.
+  the next run's cleanup), never a failed test. Only creating the run's own databases fails the run. Opening a
+  connection can be slow too: every test connection allows 60 s (Npgsql's default 15 s timed out when a collection's
+  app started on a busy machine), and a collection's (or the template's) app whose start fails on a connection failure
+  is started again, up to 3 times (`TestRun.StartAppAsync`, each retry printed at the end of the run like the drop
+  warnings). Three full integration runs at the same time pass.
 - Safety: the test host only ever connects to a `drags_it_<run>_<n>` database on localhost; anything else (the dev
   database `drags`) stops it before any connection, whatever the settings or a service override say (checked when the
   app's DbContext options are built, again when the context gets its options (an override that replaces them whole)
@@ -509,5 +514,6 @@ Marking (the ID in the marker, the case tags kept):
 - Vitest: `test.skip("BUG-612: <one line> @DOSE-012", …)`;
 - Playwright: `test.fixme("BUG-612: <one line> @RX-004", …)`.
 
-Known-bug tests count as covered-but-known-bug in the traceability report and are listed in `artifacts/summary.md`;
+Known-bug tests count as covered with known bug in the traceability report (even when a passing test covers the same
+case) and their IDs are listed in `artifacts/summary.md` (all three levels);
 a skip without its `BUG-nnn` ID fails the run. Fixing one: [known-bugs.md § How to clear an entry](known-bugs.md#how-to-clear-an-entry).
