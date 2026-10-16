@@ -1,6 +1,7 @@
 import {type ChildProcess, spawn, spawnSync} from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import {ApiSession} from "./support/api.ts";
 import {apiProject, DB_PREFIX, ensureDir, newRunId, publishState, repoRoot, type RunState, type TemplateCatalog, webRoot} from "./support/run.ts";
@@ -68,9 +69,43 @@ const isFree = (port: number, host: string) => new Promise<boolean>(resolve => {
     server.listen(port, host, () => server.close(() => resolve(true)));
 });
 
-const freePort = async () => {
+const isAlive = (pid: number) => {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (e) {
+        return (e as NodeJS.ErrnoException).code === "EPERM";
+    }
+};
+
+/**
+ * A port from 5080 reserved for this run across processes (other e2e runs, other worktrees): an exclusive lock file
+ * per port in the temp folder, holding the runner's pid, until the teardown. A lock whose runner is gone is taken over.
+ */
+const reservePort = async (skip: Set<number>) => {
+    const locks = ensureDir(path.join(os.tmpdir(), "clinichub-e2e-ports"));
     for (let port = 5080; port < 5200; port++) {
-        if (await isFree(port, "127.0.0.1") && await isFree(port, "::1")) return port;
+        if (skip.has(port)) continue;
+        const lock = path.join(locks, String(port));
+        let taken = false;
+        for (let attempt = 0; attempt < 2 && !taken; attempt++) {
+            try {
+                fs.writeFileSync(lock, JSON.stringify({pid: process.pid}), {flag: "wx"});
+                taken = true;
+            } catch (e) {
+                if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+                // Unreadable = still being written by its owner: busy
+                let owner = process.pid;
+                try { owner = Number(JSON.parse(fs.readFileSync(lock, "utf8")).pid); } catch { /* busy */ }
+                if (owner === process.pid || isAlive(owner)) break;
+                try { fs.unlinkSync(lock); } catch { /* another run took it over first */ }
+            }
+        }
+        if (!taken) continue;
+        if (await isFree(port, "127.0.0.1") && await isFree(port, "::1")) {
+            return {port, release: () => { try { fs.unlinkSync(lock); } catch { /* gone */ } }};
+        }
+        fs.unlinkSync(lock);
     }
     throw new Error("No free port in 5080–5199 for the e2e API");
 };
@@ -81,19 +116,55 @@ const killTree = (child: ChildProcess) => {
     else child.kill("SIGKILL");
 };
 
+/**
+ * Our own API answers: the child is alive, its log says it listens on our URL (Kestrel's startup line), and the URL
+ * answers. A port taken by anything else makes the child fail to bind and exit, which fails the run.
+ */
 const waitForApi = async (baseURL: string, child: ChildProcess, log: string) => {
     const until = Date.now() + 180_000;
     while (Date.now() < until) {
         if (child.exitCode !== null) {
             throw new Error(`The e2e API exited (${child.exitCode}) before answering; its log:\n${tail(log)}`);
         }
-        try {
-            const response = await fetch(`${baseURL}/api/v1/auth/otp/mode`);
-            if (response.ok) return;
-        } catch { /* not listening yet */ }
+        let listening = false;
+        try { listening = fs.readFileSync(log, "utf8").includes(`Now listening on: ${baseURL}`); } catch { /* not yet */ }
+        if (listening) {
+            try {
+                const response = await fetch(`${baseURL}/api/v1/auth/otp/mode`);
+                if (response.ok && child.exitCode === null) return;
+            } catch { /* not answering yet */ }
+        }
         await new Promise(r => setTimeout(r, 500));
     }
     throw new Error(`The e2e API did not answer within 3 minutes; its log:\n${tail(log)}`);
+};
+
+/** What a run leaves in its folder while it runs, so a next setup can clean up after a hard-killed runner. */
+type PidFile = { runnerPid: number; apiPid: number; database: string };
+
+const isDotnet = (pid: number) => {
+    if (process.platform !== "win32") return true;
+    const out = spawnSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {encoding: "utf8"}).stdout ?? "";
+    return /"dotnet\.exe"/i.test(out);
+};
+
+/** Runs of this worktree whose runner is gone (killed hard): stop their API (a dotnet process), drop their database. */
+const cleanUpKilledRuns = (root: string) => {
+    for (const entry of fs.readdirSync(root, {withFileTypes: true})) {
+        const file = path.join(root, entry.name, "api.pid");
+        if (!entry.isDirectory() || !fs.existsSync(file)) continue;
+        let info: PidFile;
+        try { info = JSON.parse(fs.readFileSync(file, "utf8")) as PidFile; } catch { continue; }
+        if (isAlive(info.runnerPid)) continue;
+        if (info.apiPid && isAlive(info.apiPid) && isDotnet(info.apiPid)) {
+            spawnSync("taskkill", ["/pid", String(info.apiPid), "/T", "/F"], {stdio: "ignore"});
+        }
+        try { dropDatabase(info.database); } catch (e) { console.warn(`e2e: could not drop ${info.database}: ${(e as Error).message}`); }
+        for (const copy of ["api", "wwwroot"]) {
+            try { fs.rmSync(path.join(root, entry.name, copy), {recursive: true, force: true, maxRetries: 5, retryDelay: 500}); } catch { /* best effort */ }
+        }
+        fs.rmSync(file, {force: true});
+    }
 };
 
 const tail = (file: string) => {
@@ -152,6 +223,7 @@ export default async function globalSetup() {
     ensureDir(path.join(runDir, "claims"));
 
     await ensurePostgres();
+    cleanUpKilledRuns(path.join(repoRoot, "artifacts", "e2e"));
     dropStaleDatabases();
 
     if (process.env.CLINICHUB_E2E_NO_BUILD !== "1") {
@@ -159,21 +231,7 @@ export default async function globalSetup() {
         run("dotnet", ["build", path.join(apiProject, "ClinicHub.Api.csproj"), "-c", "Release", "-nologo", "-v", "q"], repoRoot);
     }
 
-    const port = await freePort();
-    const baseURL = `http://localhost:${port}`;
-    const phones = superAdminPhones();
-    const log = path.join(runDir, "api.log");
-    const logStream = fs.openSync(log, "w");
-    const env: NodeJS.ProcessEnv = {
-        ...process.env,
-        ASPNETCORE_ENVIRONMENT: "Testing",
-        ASPNETCORE_URLS: baseURL,
-        ConnectionStrings__DefaultConnection: `Host=localhost;Port=5432;Database=${database};Username=drags;Password=drags`,
-        Otp__ResendSeconds: "0",
-        Logging__LogLevel__Default: "Warning",
-    };
-    phones.forEach((phone, i) => { env[`Platform__SuperAdminPhones__${i}`] = phone; });
-
+    const phones = superAdminPhones(runId);
     // The run works on its own copies of the builds: a later build (test.ps1, another run) never meets a locked file
     // nor changes the SPA under a running test
     const bin = path.join(apiProject, "bin", "Release", "net9.0");
@@ -183,27 +241,70 @@ export default async function globalSetup() {
     const webCopy = path.join(runDir, "wwwroot");
     fs.cpSync(bin, apiCopy, {recursive: true});
     fs.cpSync(path.join(apiProject, "wwwroot"), webCopy, {recursive: true});
-    // Content root = the project folder (appsettings.Testing.json); web root = the copied SPA
-    const child = spawn("dotnet", [path.join(apiCopy, "ClinicHub.Api.dll"), "--contentRoot", apiProject, "--webroot", webCopy],
-        {cwd: apiProject, env, stdio: ["ignore", logStream, logStream]});
+    const log = path.join(runDir, "api.log");
+    const pidFile = path.join(runDir, "api.pid");
 
+    /** Starts the API on a reserved port; a port that something outside the e2e runs took meanwhile → the next one. */
+    const start = async (skip: Set<number>) => {
+        const {port, release} = await reservePort(skip);
+        const baseURL = `http://localhost:${port}`;
+        const env: NodeJS.ProcessEnv = {
+            ...process.env,
+            ASPNETCORE_ENVIRONMENT: "Testing",
+            ASPNETCORE_URLS: baseURL,
+            ConnectionStrings__DefaultConnection: `Host=localhost;Port=5432;Database=${database};Username=drags;Password=drags`,
+            Otp__ResendSeconds: "0",
+            Logging__LogLevel__Default: "Warning",
+            // Kestrel's "Now listening on: …" line: how setup knows the answering API is this run's
+            "Logging__LogLevel__Microsoft.Hosting.Lifetime": "Information",
+        };
+        phones.forEach((phone, i) => { env[`Platform__SuperAdminPhones__${i}`] = phone; });
+        const logStream = fs.openSync(log, "w");
+        // Content root = the project folder (appsettings.Testing.json); web root = the copied SPA
+        const child = spawn("dotnet", [path.join(apiCopy, "ClinicHub.Api.dll"), "--contentRoot", apiProject, "--webroot", webCopy],
+            {cwd: apiProject, env, stdio: ["ignore", logStream, logStream]});
+        fs.closeSync(logStream);
+        fs.writeFileSync(pidFile, JSON.stringify({runnerPid: process.pid, apiPid: child.pid ?? 0, database} satisfies PidFile));
+        try {
+            await waitForApi(baseURL, child, log);
+            return {child, baseURL, release};
+        } catch (e) {
+            killTree(child);
+            release();
+            if (!tail(log).includes("address already in use") || skip.size >= 5) throw e;
+            skip.add(port);
+            console.warn(`e2e: port ${port} was taken meanwhile, trying another one`);
+            return start(skip);
+        }
+    };
+
+    let api: Awaited<ReturnType<typeof start>> | null = null;
     let stopped = false;
     const teardown = async () => {
         if (stopped) return;
         stopped = true;
-        killTree(child);
+        if (api) killTree(api.child);
         try { dropDatabase(database); } catch (e) { console.warn(`e2e: could not drop ${database}: ${(e as Error).message}`); }
+        api?.release();
+        fs.rmSync(pidFile, {force: true});
         // The copies go; the run's folder keeps api.log
         for (const copy of [apiCopy, webCopy]) {
             try { fs.rmSync(copy, {recursive: true, force: true, maxRetries: 5, retryDelay: 500}); } catch { /* best effort */ }
         }
     };
-    // The runner killed (Ctrl+C): don't leave the API running
-    process.once("exit", () => { if (!stopped) { killTree(child); } });
+    // The runner stopped without its teardown (Ctrl+C): don't leave the API running (a hard kill: next setup's cleanup)
+    process.once("exit", () => {
+        if (stopped || !api) return;
+        killTree(api.child);
+        api.release();
+    });
 
     try {
-        await waitForApi(baseURL, child, log);
+        api = await start(new Set());
+        const {child, baseURL} = api;
+        // Logs in with this run's own super admin pool: only our API knows it
         const template = await seedTemplate(baseURL, phones[0]);
+        if (child.exitCode !== null) throw new Error(`The e2e API exited (${child.exitCode}) during setup; its log:\n${tail(log)}`);
         const state: RunState = {runId, database, baseURL, runDir, superAdminPhones: phones, template};
         publishState(state);
         console.log(`e2e: API ${baseURL} (Testing), database ${database}, ${SUPER_ADMIN_POOL} super admin phones`);

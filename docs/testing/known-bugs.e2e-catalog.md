@@ -1,0 +1,8 @@
+# Known bugs: e2e catalog track (M1.6.8, stage 2: DRUG, GRP, DOSE, TAPER journeys)
+
+Found by the Playwright specs (`ClinicHub.Web/e2e/catalog`); to be folded into [known-bugs.md](known-bugs.md). Each one has a
+`test.fixme("BUG-<id>: …")` naming the cases it proves (verified failing when unmarked); fixing one = drop the `.fixme`.
+
+| ID | Case IDs | Doc line (link + quote) | What happens | How to reproduce | Severity |
+|---|---|---|---|---|---|
+| BUG-550 | DRUG-071 | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء): «التعديل يظهر تلقائيًا في كل المجموعات التي تحتوي هذا الدواء.»; [test catalog DRUG-071](test-catalog.md): "both groups' editors and pickers show the new name/sentence without a reload (the groups were refreshed)" | A group editor opened **before** the drug was edited shows the drug's old name and old dosing sentence when it is opened again after the edit (no reload), and keeps showing them: the group cards and the pickers do show the new values. `DrugGroupEditorPage` renders `GroupEditor` as soon as `useDrugGroup` has data, i.e. at once with the stale cached group (the drug mutation only invalidated it); `GroupEditor` copies `initial` into `useState` once (keyed by the group id only), so the refetched group never reaches the form. Saving that editor would send the stale lines (dosing overrides are by drug id, so only the shown text is stale today). | As an owner open a group that holds drug D (`/groups/{id}`), go back, open «الأدوية» from the sidebar, rename D (or change its default dosing) and save, open the same group again from «المجموعات»: the line still shows D's old name and sentence (a reload shows the new ones). Test: `e2e/catalog/inheritance.spec.ts` "BUG-550". | P0 |

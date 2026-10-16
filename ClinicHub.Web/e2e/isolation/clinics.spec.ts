@@ -97,10 +97,12 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
     });
 
     test("the API unreachable while saving a drug or a group: «تعذّر الاتصال بالخادم» and the form keeps what was typed @ERR-031",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowNetworkErrors}) => {
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            // The API unreachable on save: its "net::ERR_…" console lines are expected
+            allowNetworkErrors();
             await page.route("**/api/v1/drugs", route => route.request().method() === "POST" ? route.abort("connectionrefused") : route.continue());
             await page.route("**/api/v1/drug-groups", route => route.request().method() === "POST" ? route.abort("connectionrefused") : route.continue());
 
