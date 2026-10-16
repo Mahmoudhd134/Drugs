@@ -72,7 +72,8 @@ checklist. Only then is the system handed to the client.
 
 ## Checklist
 
-Every `manual` case and every P0 case of the [test catalog](test-catalog.md), grouped by journey (358 items, 7 of them `manual`). The
+Every `manual` case and every P0 case of the [test catalog](test-catalog.md), grouped by journey (360 items: the 352 P0 cases, the 6 other `manual` ones (7 `manual` in all), and 2 real-phone
+checks: UX-013, UX-038 / UX-039). The
 catalog holds each case's source; the level says how to check it here (`api`: an HTTP script; `unit`: check the visible
 result in the app, e.g. the exact sentence or the copied text).
 
@@ -255,7 +256,7 @@ result in the app, e.g. the exact sentence or the copied text).
 
 - [ ] `ACC-057` (P0, e2e) Given Owner, Doctor or Assistant, then the sidebar shows Prescription, Groups and Drugs; given the read-only role, only Groups and Drugs
 - [ ] `ACC-058` (P0, e2e) Given a role without `prescriptions.create`, when `/` opens, then the first allowed page opens (read-only role → `/groups`)
-- [ ] `ACC-060` (P0, e2e) Given a URL the user may not open (read-only role → `/groups/new`), then «لا توجد صلاحية» + «ليست لديك صلاحية لفتح هذه الصفحة. اطلبها من مالك العيادة إن احتجت إليها.» + «الذهاب إلى صفحة البداية» (en "No permission" …)
+- [ ] `ACC-060` (P0, e2e) Given a URL the user may not open (read-only role → `/groups/new`), then «لا توجد صلاحية» + «ليست لديك صلاحية لفتح هذه الصفحة. اطلبها من مالك العيادة إن احتجت إليها.» + «الذهاب إلى صفحة البداية» (en "No permission" + "You don't have permission to open this page. Ask the clinic owner if you need it." + "Go to the start page")
 - [ ] `ACC-061` (P0, e2e) Given the read-only role on Drugs, then no «إضافة دواء», no Actions column, and a row opens the read-only drug details dialog (also with Enter/Space)
 - [ ] `ACC-062` (P0, e2e) Given an Assistant on Drugs, then Add and the edit icon show, the delete icon does not, and a row opens the editor
 
@@ -487,7 +488,7 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `TAPER-001` (P0, api) Given a drug default with 2 valid steps, when saved, then 201/200 and GET returns the same `taperSteps` (order, frequency, values) and `frequency`/`durationUnit` null
 - [ ] `TAPER-002` (P0, unit+api) Given 10 steps, when saved, then accepted
 - [ ] `TAPER-003` (P0, unit+api) Given 11 steps, when saved, then 400 `invalidDosing`; the client marks `taperSteps`
-- [ ] `TAPER-004` (P0, unit+api) Given 1 step (daily 4, 1 week), when saved, then it is stored as a plain dosing (`taperSteps:null`, `frequency:"daily"`, `frequencyValue:4`, `durationUnit:"weeks"`, `durationValue:1`) and the switch is off when reopened
+- [ ] `TAPER-004` (P0, unit+api) Given 1 step (daily 4, 1 week), when saved, then it is stored as a plain dosing (`taperSteps:null`, `frequency:"daily"`, `frequencyValue:4`, `durationUnit:"weeks"`, `durationValue:1`)
 - [ ] `TAPER-008` (P0, unit+api) Given a step with frequency bedtime / asNeeded / custom, or none, then invalid
 - [ ] `TAPER-013` (P0, unit+api) Given the last step continuous or until next visit, then valid
 - [ ] `TAPER-014` (P0, unit+api) Given a non-last step continuous or until next visit, then invalid (`invalidDosing`; client field `taperSteps.<i>.durationUnit`)
@@ -569,12 +570,12 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `GRP-077` (P0, ui) Given the override dialog, then the eye choices include «تُحدد عند الإضافة» (with the tooltip «العين غير محددة في المجموعة: …») besides اليمنى / اليسرى / العينين / بدون عين
 - [ ] `GRP-081` (P0, ui) Given a line whose effective eye is right (or left) and no line of the same drug for the other eye, then ⊕ «إضافة للعين الأخرى» is shown; clicking it inserts a line for the other eye right after it with the same dosing
 - [ ] `GRP-083` (P0, e2e) Given right and left lines of the same drug with different doses, when saved and reopened, then both lines keep their own dosing
-- [ ] `GRP-084` (P0, e2e) Given a saved group whose two lines of a drug now have the same effective eye (the drug's default eye changed), when the editor opens, then both lines get the chip «نفس الدواء والعين في سطر آخر» (en "Same drug and eye as another line") and the alert «يوجد دواء مكرر في المجموعة لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.» shows above the lines
+- [ ] `GRP-084` (P0, e2e) Given a saved group whose two lines of a drug now have the same effective eye (the drug's default eye changed), when the editor opens, then both lines get the chip «نفس الدواء والعين في سطر آخر» (en "Same drug and eye as another line") and the alert «يوجد دواء مكرر في المجموعة لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.» (en "A drug is in the group twice for the same eye (marked below). Remove a line or change its eye, then save.") shows above the lines
 - [ ] `GRP-085` (P0, ui) Given clashing lines in the editor, when saving, then the same text shows as an error toast and no request is sent; after one line is removed or its eye changed, the chips and the alert go and the save succeeds
 
 #### GRP · Unsaved-changes guard
 
-- [ ] `GRP-087` (P0, e2e) Given an editor with unsaved changes, when clicking «إلغاء» or «رجوع», then «تجاهل التغييرات؟» / «ستفقد التغييرات غير المحفوظة على هذه المجموعة.» asks, with «تجاهل» and «إلغاء»
+- [ ] `GRP-087` (P0, e2e) Given an editor with unsaved changes, when clicking «إلغاء» or «رجوع», then «تجاهل التغييرات؟» / «ستفقد التغييرات غير المحفوظة على هذه المجموعة.» (en "Discard changes?" / "Your unsaved changes to this group will be lost.") asks, with «تجاهل» and «إلغاء»
 
 ### 8. Prescription and copying (40)
 
@@ -657,6 +658,7 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `UX-002` (P0, e2e) Given 375 px, when opening the drug dialog, group line dialog and prescription line dialog, then they are full-screen, only the content scrolls, and Save/Cancel stay visible
 - [ ] `UX-011` (P1, manual) Given a real phone (touch), when adding a group, editing a line, dragging to reorder and copying, then everything works by touch
 - [ ] `UX-013` (P1, e2e; the tap only on a real phone) On a real phone, in the drug dialog, tap ⓘ next to «تقليل تدريجي»: the explanation shows and stays about 5 s (the e2e test sends the touch events from the page: Chromium's emulated tap closes the tooltip at once, so the real tap is checked here)
+- [ ] `UX-038` / `UX-039` (P1 ui+e2e / P2 e2e; the swipe only on a real phone) On a real phone, make a toast show (e.g. delete a drug: «تم حذف الدواء») and swipe it sideways: it closes at once; make another and tap its × («إغلاق» / "Close"): it closes, other toasts stay (built after M1.6: [BUG-621](known-bugs.md) until then)
 
 #### UX · Confirmations, focus and keyboard
 

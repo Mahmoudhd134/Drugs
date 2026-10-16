@@ -106,9 +106,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 | `GetContextsQuery`, `GetMeQuery` | `GET contexts`, `GET /me` | 401 `unauthorized` when the token's user no longer exists |
 
 - **`IPhoneNormalizer` / `PhoneNormalizer`** (singleton): `libphonenumber-csharp` parse with `Platform:DefaultRegion` (EG), valid
-  numbers only, formatted E.164; otherwise null. Any valid number is accepted, **landlines too** (e.g. `0223456789`), not
-  only mobiles: kept on purpose for now (M1.6.1, Q4) for the login, the owner phone and the staff phone; a phone input
-  with a country code comes later. The request and verify validators get it injected and use the
+  numbers only, formatted E.164; otherwise null. An input that is blank or longer than 40 characters is refused before
+  parsing (null). The parse accepts the usual ways of typing a number: spaces and dashes between the digits
+  (`010 0123 4567`, `010-0123-4567`), the international forms `+20…` and `0020…`, and Arabic-Indic digits
+  («٠١٠٠١٢٣٤٥٦٧»); all of them give the same E.164 phone (`+201001234567`). Any valid number is accepted,
+  **landlines too** (e.g. `0223456789`), not only mobiles: kept on purpose for now (M1.6.1, Q4) for the login, the
+  owner phone and the staff phone; a phone input with a country code comes later. The request and verify validators get it injected and use the
   `ValidPhone(normalizer, region)` rule (`PhoneValidation`): null → 400 `invalidPhone` (`field: "phone"`). (Not named `PhoneNumbers`: that is the library's namespace.)
   Phones from configuration go through `ConfigPhones.Normalize(normalizer, phone, region, setting)`: invalid → startup
   error naming the setting.
@@ -137,13 +140,14 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   `ExpiresAt` itself (requested exactly 5 min ago → `codeExpired`). Then: unknown phone → 403 `noAccess`; no
   context → the most specific reason (`IMembershipService.GetEntryRefusalAsync`, M1.6.0, below); either way no
   session and no cookie (the code stays consumed). Otherwise a new session, exactly one context → chosen
-  automatically; also deletes sessions that ended a week ago.
+  automatically; also deletes sessions that ended more than a week ago (one that ended exactly 7 days ago is kept).
 - **Why the user can't enter** (M1.6.0, `GetEntryRefusalAsync(userId, clinicId?)`; login: all the user's staff rows,
   the picker: the requested clinic's), template and **deleted** clinics left out: a staff row (active or not) in a
   suspended clinic → `clinicSuspended`; else a deactivated staff row in an active clinic → `staffInactive`
   (`AccessErrors.StaffInactive`, 403); else `noAccess` (removed staff, deleted clinics, unknown phones: never
   revealed). The first two are a `ClinicError` listing the clinics with that reason (`clinicNames` in the
-  ProblemDetails, by name, ordinal, each name once even when two clinics share it): at login **every** one (mixed
+  ProblemDetails, by name, ordinal (by character code: Latin capitals, then small letters, then Arabic; not a
+  language-aware alphabetical order), each name once even when two clinics share it): at login **every** one (mixed
   reasons: only the suspended ones), in the picker the picked one. Only answered after a right code (login) or to a
   logged-in user (picker), so it reveals nothing to someone guessing numbers. Requests inside a clinic are unchanged
   (`noAccess` / `clinicSuspended` from the access check, then the lost-clinic flow).
@@ -242,6 +246,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
 | `Platform:DevOwnerPhone` | — | `+201000000002` | (dev seed only) |
 | `Platform:DevAssistantPhone` | — | `+201000000003` | (dev seed only) |
 
+Startup refuses a configuration outside these ranges (`AppSettings.Validate`, the app doesn't start): `Otp:Length` 4–9;
+`Otp:MaxAttempts`, `Otp:ExpiryMinutes` and `Otp:MaxPerPhonePerHour` at least 1; `Otp:ResendSeconds` at least 0;
+`Auth:AccessTokenMinutes`, `Auth:RefreshTokenDays` and `Auth:PlatformSessionHours` at least 1; `Auth:Jwt:Issuer` and
+`Audience` not blank; `Auth:Jwt:SigningKey` and `Otp:HashKey` at least 32 bytes (in every environment); `Otp:Mode`
+`Display` only, any case (`Sms` has no sender yet).
+
 ## Frontend
 - **Dev proxy:** `vite.config.ts` proxies `/api` → `http://localhost:5000`; `.env.development` sets
   `VITE_API_BASE_URL=/api/v1`, so the SPA and API share an origin (the `SameSite=Strict` cookie works).
@@ -315,8 +325,12 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   `devCode`) a warning banner ("OTP display mode") is always visible; the code appears in an alert,
   is filled in and submitted automatically. Resend button with countdown; "change number" (back to the phone step,
   the number kept). The submit button is disabled while the phone (or the code) is empty.
-- **`SelectClinicPage`**: the contexts (platform admin first, then the clinics and the template in the API's order),
-  current one marked; picking another calls `/auth/context` and opens that context's home (picking the current one
+- **`SelectClinicPage`**: title «اختر العيادة» / "Choose a clinic", subtitle «اختر المكان الذي تريد العمل فيه الآن.» /
+  "Pick where you want to work now."; the contexts (platform admin first, then the clinics and the template in the
+  API's order), each with its hint: «إدارة المنصة» / "Platform admin" with «العيادات وإعدادات المنصة كلها» / "Clinics and
+  settings of the whole platform", «العيادة النموذجية» / "Template clinic" with «الأدوية والمجموعات الافتراضية للعيادات
+  الجديدة» / "Default drugs and groups for new clinics"; current one marked; picking another calls `/auth/context`
+  and opens that context's home (picking the current one
   just opens its home). Buttons: Back (when a context is set) and Log out; no context → `auth.noContexts` ("No clinic
   is available for your number."). The list is `GET /auth/contexts`, loaded fresh on opening (a
   spinner meanwhile; the session's list if it fails), so a clinic lost or given since the last refresh shows as it is.

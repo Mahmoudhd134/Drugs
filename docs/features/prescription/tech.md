@@ -63,9 +63,11 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
        so the second click of a double click on the group can't answer it). With more conflicts left, a checkbox applies
        the answer to the rest. "Use the group's" replaces the existing line's dosing in place
        (position and note kept).
-    6. New lines are appended; toast lines `groupAdded`, `groupReplaced`, `groupKept`,
+    6. New lines are appended; one toast, each part on its own line (joined with `\n`, the Toaster renders
+       `white-space: pre-line`): `groupAdded` always (also «…: 0»), then, when not zero, `groupReplaced`, `groupKept`,
        `groupSkipped` (identical), `groupDuplicated` (duplicated in the group, not added; M1.6.0: no line is dropped
-       silently).
+       silently). Its style is **success** when something was added or replaced, otherwise the **neutral** (plain)
+       toast: the prescription didn't change.
   - Adding a single drug whose drug+eye is already present → toast `prescription.alreadyAdded`.
   - Double clicks (M1.6.0): `SearchableList` (both pickers) ignores the extra clicks of a burst (`event.detail > 1`;
     keyboard activation has `detail` 0), so a double click selects once (one add, one toast); adding a group also
@@ -80,14 +82,18 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
   with its permission (`groups.list` / `drugs.list`; neither → `access.nothingToPick`, unreachable today since the page's
   `prescriptions.create` requires `drugs.list`; [access](../access/tech.md#frontend-srcfeaturesaccess)).
 - `components/SelectionPanel.tsx`: count chip, Clear all, `PrescriptionLineList`, empty state,
-  **Copy** and **Edit & copy** buttons.
+  **Copy** and **Edit & copy** buttons (side by side from `sm`; on a phone full-width and stacked). Their tooltips
+  (`prescription.clearAllInfo`, `quickCopyInfo`, `editAndCopyInfo`) show only while there are lines: with an empty list
+  the three buttons are disabled and show no tooltip.
 - `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, `LineDetails` (the Arabic dosing
   sentence, or the drug description when the dosing has no instructions: see Text formats), note; actions ✎ edit,
   ⊕ add for the other eye (only when possible), ✕ remove. Clicking the row text also edits.
 - `components/useGroupAddDialogs.tsx`: promise-based dialogs `askEye` and `askConflict`
-  (render `dialogs` in the page).
-- `components/LineEditDialog.tsx`: `DosingFields` + note (its "Prescription text" preview is the dosing sentence only:
-  for an eye-only dosing just the eye part; the line adds the drug description, see Text formats); blocks save on
+  (render `dialogs` in the page). On a phone (375 px) the conflict dialog's two boxes («الحالي» / «من المجموعة») are
+  stacked (side by side from `sm`) and the eye dialog's three buttons (right / left / both) fit on one row.
+- `components/LineEditDialog.tsx`: `DosingFields` + note, both starting from the line's current dosing and note (its
+  "Prescription text" preview is the dosing sentence only: for an eye-only dosing just the eye part; the line adds the
+  drug description, see Text formats); the note is saved trimmed (only spaces = no note); blocks save on
   invalid fields; shows
   `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens.
 - `components/EditorDialog.tsx` + `EditorContent.tsx`: lazy-loaded Quill editor, rebuilt from the
@@ -102,8 +108,14 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 - `linesToPlainText`: name and details on separate lines, a blank line between drugs.
 - `linesToHtml`: one `<p>` per line (`<strong>name</strong><br>details…`), separated by empty
   paragraphs. Paragraphs **always** get Quill's RTL classes because prescriptions are Arabic.
-- `htmlToPlainText(html)` and `htmlForPaste(html)`: unchanged (editor HTML → plain text; Quill
-  classes → inline styles for Word).
+- `htmlToPlainText(html)` (editor HTML → plain text): one line per paragraph, `<br>` as a line break, list items as
+  "1. ", "2. " (ordered) or "• " (bulleted), non-breaking spaces as normal spaces, at most one blank line in a row,
+  trimmed.
+- `htmlForPaste(html)` (Quill classes → inline styles for Word, on `p`, `li`, `h1`–`h3`, `ol`, `ul`):
+  `ql-direction-rtl` → `dir="rtl"`; `ql-align-right|center|justify` → `text-align:…`; `ql-indent-N` →
+  `margin-right:{3×N}em` in RTL (`margin-left` otherwise; e.g. `ql-indent-2` RTL → `margin-right:6em`); every `<p>` gets
+  `margin-top:0;margin-bottom:0` (Word's paragraph spacing would otherwise add gaps the editor doesn't show); no
+  `class` remains.
 
 ### Clipboard (`src/utils/clipboard.ts`)
 - `copyRichText(html, text)`: async Clipboard API in secure contexts; on plain http a `copy` event

@@ -70,7 +70,8 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 - UI labels: `dosing.*` in `en.ts` and `ar.ts` (normal translations).
 - Prescription wording: `i18n/locales/rxTextAr.ts`, plugged into **both** locales as `rxText`.
   The output is Arabic in every interface language (business decision). It uses Arabic plural
-  suffixes `_zero/_one/_two/_few/_many/_other` (few = 3–10, many = 11–99).
+  suffixes `_zero/_one/_two/_few/_many/_other` (CLDR Arabic, whole numbers by `n % 100`: few = `n % 100` in 3–10,
+  e.g. 3, 10, 103; many = `n % 100` in 11–99, e.g. 11, 99, 111; other = the rest: 100, 101, 102, fractions).
 - Numbers are Western digits (1, 2, 3).
 
 ## Edge cases & limitations

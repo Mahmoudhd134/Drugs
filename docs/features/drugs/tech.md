@@ -83,6 +83,7 @@ else 401 / 403 ([access](../access/tech.md#api)).
 - **Dialog** `components/DrugFormDialog.tsx`: create/edit with Name (required), Description
   (multiline) and a "Default dosing" section (`DosingFields`); save is blocked while
   `dosingErrors` is not empty. Inputs use `dir="auto"`. Remounts on each open (state starts from the given drug).
+  On open the name field has the focus (new: «دواء جديد» with empty fields).
   `maxWidth="md"` (room for tapering steps); full-screen on small screens.
 - **Reusable components** (used by other features):
   - `DrugPicker`: `SearchableList` over `useDrugPicker` (infinite, 30/page). Optional

@@ -8,7 +8,7 @@ Bugs found by tests: [known bugs](known-bugs.md). Before the client's test: [dre
 |---|---|---|---|
 | `unit`, backend | xUnit + Shouldly | `tests/ClinicHub.UnitTests/<Module>/<SubFeature>/` | `[Trait("Case", "DOSE-012")]` per test, `[Trait("Area", "catalog")]` per class |
 | `api` (integration) | xUnit + `WebApplicationFactory<Program>` + PostgreSQL + Respawn | `tests/ClinicHub.IntegrationTests/<Area>/` | same + `[Trait("Tier", "Smoke")]` |
-| `unit` (frontend pure logic), `ui` (component) | Vitest + Testing Library + MSW | next to the code: `ClinicHub.Web/src/**/*.test.ts(x)` | `@DOSE-012 @area:catalog @smoke` in the title |
+| `unit` (frontend pure logic), `ui` (component) | Vitest + Testing Library + MSW | next to the code: `unit` in `ClinicHub.Web/src/**/*.test.ts`, `ui` in `*.test.tsx` (the file decides the level) | `@DOSE-012 @area:catalog @smoke` in the title |
 | `e2e` | Playwright (Chromium) | `ClinicHub.Web/e2e/<area>/` | same |
 | `manual` | by hand | the [dress rehearsal](dress-rehearsal.md) | none |
 
@@ -107,7 +107,7 @@ cd ClinicHub.Web; npm run e2e -- e2e/auth/login.spec.ts --project ar-desktop   #
 | `test-results/<unit\|integration>/` | `.trx` results (+ `coverage.cobertura.xml` in full/release) |
 | `coverage/backend/` | merged report (`index.html`), `Cobertura.xml`, `gates.md` |
 | `coverage/frontend/` | Vitest coverage (`index.html`, `coverage-summary.json`) |
-| `traceability.md`, `traceability.json` | cases covered / covered with known bug / missing per priority, area and level; the known-bug tests per tool and their IDs; unknown IDs; skips without a bug ID |
+| `traceability.md`, `traceability.json` | cases covered / covered with known bug / missing per priority, area and level; the known-bug tests per tool and their IDs; Vitest/Playwright known-bug tests still marked `test.skip`/`test.fixme` (with a BUG id: listed as known bugs not run, to turn into `test.fails`/`test.fail`); unknown IDs; skips or expected failures without a bug ID |
 | `e2e/report/` (`index.html`), `e2e/results.json`, `e2e/test-results/` | Playwright's report; a failed test's trace and screenshot (`npx playwright show-trace <trace.zip>`) |
 | `mutation/backend/` | Stryker.NET `reports/mutation-report.html` / `.json`; `mutation.md` (score per mutated file against the 85% gate, and overall); `stryker.log` (its console output) |
 | `mutation/frontend/` | StrykerJS `mutation.html` / `.json` |
@@ -177,13 +177,18 @@ the expected values of the docs, never from what the app does today.
   `e2e` is covered by a component or `api` test where that is cheap, else left open (reported).
 - Run it alone: `./tests/tools/traceability/traceability.ps1 [-Gate] [-Areas AUTH] [-Levels api]` (scope = "only my
   areas/levels"); its self-test: `./tests/tools/traceability/selftest.ps1`.
-- Rules: a test skipped as a known bug counts (as covered with known bug, also when a passing test proves the same
-  case at that level: the bug stays visible) only with its `BUG-nnn` ID in the skip reason or title,
-  and in xUnit the reason must be a **plain string literal** (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"` skips
-  the test but counts as a skip without a bug ID); any other skip (`Skip = "later"`, `test.skip`/`test.todo`/
-  `describe.skip` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
+- Rules: a known-bug test (Vitest `test.fails`, Playwright `test.fail`: run and expected to fail; xUnit `Skip`) counts
+  (as covered with known bug, also when a passing test proves the same case at that level: the bug stays visible) only
+  with its `BUG-nnn` ID in the title or skip reason, and in xUnit the reason must be a **plain string literal**
+  (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"` skips the test but counts as a skip without a bug ID); any other
+  skip **or expected failure** (`Skip = "later"`, `test.skip`/`test.fixme`/`test.todo`/`describe.skip`/`test.fail`/
+  `test.fails` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
   `owner@clinic-1.test`; anything that is not exactly a catalog ID (`@AUTH-0163`, `@auth-189`) is reported as unknown
   and fails the run.
+- Vitest levels come from the file: a `*.test.ts` file (functions, hooks through `renderHook`, the locale files) proves
+  `unit`; a `*.test.tsx` file (it renders components) proves `ui`. A `unit+ui` case needs one test of each; a component
+  test also proves the `unit` level of a case **without** a `ui` level (e.g. `unit+e2e`: logic only reachable through
+  the page), listed apart in the report (`unitByComponentTest`). So put pure-logic tests in a `.test.ts` file.
 
 **Every later step adds its cases and tests**, in the same commit as its code and docs:
 1. Update the feature's `business.md` / `tech.md` (the rule comes first).
@@ -201,7 +206,7 @@ Pick the level from the case's `Level` column; one test per behavior, named afte
 |---|---|---|
 | `unit` (backend: a pure rule, a validator) | `tests/ClinicHub.UnitTests/<Module>/<SubFeature>/` | [Backend unit tests](#backend-unit-tests-testsclinichubunittests) |
 | `api` | `tests/ClinicHub.IntegrationTests/<Area>/` | [Integration tests](#integration-tests-testsclinichubintegrationtests) |
-| `unit` (frontend pure logic), `ui` | next to the code, `<name>.test.ts(x)` | [Component tests](#component-and-frontend-unit-tests-vitest) |
+| `unit` (frontend pure logic), `ui` | next to the code: `<name>.test.ts` for `unit`, `<name>.test.tsx` for `ui` (a component test also proves the `unit` level of a case without a `ui` level) | [Component tests](#component-and-frontend-unit-tests-vitest) |
 | `e2e` | `ClinicHub.Web/e2e/<area>/<journey>.spec.ts` | [End-to-end tests](#end-to-end-tests-playwright-clinichubwebe2e) |
 | `manual` | not automated | the [dress rehearsal](dress-rehearsal.md) runs it |
 
@@ -405,6 +410,9 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 });
 ```
 
+- The file decides the level: a `*.test.ts` file proves `unit`, a `*.test.tsx` file `ui` ([traceability](#the-test-catalog-and-traceability)).
+  A known bug: `test.fails("BUG-nnn: … @CASE", …)` (or `test.fails.each(…)` for table rows): it runs and must fail
+  ([Known bugs](#known-bugs)).
 - Pure logic (`dosingText.ts`, `taper.ts`, `prescriptionText.ts`, `api/errors.ts`, …): plain function tests, one per
   rule and boundary (both sides of each limit). It carries the coverage and StrykerJS gates ([Mutation
   testing](#mutation-testing)).
@@ -427,8 +435,8 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 
 | Need | Helper |
 |---|---|
-| Render a component in the app's providers (theme + RTL, i18n, router, auth, QueryClient, toasts) | `renderWithProviders(ui, {lang, route, path, user, auth, clipboard})` |
-| The whole app on a page load (real AuthProvider, session store, API client) | `startApp({route, lang, clipboard})`, `sessionIn`, `refreshSequence`, `meByContext`, `contextOfRequest`, `expectPath` |
+| Render a component in the app's providers (theme + RTL, i18n, router, auth, QueryClient, toasts) | `renderWithProviders(ui, {lang, route, path, user, auth, clipboard})`: `user.permissions` are expanded with their requirements, as `/me` returns them (so a set the API can't produce never reaches a test); a query retries a 5xx or network error once, as in the app; a query answering 403 **fails the test** (the app's 403 toast and `/me` reload exist only in `startApp`: use it for 403 flows) |
+| The whole app on a page load (real AuthProvider, session store, API client) | `startApp({route, lang, clipboard})`, `sessionIn`, `refreshSequence`, `meByContext`, `contextOfRequest`, `expectPath`; `recordPaths()` (`src/test/app.tsx`: every path the app navigates to, in order, for "never opens X" even when a guard redirects before X mounts) |
 | API answers (as the tech docs define them) | `drugsHandlers`, `drugGroupsHandlers`, `meHandler`, …, `problem(status, code)`, `networkError()`; builders `aDrug`, `aGroup`, `aMe`, … |
 | What the SPA sent | `recordRequests()` → `requests`, `writes()` (every method but GET) |
 | Toasts | `findToast()` (newest), `toastTexts()`, `expectToasts(...texts)` (exactly these) |
@@ -439,6 +447,7 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 | The clipboard | the `clipboard` option (or `stubClipboard()` after `userEvent.setup()`) → `write`, `execCommand`, `written()` |
 | A name inside a message | `isolate(name)` (the bidi isolates the locale files put around it) |
 | Storage failures, phone width | `breakStorage()`, `setViewportWidth(375)` |
+| A dialog that must not close ("not closable while saving"): Esc or a backdrop click, then check | `clickOutside(user, dialog)`, `expectStillOpen(dialog)` (waits past MUI's exit transition, then expects the same dialog shown, not fading out), `pastExitTransition()` (`src/test/mui.ts`): a closing MUI dialog stays in the document during its fade-out, so never assert "still open" right after the key |
 
 - A feature's page or dialog with its API lives in `src/test/pages/` (imported by path, so tests that don't need it
   stay light): `admin.tsx` (`renderAdmin`, `navigateInApp`; its `AdminRoutes.tsx` copies App.tsx's `/admin` routes:
@@ -488,8 +497,9 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 | Test data through the real API (the worker's super admin; an owner for drugs and groups) | `data.clinic()`, `data.staff(clinic, …)`, `data.role(clinic, permissions)`, `data.drug(clinic)`, `data.group(clinic, drugs)`, `data.suspend` / `deleteClinic` / `deactivate` / `removeStaff`, … (`data.ts`); every name and phone unique in the run (`unique()`, `uniquePhone()`) |
 | A logged-in page | `signIn(page, phone, target, path)` (OTP through the browser's own request context, so the cookie is the browser's; `target` = `"asIs"`, `"platform"`, `"template"`, `{clinicId}`), `signInSuperAdmin(page)`; through the login page itself: `loginViaUi(page, t, phone)` (for the login cases) |
 | Another tab (same cookies) or another browser (own cookies, a second user) | `newTab()`, `newBrowser()` |
-| Page checks | `healthy()`: `dir`/`lang` of the UI language, no horizontal scroll, axe-core (serious/critical fail); run by itself on every page left open at the end of a passing test, which also fails on any console error or uncaught exception |
+| Page checks | `healthy()`: `dir`/`lang` of the UI language, no horizontal scroll, axe-core (serious/critical fail); run by itself on every page left open at the end of a passing test, which also fails on any console error, uncaught exception or undeclared API error (below) |
 | The API cut off on purpose (`page.route(…).abort()`) | `allowNetworkErrors()` (the browser's `net::ERR_…` lines are then expected) |
+| API error answers the test expects (its subject: a refused request, a 404, a 401 it fakes…) | `allowApiErrors({status, method?, path?})` (`path` a RegExp on the pathname): every `/api/v1` answer of 400–499 a test's pages get must be declared, or the test fails at its end; `POST /api/v1/auth/refresh` → 401 (a page load without a session) is always allowed |
 | Page loaded, toasts, the sidebar, area steps | `settled(page)`, `expectToast`, `openSidebar` / `navTo` (`ui.ts`), `catalog.ts`, `rx.ts`, `ux.ts` |
 
 - Locate by role and accessible name in the project's language (`getByRole("button", {name: t.addDrug})`), like a
@@ -497,8 +507,14 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 - Wait with Playwright's web-first assertions (`await expect(…).toBeVisible()`), never `waitForTimeout`.
 - Each test makes its own clinic and users: tests run in parallel against one database and never see each other's
   data. Don't change the template clinic outside `e2e/template-edits/`.
-- An axe finding that is a known bug is listed in `KNOWN_AXE` (`checks.ts`) with its `BUG-nnn`, limited to the
-  elements its row documents: reported, not failed, so the rest of the scan still guards every page.
+- An axe finding that is a known bug is listed in `KNOWN_AXE` (`checks.ts`) with its `BUG-nnn`, limited to the rule
+  and the elements its row documents: reported (the test's attachments), not failed, so the rest of the scan still
+  guards every page. Cut text that is a known bug is listed the same way in `KNOWN_CUT` (`ux.ts`, used by
+  `expectNoCutOrOverlap`; today BUG-591's group cards).
+- A known-bug test is `test.fail("BUG-nnn: … @CASE", …)`: it runs and must fail (a project where the bug doesn't show:
+  a conditional `test.skip(condition, "<why> (BUG-nnn)")` at its top). An axe bug's own test checks the page with
+  `expectHealthyPage(page, lang, testInfo, {onlyBug: "BUG-nnn"})`: that bug's allowance is dropped, the other known
+  bugs still let through, so it fails on its own bug only and passes once that one is fixed ([Known bugs](#known-bugs)).
 - `npm run e2e` first type-checks and lints the specs (`tsc -p e2e`, ESLint): fix those errors first.
 
 ## Known bugs
@@ -509,10 +525,13 @@ unchanged). Only a bug that can't be fixed there (outside the step's scope, or d
 listed in [known-bugs.md](known-bugs.md); a rule the docs don't settle is a question for the user, not a bug. The
 entries collected during M1.6 are fixed after it, one per commit ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)).
 
-Marking (the ID in the marker, the case tags kept):
-- xUnit: `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a **plain string literal**;
-- Vitest: `test.skip("BUG-612: <one line> @DOSE-012", …)`;
-- Playwright: `test.fixme("BUG-612: <one line> @RX-004", …)`.
+Marking (the ID in the marker, the case tags kept). The test **runs and is expected to fail**, so the run notices a
+bug that got fixed (the expected failure then passes, which fails the run):
+- Vitest: `test.fails("BUG-612: <one line> @DOSE-012", …)` (table rows: `test.fails.each(rows)("BUG-612: … %s @DOSE-012", …)`);
+- Playwright: `test.fail("BUG-612: <one line> @RX-004", …)`; an axe finding: a `KNOWN_AXE` entry (`checks.ts`) and the
+  bug's own test checks with `expectHealthyPage(…, {onlyBug: "BUG-612"})` (fails on that bug only);
+- xUnit (no expected-failure marker): `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a **plain
+  string literal**.
 
 Known-bug tests count as covered with known bug in the traceability report (even when a passing test covers the same
 case) and their IDs are listed in `artifacts/summary.md` (all three levels);
