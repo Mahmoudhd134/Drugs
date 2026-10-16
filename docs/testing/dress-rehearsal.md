@@ -656,6 +656,7 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `UX-001` (P0, e2e) Given a 375 px wide phone, when visiting the prescription, drugs, groups list and group editor pages (Arabic and English), then there is no horizontal page scroll
 - [ ] `UX-002` (P0, e2e) Given 375 px, when opening the drug dialog, group line dialog and prescription line dialog, then they are full-screen, only the content scrolls, and Save/Cancel stay visible
 - [ ] `UX-011` (P1, manual) Given a real phone (touch), when adding a group, editing a line, dragging to reorder and copying, then everything works by touch
+- [ ] `UX-013` (P1, e2e; the tap only on a real phone) On a real phone, in the drug dialog, tap ⓘ next to «تقليل تدريجي»: the explanation shows and stays about 5 s (the e2e test sends the touch events from the page: Chromium's emulated tap closes the tooltip at once, so the real tap is checked here)
 
 #### UX · Confirmations, focus and keyboard
 

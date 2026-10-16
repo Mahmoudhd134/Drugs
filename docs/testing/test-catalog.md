@@ -62,14 +62,14 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 142 | 91 | 291 | 4 | 165 | 77 | 48 | 0 |
-| [DRUG](#drug--drug-catalog) | 23 | 48 | 32 | 103 | 0 | 66 | 22 | 15 | 0 |
+| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 22 | 16 | 0 |
 | [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 39 | 25 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 17 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 34 | 20 | 79 | 54 | 18 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 5 | 0 | 4 | 14 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 18 | 13 | 37 | 4 | 0 | 14 | 19 | 2 |
-| **All** | **352** | **516** | **318** | **1186** | **193** | **530** | **283** | **239** | **7** |
+| **All** | **352** | **516** | **319** | **1187** | **193** | **530** | **283** | **240** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -1162,6 +1162,7 @@ Sources: [drugs business](../features/drugs/business.md), [drugs tech](../featur
 | DRUG-066 | Given an existing drug, when clicking its row (or the ✎ button), then «تعديل الدواء» opens pre-filled with its name, description and default dosing | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
 | DRUG-067 | Given the edit dialog, when changing the name and saving, then the toast «تم تحديث الدواء» (English "Drug updated") appears and the row shows the new name | P0 | e2e | [drugs § الرسائل](../features/drugs/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | DRUG-068 | Given the edit dialog was cancelled after changes, when it is opened again, then it shows the saved values (the form restarts from the drug) | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| DRUG-104 | Given the drug dialog closing (saved, or cancelled with text typed), when it is opened again during the closing animation (e.g. a second Enter on «إضافة دواء», where the focus went back), then it starts from the given drug: empty for a new drug, not the text of the closing form | P2 | e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-069 | Given the drug dialog with only empty dosing fields, when saving, then the request sends `defaultDosing: null` | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-070 | Given the drug dialog while a save is in progress, then Save shows «جارٍ الحفظ…» and Save/Cancel are disabled | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-071 | Given a drug in two groups, when its name or default dosing is edited, then both groups' editors and pickers show the new name/sentence without a reload (the groups were refreshed) | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
