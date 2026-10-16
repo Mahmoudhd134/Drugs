@@ -1,7 +1,7 @@
 import type {Locator, Page} from "@playwright/test";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
-import {unique} from "../support/phones.ts";
+import {unique, uniqueDigits} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
 import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
@@ -195,7 +195,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         expect(await countNamed(data, clinic, "drugs", name)).toBe(1);
     });
 
-    test.fixme("BUG-586: a fast answer frees the save while the dialog fades out: the second click of a double click landing after it creates the drug again (a second Enter is kept as a guard) @UX-024",
+    test("the new-drug dialog: Enter twice fast (the second right after the save's answer) creates exactly one drug @UX-024",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -214,8 +214,20 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await page.keyboard.press("Enter");
             await expectToast(page, t.drugAdded);
             await page.waitForTimeout(1500);
+            // (The second Enter may land on «إضافة دواء» and open the dialog again: BUG-588, DRUG-104, not this case)
             if (await dialog(page).count()) await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
+
+            expect(await countNamed(data, clinic, "drugs", entered), "Enter twice: one drug").toBe(1);
+            expect(posts.length, "one POST").toBe(1);
+        });
+
+    test.fail("BUG-586: a fast answer frees the save while the dialog fades out: the second click of a double click landing after it creates the drug again @UX-024",
+        async ({page, data, lang}) => {
+            const {t} = textsOf(lang);
+            const clinic = await data.clinic();
+            const posts = recordRequests(page, "POST", /^\/api\/v1\/drugs$/);
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             // A double click whose second click comes after the answer (the dialog is fading out)
             const clicked = `Double ${unique()}`;
@@ -231,12 +243,11 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await page.waitForTimeout(1500);
             if (await dialog(page).count()) await dialog(page).getByRole("button", {name: t.cancel}).click();
 
-            expect(await countNamed(data, clinic, "drugs", entered), "Enter twice: one drug").toBe(1);
             expect(await countNamed(data, clinic, "drugs", clicked), "double click: one drug").toBe(1);
-            expect(posts.length, "one POST per drug").toBe(2);
+            expect(posts.length, "one POST").toBe(1);
         });
 
-    test.fixme("BUG-588: the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») shows the name just saved instead of starting empty @DRUG-104",
+    test.fail("BUG-588: the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») shows the name just saved instead of starting empty @DRUG-104",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -289,9 +300,10 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
                 // rehearsal, UX-013 / UX-011
                 await fingerTap(page, info);
                 await expect(tip).toBeVisible();
-                await page.waitForTimeout(3000);
-                await expect(tip, "still shown 3 s after the tap").toBeVisible();
-                await expect(tip, "gone after about 5 s").toBeHidden({timeout: 6000});
+                // About 5 s: still shown after 4 s, gone by about 6.5 s
+                await page.waitForTimeout(4000);
+                await expect(tip, "still shown 4 s after the tap").toBeVisible();
+                await expect(tip, "gone after about 5 s").toBeHidden({timeout: 2500});
             } else {
                 await info.hover();
                 await expect(tip, "on hover").toBeVisible();
@@ -318,9 +330,8 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
-            // (Inputs holding the name scroll inside themselves: not checked. The groups list's card title is cut with
-            // an ellipsis by design or not: asked to the user, not asserted. The Groups-tab picker and the line dialogs'
-            // titles: known bugs BUG-587 and BUG-589, below.)
+            // (Inputs holding the name scroll inside themselves: not checked. The groups list's cards, the Groups-tab
+            // picker and the line dialogs' titles: known bugs BUG-591, BUG-587 and BUG-589, below.)
             const fits = async (what: string, shown: Locator) => {
                 await noHorizontalScroll(page, what);
                 const open = dialog(page);
@@ -358,7 +369,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await fits("already-added toast", toast(page, u.alreadyAdded(name)));
         });
 
-    test.fixme("BUG-589: the group line dialog and the prescription line dialog cut a 256-character drug name in their title instead of wrapping it @UX-009",
+    test.fail("BUG-589: the group line dialog and the prescription line dialog cut a 256-character drug name in their title instead of wrapping it @UX-009",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
@@ -383,7 +394,34 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(problems, "the drug name is shown whole in both dialog titles").toEqual([]);
         });
 
-    test.fixme("BUG-587: the prescription's Groups-tab picker cuts a 256-character group name instead of wrapping it @UX-009",
+    test.fail("BUG-591: the groups list's cards cut a group name and a drug name (one line, ellipsis) instead of wrapping them: a 256-character one, and an ordinary «بعد عملية المياه البيضاء …» @UX-009",
+        async ({page, data, lang}) => {
+            const {t} = textsOf(lang);
+            const clinic = await data.clinic();
+            const drugName = `L${unique()}`.padEnd(256, "W");
+            const drug = await drugWith(data, clinic, {name: drugName});
+            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
+            // A usual name (31 characters): already wider than a 1280 px screen's card title
+            const usual = await groupWith(data, clinic, `بعد عملية المياه البيضاء ${uniqueDigits()}`, [{drug}]);
+            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            const card = groupCard(page, group.name);
+            await expect(card).toBeVisible();
+            await noHorizontalScroll(page, "groups list");
+            const problems: string[] = [];
+            const shown = [
+                ["long group name", card.getByText(group.name, {exact: true})],
+                ["long drug name", card.getByText(drugName, {exact: true})],
+                ["usual group name", groupCard(page, usual.name).getByText(usual.name, {exact: true})],
+            ] as const;
+            for (const [what, element] of shown) {
+                await expectNotCut(element, `groups list card: ${what}`).catch((e: Error) => problems.push(`${what}: ${e.message.slice(0, 200)}`));
+            }
+            expect(problems, "the cards show the groups' and the drug's whole names (wrapped)").toEqual([]);
+            // The card still opens the editor (the names are not a separate control)
+            await expect(card.getByRole("button", {name: t.delete})).toBeVisible();
+        });
+
+    test.fail("BUG-587: the prescription's Groups-tab picker cuts a 256-character group name instead of wrapping it @UX-009",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();

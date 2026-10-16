@@ -213,6 +213,10 @@ export const expectGroupToast = async (page: Page, lines: string[], style: "succ
     const shown = toast(page, lines[0]);
     await expect(shown).toHaveText(lines.join("\n"), {timeout: 20_000});
     await expect(shown).toHaveCount(1);
+    // Each part on its own line as rendered (business § الرسائل: «كل جزء في سطر»): `innerText` follows the CSS, so parts
+    // joined by spaces, or a message laid out on one line, don't pass (a string `toHaveText` normalizes whitespace)
+    const rendered = (await shown.innerText()).split("\n").map(line => line.trim()).filter(Boolean);
+    expect(rendered, "each part of the toast on its own line").toEqual(lines);
     // react-hot-toast: a success toast has its icon next to the message, a plain `toast()` none
     const hasIcon = await shown.evaluate(el => (el.parentElement?.children.length ?? 0) > 1);
     expect(hasIcon, `the toast is in the ${style} style`).toBe(style === "success");
@@ -291,17 +295,10 @@ export const expectInOrder = async (element: Locator, parts: string[]) => {
 };
 
 /**
- * The page checks (support/checks.ts `expectHealthyPage`) with the rich-text editor open, its Quill toolbar hidden
- * (`visibility: hidden`, so axe skips it) during the scan only: its icon buttons have no accessible name (BUG-570,
- * `prescription/editor-axe.spec.ts`). Everything else is checked as usual.
+ * The page checks (support/checks.ts `expectHealthyPage`) with the rich-text editor open: the Quill toolbar's unnamed
+ * buttons and alignment picker (BUG-570, `prescription/editor-axe.spec.ts`) are let through by KNOWN_AXE for those two
+ * rules only; every other rule is checked on the toolbar too.
  */
 export const expectEditorHealthy = async (page: Page, lang: "ar" | "en", testInfo: TestInfo) => {
-    const toolbar = page.locator(".ql-toolbar");
-    await toolbar.evaluateAll(els => els.forEach(el => ((el as HTMLElement).style.visibility = "hidden")));
-    try {
-        await testInfo.attach("axe known bugs (editor)", {body: "BUG-570: .ql-toolbar hidden from the scan", contentType: "text/plain"});
-        await expectHealthyPage(page, lang, testInfo);
-    } finally {
-        await toolbar.evaluateAll(els => els.forEach(el => ((el as HTMLElement).style.visibility = "")));
-    }
+    await expectHealthyPage(page, lang, testInfo);
 };

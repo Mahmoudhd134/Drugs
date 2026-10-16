@@ -1,5 +1,4 @@
 import {expect, type Locator, type Page, test} from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
 import {expectHealthyPage} from "./checks.ts";
 import type {ClinicHandle, Data, Drug, Group} from "./data.ts";
 import {settled} from "./fixtures.ts";
@@ -99,28 +98,13 @@ export const animationsDone = async (page: Page) => {
 
 /**
  * The page checks (support/checks.ts `expectHealthyPage`: dir/lang, loaded, no horizontal scroll, axe without
- * serious/critical violations but the known bugs) in the UI language now, once the animations ended. With the Edit &
- * copy editor open, its Quill toolbar is a known bug of the e2e-rx track (BUG-570, its own fixme test): the dialog is
- * scanned without the toolbar (the page under it is inert, scanned at the step before).
+ * serious/critical violations but the known bugs, each on its documented elements only: with the Edit & copy editor
+ * open, BUG-570's Quill toolbar buttons) in the UI language now, once the animations ended.
  */
 export const pageChecks = async (page: Page, what: string) => {
     await test.step(`page checks: ${what}`, async () => {
         await animationsDone(page);
-        const lang = await uiLang(page);
-        if (!(await page.locator(".ql-toolbar").count())) {
-            await expectHealthyPage(page, lang, test.info());
-            return;
-        }
-        const html = page.locator("html");
-        await expect(html, "html lang").toHaveAttribute("lang", lang);
-        await expect(html, "html dir").toHaveAttribute("dir", lang === "ar" ? "rtl" : "ltr");
-        await noHorizontalScroll(page, what);
-        const results = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-            .include(".MuiDialog-paper").exclude(".ql-toolbar").analyze();
-        const blocking = results.violations.filter(v => v.impact === "serious" || v.impact === "critical")
-            .flatMap(v => v.nodes.map(n => `${v.id} (${v.impact}): ${n.target.join(" ")}`));
-        await test.info().attach(`axe known bugs: ${what}`, {body: "BUG-570: the Quill toolbar is left out of the scan", contentType: "text/plain"});
-        expect(blocking, `axe: serious/critical violations in the editor dialog (${what})`).toEqual([]);
+        await expectHealthyPage(page, await uiLang(page), test.info());
     });
 };
 
@@ -158,13 +142,22 @@ const cutReason = (e: Element): string | null => {
 };
 
 /**
+ * Cut text that is a known app bug (docs/testing/known-bugs.md), limited to its documented elements: reported in the
+ * test's attachments, not failed (the bug's own test, `test.fail`, fails on it until it is fixed).
+ */
+const KNOWN_CUT = [
+    // The groups list page (`/groups` exactly): its cards: the group name (h6) and the first four drug names (li) are one line with an ellipsis
+    {bug: "BUG-591", path: "/groups", selector: "main .MuiCard-root h6.MuiTypography-noWrap, main .MuiCard-root li.MuiTypography-noWrap"},
+];
+
+/**
  * No cut UI text in `scope`, and no overlapping buttons. Checked: every visible button, tab, chip label, form label,
  * legend, h1/h2, dialog title and toggle; and any p/li/span/h3–h6 that can cut its text (`nowrap` or ellipsis; the
  * documented line clamps, `-webkit-line-clamp`, are left out). "Cut": see `cutReason` (own overflow, or clipped by a
  * scrolling/clipping ancestor in width). Not checked: overlaps between non-button elements, and text cut in height.
  */
-export const expectNoCutOrOverlap = async (scope: Locator, what: string, options: { ignore?: string } = {}) => {
-    const problems = await scope.evaluate((root, {reasonSource, ignore}) => {
+export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
+    const {problems, known} = await scope.evaluate((root, {reasonSource, knownCut}) => {
         const reasonOf = new Function(`return (${reasonSource})`)() as (e: Element) => string | null;
         const visible = (e: Element) => {
             const r = e.getBoundingClientRect();
@@ -173,6 +166,7 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string, options
         };
         const name = (e: Element) => `${e.tagName.toLowerCase()}.${[...e.classList].slice(0, 2).join(".")} «${(e.textContent ?? "").trim().slice(0, 40)}»`;
         const found: string[] = [];
+        const knownFound: string[] = [];
         const always = [...root.querySelectorAll("button, [role=tab], .MuiChip-label, label, legend, h1, h2, .MuiDialogTitle-root, .MuiToggleButton-root")];
         const cutting = [...root.querySelectorAll("p, li, span, h3, h4, h5, h6")].filter(e => {
             const style = getComputedStyle(e);
@@ -183,9 +177,11 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string, options
             if (!visible(e) || !(e.textContent ?? "").trim()) continue;
             // MUI's notched-outline legend (and its span) is a visually hidden copy of the label
             if (e.closest("fieldset legend")) continue;
-            if (ignore && e.matches(ignore)) continue;
             const reason = reasonOf(e);
-            if (reason) found.push(`cut text: ${name(e)} (${reason})`);
+            if (!reason) continue;
+            const bug = knownCut.find(k => location.pathname === k.path && e.matches(k.selector));
+            if (bug) knownFound.push(`${bug.bug}: cut text: ${name(e)} (${reason})`);
+            else found.push(`cut text: ${name(e)} (${reason})`);
         }
         // The part of an element on screen: its box cut by every scrolling or clipping ancestor (a dialog's content
         // scrolled under its buttons is hidden there, not overlapping)
@@ -211,8 +207,9 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string, options
                 if (w > 1 && h > 1) found.push(`overlap: ${name(a)} and ${name(b)}`);
             }
         }
-        return found;
-    }, {reasonSource: cutReason.toString(), ignore: options.ignore});
+        return {problems: found, known: knownFound};
+    }, {reasonSource: cutReason.toString(), knownCut: KNOWN_CUT});
+    if (known.length) await test.info().attach(`known bugs (cut text): ${what}`, {body: known.join("\n"), contentType: "text/plain"});
     expect(problems, `${what}: no cut text, no overlapping buttons`).toEqual([]);
 };
 

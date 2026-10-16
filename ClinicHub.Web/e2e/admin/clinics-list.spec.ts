@@ -131,6 +131,59 @@ test.describe("Platform admin: the clinics list @area:admin", () => {
             }
         });
 
+    test("a search typed key by key, a filter and page 2: one URL, no history entry per key, and a reload shows the same list @ADM-039",
+        async ({page, t, data}) => {
+            const token = `Q${unique()}`;
+            test.slow();
+            // 13 clinics, 2 disabled: the 11 active ones make 2 pages of 10
+            await clinics(data, token, 13, 2);
+            await signInSuperAdmin(page, "/admin?pageSize=10");
+            await expect(rows(page).first()).toBeVisible();
+            const before = await page.evaluate(() => history.length);
+
+            // Each key after the search's pause (300 ms), so a list that wrote each one as a history entry would show it
+            await page.getByPlaceholder(t.searchClinics).pressSequentially(token, {delay: 450});
+            await expect(page).toHaveURL(new RegExp(`search=${token}`));
+            await expect(rows(page)).toHaveCount(10);
+            await chooseStatus(page, t, t.statusActive);
+            await page.getByRole("button", {name: t.nextPage}).click();
+            await expect(rows(page)).toHaveCount(1);
+            await expect(rows(page).first()).toContainText(`${token} 13`);
+            expect(await page.evaluate(() => history.length) - before, "no history entry per key").toBeLessThanOrEqual(1);
+            const listUrl = page.url();
+            expect(listUrl).toMatch(/status=active/);
+            expect(listUrl).toMatch(/page=2/);
+
+            await page.reload();
+            await expect(page).toHaveURL(listUrl);
+            await expect(rows(page)).toHaveCount(1);
+            await expect(rows(page).first()).toContainText(`${token} 13`);
+            await expect(page.getByPlaceholder(t.searchClinics)).toHaveValue(token);
+            await expect(page.getByRole("combobox", {name: t.statusFilter})).toHaveText(t.statusActive);
+        });
+
+    test("on a phone the created-date column and the rows-per-page choice are hidden (a desktop shows both) @ADM-045",
+        async ({page, t, data, isMobile, healthy}) => {
+            const token = `C${unique()}`;
+            await clinics(data, token, 1);
+            await signInSuperAdmin(page, `/admin?search=${token}`);
+            await expect(rows(page)).toHaveCount(1);
+            const created = page.getByRole("columnheader", {name: t.createdColumn});
+            // The row's cells: name, status, staff count, and the created date on a desktop only
+            const shownCells = () => rows(page).first().locator("td").filter({visible: true}).count();
+            if (isMobile) {
+                await expect(created).toBeHidden();
+                await expect(page.getByRole("combobox", {name: t.rowsPerPage})).toHaveCount(0);
+                expect(await shownCells()).toBe(3);
+            } else {
+                await expect(created).toBeVisible();
+                await expect(page.getByRole("combobox", {name: t.rowsPerPage})).toBeVisible();
+                expect(await shownCells()).toBe(4);
+            }
+            // No horizontal scroll (and the rest of the page checks)
+            await healthy();
+        });
+
     test("left for a clinic's page, renamed and disabled there: Back shows the new state at once, never the old row @ADM-279",
         async ({page, t, data}) => {
             const token = `R${unique()}`;

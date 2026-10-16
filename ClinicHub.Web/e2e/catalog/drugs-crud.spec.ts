@@ -97,7 +97,9 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             await expect(drugRow(page, drug.name)).toHaveCount(0);
         });
 
-    test("saving an edit of a drug deleted in another window: the toast «هذا العنصر لم يعد موجودًا.» @DRUG-073", async ({page, t, data}) => {
+    test("saving an edit of a drug deleted in another window: the toast «هذا العنصر لم يعد موجودًا.» @DRUG-073", async ({page, t, data, allowApiErrors}) => {
+        // The drug deleted meanwhile: the test's subject
+        allowApiErrors({status: 404, method: "PUT", path: /^\/api\/v1\/drugs\/\d+$/});
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Gone ${unique()}`);
         await signIn(page, clinic.owner.phone, "asIs", "/drugs");

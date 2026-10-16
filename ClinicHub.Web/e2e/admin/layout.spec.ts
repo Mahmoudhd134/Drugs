@@ -70,6 +70,39 @@ const fitsTheScreen = async (page: Page, box: Locator, what: string) => {
     }
 };
 
+/**
+ * An open dialog's text is wrapped, not cut: no element inside it (the paper, its title, its content…) is wider inside
+ * than its box (a paper scrolls sideways when a line doesn't wrap, while the box itself still fits the screen). Inputs
+ * are left out (a long name scrolls inside its field), and so is MUI's notched-outline legend (a visually hidden copy of
+ * a field's label). With `name`, the name's text (where the dialog shows it) spans
+ * more than one line.
+ */
+const dialogWraps = async (page: Page, what: string, name?: string) => {
+    const dialog = page.getByRole("dialog");
+    expect(await dialog.count(), `${what}: a dialog is open`).toBeGreaterThan(0);
+    const result = await dialog.evaluate((root, wanted) => {
+        const overflowing = [root, ...root.querySelectorAll("*")]
+            .filter(e => !e.matches("input, textarea") && !e.closest("fieldset legend") && e.scrollWidth > e.clientWidth + 1)
+            .map(e => `${e.tagName.toLowerCase()}.${[...e.classList].slice(0, 2).join(".")}: ${e.scrollWidth} px in ${e.clientWidth} px`);
+        let lines = 0;
+        if (wanted) {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                const index = (node.textContent ?? "").indexOf(wanted);
+                if (index < 0) continue;
+                const range = document.createRange();
+                range.setStart(node, index);
+                range.setEnd(node, index + wanted.length);
+                lines = new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+                break;
+            }
+        }
+        return {overflowing, lines};
+    }, name ?? null);
+    expect(result.overflowing, `${what}: the dialog's text wraps (nothing wider than its box)`).toEqual([]);
+    if (name) expect(result.lines, `${what}: the name is shown on several lines`).toBeGreaterThan(1);
+};
+
 const noHorizontalScroll = async (page: Page, what: string) => {
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         {message: `${what}: no horizontal scroll`}).toBeLessThanOrEqual(0);
@@ -125,6 +158,10 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
                     await visitAdmin(page, t, clinic, staff.fullName, async what => {
                         await noHorizontalScroll(page, `${lang} ${what}`);
                         await fitsTheScreen(page, page.getByRole("dialog"), `${lang} ${what} dialog`);
+                        // The disable and delete confirmations show the name in their text (the rename dialog in its field)
+                        const showsName = what === "disable confirm" || what === "delete dialog";
+                        // The pages have no dialog open: only the dialogs' own checks must find one
+                        if (/dialog|confirm|editor/.test(what)) await dialogWraps(page, `${lang} ${what}`, showsName ? name.trim() : undefined);
                     });
 
                     // Toasts with the long name: created, then deleted

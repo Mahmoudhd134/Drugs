@@ -121,6 +121,8 @@ const ar = {
     allStatuses: "الكل",
     searchClinics: "ابحث عن عيادة بالاسم…",
     rowsPerPage: "عدد الصفوف",
+    /** The clinics list's created-date column (platform-admin business «قائمة العيادات»: «تاريخ الإنشاء») */
+    createdColumn: "تاريخ الإنشاء",
     nextPage: "الذهاب إلى الصفحة التالية",
     rename: "تغيير الاسم",
     disable: "إيقاف",
@@ -259,6 +261,7 @@ const en: Texts = {
     allStatuses: "All",
     searchClinics: "Search clinics by name…",
     rowsPerPage: "Rows per page",
+    createdColumn: "Created",
     nextPage: "Go to next page",
     rename: "Rename",
     disable: "Disable",

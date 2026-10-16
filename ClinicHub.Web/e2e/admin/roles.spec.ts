@@ -91,7 +91,12 @@ test.describe("Platform admin: a clinic's roles @area:admin", () => {
     });
 
     test("the clinic deleted in another window while its Roles tab is open: saving a new role → «هذا العنصر لم يعد موجودًا.» and «العيادة غير موجودة» @ADM-273",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // The clinic deleted meanwhile: the save and the reloads of its pages answer 404 (the test's subject)
+            allowApiErrors(
+                {status: 404, method: "GET", path: /^\/api\/v1\/admin\/clinics\/\d+(\/roles)?$/},
+                {status: 404, method: "POST", path: /^\/api\/v1\/admin\/clinics\/\d+\/roles$/},
+            );
             const clinic = await data.clinic();
             await signInSuperAdmin(page, `/admin/clinics/${clinic.id}/roles`);
             await expect(roleRows(page)).toHaveCount(3);
@@ -107,7 +112,9 @@ test.describe("Platform admin: a clinic's roles @area:admin", () => {
         });
 
     test("the role deleted in another window while its editor is open: Save → «هذا العنصر لم يعد موجودًا.», the dialog closes, the row is gone @ADM-275",
-        async ({page, t, data}) => {
+        async ({page, t, data, allowApiErrors}) => {
+            // The role deleted meanwhile: the test's subject
+            allowApiErrors({status: 404, method: "PUT", path: /^\/api\/v1\/admin\/clinics\/\d+\/roles\/\d+$/});
             const clinic = await data.clinic();
             const role = await data.role(clinic, ["drugs.list"], `Doomed ${unique()}`);
             await signInSuperAdmin(page, `/admin/clinics/${clinic.id}/roles`);

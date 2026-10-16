@@ -67,7 +67,9 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         expect(stored).toContain(drugA.name);
     });
 
-    test("A's user opening the URL of B's group: «هذا العنصر لم يعد موجودًا.» @ISO-043", async ({page, t, data, healthy}) => {
+    test("A's user opening the URL of B's group: «هذا العنصر لم يعد موجودًا.» @ISO-043", async ({page, t, data, healthy, allowApiErrors}) => {
+        // Another clinic's group is not found: the test's subject
+        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
         const a = await data.clinic();
         const b = await data.clinic();
         const groupB = await data.group(b, [await data.drug(b)]);

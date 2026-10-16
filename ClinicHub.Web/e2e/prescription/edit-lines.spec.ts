@@ -6,7 +6,7 @@ import {toast} from "../support/ui.ts";
 const NOTE = "رج الزجاجة قبل الاستعمال";
 
 test.describe("Prescription: editing, other eye and order of the lines @area:prescription", () => {
-    test("✎ or a click on the line opens «تعديل الجرعة» with the drug, the line's dosing and an empty note @RX-053",
+    test("✎ or a click on the line opens «تعديل الجرعة» with the drug, the line's dosing and its note (empty for a new line) @RX-053",
         async ({page, lang, data, healthy}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -30,6 +30,27 @@ test.describe("Prescription: editing, other eye and order of the lines @area:pre
                 if (open === "pencil") await healthy();
                 await dialog.getByRole("button", {name: rt.cancel, exact: true}).click();
                 await expect(dialog).toBeHidden();
+            }
+
+            // A line with a note: the dialog shows it; changing only the times keeps it
+            await rx.saveNote(rx.line(0), NOTE);
+            await rx.expectLines([[a.name, dropDailySentence(4, 1, "right"), NOTE]]);
+            for (const open of ["pencil", "text"] as const) {
+                if (open === "pencil") await rx.line(0).getByRole("button", {name: rt.editLine}).click();
+                else await rx.line(0).getByText(a.name, {exact: true}).click();
+                const dialog = rx.dialog(rt.editLine);
+                await expect(dialog).toBeVisible();
+                await expect(dialog.getByRole("textbox", {name: rt.lineNote}), `${open}: the line's note`).toHaveValue(NOTE);
+                await expect(dialog.getByRole("spinbutton", {name: rt.timesPerDay, exact: true})).toHaveValue(open === "pencil" ? "4" : "6");
+                if (open === "pencil") {
+                    await dialog.getByRole("spinbutton", {name: rt.timesPerDay, exact: true}).fill("6");
+                    await dialog.getByRole("button", {name: rt.save, exact: true}).click();
+                    await expect(dialog).toBeHidden();
+                    await rx.expectLines([[a.name, dropDailySentence(6, 1, "right"), NOTE]]);
+                } else {
+                    await dialog.getByRole("button", {name: rt.cancel, exact: true}).click();
+                    await expect(dialog).toBeHidden();
+                }
             }
         });
 

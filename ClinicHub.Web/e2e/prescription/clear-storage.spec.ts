@@ -1,7 +1,7 @@
 import {expect, settled, signIn, test} from "../support/fixtures.ts";
 import {RxPage, dropDaily, readClipboard, markClipboard, rxDeleteDrug, rxDrug, rxGroup, rxName, rxUpdateDrug, rxUpdateGroup} from "../support/rx.ts";
 import {dropDailySentence, RX_TEXTS} from "../support/texts-rx.ts";
-import {expectToast, focusBack, toast} from "../support/ui.ts";
+import {expectToast, focusBack, recordRequests, toast} from "../support/ui.ts";
 
 const NOTE = "رج الزجاجة قبل الاستعمال";
 
@@ -144,6 +144,8 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
             const a = await rxDrug(data, clinic, {name: rxName("Alpha"), dosing: dropDaily(4, 1, "right")});
             const b = await rxDrug(data, clinic, {name: rxName("Beta"), dosing: dropDaily(2, 1)});
             const group = await rxGroup(data, clinic, [{drug: a, dosing: {frequency: "daily", frequencyValue: 3}}]);
+            // The page's clock, to make its data older than the 30 s after which a focus could reload it
+            await page.clock.install();
             await signIn(page, clinic.owner.phone);
             const rx = new RxPage(page, rt);
             await expect(rx.option(group.name)).toBeVisible();
@@ -152,8 +154,12 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
             const newGroupName = rxName("Renamed");
             await rxUpdateGroup(data, clinic, group, [{drug: a, dosing: {frequency: "daily", frequencyValue: 6}}], newGroupName);
             await rxUpdateDrug(data, clinic, b, {dosing: dropDaily(5, 1)});
+            // The pickers' data is now stale (older than 30 s): a picker that reloaded on focus would load the new versions
+            await page.clock.fastForward("00:31");
+            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|drug-groups)$/);
             await focusBack(page);
             await page.waitForTimeout(1000);
+            expect(reloads, "no reload on focus").toHaveLength(0);
 
             await rx.addGroup(group.name);
             await rx.expectLines([[a.name, dropDailySentence(3, 1, "right")]]);

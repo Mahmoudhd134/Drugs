@@ -21,7 +21,7 @@ test.describe("Platform admin: a clinic's staff @area:admin", () => {
         await expect(staffRows(page).first()).toContainText("Dev Owner");
     });
 
-    test("add a staff member (double click): one POST, the toast, the row; the counts of the list, Roles, Overview and the clinics list follow without a reload @ADM-249 @smoke",
+    test("add a staff member (double click): one POST, the toast, the row; the counts of the list, Roles, Overview and the clinics list follow without a reload @ADM-249 @ADM-280 @smoke",
         async ({page, t, data, healthy}) => {
             const token = `S${unique()}`;
             const clinic = await data.clinic({name: `${token} clinic`});
@@ -88,7 +88,9 @@ test.describe("Platform admin: a clinic's staff @area:admin", () => {
         expect(deletes).toHaveLength(1);
     });
 
-    test("the only active owner can't be removed or deactivated: the lastOwner message and its hint, shown about 8 s @ADM-254", async ({page, t, data}) => {
+    test("the only active owner can't be removed or deactivated: the lastOwner message and its hint, shown about 8 s @ADM-254", async ({page, t, data, allowApiErrors}) => {
+        // The last owner's deactivation and removal refused (lastOwner): the test's subject
+        allowApiErrors({status: 409, method: "PUT", path: /^\/api\/v1\/admin\/clinics\/\d+\/staff\/\d+$/}, {status: 409, method: "DELETE", path: /^\/api\/v1\/admin\/clinics\/\d+\/staff\/\d+$/});
         const clinic = await data.clinic();
         await signInSuperAdmin(page, `/admin/clinics/${clinic.id}/staff`);
         const owner = clinic.owner.fullName;
