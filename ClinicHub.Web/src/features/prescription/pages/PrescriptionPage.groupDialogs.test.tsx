@@ -1,6 +1,6 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, aLine, anItem, findToast, isolate} from "../../../test";
+import {aDrug, aGroup, aLine, anItem, clickOutside, expectStillOpen, findToast, isolate, toastTexts} from "../../../test";
 import type {Dosing, TaperStep} from "../../dosing/types.ts";
 import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
 
@@ -11,10 +11,6 @@ import {openPrescription, storedLines} from "../../../test/pages/prescription.ts
 
 const added = (count: number, group = "Post cataract") => `تمت الإضافة من «${isolate(group)}»: ${count}`;
 const toastLines = async () => (await findToast()).split("\n");
-
-/** A click on the dialog's backdrop (outside its paper). */
-const clickOutside = async (user: { click: (element: Element) => Promise<void> }, dialog: HTMLElement) =>
-    user.click(dialog.closest(".MuiDialog-container") as HTMLElement);
 
 const week = {durationUnit: "weeks", durationValue: 1} as const;
 
@@ -30,7 +26,10 @@ describe("«جرعتان لنفس العين» (an «ask» line and a line for t
         const dialog = await screen.findByRole("dialog", {name: "جرعتان لنفس العين"});
 
         await clickOutside(page.user, dialog);
-        expect(screen.getByRole("dialog", {name: "جرعتان لنفس العين"})).toBeInTheDocument();
+        // Checked once a closing animation would be over: still asking, nothing added yet
+        await expectStillOpen(dialog);
+        expect(screen.getByRole("dialog", {name: "جرعتان لنفس العين"})).toBe(dialog);
+        expect(toastTexts()).toEqual([]);
         await page.user.keyboard("{Escape}");
 
         expect(await toastLines()).toEqual([added(1)]);
@@ -110,7 +109,10 @@ describe("the conflict question @area:prescription", () => {
         const dialog = await screen.findByRole("dialog", {name: "موجود بالفعل في الروشتة"});
 
         await clickOutside(page.user, dialog);
-        expect(screen.getByRole("dialog", {name: "موجود بالفعل في الروشتة"})).toBeInTheDocument();
+        // Checked once a closing animation would be over: still asking, nothing added yet
+        await expectStillOpen(dialog);
+        expect(screen.getByRole("dialog", {name: "موجود بالفعل في الروشتة"})).toBe(dialog);
+        expect(toastTexts()).toEqual([]);
         await page.user.keyboard("{Escape}");
 
         expect(await toastLines()).toEqual([added(0), "تم الإبقاء على الجرعة الحالية: 1"]);

@@ -41,7 +41,8 @@ const openLogin = async ({lang = "ar", mode = "Sms", resendAfterSeconds = 60, de
 /** `POST /auth/otp/verify` answering `answer`. */
 const verifyAnswers = (answer: () => Response) => server.use(http.post(api("/auth/otp/verify"), answer));
 
-const expectAlert = async (text: string) => expect(await screen.findByRole("alert")).toHaveTextContent(text);
+/** The alert holds exactly `text` (not the text plus something else, e.g. the API's English detail). */
+const expectAlert = async (text: string) => expect((await screen.findByRole("alert")).textContent).toBe(text);
 
 describe("login page: display mode @area:auth", () => {
     test("before any code is requested, the display-mode banner shows (ar, en) @AUTH-002", async () => {
@@ -197,11 +198,11 @@ describe("login page: refusals of the code @area:auth", () => {
     };
 
     test("403 noAccess: «هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك.» @AUTH-074 @smoke", async () => {
-        expect(await refusal(() => problem(403, "noAccess"))).toHaveTextContent("هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك.");
+        expect((await refusal(() => problem(403, "noAccess"))).textContent).toBe("هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك.");
     });
 
     test("403 noAccess in English @AUTH-074", async () => {
-        expect(await refusal(() => problem(403, "noAccess"), "en")).toHaveTextContent("This number has no access. Ask your clinic to add you.");
+        expect((await refusal(() => problem(403, "noAccess"), "en")).textContent).toBe("This number has no access. Ask your clinic to add you.");
     });
 
     test("staffInactive naming one clinic: «تم إيقاف حسابك في «A». تواصل مع مالك العيادة.» @AUTH-075", async () => {
@@ -265,26 +266,26 @@ describe("login page: refusals of the code @area:auth", () => {
     });
 
     test("a wrong code: «الكود غير صحيح. راجعه وحاول مرة أخرى.» @AUTH-081", async () => {
-        expect(await refusal(() => problem(400, "invalidCode"))).toHaveTextContent("الكود غير صحيح. راجعه وحاول مرة أخرى.");
+        expect((await refusal(() => problem(400, "invalidCode"))).textContent).toBe("الكود غير صحيح. راجعه وحاول مرة أخرى.");
     });
 
     test("a wrong code in English @AUTH-081", async () => {
-        expect(await refusal(() => problem(400, "invalidCode"), "en")).toHaveTextContent("Wrong code. Check it and try again.");
+        expect((await refusal(() => problem(400, "invalidCode"), "en")).textContent).toBe("Wrong code. Check it and try again.");
     });
 
     test("an expired code: «انتهت صلاحية هذا الكود. اطلب كودًا جديدًا.» @AUTH-082", async () => {
-        expect(await refusal(() => problem(400, "codeExpired"))).toHaveTextContent("انتهت صلاحية هذا الكود. اطلب كودًا جديدًا.");
+        expect((await refusal(() => problem(400, "codeExpired"))).textContent).toBe("انتهت صلاحية هذا الكود. اطلب كودًا جديدًا.");
     });
 
     test("an expired code in English @AUTH-082", async () => {
-        expect(await refusal(() => problem(400, "codeExpired"), "en")).toHaveTextContent("This code has expired. Ask for a new one.");
+        expect((await refusal(() => problem(400, "codeExpired"), "en")).textContent).toBe("This code has expired. Ask for a new one.");
     });
 
     test("too many wrong tries: «محاولات خاطئة كثيرة. اطلب كودًا جديدًا.» @AUTH-083", async () => {
-        expect(await refusal(() => problem(400, "tooManyAttempts"))).toHaveTextContent("محاولات خاطئة كثيرة. اطلب كودًا جديدًا.");
+        expect((await refusal(() => problem(400, "tooManyAttempts"))).textContent).toBe("محاولات خاطئة كثيرة. اطلب كودًا جديدًا.");
     });
 
     test("too many wrong tries in English @AUTH-083", async () => {
-        expect(await refusal(() => problem(400, "tooManyAttempts"), "en")).toHaveTextContent("Too many wrong tries. Ask for a new code.");
+        expect((await refusal(() => problem(400, "tooManyAttempts"), "en")).textContent).toBe("Too many wrong tries. Ask for a new code.");
     });
 });

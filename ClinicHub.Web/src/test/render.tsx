@@ -2,7 +2,7 @@ import type {ReactElement, ReactNode} from "react";
 import {act, render, type RenderOptions} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, type Location, Route, Routes} from "react-router-dom";
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {QueryCache, QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {CacheProvider} from "@emotion/react";
 import createCache from "@emotion/cache";
 import {prefixer} from "stylis";
@@ -17,12 +17,16 @@ import {AuthContext, type AuthValue} from "../features/auth/useAuth.ts";
 import type {Context, Me} from "../features/auth/types.ts";
 import type {Permission} from "../features/access/permissions.ts";
 import {type ClipboardOptions, stubClipboard} from "./clipboard.ts";
-import {aClinicContext, aMe, ALL_PERMISSIONS, anAuthResult, PLATFORM_CONTEXT} from "./data.ts";
+import {aClinicContext, aMe, ALL_PERMISSIONS, anAuthResult, PLATFORM_CONTEXT, withRequirements} from "./data.ts";
+import {toApiError} from "../api/errors.ts";
 import {LocationProbe} from "./LocationProbe.tsx";
 
 /** Who is using the app in the test. */
 export type TestUser = {
-    /** The permissions of `/me` (default: every one, as the Owner) */
+    /**
+     * The permissions of the user's role (default: every one, as the Owner); `/me` holds them with their requirements
+     * (`withRequirements`), as the API returns them
+     */
     permissions?: readonly Permission[];
     /** The current context: a clinic (default: clinic 1 "Clinic A"), "platform", or null (none chosen yet) */
     context?: Context | "platform" | null;
@@ -47,16 +51,37 @@ export type RenderWithProvidersOptions = Omit<RenderOptions, "wrapper"> & {
      * Its functions are `vi.fn()` mocks the test can inspect.
      */
     auth?: Partial<AuthValue>;
-    /** Your own QueryClient (default: a new one, retries off) */
+    /** Your own QueryClient (default: `createTestQueryClient()`, a 5xx or network error retried once, as in the app) */
     queryClient?: QueryClient;
     /** A stubbed async clipboard and execCommand (see stubClipboard), returned as `clipboard` */
     clipboard?: ClipboardOptions;
 };
 
-/** A QueryClient like the app's (AppProviders) but without retries, so an error shows at once. */
+/** The queries that answered 403 in a QueryClient of `createTestQueryClient` since the last `takeForbiddenQueries()`. */
+const forbiddenQueries: string[] = [];
+
+/** Empties and returns the list of queries that answered 403 (setup.ts fails a test that leaves any). */
+export const takeForbiddenQueries = () => forbiddenQueries.splice(0);
+
+/**
+ * A QueryClient like the app's (AppProviders): a query is retried once, on a 5xx or a network error only (at once
+ * here, not after the app's delay), so the requests a test sees are the app's. The app's global 403 handling (a
+ * toast and `/me` reloaded) is not here: a query answering 403 fails the test (setup.ts), as only `startApp` shows
+ * what the app does then.
+ */
 export const createTestQueryClient = () => new QueryClient({
+    queryCache: new QueryCache({
+        onError: (error, query) => {
+            if (toApiError(error)?.status === 403) forbiddenQueries.push(JSON.stringify(query.queryKey));
+        },
+    }),
     defaultOptions: {
-        queries: {retry: false, staleTime: 30_000, refetchOnWindowFocus: false},
+        queries: {
+            retry: (failureCount, error) => failureCount < 1 && (toApiError(error)?.status ?? 500) >= 500,
+            retryDelay: 0,
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+        },
         mutations: {retry: false},
     },
 });
@@ -75,7 +100,7 @@ export const buildAuth = (user: TestUser = {}, overrides: Partial<AuthValue> = {
     const context = resolveContext(user.context);
     const me = user.me ?? aMe({
         context,
-        permissions: context?.type === "clinic" ? [...(user.permissions ?? ALL_PERMISSIONS)] : [],
+        permissions: context?.type === "clinic" ? withRequirements(user.permissions ?? ALL_PERMISSIONS) : [],
         user: {isSuperAdmin: context?.type === "platform"},
     });
     return {
@@ -97,7 +122,7 @@ export const buildAuth = (user: TestUser = {}, overrides: Partial<AuthValue> = {
 
 /**
  * Renders `ui` inside the app's real providers: MUI theme (+ RTL emotion cache in Arabic), i18n in `lang` (and
- * `<html lang dir>`), a fresh QueryClient (no retries), a MemoryRouter at `route`, the auth context of `user`, and the
+ * `<html lang dir>`), a fresh QueryClient (`createTestQueryClient`), a MemoryRouter at `route`, the auth context of `user`, and the
  * Toaster (toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
  * `queryClient`, `location()` and `clipboard` (with the `clipboard` option).
  *

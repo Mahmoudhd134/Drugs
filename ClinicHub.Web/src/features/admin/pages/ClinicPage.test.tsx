@@ -41,7 +41,8 @@ describe("clinic page @area:admin", () => {
     test("the details request fails (500): the header with Back and «تعذّر تحميل البيانات.» with Retry @ADM-097", async () => {
         const clinic = aClinicDetails({name: "Clinic A"});
         let calls = 0;
-        server.use(http.get(api(`/admin/clinics/${clinic.id}`), () => (++calls === 1 ? problem(500, "unexpected") : HttpResponse.json(clinic))));
+        // The first load and its one retry (a 5xx is retried once, as in the app) fail
+        server.use(http.get(api(`/admin/clinics/${clinic.id}`), () => (++calls <= 2 ? problem(500, "unexpected") : HttpResponse.json(clinic))));
         const {user} = await renderAdmin(`/admin/clinics/${clinic.id}`, {lang: "ar"});
 
         expect(await screen.findByText("تعذّر تحميل البيانات.")).toBeInTheDocument();

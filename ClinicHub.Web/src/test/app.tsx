@@ -100,7 +100,25 @@ export const refreshSequence = (...answers: (AuthResult | Response | (() => Resp
 /** `GET /me` answering for the context of each request's token (`me(context)`), Owner of every clinic by default. */
 export const meByContext = (me: (context: string | null) => Me = context => aMe({
     context: context?.startsWith("clinic") ? aClinicContext({clinicId: Number(context.slice(6))}) : context === "platform" ? {type: "platform"} : null,
+    // A platform context belongs to a super admin (the app treats anything else as a lost platform context)
+    user: {isSuperAdmin: context === "platform"},
 })) => http.get(api("/me"), ({request}) => HttpResponse.json(me(contextOfRequest(request))));
 
 /** Waits for the app to be at `path`. */
 export const expectPath = async (path: string) => waitFor(() => expect(window.location.pathname).toBe(path));
+
+/**
+ * Records every path the app navigates to from now on (`history.pushState` / `replaceState`, as the router does), in
+ * order: for "never opens X", even when a guard sends the app on before X's page mounts.
+ */
+export const recordPaths = () => {
+    const paths: string[] = [];
+    for (const method of ["pushState", "replaceState"] as const) {
+        const original = window.history[method].bind(window.history);
+        vi.spyOn(window.history, method).mockImplementation((data: unknown, unused: string, url?: string | URL | null) => {
+            if (url !== undefined && url !== null) paths.push(new URL(String(url), window.location.href).pathname);
+            original(data, unused, url);
+        });
+    }
+    return paths;
+};

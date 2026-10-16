@@ -136,6 +136,18 @@ describe("group editor: API refusals @area:catalog", () => {
     });
 });
 
+describe("group editor: the group deleted meanwhile @area:catalog", () => {
+    test.each([
+        ["ar", "هذا العنصر لم يعد موجودًا.", "حفظ"],
+        ["en", "This item no longer exists.", "Save"],
+    ] as const)("deleted in another window (%s), Save: the toast %s @GRP-063", async (lang, message, save) => {
+        const {user} = await openEditor({group: twoDrugGroup(), lang});
+        server.use(http.put(api("/drug-groups/:id"), () => problem(404, "notFound")));
+        await user.click(screen.getByRole("button", {name: save}));
+        expect(await findToast()).toBe(message);
+    });
+});
+
 describe("group editor: two lines of a drug for the same eye @area:catalog", () => {
     // Saved when the drug's default eye was left; it is right now, so both lines give the right eye
     const clashGroup = (): DrugGroup => {

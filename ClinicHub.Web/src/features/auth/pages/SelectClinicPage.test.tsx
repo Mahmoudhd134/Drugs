@@ -1,8 +1,9 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {delay, http, HttpResponse} from "msw";
 import {
     aClinicContext,
+    anAuthResult,
     api,
     contextsHandler,
     PLATFORM_CONTEXT,
@@ -81,6 +82,27 @@ describe("clinic picker @area:auth", () => {
         await waitFor(() => expect(location().pathname).toBe("/"));
         expect(auth.switchContext).not.toHaveBeenCalled();
         expect(requests.requests.filter(r => r.path === "/auth/context")).toEqual([]);
+    });
+
+    test("a clinic double-clicked: one switch only, then that clinic's home @AUTH-132", async () => {
+        server.use(contextsHandler([clinicA, clinicB]));
+        let answer!: () => void;
+        const answered = new Promise<void>(resolve => (answer = resolve));
+        const {user, auth, location} = await renderWithProviders(<SelectClinicPage/>, {
+            lang: "ar",
+            route: "/select-clinic",
+            user: {context: null, contexts: [clinicA, clinicB]},
+            auth: {switchContext: vi.fn(async (to: Context) => {
+                await answered;
+                return anAuthResult({context: to, contexts: [clinicA, clinicB]});
+            })},
+        });
+        await user.dblClick(await screen.findByRole("button", {name: /Clinic B/}));
+        answer();
+
+        await waitFor(() => expect(location().pathname).toBe("/"));
+        expect(auth.switchContext).toHaveBeenCalledTimes(1);
+        expect(auth.switchContext).toHaveBeenCalledWith(clinicB);
     });
 
     test("with a context set: «رجوع» and «تسجيل الخروج»; without one: only «تسجيل الخروج» @AUTH-125", async () => {

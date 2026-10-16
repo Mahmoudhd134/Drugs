@@ -210,6 +210,29 @@ describe("clear all @area:prescription", () => {
         expect(selection().getByText("لم يتم اختيار شيء بعد")).toBeInTheDocument();
     });
 
+    test("«مسح الكل», a drug added, then «تراجع»: exactly the cleared lines, the added drug gone, no message about it @RX-086", async () => {
+        const tobradex = aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"});
+        const vigamox = {...aLine(aDrug({name: "Vigamox"})), note: "رج الزجاجة"};
+        const {user, selection, addDrug} = await openPrescription({lines: [tobradex, vigamox], drugs: [aDrug({name: "Tears"})]});
+        await user.click(selection().getByRole("button", {name: "مسح الكل"}));
+        const undo = await screen.findByRole("button", {name: "تراجع"});
+        await addDrug("Tears");
+        await waitFor(() => expect(storedLines().map(line => line.drug.name)).toEqual(["Tears"]));
+        const shownBefore = toastTexts().filter(text => !text.includes("تم مسح القائمة"));
+
+        await user.click(undo);
+        // The pointer leaves the toasts (over them, react-hot-toast pauses every toast's timer)
+        await user.pointer({target: document.body});
+
+        await waitFor(() => expect(storedLines()).toEqual([tobradex, vigamox]));
+        expect(selection().getByText("Tobradex")).toBeInTheDocument();
+        expect(selection().queryByText("Tears")).not.toBeInTheDocument();
+        // The clear's toast closes; nothing new tells about the dropped drug
+        await waitFor(() => expect(screen.queryByRole("button", {name: "تراجع"})).not.toBeInTheDocument());
+        await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+        expect(toastTexts()).toEqual(shownBefore);
+    });
+
     test("hovering «مسح الكل» with lines: «حذف كل الأدوية للبدء مع المريض التالي. يمكنك التراجع.» @RX-087", async () => {
         const {selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}))]});
         expect(await hoverTooltip(selection().getByRole("button", {name: "مسح الكل"}))).toBe("حذف كل الأدوية للبدء مع المريض التالي. يمكنك التراجع.");

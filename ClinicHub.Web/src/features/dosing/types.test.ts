@@ -166,7 +166,7 @@ describe("sameDosing, eyeKey, otherEye, hasDosingInstructions @area:catalog", ()
         expect(sameDosing({taperSteps: [step(), step({frequencyValue: 3})]}, {taperSteps: [step(), step({frequencyValue: 2})]})).toBe(false);
     });
 
-    test("an unset eye equals no eye (both write no eye); other eyes differ", () => {
+    test("an unset eye equals no eye (both write no eye); other eyes differ @RX-106", () => {
         expect(sameDosing({}, {eye: "none"})).toBe(true);
         expect(sameDosing({eye: null}, {eye: "none"})).toBe(true);
         expect(sameDosing({eye: "right"}, {eye: "none"})).toBe(false);

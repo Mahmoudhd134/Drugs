@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {screen, waitFor, within} from "@testing-library/react";
+import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
@@ -13,8 +13,10 @@ import {
     drugGroupsHandlers,
     expectPath,
     isolate,
+    meByContext,
     PLATFORM_CONTEXT,
     problem,
+    recordPaths,
     recordRequests,
     refreshSequence,
     server,
@@ -125,12 +127,16 @@ describe("a stale tab after another sign-in @area:auth", () => {
     test("«العودة إلى إدارة المنصة»: the other-user toast and U2's home; the button opens no /admin and shows no error @AUTH-200", async () => {
         const requests = recordRequests();
         const app = await staleTemplateTab(sessionIn(null, [clinicU2, clinicB], 2));
+        const paths = recordPaths();
         await app.user.click(screen.getByRole("button", {name: "العودة إلى إدارة المنصة"}));
 
         await expectPath("/select-clinic");
         await waitFor(() => expect(toastTexts()).toEqual([otherUser]));
         expect(requests.requests.filter(r => r.path === "/auth/context")).toHaveLength(1);
         expect(requests.requests.some(r => r.path.startsWith("/admin"))).toBe(false);
+        // The button's own navigation is skipped: /admin is never opened, not even for the guard to move on from it
+        expect(paths).toContain("/select-clinic");
+        expect(paths.filter(path => path.startsWith("/admin"))).toEqual([]);
     });
 
     test("«تعديل الأدوية والمجموعات الافتراضية»: the other-user toast and U2's home, not /drugs, no error @AUTH-200", async () => {
@@ -143,12 +149,17 @@ describe("a stale tab after another sign-in @area:auth", () => {
         );
         const requests = recordRequests();
         const app = await startApp({route: "/admin", lang: "ar"});
-        await app.user.click(await screen.findByRole("button", {name: "تعديل الأدوية والمجموعات الافتراضية"}));
+        const button = await screen.findByRole("button", {name: "تعديل الأدوية والمجموعات الافتراضية"});
+        const paths = recordPaths();
+        await app.user.click(button);
 
         await expectPath("/select-clinic");
         await waitFor(() => expect(toastTexts()).toEqual([otherUser]));
         expect(requests.requests.filter(r => r.path === "/auth/context")).toHaveLength(1);
         expect(requests.requests.some(r => r.path === "/drugs")).toBe(false);
+        // The button's own navigation is skipped: /drugs is never opened, not even for the guard to move on from it
+        expect(paths).toContain("/select-clinic");
+        expect(paths.filter(path => path.startsWith("/drugs"))).toEqual([]);
     });
 
     test("once the tab follows U2, U1's /me (name) never shows: /me is loaded again for U2 @AUTH-201", async () => {
@@ -169,5 +180,31 @@ describe("a stale tab after another sign-in @area:auth", () => {
         const menu = await screen.findByRole("menu");
         expect(await within(menu).findByText("U2 name")).toBeInTheDocument();
         expect(screen.queryByText("U1 name")).not.toBeInTheDocument();
+    });
+});
+
+describe("a page across a context switch @area:auth", () => {
+    test("the drugs page with a search typed: after the switch to B it re-mounts, the search empty and B's list loaded @AUTH-179", async () => {
+        server.use(
+            refreshSequence(sessionIn(clinicA, [clinicA, clinicB])).handler,
+            meByContext(),
+            http.get(api("/drugs"), ({request}) => HttpResponse.json(aPage([
+                aDrug({name: contextOfRequest(request) === "clinic2" ? "B drug" : "A drug"}),
+            ]))),
+        );
+        const app = await startApp({route: "/drugs", lang: "ar"});
+        await screen.findByText("A drug");
+        const search = screen.getByPlaceholderText("ابحث عن دواء بالاسم…");
+        await app.user.type(search, "Tob");
+        expect(search).toHaveValue("Tob");
+
+        act(() => app.session.setSession(sessionIn(clinicB, [clinicA, clinicB])));
+
+        expect(await screen.findByText("B drug")).toBeInTheDocument();
+        const remounted = screen.getByPlaceholderText("ابحث عن دواء بالاسم…");
+        expect(remounted).not.toBe(search);
+        expect(search).not.toBeInTheDocument();
+        expect(remounted).toHaveValue("");
+        expect(app.path()).toBe("/drugs");
     });
 });
