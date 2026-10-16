@@ -1,6 +1,6 @@
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
-import {expectContextLabel, expectToast, navTo, openSwitchClinic, pickerEntry} from "../support/ui.ts";
+import {expectContextLabel, expectToast, navTo, openSwitchClinic, pickerEntry, toast} from "../support/ui.ts";
 
 test.describe("Clinic isolation in the browser @area:isolation", () => {
     test("switching from A's drugs page to B: only B's drugs and groups, never a moment of A's @ISO-040 @smoke", async ({page, t, data}) => {
@@ -113,6 +113,10 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             await dialog.getByRole("button", {name: t.save}).click();
             await expectToast(page, t.network);
             await expect(dialog.getByRole("textbox", {name: t.drugName})).toHaveValue(name);
+            // On a phone the toast (bottom centre) covers the dialog's buttons and stays while the pointer is on it
+            // (react-hot-toast pauses on hover; the Save click left the pointer there): move away, let it go
+            await page.mouse.move(1, 1);
+            await expect(toast(page, t.network)).toHaveCount(0);
             await dialog.getByRole("button", {name: t.cancel}).click();
 
             const group = `Group ${unique()}`;

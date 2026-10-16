@@ -17,6 +17,12 @@ type Spot = {
     sidebarList: boolean;
     /** The `<ul>` of the clinic picker's card on /select-clinic */
     pickerList: boolean;
+    /**
+     * An unnamed MUI LinearProgress on a page that shows the drugs list (/drugs), the groups list (/groups) or a
+     * SearchableList picker (/, /groups/new, /groups/:id). The bar often goes away before axe names its target (axe
+     * then reports `:root`): its HTML decides then.
+     */
+    listLoadingBar: boolean;
 };
 
 /**
@@ -35,21 +41,30 @@ export const KNOWN_AXE: { bug: string; rule: string; matches: (spot: Spot) => bo
     {bug: "BUG-505", rule: "color-contrast", matches: s => /No dosing set|لا توجد جرعة محددة/.test(s.html)},
     // The staff editor's locked phone: its explanation (helper text) in the disabled grey, 2.7:1
     {bug: "BUG-506", rule: "color-contrast", matches: s => /The number can't be changed|لا يمكن تغيير الرقم/.test(s.html)},
+    // The loading bar (MUI LinearProgress without aria-label) of DrugsPage, DrugGroupsPage and SearchableList
+    {bug: "BUG-551", rule: "aria-progressbar-name", matches: s => s.listLoadingBar},
 ];
 
 const spotOf = async (page: Page, target: string, html: string): Promise<Spot> => {
-    const where = await page.evaluate(selector => {
+    const nowhere = {searchResultList: false, sidebarList: false, pickerList: false, listLoadingBar: false};
+    const where = await page.evaluate(({selector, html}) => {
         const el = document.querySelector(selector);
-        if (!el) return {searchResultList: false, sidebarList: false, pickerList: false};
+        if (!el) return null;
         const id = el.getAttribute("id");
+        const listPage = /^\/(drugs|groups(\/[^/]+)?)?\/?$/.test(location.pathname);
+        const unnamedBarHtml = /^<span\b[^>]*\bMuiLinearProgress-root\b/.test(html) && /\brole="progressbar"/.test(html)
+            && !/\baria-label(ledby)?=/.test(html);
+        const gone = el === document.documentElement;
         return {
             searchResultList: el.getAttribute("role") === "listbox" && !!id
                 && !!document.querySelector(`input[type=search][aria-controls="${CSS.escape(id)}"]`),
             sidebarList: el.tagName === "UL" && !!el.parentElement?.matches(".MuiDrawer-paper nav"),
             pickerList: el.tagName === "UL" && location.pathname === "/select-clinic" && !!el.parentElement?.matches(".MuiCard-root"),
+            listLoadingBar: listPage && unnamedBarHtml
+                && (gone || el.matches("main .MuiLinearProgress-root[role=progressbar]:not([aria-label]):not([aria-labelledby])")),
         };
-    }, target).catch(() => ({searchResultList: false, sidebarList: false, pickerList: false}));
-    return {html, ...where};
+    }, {selector: target, html}).catch(() => null);
+    return {html, ...(where ?? nowhere)};
 };
 
 export const expectHealthyPage = async (page: Page, lang: Lang, testInfo?: TestInfo, options: { ignoreKnownBugs?: boolean } = {}) => {
@@ -61,6 +76,11 @@ export const expectHealthyPage = async (page: Page, lang: Lang, testInfo?: TestI
     await expect(page.locator("[role=progressbar]:visible"), "the page finished loading").toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         {message: "no horizontal scroll"}).toBeLessThanOrEqual(0);
+    // Settled: no transition or finite animation running (a tooltip or dialog fading in or out reads pale to axe's
+    // colour-contrast rule). Spinners' endless animations don't count; a page still moving after 5 s is scanned as is.
+    await page.waitForFunction(() => document.getAnimations()
+        .filter(a => a.effect?.getComputedTiming().iterations !== Infinity)
+        .every(a => a.playState !== "running"), null, {timeout: 5_000}).catch(() => { /* axe decides */ });
 
     // Toasts are left out: they fade in and out (a scan mid-animation reads a pale colour), and their colours are
     // react-hot-toast's own (dark on white)

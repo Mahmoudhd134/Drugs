@@ -92,7 +92,7 @@ Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
 
 | Level | Tests |
 |---|---|
-| unit | `tests/ClinicHub.UnitTests/Catalog/Tapering/`, `Catalog/Parity/` (the parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/taper.test.ts` (start, add step, total, generator), `dosingText.test.ts`, `types.test.ts` |
+| unit | `tests/ClinicHub.UnitTests/Catalog/Tapering/`, `Catalog/Parity/` (the parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/taper.test.ts` (start, add step, total, generator), `dosingText.test.ts`, `types.test.ts`, `parity.test.ts` (the parity fixture) |
 | api | `tests/ClinicHub.IntegrationTests/Catalog/Doses/TaperTests.cs` (`./test.ps1 -Area catalog`) |
 | ui | `ClinicHub.Web/src/features/dosing/components/TaperStepsEditor*.test.tsx`, `dosingDialogs.test.tsx`, the drug and group-line dialogs' tests |
 | e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts`, `inheritance.spec.ts` |
