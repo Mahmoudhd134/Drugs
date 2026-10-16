@@ -47,8 +47,12 @@ export default defineConfig({
         execArgv: ['--no-experimental-webstorage'],
         // Tests must not depend on their order
         sequence: {shuffle: true},
-        // Component tests drive MUI with real events: slow on a busy machine, never stuck
-        testTimeout: 20_000,
+        // Half the cores: jsdom + MUI tests are CPU-bound, and with a worker per core a busy machine (another run
+        // beside this one, a build) slows every test down several times; half keeps the same total time
+        maxWorkers: '50%',
+        // Component tests drive MUI with real events: a few seconds each, several times that on a busy machine;
+        // never stuck. Waits (findBy…, waitFor) get 20 s: src/test/setup.ts
+        testTimeout: 60_000,
         coverage: {
             provider: 'v8',
             reportsDirectory: '../artifacts/coverage/frontend',

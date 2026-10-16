@@ -2,14 +2,33 @@ import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import toast from "react-hot-toast";
-import {aClinicContext, aDrug, aMe, api, aPage, contextsHandler, networkError, PLATFORM_CONTEXT, problem, recordRequests, server, toastTexts} from "../test";
+import {
+    aClinicContext,
+    aDrug,
+    aMe,
+    aPage,
+    api,
+    contextOfRequest,
+    contextsHandler,
+    expectPath,
+    expectToasts,
+    isolate,
+    meByContext,
+    networkError,
+    PLATFORM_CONTEXT,
+    problem,
+    recordRequests,
+    refreshSequence,
+    server,
+    sessionIn,
+    startApp,
+    toastTexts,
+} from "../test";
 import type {Context} from "../features/auth/types.ts";
-import {contextOfRequest, expectPath, meByContext, refreshSequence, sessionIn, startApp} from "../test/fe-access/app.tsx";
 
 // Losing the clinic mid-session (design D7): docs/features/auth/tech.md "Frontend" (Lost clinic, api/client.ts),
 // docs/features/access/tech.md "Frontend" (403 handling), business.md «الرسائل التي تظهر للمستخدم».
 
-const isolate = (name: string) => `⁨${name}⁩`;
 const clinicA = aClinicContext({clinicId: 1, clinicName: "A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "B"});
 const clinicC = aClinicContext({clinicId: 3, clinicName: "C"});
@@ -46,9 +65,6 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
     };
     return {...app, refresh, addDrug};
 };
-
-/** Waits until the toasts shown are exactly `texts` (a dismissed toast leaves the screen after its exit animation). */
-const expectToasts = (...texts: string[]) => waitFor(() => expect(toastTexts()).toEqual(texts), {timeout: 5000});
 
 describe("losing the clinic while working in it @area:auth", () => {
     test("suspended, with other places left: the clinic-lost message and the picker, never «هذه العيادة موقوفة.» / «العيادة «A» موقوفة.» @AUTH-185", async () => {
@@ -119,22 +135,32 @@ describe("losing the clinic while working in it @area:auth", () => {
         expect(app.session.getSession().status).toBe("authenticated");
     });
 
-    // AUTH-191 asks for «غير مسموح لك بهذا الإجراء.»; the docs say the 403 is "handled like forbidden" (a query toasts the
-    // translated reason of its code): open question (fe-access questions.md), so this checks the handling only, untagged
-    test("a 403 noAccess whose refresh fails (API unreachable) is handled like a forbidden: one toast, /me reloaded, still logged in", async () => {
+    // Handled like `forbidden` (auth tech.md "Frontend", Lost clinic; access tech.md "Frontend", 403 handling): the toast
+    // of the error's own code (`errors.noAccess`) and /me reloaded
+    const noAccessRefreshFails = async (lang: "ar" | "en") => {
         const requests = recordRequests();
         server.use(
             refreshSequence(sessionIn(clinicA, [clinicA, clinicB]), networkError()).handler,
             meByContext(),
             http.get(api("/drugs"), () => problem(403, "noAccess")),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs", lang});
+        return {...app, requests};
+    };
 
-        await waitFor(() => expect(toastTexts()).toHaveLength(1));
-        await waitFor(() => expect(requests.requests.filter(r => r.path === "/me").length).toBeGreaterThanOrEqual(2));
+    test("a 403 noAccess whose refresh fails (API unreachable): «هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك.» once, /me reloaded, still logged in @AUTH-191", async () => {
+        const app = await noAccessRefreshFails("ar");
+
+        await expectToasts("هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك.");
+        await waitFor(() => expect(app.requests.requests.filter(r => r.path === "/me").length).toBeGreaterThanOrEqual(2));
         expect(app.session.getSession().status).toBe("authenticated");
         expect(app.path()).toBe("/drugs");
-        expect(toastTexts()[0]).not.toMatch(/لم تعد لديك صلاحية دخول/);
+        expect(toastTexts()).toEqual(["هذا الرقم ليس له صلاحية دخول. اطلب من عيادتك إضافتك."]);
+    });
+
+    test("in English: \"This number has no access. Ask your clinic to add you.\" @AUTH-191", async () => {
+        await noAccessRefreshFails("en");
+        await expectToasts("This number has no access. Ask your clinic to add you.");
     });
 
     test("tab 1 switched the session to B: a request of this tab (still on A) that needs a refresh fails, isn't replayed in B, and no clinic-lost message shows @AUTH-194", async () => {

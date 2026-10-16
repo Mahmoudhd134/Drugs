@@ -1,7 +1,19 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import toast from "react-hot-toast";
-import {aDrug, aGroup, anItem, aLine, drugGroupsHandlers, drugsHandlers, findToast, renderWithProviders, server, toastTexts} from "../../../test";
+import {
+    aDrug,
+    aGroup,
+    aLine,
+    anItem,
+    drugGroupsHandlers,
+    drugsHandlers,
+    findToast,
+    isolate,
+    renderWithProviders,
+    server,
+    toastTexts,
+} from "../../../test";
 import type {Dosing, TaperStep} from "../../dosing/types.ts";
 import type {DrugGroup} from "../../drugGroups/types.ts";
 import type {PrescriptionLine} from "../types.ts";
@@ -11,7 +23,6 @@ import {PrescriptionPage} from "./PrescriptionPage.tsx";
 // "القواعد التشغيلية" and "الرسائل التي تظهر للمستخدم". Arabic UI, clinic 1.
 
 const KEY = "prescription.lines.1";
-const isolate = (name: string) => `\u2068${name}\u2069`;
 const added = (count: number, group = "Post cataract") => `تمت الإضافة من «${isolate(group)}»: ${count}`;
 
 const storedLines = (): PrescriptionLine[] => JSON.parse(localStorage.getItem(KEY) ?? "[]");

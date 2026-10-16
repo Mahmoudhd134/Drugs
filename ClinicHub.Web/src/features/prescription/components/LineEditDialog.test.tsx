@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen} from "@testing-library/react";
-import {aDrug, aLine, renderWithProviders} from "../../../test";
+import {aDrug, aLine, fillIn, renderWithProviders} from "../../../test";
 import {LineEditDialog} from "./LineEditDialog.tsx";
 
 // The line's note: docs/features/prescription/tech.md "Page & components" (LineEditDialog).
@@ -13,8 +13,8 @@ describe("line dialog: the note @area:prescription", () => {
             const onClose = vi.fn();
             const {user, unmount} = await renderWithProviders(<LineEditDialog line={line} onClose={onClose} onSave={onSave}/>);
             const note = screen.getByRole("textbox", {name: "Note for this prescription"});
-            await user.clear(note);
-            await user.type(note, typed);
+            // Pasted: typing it key by key is slow, and the keystrokes are not what this case is about
+            await fillIn(user, note, typed);
             await user.click(screen.getByRole("button", {name: "Save"}));
             expect(onSave).toHaveBeenCalledWith(line.key, {dosing: expect.objectContaining({doseUnit: "drop"}), note: saved});
             expect(onClose).toHaveBeenCalled();

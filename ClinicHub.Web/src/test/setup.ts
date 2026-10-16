@@ -1,8 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import {afterAll, afterEach, beforeAll, vi} from "vitest";
-import {cleanup} from "@testing-library/react";
+import {afterAll, afterEach, beforeAll, beforeEach, vi} from "vitest";
+import {cleanup, configure} from "@testing-library/react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
+import {restoreClipboard} from "./clipboard.ts";
 import {server} from "./server.ts";
 import {resetStorage} from "./storage.ts";
 import {installMatchMedia, setViewportWidth} from "./viewport.ts";
@@ -10,23 +11,59 @@ import {installMatchMedia, setViewportWidth} from "./viewport.ts";
 // The real i18next set-up (src/i18n: en.ts + ar.ts, the language detector); tests start in English
 await i18n.changeLanguage("en");
 
+// findBy… / waitFor wait up to 20 s instead of Testing Library's 1 s: a whole-app load (session, /me, the page, its
+// data), MUI transitions and dialog forms take several times longer on a busy machine (another run beside this one;
+// 5 s and then 10 s were seen to fail there). A passing wait still returns at once; only a failing test waits longer.
+configure({asyncUtilTimeout: 20_000});
+
+// jsdom has no layout, hence no scrollIntoView (the pickers scroll the highlighted row into view): nothing to scroll.
+// A test that checks the calls spies on it (vi.spyOn), restored after the test.
+Element.prototype.scrollIntoView = () => undefined;
+
 installMatchMedia();
 setViewportWidth();
 
-beforeAll(() => server.listen({onUnhandledRequest: "error"}));
+// A request no handler answers fails (a network error for the app) and fails the test after it ends
+const unhandled: string[] = [];
+beforeAll(() => server.listen({
+    onUnhandledRequest: (request, print) => {
+        unhandled.push(`${request.method} ${request.url}`);
+        print.error();
+    },
+}));
+
+// The requests in flight: a test's last request (e.g. a debounced search) is answered by its own handlers, not
+// counted as unhandled in the next test once the handlers are reset
+let inFlight = new Set<string>();
+beforeEach(() => {
+    inFlight = new Set();
+    server.events.on("request:start", ({requestId}) => void inFlight.add(requestId));
+    server.events.on("request:end", ({requestId}) => void inFlight.delete(requestId));
+    server.events.on("request:unhandled", ({requestId}) => void inFlight.delete(requestId));
+});
+/** Waits (up to 1 s: a handler may never answer on purpose) until the requests in flight are answered. */
+const settleRequests = async () => {
+    const until = Date.now() + 1_000;
+    do await new Promise(resolve => setTimeout(resolve, 10));
+    while (inFlight.size && Date.now() < until);
+};
 
 afterEach(async () => {
     cleanup();
+    vi.useRealTimers();
+    await settleRequests();
     // react-hot-toast keeps its toasts in a module store: never let one leak into the next test
     toast.remove();
     server.resetHandlers();
     server.events.removeAllListeners();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    vi.useRealTimers();
+    restoreClipboard();
     await i18n.changeLanguage("en");
     resetStorage();
     setViewportWidth();
+    const missed = unhandled.splice(0);
+    if (missed.length) throw new Error(`Requests without a handler (add one with server.use): ${missed.join(", ")}`);
 });
 
 afterAll(() => server.close());

@@ -1,11 +1,19 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicDetails, adminClinicsHandlers, api, aStaffMember, recordRequests, rolesHandler, server} from "../../../test";
-import {renderAdmin} from "../../../test/fe-admin/adminApp.tsx";
-import {openStaffTab, staffRoles, staffSubtitle, watchForText} from "../../../test/fe-admin/staffTab.ts";
+import {
+    aClinicDetails,
+    adminClinicsHandlers,
+    api,
+    aStaffMember,
+    fillIn,
+    recordRequests,
+    rolesHandler,
+    server,
+} from "../../../test";
 import type {StaffMember} from "../types.ts";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
+import {renderAdmin} from "../../../test/pages/admin.tsx";
+import {openStaffTab, staffRoles, staffSubtitle, watchForText} from "../../../test/pages/staffTab.ts";
 
 // The Staff tab's paging: docs/features/platform-admin/tech.md "Roles and staff screens" (StaffList: the page belongs
 // to the search it was picked for; a page past the end moves to the last, shown as loading meanwhile; ListPagination).

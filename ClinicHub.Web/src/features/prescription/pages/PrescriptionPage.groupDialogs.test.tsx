@@ -1,15 +1,14 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, anItem, aLine, findToast} from "../../../test";
-import {openPrescription, storedLines} from "../../../test/fe-admin/prescriptionPage.tsx";
+import {aDrug, aGroup, aLine, anItem, findToast, isolate} from "../../../test";
 import type {Dosing, TaperStep} from "../../dosing/types.ts";
+import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
 
 // The dialogs of adding a group: docs/features/prescription/business.md "القواعد التشغيلية" (أي عين؟, «جرعتان لنفس
 // العين», the conflict question, Esc, a click outside answers nothing) and tech.md "Page & components" (addGroup steps
 // 3 and 5, useGroupAddDialogs: each dialog keeps its request rendered until it has faded out; "apply to the remaining";
 // a dosing with nothing to write shows «لا توجد جرعة محددة»). Sentences: the catalog's DOSE and TAPER cases.
 
-const isolate = (name: string) => `⁨${name}⁩`;
 const added = (count: number, group = "Post cataract") => `تمت الإضافة من «${isolate(group)}»: ${count}`;
 const toastLines = async () => (await findToast()).split("\n");
 

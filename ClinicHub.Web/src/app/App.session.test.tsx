@@ -1,8 +1,24 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicContext, aDrug, aGroup, anAccessToken, api, aPage, networkError, problem, recordRequests, server} from "../test";
-import {expectPath, findToastText, meByContext, refreshSequence, sessionIn, startApp} from "../test/fe-access/app.tsx";
+import {
+    aClinicContext,
+    aDrug,
+    aGroup,
+    anAccessToken,
+    aPage,
+    api,
+    expectPath,
+    expectToasts,
+    meByContext,
+    networkError,
+    problem,
+    recordRequests,
+    refreshSequence,
+    server,
+    sessionIn,
+    startApp,
+} from "../test";
 
 // The session in the running app: docs/features/auth/tech.md "Frontend" (session.ts, api/client.ts, AuthProvider,
 // RequireAuth), docs/tech/overview.md "Data fetching".
@@ -87,7 +103,7 @@ describe("staying logged in @area:auth", () => {
         await app.user.paste("Vigamox");
         await app.user.click(screen.getByRole("button", {name: "حفظ"}));
 
-        await findToastText("تعذّر الاتصال بالخادم. تحقّق من الاتصال.");
+        await expectToasts("تعذّر الاتصال بالخادم. تحقّق من الاتصال.");
         expect(app.session.getSession().status).toBe("authenticated");
         expect(app.path()).toBe("/drugs");
         expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -108,7 +124,7 @@ describe("logging out @area:auth", () => {
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));
         await app.user.click(await screen.findByRole("menuitem", {name: "تسجيل الخروج"}));
 
-        await findToastText("تعذّر الاتصال بالخادم. تحقّق من الاتصال.");
+        await expectToasts("تعذّر الاتصال بالخادم. تحقّق من الاتصال.");
         expect(app.session.getSession().status).toBe("authenticated");
         await expectPath("/drugs");
         expect(screen.getByText("Tobradex")).toBeInTheDocument();

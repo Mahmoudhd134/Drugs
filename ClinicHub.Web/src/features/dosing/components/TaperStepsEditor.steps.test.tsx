@@ -1,9 +1,10 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {createAppTheme} from "../../../app/theme.ts";
-import {renderWithProviders} from "../../../test";
-import {DosingHarness, dosingPreview, harnessValue, hoverTooltip, optionsOf, stepRow} from "../../../test/fe-catalog";
+import {hoverTooltip, optionsOf, renderWithProviders} from "../../../test";
 import type {Dosing, TaperStep} from "../types.ts";
+import {DosingHarness} from "../../../test/pages/DosingHarness.tsx";
+import {dosingPreview, harnessValue, stepBadges, stepRow} from "../../../test/pages/dosing.ts";
 
 // The tapering steps inside the dosing form: docs/features/tapering/business.md "سيناريوهات", "القواعد", "الرسائل"
 // and tech.md "Frontend" (DosingFields switch, TaperStepsEditor, TaperGenerator). Sentences: rxTextAr.ts wording.
@@ -25,7 +26,7 @@ const stepValues = (n: number) => {
 };
 // Its tooltip is its accessible name, so it is found by its text
 const generateButton = () => screen.getByText("إنشاء تلقائي…").closest("button")!;
-const stepCount = () => screen.queryAllByLabelText(/^المرحلة \d+$/).length;
+const stepCount = () => stepBadges().length;
 /** The step's own dose field (step 1's is hidden on phones only). */
 const stepDose = (n: number) => within(stepRow(n)).getByRole("spinbutton", {name: "الجرعة"});
 
@@ -216,7 +217,7 @@ describe("tapering: the generator @area:catalog", () => {
 });
 
 describe("tapering: the English UI @area:catalog", () => {
-    const englishStep = (n: number) => screen.getByLabelText(`Step ${n}`).parentElement as HTMLElement;
+    const englishStep = (n: number) => stepRow(n, `Step ${n}`);
 
     test("the generator in English: the warning, \"Steps: N\" and \"Check the numbers…\" @TAPER-059 @TAPER-060 @TAPER-061", async () => {
         const {user} = await renderFields({taperSteps: [daily(4), daily(3)]}, "en");

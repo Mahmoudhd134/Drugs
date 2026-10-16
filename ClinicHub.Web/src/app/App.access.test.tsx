@@ -1,8 +1,23 @@
 import {describe, expect, test} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicContext, aDrug, aMe, api, aPage, networkError, problem, recordRequests, server, toastTexts} from "../test";
-import {contextOfRequest, meByContext, refreshSequence, sessionIn, startApp} from "../test/fe-access/app.tsx";
+import {
+    aClinicContext,
+    aDrug,
+    aMe,
+    aPage,
+    api,
+    contextOfRequest,
+    meByContext,
+    networkError,
+    problem,
+    recordRequests,
+    refreshSequence,
+    server,
+    sessionIn,
+    startApp,
+    toastTexts,
+} from "../test";
 
 // Permissions and errors in the running app: docs/features/access/tech.md "Frontend" (RequirePermission, 403
 // handling in AppProviders, usePermissions), docs/tech/overview.md "Data fetching" (retries).
@@ -114,7 +129,7 @@ describe("query retries @area:errors", () => {
             }),
         );
         await startApp({route: "/drugs", lang: "ar"});
-        await screen.findByText("تعذّر تحميل البيانات.", {}, {timeout: 10_000});
+        await screen.findByText("تعذّر تحميل البيانات.");
         return calls;
     };
 

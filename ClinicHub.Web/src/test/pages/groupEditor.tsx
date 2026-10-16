@@ -5,7 +5,10 @@ import type {Permission} from "../../features/access/permissions.ts";
 import {DrugGroupEditorPage} from "../../features/drugGroups/pages/DrugGroupEditorPage.tsx";
 import type {DrugGroup, SaveDrugGroupItem} from "../../features/drugGroups/types.ts";
 import type {Drug} from "../../features/drugs/types.ts";
-import {api, drugGroupsHandlers, drugsHandlers, nextId, renderWithProviders, server} from "../index.ts";
+import {nextId} from "../data.ts";
+import {api, drugGroupsHandlers, drugsHandlers} from "../msw.ts";
+import {renderWithProviders} from "../render.tsx";
+import {server} from "../server.ts";
 
 /*
  * The group editor page (`/groups/new`, `/groups/:id`) with the API of docs/features/drug-groups/tech.md "API":
@@ -48,17 +51,8 @@ type EditorOptions = {
     permissions?: Permission[];
 };
 
-/**
- * jsdom has no `scrollIntoView`; SearchableList calls it when the highlight moves (hovering an option). A no-op is
- * enough here (nothing scrolls in jsdom).
- */
-export const installScrollIntoView = () => {
-    if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => undefined;
-};
-
 /** Opens the editor and waits until its form shows. */
 export const openEditor = async ({group, drugs, lang = "ar", permissions}: EditorOptions = {}) => {
-    installScrollIntoView();
     const pickerDrugs = drugs ?? group?.items.map(i => i.drug).filter((d, i, all) => all.indexOf(d) === i) ?? [];
     const saves = groupSaveHandlers(pickerDrugs);
     server.use(...drugsHandlers(pickerDrugs), ...drugGroupsHandlers(group ? [group] : []), ...saves.handlers);
@@ -97,20 +91,44 @@ export const pickerOption = (name: string) =>
 /** The «تجاهل التغييرات؟» question (an MUI dialog), or null when it isn't shown. */
 export const discardDialog = () => screen.queryByRole("dialog", {name: /تجاهل التغييرات؟|Discard changes\?/});
 
+const isSortable = (element: Element) => element.getAttribute("aria-roledescription") === "sortable";
+const someChild = (element: Element, test: (child: Element) => boolean) => {
+    for (let child = element.firstElementChild; child; child = child.nextElementSibling) if (test(child)) return true;
+    return false;
+};
+const isRow = (element: Element) => someChild(element, isSortable);
+
 /**
  * jsdom has no layout: gives each sortable row (the parent of a drag handle) a box from its position in the list,
- * 60 px apart, and the list a box around them, so dnd-kit's keyboard sensor can move rows. Restored after the test (setup's `vi.restoreAllMocks`).
+ * 60 px apart, and the list a box around them, so dnd-kit's keyboard sensor can move rows. Restored after the test
+ * (setup's `vi.restoreAllMocks`). The page asks for boxes all the time (MUI's poppers walk every ancestor): what each
+ * element is (row, list, other) is worked out once per element, never again by a DOM search per call.
  */
 export const layoutSortableRows = () => {
     const original = HTMLElement.prototype.getBoundingClientRect;
+    const kinds = new WeakMap<Element, "row" | "list" | "other">();
+    const kindOf = (element: HTMLElement) => {
+        let kind = kinds.get(element);
+        if (!kind) {
+            kind = isRow(element) ? "row" : someChild(element, isRow) ? "list" : "other";
+            // Not settled before the element has its children
+            if (element.firstElementChild) kinds.set(element, kind);
+        }
+        return kind;
+    };
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
         const box = (top: number, height: number) =>
             ({x: 0, y: top, top, left: 0, right: 500, bottom: top + height, width: 500, height, toJSON: () => ({})}) as DOMRect;
-        // A row: its place in the list
-        if (this.querySelector(":scope > [aria-roledescription=sortable]") && this.parentElement)
-            return box(Array.from(this.parentElement.children).indexOf(this) * 60, 50);
-        // The list itself (dnd-kit keeps a dragged row inside it)
-        if (this.querySelector(":scope > * > [aria-roledescription=sortable]")) return box(0, this.children.length * 60);
-        return original.call(this);
+        switch (kindOf(this)) {
+            // A row: its place in the list
+            case "row":
+                if (!this.parentElement) return original.call(this);
+                return box(Array.prototype.indexOf.call(this.parentElement.children, this) * 60, 50);
+            // The list itself (dnd-kit keeps a dragged row inside it)
+            case "list":
+                return box(0, this.childElementCount * 60);
+            default:
+                return original.call(this);
+        }
     });
 };

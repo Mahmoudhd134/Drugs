@@ -1,8 +1,7 @@
 import {renderWithProviders, type RenderWithProvidersOptions} from "../render.tsx";
 import {AdminRoutes} from "./AdminRoutes.tsx";
-import "./patience.ts";
 
-export {navigateInApp} from "./appNavigation.ts";
+export {navigateInApp} from "./adminNavigation.ts";
 
 /**
  * Renders the admin area (AdminRoutes) at `route` for the super admin in the platform context; `layout: true` adds

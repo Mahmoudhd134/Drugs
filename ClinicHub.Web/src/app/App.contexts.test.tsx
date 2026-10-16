@@ -1,14 +1,32 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aClinicContext, aDrug, adminClinicsHandlers, aMe, api, aPage, contextsHandler, PLATFORM_CONTEXT, problem, recordRequests, server, toastTexts} from "../test";
+import {
+    aClinicContext,
+    adminClinicsHandlers,
+    aDrug,
+    aMe,
+    aPage,
+    api,
+    contextOfRequest,
+    contextsHandler,
+    drugGroupsHandlers,
+    expectPath,
+    isolate,
+    PLATFORM_CONTEXT,
+    problem,
+    recordRequests,
+    refreshSequence,
+    server,
+    sessionIn,
+    startApp,
+    toastTexts,
+} from "../test";
 import type {AuthResult, Context} from "../features/auth/types.ts";
-import {contextOfRequest, expectPath, refreshSequence, sessionIn, startApp} from "../test/fe-access/app.tsx";
 
 // Switching context: docs/features/auth/tech.md "Frontend" (SelectClinicPage, session.ts: switchSessionContext and the
 // other user signed in from another tab), business.md «الرسائل التي تظهر للمستخدم».
 
-const isolate = (name: string) => `⁨${name}⁩`;
 const clinicA = aClinicContext({clinicId: 1, clinicName: "A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "B"});
 const clinicU2 = aClinicContext({clinicId: 7, clinicName: "U2 clinic"});
@@ -137,6 +155,8 @@ describe("a stale tab after another sign-in @area:auth", () => {
         const requests = recordRequests();
         // U2 lands in a clinic with the same id as U1's template: only the change of user tells the cached /me apart
         const u2 = sessionIn(template, [template], 2);
+        // U2's home is the prescription page, whose group picker loads the groups
+        server.use(...drugGroupsHandlers([]));
         const app = await staleTemplateTab(u2);
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));
         expect(within(await screen.findByRole("menu")).getByText("U1 name")).toBeInTheDocument();

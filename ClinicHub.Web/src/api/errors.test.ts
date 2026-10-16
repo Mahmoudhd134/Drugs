@@ -1,7 +1,7 @@
 import {describe, expect, test} from "vitest";
 import {http, HttpResponse} from "msw";
 import i18n from "../i18n";
-import {api as apiUrl, networkError, problem, server} from "../test";
+import {api as apiUrl, isolate, networkError, problem, server} from "../test";
 import {api} from "./client.ts";
 import {getErrorMessage, getFieldErrors, getOtherErrors, splitFormErrors, toApiError} from "./errors.ts";
 
@@ -17,8 +17,6 @@ const failWith = async (response: () => Response) => {
     }
     throw new Error("The request did not fail");
 };
-
-const isolate = (name: string) => `\u2068${name}\u2069`;
 
 describe("toApiError @area:errors", () => {
     test("a ProblemDetails answer gives status, code, errors and traceId; no HTTP answer gives null @ERR-023", async () => {

@@ -1,11 +1,11 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, within} from "@testing-library/react";
-import {aDrug, renderWithProviders} from "../../../test";
-import {choose, dosingPreview, hoverTooltip, isRed, stepRow} from "../../../test/fe-catalog";
+import {aDrug, choose, hoverTooltip, isRed, renderWithProviders} from "../../../test";
 import type {Dosing, TaperStep} from "../../dosing/types.ts";
 import type {Drug} from "../../drugs/types.ts";
 import {newItemKey} from "../editorItem.ts";
 import {GroupItemDialog} from "./GroupItemDialog.tsx";
+import {dosingPreview, stepRow} from "../../../test/pages/dosing.ts";
 
 // The group line dosing dialog: docs/features/drug-groups/business.md "جرعة خاصة بالمجموعة", "تُحدد عند الإضافة",
 // tech.md "Frontend" (GroupItemDialog, inherit mode), docs/features/tapering/business.md "القواعد" (inherited taper).

@@ -1,9 +1,10 @@
 import {describe, expect, test} from "vitest";
 import {act, fireEvent, screen, within} from "@testing-library/react";
 import {createAppTheme} from "../../../app/theme.ts";
-import {renderWithProviders} from "../../../test";
-import {choose, DosingHarness, dosingPreview, harnessValue, hoverTooltip, openSelect, optionsOf} from "../../../test/fe-catalog";
+import {choose, hoverTooltip, openSelect, optionsOf, renderWithProviders} from "../../../test";
 import type {Dosing} from "../types.ts";
+import {DosingHarness} from "../../../test/pages/DosingHarness.tsx";
+import {dosingPreview, harnessValue} from "../../../test/pages/dosing.ts";
 
 // The dosing form (DosingFields): docs/features/dosing/business.md "الحقول", "الرسائل" and tech.md "Frontend" (DosingFields).
 // Expected sentences: the wording of rxTextAr.ts (dose → eye → frequency → duration).

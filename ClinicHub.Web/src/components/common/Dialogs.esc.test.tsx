@@ -3,12 +3,10 @@ import {screen, waitFor} from "@testing-library/react";
 import {aDrug, aLine, renderWithProviders} from "../../test";
 import {LineEditDialog} from "../../features/prescription/components/LineEditDialog.tsx";
 import {GroupItemDialog} from "../../features/drugGroups/components/GroupItemDialog.tsx";
-import {patientWaits} from "../../test/fe-access/patience.ts";
 
 // Dialogs and Esc: docs/tech/overview.md "Shared components" (dialogs close without saving). The drug dialog's Esc is in
 // DrugsPage.crossCutting.test.tsx.
 
-patientWaits();
 
 describe("Esc in the line dialogs @area:ux", () => {
     test("the prescription line dialog closes without saving @UX-023", async () => {

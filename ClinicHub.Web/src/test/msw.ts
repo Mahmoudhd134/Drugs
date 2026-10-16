@@ -124,7 +124,7 @@ export type RecordedRequest = { method: string; path: string; search: string; bo
 
 /**
  * Records every request the SPA sends from now on (method, path without `/api/v1`, query, JSON body), e.g. to check
- * that a double click sends one POST, or that nothing is saved on the server.
+ * that a double click sends one POST, or that nothing is saved on the server (`writes()`).
  */
 export const recordRequests = () => {
     const requests: RecordedRequest[] = [];
@@ -142,6 +142,8 @@ export const recordRequests = () => {
     server.events.on("request:start", listener);
     return {
         requests,
+        /** The requests that change something on the server (every method but GET) */
+        writes: () => requests.filter(r => r.method !== "GET"),
         stop: () => server.events.removeListener("request:start", listener),
     };
 };

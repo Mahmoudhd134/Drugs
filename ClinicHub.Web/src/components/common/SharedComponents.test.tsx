@@ -1,20 +1,17 @@
-import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {Link, Route, Routes} from "react-router-dom";
 import {http, HttpResponse} from "msw";
-import {aDrug, aGroup, api, aPage, drugGroupsHandlers, renderWithProviders, server} from "../../test";
+import {aDrug, aGroup, aPage, api, drugGroupsHandlers, hoverTooltip, renderWithProviders, server} from "../../test";
 import type {Drug} from "../../features/drugs/types.ts";
 import {DrugPicker} from "../../features/drugs/components/DrugPicker.tsx";
 import {GroupPicker} from "../../features/drugGroups/components/GroupPicker.tsx";
 import {AppShell} from "../layout/AppShell.tsx";
 import {PageBoundary} from "./PageBoundary.tsx";
 import {useConfirm} from "./useConfirm.tsx";
-import {patientWaits} from "../../test/fe-access/patience.ts";
 
 // Shared components: docs/tech/overview.md "Shared components (components/common)" (SearchableList, PageBoundary,
 // useConfirm), "App shell", "Data fetching" (loading states), "Code conventions" (icon-only buttons).
-
-patientWaits();
 
 const DRUGS = ["Atropine", "Betoptic", "Cosopt"].map(name => aDrug({name}));
 
@@ -26,19 +23,13 @@ const drugsApi = (drugs: Drug[], gate?: Promise<void>) => http.get(api("/drugs")
     return HttpResponse.json(aPage(items, {pageSize: 30}));
 });
 
-// jsdom has no layout, hence no scrollIntoView: record which rows the list scrolls to
+// jsdom has no layout (setup.ts makes scrollIntoView a no-op): record which rows the list scrolls to
 let scrolledTo: Element[] = [];
 beforeEach(() => {
     scrolledTo = [];
-    Object.defineProperty(Element.prototype, "scrollIntoView", {
-        configurable: true,
-        value(this: Element) {
-            scrolledTo.push(this);
-        },
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+        scrolledTo.push(this);
     });
-});
-afterEach(() => {
-    delete (Element.prototype as Partial<Element>).scrollIntoView;
 });
 
 const openPicker = async (onSelect = vi.fn(), drugs = DRUGS) => {
@@ -211,10 +202,8 @@ describe("app bar icon buttons @area:ux", () => {
     test("the menu button has the tooltip «فتح القائمة» and that accessible name (en: \"Open menu\") @UX-012", async () => {
         server.use(http.get(api("/drugs"), () => HttpResponse.json(aPage([]))));
         const shell = <AppShell homeTo="/" homeLabel="Home" contextLabel="Clinic A" contextTitle="Clinic A" navItems={[]}/>;
-        const {user, unmount} = await renderWithProviders(shell, {lang: "ar"});
-        const menu = screen.getByRole("button", {name: "فتح القائمة"});
-        await user.hover(menu);
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("فتح القائمة");
+        const {unmount} = await renderWithProviders(shell, {lang: "ar"});
+        expect(await hoverTooltip(screen.getByRole("button", {name: "فتح القائمة"}))).toBe("فتح القائمة");
         expect(within(screen.getByRole("banner")).getByRole("button", {name: "الحساب"})).toBeInTheDocument();
         unmount();
 

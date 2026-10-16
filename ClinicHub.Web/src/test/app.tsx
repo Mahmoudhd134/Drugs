@@ -1,11 +1,12 @@
-import {configure, getConfig, render, screen, waitFor} from "@testing-library/react";
+import {render, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {expect, onTestFinished, vi} from "vitest";
+import {expect, vi} from "vitest";
 import {http, HttpResponse} from "msw";
-import type {LanguageCode} from "../../i18n/languages.ts";
-import type {AuthResult, Context, Me} from "../../features/auth/types.ts";
-import {aClinicContext, aMe, anAccessToken, anAuthResult} from "../data.ts";
-import {api} from "../msw.ts";
+import type {LanguageCode} from "../i18n/languages.ts";
+import type {AuthResult, Context, Me} from "../features/auth/types.ts";
+import {type ClipboardOptions, stubClipboard} from "./clipboard.ts";
+import {aClinicContext, aMe, anAccessToken, anAuthResult} from "./data.ts";
+import {api} from "./msw.ts";
 
 /*
  * The whole app (App.tsx: BrowserRouter, AppProviders with its real QueryClient and 403 handling, AuthProvider, the
@@ -18,31 +19,51 @@ export type StartAppOptions = {
     route?: string;
     /** The UI language (default "en") */
     lang?: LanguageCode;
+    /** A stubbed async clipboard and execCommand (see stubClipboard), returned as `clipboard` */
+    clipboard?: ClipboardOptions;
 };
 
 /**
- * Loads the app at `route` in `lang`. The page load restores the session with `POST /auth/refresh`: give its answer
- * with `server.use(...)` first (e.g. `sessionHandlers(...)`). Returns Testing Library's result plus `user`
- * (userEvent), `path()` (where the app is now) and `session` (the store module of this load).
+ * The pages App.tsx (and the clinic tabs) load lazily. startApp loads them with the app, so that on a busy machine a
+ * test's waits are not spent loading a page's modules (they stay lazy routes: React.lazy finds them loaded).
  */
-export const startApp = async ({route = "/", lang = "en"}: StartAppOptions = {}) => {
+const LAZY_PAGES = [
+    () => import("../features/auth/pages/LoginPage.tsx"),
+    () => import("../features/auth/pages/SelectClinicPage.tsx"),
+    () => import("../features/admin/pages/ClinicsPage.tsx"),
+    () => import("../features/admin/pages/CreateClinicPage.tsx"),
+    () => import("../features/admin/pages/ClinicPage.tsx"),
+    () => import("../features/admin/components/ClinicRolesTab.tsx"),
+    () => import("../features/admin/components/ClinicStaffTab.tsx"),
+    () => import("../features/prescription/pages/PrescriptionPage.tsx"),
+    () => import("../features/drugs/pages/DrugsPage.tsx"),
+    () => import("../features/drugGroups/pages/DrugGroupsPage.tsx"),
+    () => import("../features/drugGroups/pages/DrugGroupEditorPage.tsx"),
+];
+
+/**
+ * Loads the app at `route` in `lang`. The page load restores the session with `POST /auth/refresh`: give its answer
+ * with `server.use(...)` first (e.g. `refreshSequence(...).handler`). Returns Testing Library's result plus `user`
+ * (userEvent), `path()` (where the app is now), `session` and `client` (the store and API client modules of this load).
+ */
+export const startApp = async ({route = "/", lang = "en", clipboard}: StartAppOptions = {}) => {
     vi.resetModules();
-    // The first visit of a lazy page compiles its chunk: wait longer than Testing Library's 1 s for it
-    const {asyncUtilTimeout} = getConfig();
-    configure({asyncUtilTimeout: 10_000});
-    onTestFinished(() => configure({asyncUtilTimeout}));
     window.history.replaceState(null, "", route);
     // The stored language choice is read when i18n starts (the language detector)
     localStorage.setItem("language", lang);
-    const i18n = (await import("../../i18n/index.ts")).default;
+    const i18n = (await import("../i18n/index.ts")).default;
     await i18n.changeLanguage(lang);
-    const session = await import("../../features/auth/session.ts");
-    const client = await import("../../api/client.ts");
-    const {App} = await import("../../app/App.tsx");
+    const session = await import("../features/auth/session.ts");
+    const client = await import("../api/client.ts");
+    const {App} = await import("../app/App.tsx");
+    await Promise.all(LAZY_PAGES.map(load => load()));
     const result = render(<App/>);
+    const user = userEvent.setup({delay: null});
     return {
         ...result,
-        user: userEvent.setup({delay: null}),
+        user,
+        /** The stubbed clipboard (`clipboard` option; installed after userEvent.setup(), which installs its own) */
+        clipboard: clipboard ? stubClipboard(clipboard) : undefined,
         session,
         client,
         path: () => window.location.pathname,
@@ -83,9 +104,3 @@ export const meByContext = (me: (context: string | null) => Me = context => aMe(
 
 /** Waits for the app to be at `path`. */
 export const expectPath = async (path: string) => waitFor(() => expect(window.location.pathname).toBe(path));
-
-/** Waits until a toast with exactly `text` shows. */
-export const findToastText = async (text: string) => {
-    await waitFor(() => expect(screen.getByText(text)).toBeInTheDocument());
-};
-

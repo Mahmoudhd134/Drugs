@@ -1,14 +1,20 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
-import {aDrug, aGroup, drugGroupsHandlers, drugsHandlers, recordRequests, renderWithProviders, server} from "../../../test";
+import {
+    aDrug,
+    aGroup,
+    drugGroupsHandlers,
+    drugsHandlers,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Permission} from "../../access/permissions.ts";
 import {CatalogPanel} from "./CatalogPanel.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // The prescription's catalog panel by permission: docs/features/access/tech.md "Frontend" (Pages: Prescription),
 // access business.md «الصلاحيات». A picker the user can't use is neither shown nor loaded (an unhandled request fails).
 
-patientWaits();
 
 const openPanel = (permissions: Permission[]) =>
     renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectGroup={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "ar", user: {permissions}});

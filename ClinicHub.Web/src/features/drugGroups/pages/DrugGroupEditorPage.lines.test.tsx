@@ -1,18 +1,9 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, anItem, findToast, toastTexts} from "../../../test";
-import {
-    choose,
-    dosingPreview,
-    hoverTooltip,
-    isolate,
-    lineDetails,
-    lineRows,
-    lineSummary,
-    openEditor,
-    pickerOption,
-} from "../../../test/fe-catalog";
+import {aDrug, aGroup, anItem, choose, findToast, hoverTooltip, isolate, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
+import {dosingPreview} from "../../../test/pages/dosing.ts";
+import {lineDetails, lineRows, lineSummary, openEditor, pickerOption} from "../../../test/pages/groupEditor.tsx";
 
 // The group editor's lines: docs/features/drug-groups/business.md ("إنشاء مجموعة", "جرعة خاصة بالمجموعة",
 // "نفس الدواء للعينين", "الرسائل") and tech.md "Frontend" (editor page, DosingLineList, LineDetails, chips, ⊕).
@@ -219,13 +210,14 @@ describe("group editor: ⊕ the other eye @area:catalog", () => {
 });
 
 describe("group editor: overriding from the line @area:catalog", () => {
-    test("the line dialog's override follows into the line sentence and chip @GRP-068", async () => {
+    test("only the times overridden to 6 in the line's dialog: the preview reads «نقطة واحدة 6 مرات يوميًا لمدة أسبوعين», then the line sentence and chip follow @GRP-068", async () => {
         const group = aGroup({items: [anItem(aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks}))]});
         const {user} = await openEditor({group});
         await user.click(within(lineRows()[0]).getByRole("button", {name: "تعديل الجرعة"}));
         const dialog = within(await screen.findByRole("dialog"));
         await choose(user, dialog.getByRole("combobox", {name: "عدد المرات"}), "مرات في اليوم");
         await user.type(dialog.getByRole("spinbutton", {name: "العدد"}), "6");
+        expect(dosingPreview()).toHaveTextContent(/^نقطة واحدة 6 مرات يوميًا لمدة أسبوعين$/);
         await user.click(dialog.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
         expect(lineDetails(lineRows()[0])).toBe("نقطة واحدة 6 مرات يوميًا لمدة أسبوعين" + "جرعة خاصة بالمجموعة");

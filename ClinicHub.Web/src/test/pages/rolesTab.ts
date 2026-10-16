@@ -6,7 +6,7 @@ import type {PermissionDefinition} from "../../features/access/api.ts";
 import {aClinicDetails, aRole, anOwnerRole} from "../data.ts";
 import {adminClinicsHandlers, permissionsHandler, rolesHandler} from "../msw.ts";
 import {server} from "../server.ts";
-import {renderAdmin} from "./adminApp.tsx";
+import {renderAdmin} from "./admin.tsx";
 
 /** The roles as the API answers them (permissions expanded with their requirements, catalog order). */
 export const ROLE_KEYS = {

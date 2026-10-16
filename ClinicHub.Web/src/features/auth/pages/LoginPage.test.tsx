@@ -1,17 +1,13 @@
 import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {anAuthResult, api, problem, recordRequests, renderWithProviders, server} from "../../../test";
+import {anAuthResult, api, isolate, problem, recordRequests, renderWithProviders, server} from "../../../test";
 import type {LanguageCode} from "../../../i18n/languages.ts";
 import {LoginPage} from "./LoginPage.tsx";
-import {patientWaits} from "../../../test/fe-access/patience.ts";
 
 // The login page: docs/features/auth/tech.md "Frontend" (LoginPage) and "API", business.md «الرسائل التي تظهر
 // للمستخدم» (messages quoted from the catalog: ar.ts / en.ts).
 
-patientWaits();
-
-const isolate = (name: string) => `⁨${name}⁩`;
 const PHONE = "01001234567";
 
 type Options = { lang?: LanguageCode; mode?: "Display" | "Sms"; resendAfterSeconds?: number; devCode?: string };

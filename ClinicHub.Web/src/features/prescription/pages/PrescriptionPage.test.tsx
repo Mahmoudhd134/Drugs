@@ -1,18 +1,12 @@
-import {afterEach, describe, expect, test, vi} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, aLine, findToast, toastTexts} from "../../../test";
-import {openPrescription, storedLines, stubClipboard} from "../../../test/fe-admin/prescriptionPage.tsx";
+import {aDrug, aGroup, aLine, fillIn, findToast, hoverTooltip, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
-import {fillIn} from "../../../test/fe-admin/typing.ts";
+import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
 
 // The prescription page: docs/features/prescription/business.md "تكوين روشتة", "البدء مع مريض جديد" and "الرسائل
 // التي تظهر للمستخدم"; tech.md "Page & components" (SelectionPanel, PrescriptionLineList, LineEditDialog, clear with
 // Undo for 6 s), "Text formats" (a dosing with no instructions: the description, then the eye part) and "Clipboard".
-
-const restores: (() => void)[] = [];
-afterEach(() => {
-    restores.splice(0).forEach(restore => restore());
-});
 
 const isBefore = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
@@ -51,9 +45,7 @@ describe("the prescription page @area:prescription", () => {
     test("a drug whose default dosing is only an eye: its description, then the eye part; «بدون عين»: the description alone; copied the same @RX-010", async () => {
         const tears = aDrug({name: "Tears", description: "قطرة مرطبة", defaultDosing: {eye: "right"}});
         const gel = aDrug({name: "Gel", description: "جل مرطب", defaultDosing: {eye: "none"}});
-        const {user, selection, addDrug} = await openPrescription({drugs: [tears, gel]});
-        const clipboard = stubClipboard();
-        restores.push(clipboard.restore);
+        const {user, selection, addDrug, clipboard} = await openPrescription({drugs: [tears, gel], clipboard: {}});
         await addDrug("Tears");
         await addDrug("Gel");
 
@@ -66,7 +58,7 @@ describe("the prescription page @area:prescription", () => {
 
         await user.click(selection().getByRole("button", {name: "نسخ"}));
         expect(await findToast()).toBe("تم النسخ");
-        const {text, html} = await clipboard.written();
+        const {text, html} = await clipboard!.written();
         expect(text).toBe("Tears\nقطرة مرطبة\nفي العين اليمنى\n\nGel\nجل مرطب");
         expect(html).toContain("<strong>Tears</strong><br>قطرة مرطبة<br>في العين اليمنى");
         expect(html).toContain("<strong>Gel</strong><br>جل مرطب</p>");
@@ -174,19 +166,22 @@ describe("⊕ add for the other eye @area:prescription", () => {
 
 describe("copy @area:prescription", () => {
     test("the clipboard refuses and execCommand fails: «تعذّر النسخ. حدّد النص وانسخه يدويًا.» @RX-073", async () => {
-        const {user, selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"})]});
-        const clipboard = stubClipboard({fails: true, execCommand: false});
-        restores.push(clipboard.restore);
+        const {user, selection, clipboard} = await openPrescription({
+            lines: [aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"})],
+            clipboard: {fails: true, execCommand: false},
+        });
         await user.click(selection().getByRole("button", {name: "نسخ"}));
         expect(await findToast()).toBe("تعذّر النسخ. حدّد النص وانسخه يدويًا.");
-        expect(clipboard.write).toHaveBeenCalled();
-        expect(clipboard.execCommand).toHaveBeenCalledWith("copy");
+        expect(clipboard!.write).toHaveBeenCalled();
+        expect(clipboard!.execCommand).toHaveBeenCalledWith("copy");
     });
 
     test("the copy failure in English: \"Couldn't copy. Select the text and copy it manually.\" @RX-073", async () => {
-        const {user, selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"})], lang: "en"});
-        const clipboard = stubClipboard({fails: true, execCommand: false});
-        restores.push(clipboard.restore);
+        const {user, selection} = await openPrescription({
+            lines: [aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"})],
+            lang: "en",
+            clipboard: {fails: true, execCommand: false},
+        });
         await user.click(selection().getByRole("button", {name: "Copy"}));
         expect(await findToast()).toBe("Couldn't copy. Select the text and copy it manually.");
     });
@@ -216,14 +211,12 @@ describe("clear all @area:prescription", () => {
     });
 
     test("hovering «مسح الكل» with lines: «حذف كل الأدوية للبدء مع المريض التالي. يمكنك التراجع.» @RX-087", async () => {
-        const {user, selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}))]});
-        await user.hover(selection().getByRole("button", {name: "مسح الكل"}));
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("حذف كل الأدوية للبدء مع المريض التالي. يمكنك التراجع.");
+        const {selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}))]});
+        expect(await hoverTooltip(selection().getByRole("button", {name: "مسح الكل"}))).toBe("حذف كل الأدوية للبدء مع المريض التالي. يمكنك التراجع.");
     });
 
     test("the hint in English: \"Remove all drugs to start the next patient. You can undo.\" @RX-087", async () => {
-        const {user, selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}))], lang: "en"});
-        await user.hover(selection().getByRole("button", {name: "Clear all"}));
-        expect(await screen.findByRole("tooltip")).toHaveTextContent("Remove all drugs to start the next patient. You can undo.");
+        const {selection} = await openPrescription({lines: [aLine(aDrug({name: "Tobradex"}))], lang: "en"});
+        expect(await hoverTooltip(selection().getByRole("button", {name: "Clear all"}))).toBe("Remove all drugs to start the next patient. You can undo.");
     });
 });
