@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038 and UX-039 (1,190 cases); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -68,7 +68,7 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ISO](#iso--clinic-isolation) | 20 | 17 | 6 | 43 | 0 | 39 | 1 | 4 | 0 |
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
-| [ADM](#adm--platform-admin) | 58 | 142 | 91 | 291 | 3 | 165 | 78 | 48 | 0 |
+| [ADM](#adm--platform-admin) | 58 | 142 | 92 | 292 | 3 | 165 | 79 | 48 | 0 |
 | [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 23 | 15 | 0 |
 | [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 40 | 24 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
@@ -76,7 +76,7 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 2 | 0 | 15 | 21 | 2 |
-| **All** | **352** | **518** | **320** | **1190** | **192** | **532** | **291** | **235** | **7** |
+| **All** | **352** | **518** | **321** | **1191** | **192** | **532** | **292** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -984,6 +984,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-254 | Given the only active owner, when removing or deactivating them in the UI, then the toast «يجب أن يبقى للعيادة موظف نشط واحد على الأقل له دور «المالك».» with the hint «أعطِ دور «المالك» لموظف نشط آخر أولًا، ثم حاول مرة أخرى.» (en "The clinic must keep at least one active staff member with the Owner role." + "Give the Owner role to another active staff member first, then try again."), shown ~8 s | P1 | e2e | [business: messages][adm-b-msg] |
 | ADM-255 | Given a phone (375 px), then the phone sits under the name (below `sm`), the status too (below `md`), long role names wrap inside their chip, and no horizontal scroll | P2 | e2e | [tech roles/staff screens][adm-t-rsui] |
 | ADM-256 | Given the Staff tab request fails, then «تعذّر تحميل البيانات.» with Retry | P2 | ui | [business: messages][adm-b-msg] |
+| ADM-292 | Given the staff editor saving (e.g. adding a staff member while the `POST` is held), then it can't be closed until the answer: Esc and a backdrop click do nothing, «إلغاء» / "Cancel" is disabled, and the typed name is kept | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
 
 ### Owner label and refused role names
 
