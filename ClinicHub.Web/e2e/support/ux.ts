@@ -141,11 +141,31 @@ export const fitsTheScreen = async (page: Page, box: Locator, what: string) => {
 };
 
 /**
- * No cut UI text in `scope`: every visible button, tab, chip label, form label, dialog title and heading shows its
- * whole text (its content is not wider than its box: no ellipsis, no clipping), and no two visible buttons overlap.
+ * Why an element's text is not shown whole, or null: its content is wider than its box (ellipsis, `nowrap`, overflow),
+ * or a clipping ancestor (`overflow` other than visible) hides part of its width. Runs in the page (`fn.toString()`):
+ * self-contained.
  */
-export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
-    const problems = await scope.evaluate(root => {
+const cutReason = (e: Element): string | null => {
+    const r = e.getBoundingClientRect();
+    if (e.scrollWidth > e.clientWidth + 1) return `content ${e.scrollWidth} px in a ${e.clientWidth} px box`;
+    let [left, right] = [r.left, r.right];
+    for (let p = e.parentElement; p; p = p.parentElement) {
+        if (getComputedStyle(p).overflowX === "visible") continue;
+        const c = p.getBoundingClientRect();
+        [left, right] = [Math.max(left, c.left), Math.min(right, c.right)];
+    }
+    return right - left < r.width - 1 ? `only ${Math.round(Math.max(0, right - left))} of ${Math.round(r.width)} px visible` : null;
+};
+
+/**
+ * No cut UI text in `scope`, and no overlapping buttons. Checked: every visible button, tab, chip label, form label,
+ * legend, h1/h2, dialog title and toggle; and any p/li/span/h3–h6 that can cut its text (`nowrap` or ellipsis; the
+ * documented line clamps, `-webkit-line-clamp`, are left out). "Cut": see `cutReason` (own overflow, or clipped by a
+ * scrolling/clipping ancestor in width). Not checked: overlaps between non-button elements, and text cut in height.
+ */
+export const expectNoCutOrOverlap = async (scope: Locator, what: string, options: { ignore?: string } = {}) => {
+    const problems = await scope.evaluate((root, {reasonSource, ignore}) => {
+        const reasonOf = new Function(`return (${reasonSource})`)() as (e: Element) => string | null;
         const visible = (e: Element) => {
             const r = e.getBoundingClientRect();
             const style = getComputedStyle(e);
@@ -153,12 +173,19 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
         };
         const name = (e: Element) => `${e.tagName.toLowerCase()}.${[...e.classList].slice(0, 2).join(".")} «${(e.textContent ?? "").trim().slice(0, 40)}»`;
         const found: string[] = [];
-        const texts = root.querySelectorAll("button, [role=tab], .MuiChip-label, label, legend, h1, h2, .MuiDialogTitle-root, .MuiToggleButton-root");
-        for (const e of texts) {
+        const always = [...root.querySelectorAll("button, [role=tab], .MuiChip-label, label, legend, h1, h2, .MuiDialogTitle-root, .MuiToggleButton-root")];
+        const cutting = [...root.querySelectorAll("p, li, span, h3, h4, h5, h6")].filter(e => {
+            const style = getComputedStyle(e);
+            return (style.whiteSpace === "nowrap" || style.textOverflow === "ellipsis")
+                && style.getPropertyValue("-webkit-line-clamp") === "none";
+        });
+        for (const e of new Set([...always, ...cutting])) {
             if (!visible(e) || !(e.textContent ?? "").trim()) continue;
-            // Our own visually hidden helpers (MUI's notched outline legend) are not shown text
-            if (e.closest("fieldset") && e.tagName === "LEGEND") continue;
-            if (e.scrollWidth > e.clientWidth + 1) found.push(`cut text: ${name(e)} (${e.scrollWidth} > ${e.clientWidth})`);
+            // MUI's notched-outline legend (and its span) is a visually hidden copy of the label
+            if (e.closest("fieldset legend")) continue;
+            if (ignore && e.matches(ignore)) continue;
+            const reason = reasonOf(e);
+            if (reason) found.push(`cut text: ${name(e)} (${reason})`);
         }
         // The part of an element on screen: its box cut by every scrolling or clipping ancestor (a dialog's content
         // scrolled under its buttons is hidden there, not overlapping)
@@ -185,8 +212,19 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
             }
         }
         return found;
-    });
+    }, {reasonSource: cutReason.toString(), ignore: options.ignore});
     expect(problems, `${what}: no cut text, no overlapping buttons`).toEqual([]);
+};
+
+/** Each element of `elements` (e.g. a long name where it is shown) shows its whole text: wrapped, not cut or clipped. */
+export const expectNotCut = async (elements: Locator, what: string) => {
+    const count = await elements.count();
+    expect(count, `${what}: shown`).toBeGreaterThan(0);
+    const reasons = await elements.evaluateAll((all, reasonSource) => {
+        const reasonOf = new Function(`return (${reasonSource})`)() as (e: Element) => string | null;
+        return all.map(reasonOf).filter((r): r is string => r !== null);
+    }, cutReason.toString());
+    expect(reasons, `${what}: the whole text is shown (wrapped)`).toEqual([]);
 };
 
 /** The screen rectangle of the first occurrence of `text` inside the element (a Range over its text nodes). */

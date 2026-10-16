@@ -3,7 +3,7 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
 import {unique} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
-import {expectToast, recordRequests} from "../support/ui.ts";
+import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
     countNamed,
@@ -11,13 +11,17 @@ import {
     drugRow,
     drugWith,
     expectNoDialog,
+    expectNotCut,
     fitsTheScreen,
     groupCard,
     groupWith,
+    linesPanel,
     noHorizontalScroll,
     open,
     orderOnScreen,
     pick,
+    rxTab,
+    searchBox,
     shownName,
     sortablePanel,
     textsOf,
@@ -191,7 +195,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         expect(await countNamed(data, clinic, "drugs", name)).toBe(1);
     });
 
-    test.fixme("BUG-586: a fast answer frees the save before the dialog is gone: a second Enter (or the second click of a double click) in the closing dialog creates the drug again @UX-024",
+    test.fixme("BUG-586: a fast answer frees the save while the dialog fades out: the second click of a double click landing after it creates the drug again (a second Enter is kept as a guard) @UX-024",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -232,6 +236,25 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(posts.length, "one POST per drug").toBe(2);
         });
 
+    test.fixme("BUG-588: the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») shows the name just saved instead of starting empty @DRUG-104",
+        async ({page, data, lang}) => {
+            const {t} = textsOf(lang);
+            const clinic = await data.clinic();
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            const name = `Saved ${unique()}`;
+            await page.getByRole("button", {name: t.addDrug}).click();
+            const field = dialog(page).getByRole("textbox", {name: t.drugName});
+            await field.fill(name);
+            const saved = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
+            await field.press("Enter");
+            await saved;
+            // The focus is back on «إضافة دواء» while the dialog fades out: Enter opens it again
+            await page.keyboard.press("Enter");
+            await expect(dialog(page).getByRole("textbox", {name: t.drugName}), "a new drug starts empty").toHaveValue("");
+            await dialog(page).getByRole("button", {name: t.cancel}).click();
+            await expectNoDialog(page);
+        });
+
     test("a new group: a double click on Save creates exactly one group @UX-025", async ({page, data, lang}) => {
         const {t} = textsOf(lang);
         const clinic = await data.clinic();
@@ -261,6 +284,9 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const tip = page.getByRole("tooltip").filter({hasText: u.taperInfo});
 
             if (isMobile) {
+                // The component's tap behaviour only (touch events sent from the page): a tap on a REAL phone is not
+                // proven here (Chromium's emulated tap ends with a mouseleave that closes MUI's tooltip): dress
+                // rehearsal, UX-013 / UX-011
                 await fingerTap(page, info);
                 await expect(tip).toBeVisible();
                 await page.waitForTimeout(3000);
@@ -291,53 +317,84 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
-            const fits = async (what: string) => {
+            // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
+            // (Inputs holding the name scroll inside themselves: not checked. The groups list's card title is cut with
+            // an ellipsis by design or not: asked to the user, not asserted. The Groups-tab picker and the line dialogs'
+            // titles: known bugs BUG-587 and BUG-589, below.)
+            const fits = async (what: string, shown: Locator) => {
                 await noHorizontalScroll(page, what);
                 const open = dialog(page);
                 if (await open.count()) await fitsTheScreen(page, open, what);
+                await expectNotCut(shown, what);
             };
 
             await expect(drugRow(page, name)).toBeVisible();
-            await fits("drugs list");
-            await drugRow(page, name).getByRole("button", {name: t.edit}).click();
-            await expect(dialog(page)).toBeVisible();
-            await fits("drug dialog");
-            await dialog(page).getByRole("button", {name: t.cancel}).click();
-            await expectNoDialog(page);
+            await fits("drugs list", drugRow(page, name).getByText(name, {exact: true}));
             await drugRow(page, name).getByRole("button", {name: t.delete}).click();
-            await expect(dialog(page).getByText(u.deleteDrugMessage(name))).toBeVisible();
-            await fits("delete-drug confirmation");
+            const deleteDrug = dialog(page).getByText(u.deleteDrugMessage(name));
+            await expect(deleteDrug).toBeVisible();
+            await fits("delete-drug confirmation", deleteDrug);
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
             await open(page, "/groups");
             await expect(groupCard(page, group.name)).toBeVisible();
-            await fits("groups list");
+            await noHorizontalScroll(page, "groups list");
             await groupCard(page, group.name).getByRole("button", {name: t.delete}).click();
             await expect(dialog(page)).toBeVisible();
-            await fits("delete-group confirmation");
+            await fits("delete-group confirmation", dialog(page).locator("p").filter({hasText: group.name}));
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
             await open(page, `/groups/${group.id}`);
-            await expect(shownName(page, name)).toBeVisible();
-            await fits("group editor");
-            await page.getByRole("button", {name: u.editLine}).first().click();
-            await expect(dialog(page)).toBeVisible();
-            await fits("group line dialog");
-            await dialog(page).getByRole("button", {name: t.cancel}).click();
-            await expectNoDialog(page);
+            await fits("group editor line", sortablePanel(page, u).getByText(name, {exact: true}));
 
             await open(page, "/");
             await addDrugToRx(page, t, name);
             await expect(shownName(page, DOSINGS.oneDropFour.text)).toBeVisible();
-            await fits("prescription line and picker");
+            await fits("prescription line", linesPanel(page, u).getByText(name, {exact: true}));
+            await fits("drug picker", page.getByRole("option").filter({visible: true}).getByText(name, {exact: true}));
             await addDrugToRx(page, t, name);
             await expectToast(page, u.alreadyAdded(name));
-            await fits("already-added toast");
-            await page.getByRole("button", {name: u.editLine}).filter({visible: true}).first().click();
-            await expect(dialog(page)).toBeVisible();
-            await fits("line dialog");
-            await dialog(page).getByRole("button", {name: t.cancel}).click();
-            await expectNoDialog(page);
+            await fits("already-added toast", toast(page, u.alreadyAdded(name)));
+        });
+
+    test.fixme("BUG-589: the group line dialog and the prescription line dialog cut a 256-character drug name in their title instead of wrapping it @UX-009",
+        async ({page, data, lang}) => {
+            const {t, u} = textsOf(lang);
+            const clinic = await data.clinic();
+            const name = `L${unique()}`.padEnd(256, "W");
+            const drug = await drugWith(data, clinic, {name, defaultDosing: DOSINGS.oneDropFour.dosing});
+            const group = await groupWith(data, clinic, `G ${unique()}`, [{drug}]);
+            await signIn(page, clinic.owner.phone, "asIs", `/groups/${group.id}`);
+            const problems: string[] = [];
+            const check = async (what: string) => {
+                await expect(dialog(page)).toBeVisible();
+                await noHorizontalScroll(page, what);
+                await expectNotCut(dialog(page).getByText(name, {exact: true}), what).catch((e: Error) => problems.push(`${what}: ${e.message.slice(0, 200)}`));
+                await dialog(page).getByRole("button", {name: t.cancel}).click();
+                await expectNoDialog(page);
+            };
+            await page.getByRole("button", {name: u.editLine}).first().click();
+            await check("group line dialog");
+            await open(page, "/");
+            await addDrugToRx(page, t, name);
+            await linesPanel(page, u).getByRole("button", {name: u.editLine}).click();
+            await check("prescription line dialog");
+            expect(problems, "the drug name is shown whole in both dialog titles").toEqual([]);
+        });
+
+    test.fixme("BUG-587: the prescription's Groups-tab picker cuts a 256-character group name instead of wrapping it @UX-009",
+        async ({page, data, lang}) => {
+            const {t} = textsOf(lang);
+            const clinic = await data.clinic();
+            const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
+            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
+            await signIn(page, clinic.owner.phone);
+            await rxTab(page, t, "groups");
+            await searchBox(page, t.searchGroups).fill(group.name);
+            const shown = page.getByRole("option").filter({visible: true}).getByText(group.name, {exact: true});
+            await expect(shown).toBeVisible();
+            await noHorizontalScroll(page, "group picker");
+            await expectNotCut(shown, "group picker");
         });
 });
