@@ -281,7 +281,25 @@ prescription page).
   and deleting from the group editor refetches the deleted group once (a 404 in the console).
 
 ## Testing notes
-Verified manually (no automated tests before M1.6), API in Development on a reset DB (`docker compose
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[ACC](../../testing/test-catalog.md#acc--permissions-and-access) (the permission catalog, default roles, endpoint
+gating, the 403 codes, changes while the user works, gating in the UI, `/me`); a change here adds or fixes its cases
+and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Access/Authorization/` (`PermissionCatalog`, `PermissionSet`); Vitest `ClinicHub.Web/src/i18n/locales/locales.test.ts` (permission labels) |
+| api | `tests/ClinicHub.IntegrationTests/Access/` (every endpoint's permission, the access cache's post-commit invalidation: change → next request, no waiting) (`./test.ps1 -Area access`) |
+| ui | `ClinicHub.Web/src/features/access/components/PermissionControls.test.tsx`, `src/app/App.access.test.tsx`, the pages' `*.access.test.tsx` / `crossCutting` tests |
+| e2e | `ClinicHub.Web/e2e/access/permissions.spec.ts` (each default role and a custom one) |
+
+Mutation: `PermissionService.cs` is a critical file (85%, scored by the `access` tests:
+[testing README § Mutation testing](../../testing/README.md#mutation-testing)). Not automated (`manual`, ACC-054): a
+change made directly in the database applies within about 30 s (the cache's local expiry; documented, not tested).
+
+### Before M1.6: manual verification (record)
+
+Kept because test cases cite it (e.g. ACC-040, ACC-050). Verified manually, API in Development on a reset DB (`docker compose
 down -v`, `docker compose up -d`, `dotnet ef database update`: `Initial` + `AddRoles`; also reverted
 to `Initial` and re-applied):
 - Seed: 3 roles per demo clinic (+ Viewer in the second), Owner with 0 permission rows, Doctor 11,

@@ -15,7 +15,13 @@ docs/
 ├── design/
 │   ├── platform-hld.md        ← multi-clinic platform: requirements, data model, API, delivery (MVP milestones and steps)
 │   ├── architecture.md        ← backend layers, MediatR use cases, Result/Error, ProblemDetails (M1.4)
-│   └── m1.5-platform-admin.md ← design of the platform admin (M1.5)
+│   ├── m1.5-platform-admin.md ← design of the platform admin (M1.5)
+│   └── m1.6-test-foundation.md ← design of the automated tests (M1.6)
+├── testing/
+│   ├── README.md              ← running and writing the tests (test.ps1 tiers, reports, each test level)
+│   ├── test-catalog.md        ← every testable behavior as a case (ID, priority, level): the source of the tests
+│   ├── known-bugs.md          ← app bugs found by the tests, not fixed yet
+│   └── dress-rehearsal.md     ← the production-like run before the client's acceptance test
 └── features/
     ├── _template/             ← copy this folder for every new feature
     │   ├── tech.md
@@ -38,7 +44,9 @@ docs/
 3. Update `tech/overview.md` (API table, data model, routes) and `business/overview.md`
    (feature list) when the feature adds endpoints, tables, pages or user-visible capabilities.
 4. If a change alters an existing feature's behavior, update that feature's docs in the same commit.
-5. Keep docs describing what **is** built, not plans. List gaps under "Edge cases & limitations" (tech) /
+5. Add the feature's cases to `testing/test-catalog.md` (fix the changed ones) and their tests, in the same commit
+   ([testing README](testing/README.md#the-test-catalog-and-traceability)).
+6. Keep docs describing what **is** built, not plans. List gaps under "Edge cases & limitations" (tech) /
    «ما لا تدعمه الميزة حاليًا» (business).
 
 ## Current features

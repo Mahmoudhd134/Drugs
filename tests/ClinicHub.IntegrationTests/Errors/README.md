@@ -1,5 +1,6 @@
 # Errors integration tests
 
 ERR (error contract): `api` cases of the [test catalog](../../../docs/testing/test-catalog.md); classes tagged `[Trait("Area", "errors")]`.
-Add a collection here like `Auth/AuthCollection.cs` (name `errors`, then `errors-2`… to run more in parallel).
+Collections (`ErrorsCollections.cs`): `errors`, `errors-2`, run in parallel; put a new class in one of them, or add
+`errors-3` when they get slow.
 How to write them: [docs/testing/README.md](../../../docs/testing/README.md#integration-tests-testsclinichubintegrationtests).

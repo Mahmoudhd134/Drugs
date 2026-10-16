@@ -121,13 +121,12 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   the unit (dose amount + unit are one part).
 
 ## Testing notes
-API: overrides saved/normalized, `ask` eye accepted only on group lines, duplicates rejected,
-unknown drug rejected, invalid dosing rejected, deleting a drug removes its lines.
-Browser (:5173, Arabic + English, desktop + 375px): create group with validation, keyboard adding,
-drag reorder, overrides with chips, live inheritance after changing a drug default, reset to
-default, unsaved-changes guard, chip wrapping.
-M1.6.0 (API on a scratch DB): default eye right + lines (no override, override left) → 201; the default changed to
-left → GET shows both lines effective left; PUT / POST of those lines → 400 `duplicateGroupItem` (field `items`);
-`ask` + an inherited eye → 201; no eye + `none` → 400; an unknown drug is reported before a duplicate, a duplicate
-before an unknown group. Browser (EN/AR, 1280/375): both clashing lines marked, alert shown, Save blocked; after
-removing one, saved.
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[GRP](../../testing/test-catalog.md#grp--drug-groups); a change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Catalog/DrugGroups/` (validators, `SaveDrugGroupItem`); Vitest `ClinicHub.Web/src/features/drugGroups/editorItem.test.ts` |
+| api | `tests/ClinicHub.IntegrationTests/Catalog/Groups/` (`./test.ps1 -Area catalog`) |
+| ui | `ClinicHub.Web/src/features/drugGroups/` (the editor page: lines, save, limits; the list, the picker, the line dialog) |
+| e2e | `ClinicHub.Web/e2e/catalog/group-editor.spec.ts`, `group-guard.spec.ts` (unsaved-changes guard), `groups-list.spec.ts`, `inheritance.spec.ts` |

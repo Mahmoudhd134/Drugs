@@ -19,5 +19,5 @@ How to write them: [docs/testing/README.md](../../../docs/testing/README.md#inte
 - The clinics list is global: list tests name their clinics with their own token and search for it, or (paging) own a
   class whose data is made once per class.
 - The M1.5 acceptance scripts (`accept-api.py`, `accept-reg-api.py`) are ported here: a check proving an ADM case is in
-  that case's test; the others are untagged tests marked "Ported from …" (their ACC / AUTH / catalog cases belong to
-  other tracks).
+  that case's test; the others are untagged tests marked "Ported from …" (their ACC / AUTH / catalog cases are proved in
+  those areas' folders).

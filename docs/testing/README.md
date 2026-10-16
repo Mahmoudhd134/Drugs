@@ -1,15 +1,31 @@
 # Testing
 
-Status: first version (M1.6 phase A, foundation); phase C completes it. Design:
-[M1.6 test foundation](../design/m1.6-test-foundation.md). Cases: [test catalog](test-catalog.md). Bugs found by tests:
-[known bugs](known-bugs.md). Before the client's test: [dress rehearsal](dress-rehearsal.md).
+The one guide to the automated tests: when to run them, how to read the results, how to add a test. Why they are built
+this way: [M1.6 test foundation](../design/m1.6-test-foundation.md). What to test: the [test catalog](test-catalog.md).
+Bugs found by tests: [known bugs](known-bugs.md). Before the client's test: [dress rehearsal](dress-rehearsal.md).
 
-| Level | Tool | Where | Tags |
+| Level (catalog) | Tool | Where | Tags |
 |---|---|---|---|
-| Backend unit | xUnit + Shouldly | `tests/ClinicHub.UnitTests` | `[Trait("Case", "DOSE-012")]`, `[Trait("Area", "catalog")]` |
-| Integration (`api`) | xUnit + `WebApplicationFactory<Program>` + PostgreSQL + Respawn | `tests/ClinicHub.IntegrationTests/<Area>/` | same + `[Trait("Tier", "Smoke")]` |
-| Frontend unit + component | Vitest | `ClinicHub.Web/src/**/*.test.ts(x)` | `@DOSE-012 @area:catalog @smoke` in the title |
-| End to end | Playwright | `ClinicHub.Web/e2e/` | same |
+| `unit`, backend | xUnit + Shouldly | `tests/ClinicHub.UnitTests/<Module>/<SubFeature>/` | `[Trait("Case", "DOSE-012")]` per test, `[Trait("Area", "catalog")]` per class |
+| `api` (integration) | xUnit + `WebApplicationFactory<Program>` + PostgreSQL + Respawn | `tests/ClinicHub.IntegrationTests/<Area>/` | same + `[Trait("Tier", "Smoke")]` |
+| `unit` (frontend pure logic), `ui` (component) | Vitest + Testing Library + MSW | next to the code: `ClinicHub.Web/src/**/*.test.ts(x)` | `@DOSE-012 @area:catalog @smoke` in the title |
+| `e2e` | Playwright (Chromium) | `ClinicHub.Web/e2e/<area>/` | same |
+| `manual` | by hand | the [dress rehearsal](dress-rehearsal.md) | none |
+
+Areas (the `Area` trait, the `@area:` tag): `auth`, `access`, `isolation`, `errors`, `admin`, `catalog` (backend and
+frontend); `prescription`, `i18n`, `ux` (frontend only); `infra` (the integration harness's self-tests).
+
+## When to run what
+
+| Tier | When | Time (measured at the end of M1.6) |
+|---|---|---|
+| `step` | after every implementation or fix round | ≈ 6 min without e2e; + ≈ 3.5 min of e2e smoke when files under `ClinicHub.Web/` changed |
+| `full` | at the end of a feature or milestone, before merging to `main`, before the dress rehearsal | every unit, integration and Vitest test with coverage, + the whole e2e suite: ≈ 13 min on a quiet machine, 25–30 min when it is loaded (another run, a build) |
+| `release` | at the end of a milestone, before launch | `full` + mutation: Stryker.NET takes minutes per critical file |
+
+Vitest takes ≈ 3 min in every tier. The tiers don't replace the other checks (`npx tsc -b`, `npx eslint src`,
+`dotnet build ClinicHub.sln`: [CLAUDE.md](../../CLAUDE.md), [tech overview](../tech/overview.md#development-workflow)).
+While working on one test, run it alone ([below](#running-a-single-test)) and the tier at the end of the round.
 
 ## Running the tests: `test.ps1`
 
@@ -28,15 +44,17 @@ One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts
 
 | Tier | Runs | Gates |
 |---|---|---|
-| `step` | all backend unit, all Vitest (`npm run test`), integration **smoke** (`Tier=Smoke`) + the **infra** self-tests + the integration tests of the chosen areas, e2e **smoke** (`npm run e2e -- --grep @smoke`) only when files under `ClinicHub.Web/` changed and an `e2e` script exists, traceability report | unknown case IDs and skips without a bug ID fail |
-| `full` | everything (integration and unit with coverage), Vitest with coverage (`npm run test:coverage`), the whole e2e suite (Chromium) | backend coverage (D5: 90% lines, 85% branches; 95% branches per critical module), Vitest coverage (its own thresholds), traceability (100% P0 and P1; P2 reported, not gated) |
-| `release` | `full` + Stryker.NET on the 6 critical backend files (`tests/stryker-config.json`, below) + StrykerJS (`npm run test:mutation`); e2e stays Chromium only | + mutation score ≥ 85% on **each** critical file |
+| `step` | all backend unit, all Vitest (`npm run test`), integration **smoke** (`Tier=Smoke`) + the **infra** self-tests + the integration tests of the chosen areas, e2e **smoke** (`npm run e2e -- --grep @smoke`) only when files under `ClinicHub.Web/` changed, traceability report | unknown case IDs and skips without a bug ID fail |
+| `full` | everything (integration and unit with coverage), Vitest with coverage (`npm run test:coverage`), the whole e2e suite (Chromium) | backend coverage (90% lines, 85% branches; 95% branches per critical module), Vitest coverage (95% lines, 90% branches per pure-logic file), traceability (100% P0 and P1; P2 reported, not gated) |
+| `release` | `full` + Stryker.NET on the 6 critical backend files (`tests/stryker-config.json`, below) + StrykerJS (`npm run test:mutation`); e2e stays Chromium only | + mutation score ≥ 85% on **each** critical backend file, and overall on the frontend pure logic |
+
+Gates only go up; lowering one needs the user's OK ([design D5](../design/m1.6-test-foundation.md#d5-coverage-and-mutation-gates)).
 
 - Areas for `step`: `-Area auth,access` (or `all`), else from `git diff` against a base plus uncommitted and untracked
-  files. The base: `-Base <ref>` (the merge-base with it), else, on an integration branch (`main`,
-  `m1.6-test-foundation`) its **last commit** (`HEAD~1`: on the M1.6 branch, the track just merged), else the merge-base
-  with the first integration branch that exists (`m1.6-test-foundation`, then `main`). After M1.6 is merged, drop
-  `m1.6-test-foundation` from `$integrationBranches` in `test.ps1`. The folder → area map is `$areaMap` in `test.ps1`:
+  files. The base: `-Base <ref>` (the merge-base with it), else, on an integration branch (`main`; `$integrationBranches`
+  in `test.ps1`) its **last commit** (`HEAD~1`), else the merge-base with the first integration branch that exists.
+  (`m1.6-test-foundation` is still listed there; drop it once M1.6 is merged.) The folder → area map is `$areaMap` in
+  `test.ps1`:
 
   | Changed path | Areas |
   |---|---|
@@ -56,14 +74,30 @@ One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts
 
 - Missing pieces (no npm script yet, no e2e config) are skipped with a note, never silently. Exit code 1 when a stage
   fails, a gate is missed or the runner itself fails (`artifacts/summary.md` is always rewritten, never left stale).
-- npm contract (the frontend and e2e tracks provide it; `npm` is found as installed: `npm.cmd` or `npm.exe`):
+- npm contract (`ClinicHub.Web/package.json`; the runner relies on these names; `npm` is found as installed:
+  `npm.cmd` or `npm.exe`):
   - `test` = `vitest run`; `test:coverage` = Vitest + v8 coverage with thresholds, reports in
     `artifacts/coverage/frontend` (`coverage-summary.json`); `test:mutation` = StrykerJS, reports in
     `artifacts/mutation/frontend`.
-  - `e2e` = the **whole** Playwright suite. The runner adds `-- --grep @smoke` in `step` (smoke tests carry `@smoke` in
-    their title) and nothing in `full`/`release`. The runner always sets `CLINICHUB_E2E_BROWSERS=chromium`: Chromium
-    projects only (desktop Arabic + English and phone; no Firefox/WebKit, the user's trim of 2026-10-15). E2E tests
-    prove P0 and P1 cases; a P2 case is left to a component or api test where cheap.
+  - `e2e` = type check + lint of the specs, then the **whole** Playwright suite. The runner adds `-- --grep @smoke` in
+    `step` (smoke tests carry `@smoke` in their title) and nothing in `full`/`release`. The runner always sets
+    `CLINICHUB_E2E_BROWSERS=chromium`: Chromium projects only (desktop Arabic + English and phone; no Firefox/WebKit,
+    the user's trim of 2026-10-15).
+
+### Running a single test
+
+The runner is for whole tiers; while writing a test, run only it (Release, so a Rider-locked Debug build is no
+problem; the integration tests need Docker's PostgreSQL up: `docker compose up -d`):
+
+```powershell
+dotnet test tests/ClinicHub.UnitTests -c Release --filter "Case=DOSE-012"
+dotnet test tests/ClinicHub.IntegrationTests -c Release --filter "FullyQualifiedName~OtpRequestTests"   # or "Area=auth"
+cd ClinicHub.Web; npx vitest run src/features/dosing             # a folder or a file; -t "<title part>" for one test
+cd ClinicHub.Web; npm run e2e -- e2e/auth/login.spec.ts --project ar-desktop   # or --grep "@AUTH-004"
+```
+
+`CLINICHUB_E2E_NO_BUILD=1` reuses the last SPA and API builds for e2e (faster between edits that don't touch the app);
+`CLINICHUB_E2E_WORKERS` sets Playwright's workers (default 4).
 
 ### Reports (`artifacts/`, git-ignored)
 
@@ -72,59 +106,141 @@ One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts
 | `summary.md` | per stage: result, counts (passed/failed/skipped from each test result), time; coverage gates; traceability; mutation scores; known bugs (skipped `BUG-nnn` tests and their IDs); the seed |
 | `test-results/<unit\|integration>/` | `.trx` results (+ `coverage.cobertura.xml` in full/release) |
 | `coverage/backend/` | merged report (`index.html`), `Cobertura.xml`, `gates.md` |
+| `coverage/frontend/` | Vitest coverage (`index.html`, `coverage-summary.json`) |
 | `traceability.md`, `traceability.json` | cases covered / known bug / missing per priority, area and level; unknown IDs; skips without a bug ID |
+| `e2e/report/` (`index.html`), `e2e/results.json`, `e2e/test-results/` | Playwright's report; a failed test's trace and screenshot (`npx playwright show-trace <trace.zip>`) |
 | `mutation/backend/` | Stryker.NET `reports/mutation-report.html` / `.json`; `mutation.md` (score per mutated file against the 85% gate, and overall); `stryker.log` (its console output) |
+| `mutation/frontend/` | StrykerJS `mutation.html` / `.json` |
 
 Tools come from the local manifest `.config/dotnet-tools.json` (`dotnet tool restore`, done by `full`/`release` and
-`-Mutate`): ReportGenerator, Stryker.NET. Traceability alone: `./tests/tools/traceability/traceability.ps1 [-Gate]
-[-Areas AUTH] [-Levels api]` (scope = "only my areas/levels"); its self-test: `./tests/tools/traceability/selftest.ps1`.
-Traceability rules: a test skipped as a known bug counts (as known bug) only with its `BUG-nnn` ID in the skip reason or
-title, and in xUnit the reason must be a **plain string literal** (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"`
-skips the test but counts as a skip without a bug ID); any other skip (`Skip = "later"`, `test.skip`/`test.todo`/
-`describe.skip` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
-`owner@clinic-1.test`; anything that is not exactly a catalog ID (`@AUTH-0163`, `@auth-189`) is reported as unknown.
-The gate (`full`, `-Gate`) is 100% of the P0 and P1 cases; P2 is reported, not gated.
+`-Mutate`): ReportGenerator, Stryker.NET.
 
-### Mutation testing (Stryker.NET): the 6 critical files
+### Mutation testing
 
-The backend mutation gate (85%, **on each file**) covers only the 6 riskiest files (the user's trim, 2026-10-15; the
-list is `tests/stryker-config.json`, run by `release`):
+Mutation proves that the tests catch bugs, not just run the code (a mutant = the code with one small change; a
+surviving mutant = no test noticed). It is gated in `release` only.
 
-| File | Why | Phase-B track (`-Area`) |
+**Backend (Stryker.NET): the 6 critical files.** The gate (85%, **on each file**) covers only the 6 riskiest files (the
+user's trim, 2026-10-15; the list is `tests/stryker-config.json`):
+
+| File | Why | Its tests (`-Area`) |
 |---|---|---|
-| `ClinicHub.Infrastructure/Database/ClinicAndTimestampsInterceptor.cs` | stamps the clinic, refuses cross-clinic writes | Int-2 (`isolation`) |
-| `ClinicHub.Api/Features/Platform/AdminClinicFilter.cs` | the super admin's per-clinic entry | Int-3 (`admin`) |
-| `ClinicHub.Application/Features/Access/Authorization/PermissionService.cs` | every access decision (noAccess, clinicSuspended, permissions) | Int-2 (`access`) |
-| `ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs` | login | Int-1 (`auth`) |
-| `ClinicHub.Application/Features/Identity/Sessions/Commands/RefreshSession/RefreshSessionCommandHandler.cs` | refresh rotation, reuse grace | Int-1 (`auth`) |
-| `ClinicHub.Application/Features/Access/StaffMembers/MembershipService.cs` | entry refusals, enterable clinics | Int-1 (`auth`) |
+| `ClinicHub.Infrastructure/Database/ClinicAndTimestampsInterceptor.cs` | stamps the clinic, refuses cross-clinic writes | `isolation` |
+| `ClinicHub.Api/Features/Platform/AdminClinicFilter.cs` | the super admin's per-clinic entry | `admin` |
+| `ClinicHub.Application/Features/Access/Authorization/PermissionService.cs` | every access decision (noAccess, clinicSuspended, permissions) | `access` |
+| `ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs` | login | `auth` |
+| `ClinicHub.Application/Features/Identity/Sessions/Commands/RefreshSession/RefreshSessionCommandHandler.cs` | refresh rotation, reuse grace | `auth` |
+| `ClinicHub.Application/Features/Access/StaffMembers/MembershipService.cs` | entry refusals, enterable clinics | `auth` |
 
-An integration track proves its tests on its files: `./test.ps1 -Tier step -Area auth -Mutate '<file>'[,'<file>']`.
+After changing one of these files or its tests, prove the area's tests on it:
+`./test.ps1 -Tier step -Area auth -Mutate '<file>'[,'<file>']`.
 - `-Mutate` takes repo-relative paths or globs (or starting with `**`), comma separated or repeated (also under
   `powershell -File`); they replace the config's list for that run. The stage lists the files actually mutated with
   their scores, and it **fails** when the list matched no code ("no mutant in …") or a file scores below 85%.
 - With an explicit `-Area` (not `all`), only that area's **integration** tests run against the mutants (Stryker's
-  `test-case-filter` `(Area=auth)&FullyQualifiedName~ClinicHub.IntegrationTests`), so the score is the track's own
+  `test-case-filter` `(Area=auth)&FullyQualifiedName~ClinicHub.IntegrationTests`), so the score is the area's own
   (unit tests and other areas' tests don't count; Stryker then warns that the unit test project "did not report any
   test": expected). Without `-Area` (and in `release`), every .NET test counts.
-- E2E: Stryker.NET only runs the .NET test projects against a mutant, never Playwright, so it says nothing about e2e
-  specs: the e2e track has no Stryker.NET step (it proves its specs with non-security UI plants; StrykerJS covers the
-  SPA's pure logic).
+- E2E specs are not scored: Stryker.NET only runs the .NET test projects against a mutant, never Playwright.
 - Survivors are in `artifacts/mutation/backend/reports/mutation-report.html`: a survivor is either a missing assertion
-  (add it) or an equivalent mutant (say so in the track report).
+  (add it) or an equivalent mutant (say why in the step's report).
 - Expect minutes per file: an integration-covered mutant reruns the tests that cover it (each Stryker test process makes
   its own test databases). Mutate a few files at a time.
-- Paths: keep the worktree path short (e.g. `Drags-wt\<track>`) and use the tool from the manifest (`dotnet tool
-  restore`; never install it under a long folder): beyond Windows' 260-character limit Stryker fails with
+- Paths: keep the checkout's path short (e.g. `Drags-wt\<name>` for a worktree) and use the tool from the manifest
+  (`dotnet tool restore`; never install it under a long folder): beyond Windows' 260-character limit Stryker fails with
   "Value cannot be null (path3)".
 - When Stryker itself fails: no report → the stage says "Stryker failed before scoring" (its output is also in
   `artifacts/mutation/backend/stryker.log`). Seen under load: `CS0518 Predefined type 'System.Attribute' is not
   defined` / "General Build Failure" (a Buildalyzer hiccup): rerun. Tests that already fail in Stryker's initial run
   ("N tests are failing … outcome will be impacted") fail the stage: the score would not mean anything; fix or rerun.
-- Stryker gaps (phase C knows them): a mutant that no longer compiles makes Stryker's safe mode drop **every** mutant of
-  that method (counted as "not counted", not against the score). Seen: `Api/Features/Access/PlatformAdminHandler.cs`
+- Known gap: a mutant that no longer compiles makes Stryker's safe mode drop **every** mutant of that method (counted
+  as "not counted", not against the score). Seen: `Api/Features/Access/PlatformAdminHandler.cs`
   `HandleRequirementAsync` (CS0165 on `userId` from the `is not { } userId` pattern; not a gated file): the ADM/ACC
-  integration cases must cover "super admin flag removed → 403" directly.
+  integration cases cover "super admin flag removed → 403" directly.
+
+**Frontend (StrykerJS): the pure logic.** `npm run test:mutation` mutates the files listed in
+`ClinicHub.Web/stryker.config.json` (`mutate`: dosing, taper and sentence logic, the prescription text and lines, the
+permission choice, the error reader, …) against the Vitest tests; the run fails below 85% overall. The same files
+(`PURE_LOGIC` in `vite.config.ts`) carry the per-file coverage thresholds of `test:coverage`. A new pure-logic module
+with rules goes into both lists.
+
+## The test catalog and traceability
+
+The [test catalog](test-catalog.md) lists everything the client could check, one behavior per case, taken from the
+business and tech docs: ID (`AUTH-012`), priority (P0 acceptance-critical, P1 important rule or message, P2 edge or
+cosmetic) and level (where it is cheapest to test). It is the source of the tests: a test is written from a case, with
+the expected values of the docs, never from what the app does today.
+
+- Every test names the cases it proves (the tags above); a case may need several tests (one per level for `api+e2e`).
+- `tests/tools/traceability` reads the tags and the catalog: the gate (`full`/`release`, `-Gate`) is **100% of the P0
+  and P1 cases** covered; P2 is reported, not gated. E2E covers P0 and P1 cases only: a P2 case whose level includes
+  `e2e` is covered by a component or `api` test where that is cheap, else left open (reported).
+- Run it alone: `./tests/tools/traceability/traceability.ps1 [-Gate] [-Areas AUTH] [-Levels api]` (scope = "only my
+  areas/levels"); its self-test: `./tests/tools/traceability/selftest.ps1`.
+- Rules: a test skipped as a known bug counts (as known bug) only with its `BUG-nnn` ID in the skip reason or title,
+  and in xUnit the reason must be a **plain string literal** (`Skip = "BUG-003: …"`; a const, `$"…"` or `@"…"` skips
+  the test but counts as a skip without a bug ID); any other skip (`Skip = "later"`, `test.skip`/`test.todo`/
+  `describe.skip` without an ID) is not coverage and fails the run; IDs in comments don't count, nor does an e-mail-like
+  `owner@clinic-1.test`; anything that is not exactly a catalog ID (`@AUTH-0163`, `@auth-189`) is reported as unknown
+  and fails the run.
+
+**Every later step adds its cases and tests**, in the same commit as its code and docs:
+1. Update the feature's `business.md` / `tech.md` (the rule comes first).
+2. Add the new behaviors to the catalog (the area's next free number; IDs are never reused; a new area only for a new
+   feature) and fix the cases whose behavior changed; update the catalog's summary counts.
+3. Write a test at each case's level ([Adding a test](#adding-a-test)), tagged with the case IDs.
+4. Run `./test.ps1 -Tier step` after each round, `./test.ps1 -Tier full` at the end of the feature and before merging
+   to `main`.
+
+## Adding a test
+
+Pick the level from the case's `Level` column; one test per behavior, named after the "then" of the case.
+
+| Level | Where | How |
+|---|---|---|
+| `unit` (backend: a pure rule, a validator) | `tests/ClinicHub.UnitTests/<Module>/<SubFeature>/` | [Backend unit tests](#backend-unit-tests-testsclinichubunittests) |
+| `api` | `tests/ClinicHub.IntegrationTests/<Area>/` | [Integration tests](#integration-tests-testsclinichubintegrationtests) |
+| `unit` (frontend pure logic), `ui` | next to the code, `<name>.test.ts(x)` | [Component tests](#component-and-frontend-unit-tests-vitest) |
+| `e2e` | `ClinicHub.Web/e2e/<area>/<journey>.spec.ts` | [End-to-end tests](#end-to-end-tests-playwright-clinichubwebe2e) |
+| `manual` | not automated | the [dress rehearsal](dress-rehearsal.md) runs it |
+
+Rules for every level ([design D10](../design/m1.6-test-foundation.md#d10-review-of-test-code)):
+- **Expected values come from the docs** (catalog, feature docs, locale files), never from running the app. If the app
+  disagrees with a clear doc, keep the test as the doc says and see [Known bugs](#known-bugs).
+- Assert a **business** outcome (status, code, message, data), not an implementation detail.
+- No sleeps: time through the test clock (`Clock.Advance`), waits through the framework's assertions (`findBy…`,
+  Playwright's `expect`).
+- Tests are independent: every suite runs in a random order; never rely on another test's data.
+- A dosing or taper rule that both C# and TypeScript implement gets a row in `tests/fixtures/dosing-cases.json`
+  ([fixtures README](../../tests/fixtures/README.md)).
+
+## Backend unit tests (`tests/ClinicHub.UnitTests`)
+
+Pure rules (Domain, Application: `DosingRules`, `PermissionCatalog`/`PermissionSet`, `PhoneNormalizer`, `SessionRules`,
+`RoleRules`, `StaffRules`, `Paging`, `SearchText`, …) and every validator, without a database or HTTP. The folders
+mirror the Application's (`Access/Roles/`, `Catalog/Drugs/`, `Identity/Login/`, …). Application types are `internal`:
+the test project sees them through `InternalsVisibleTo`.
+
+```csharp
+[Trait("Area", "access")]                    // every class: its area
+public class PermissionSetTests
+{
+    [Fact]
+    [Trait("Case", "ACC-005")]               // one per catalog case this test proves
+    [Trait("Tier", "Smoke")]                 // optional: unit tests run in every tier anyway
+    public void Of_expands_the_requirements_transitively()
+    {
+        PermissionSet.Of(["drugs.update"]).Keys.ShouldBe(["drugs.update", "drugs.details", "drugs.list"], ignoreOrder: true);
+    }
+}
+```
+
+Helpers (`TestSupport/`): `ApiValidation.Run(validator, command)` runs a validator the way the API does (the real
+`ValidationBehavior` and `ApiProblemFactory`: status, codes in report order, camelCase `field`), so a validator test
+asserts what the API documents (`answer.Status.ShouldBe(400); answer.Code.ShouldBe("nameRequired")`; see
+`Catalog/Drugs/CreateDrugCommandValidatorTests.cs`); `FixedClock` (a stopped clock); `Text` (hard-to-read strings: a
+zero-width space, a name of exactly n characters). A rule whose answer depends on the database (a 404, a 409) is an
+`api` case, not a unit one.
 
 ## Integration tests (`tests/ClinicHub.IntegrationTests`)
 
@@ -270,7 +386,26 @@ startup seeder runs (it promotes and demotes super admins there). After `variant
 - the next test (of this class too) starts on a reset database, as if it were a new class; dispose the variant in the
   test (`await using`).
 
-## Component tests (Vitest, `ClinicHub.Web/src/**/*.test.ts(x)`)
+## Component and frontend unit tests (Vitest)
+
+Next to the code they test (`DrugFormDialog.tsx` → `DrugFormDialog.test.tsx`, a big one split by subject:
+`DrugGroupEditorPage.save.test.tsx`); helpers in `ClinicHub.Web/src/test`. The area tag goes on the `describe`, the
+case IDs (and `@smoke`) on each test:
+
+```ts
+describe("drug dialog: opening and the name @area:catalog", () => {
+    test("an empty or spaces-only name: red with «الاسم مطلوب.» under it, no request @DRUG-063 @smoke", async () => {
+        // …
+    });
+});
+```
+
+- Pure logic (`dosingText.ts`, `taper.ts`, `prescriptionText.ts`, `api/errors.ts`, …): plain function tests, one per
+  rule and boundary (both sides of each limit). It carries the coverage and StrykerJS gates ([Mutation
+  testing](#mutation-testing)).
+- Components: render with the providers, drive with `userEvent` like a user (roles and labels, not CSS classes),
+  answer the API with MSW handlers shaped like the tech docs, assert what the user sees (texts from the locale files'
+  values as quoted in the catalog) and what the SPA sent (`recordRequests`).
 
 ### How to write a component test
 
@@ -305,8 +440,74 @@ startup seeder runs (it promotes and demotes super admins there). After `variant
   keep them in step), `groupEditor.tsx`, `prescription.tsx`, `rolesTab.ts`, `staffTab.ts`, `EditorHarness.tsx`,
   `DosingHarness.tsx` + `dosing.ts`.
 
+## End-to-end tests (Playwright, `ClinicHub.Web/e2e`)
+
+Critical journeys through the real app in a browser: one spec file per journey under its area's folder
+(`e2e/auth/login.spec.ts`, `e2e/prescription/copy.spec.ts`, …); shared steps and data in `e2e/support/`. E2E tests prove
+P0 and P1 cases only.
+
+### What a test runs against
+
+- `npm run e2e` (global setup, `e2e/global-setup.ts`) builds the SPA and the Release API, starts the API in the
+  `Testing` environment on its own port (5080 and up) serving the built SPA, on its own database `drags_e2e_<run>`
+  (created by the API's startup; any other name is refused, never `drags`), seeds the template's catalog, and at the end
+  stops the API and drops the database. Docker's PostgreSQL must be up (it is started when it isn't).
+- Settings on top of `appsettings.Testing.json`: a pool of super admin phones (each test claims its own, so the OTP
+  limit of 5 codes per hour per phone is never reached) and `Otp:ResendSeconds = 0` (a test may log the same person in
+  twice in a row; the 60 s rule is proven by the `api` tests).
+- Projects (`playwright.config.ts`), all Chromium: `ar-desktop` and `en-desktop` (1280 px), `ar-phone` (375 px, touch),
+  and `ar-desktop-template`: the specs of `e2e/template-edits/` change the template clinic's catalog (copied into every
+  new clinic), so they run alone, after all the others.
+- Parallel: `fullyParallel`, 4 workers, no retries (a flaky test is a bug to fix, not to retry).
+
+### Writing a spec
+
+```ts
+import {expect, signIn, test} from "../support/fixtures.ts";
+
+test.describe("Drugs: add, open, edit @area:catalog", () => {
+    test("«إضافة دواء», a name, Save: the toast «تمت إضافة الدواء», the dialog closes and the drug is listed @DRUG-061 @smoke",
+        async ({page, t, data, healthy}) => {
+            const clinic = await data.clinic();                      // a new clinic of its own, through the API
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs"); // fast login, then the page
+            await page.getByRole("button", {name: t.addDrug}).click();
+            // … the steps a user takes, then the outcome the case states
+            await healthy();                                         // the page checks, at an interesting moment
+        });
+});
+```
+
+| Need | Use (`e2e/support/`) |
+|---|---|
+| The project's language and its expected texts | `lang`, `t` (`texts.ts`, plus `texts-catalog.ts`, `texts-rx.ts`, `texts-ux.ts`): written out from the catalog and the locale files, never imported from them, so a changed message fails a test |
+| Test data through the real API (the worker's super admin; an owner for drugs and groups) | `data.clinic()`, `data.staff(clinic, …)`, `data.role(clinic, permissions)`, `data.drug(clinic)`, `data.group(clinic, drugs)`, `data.suspend` / `deleteClinic` / `deactivate` / `removeStaff`, … (`data.ts`); every name and phone unique in the run (`unique()`, `uniquePhone()`) |
+| A logged-in page | `signIn(page, phone, target, path)` (OTP through the browser's own request context, so the cookie is the browser's; `target` = `"asIs"`, `"platform"`, `"template"`, `{clinicId}`), `signInSuperAdmin(page)`; through the login page itself: `loginViaUi(page, t, phone)` (for the login cases) |
+| Another tab (same cookies) or another browser (own cookies, a second user) | `newTab()`, `newBrowser()` |
+| Page checks | `healthy()`: `dir`/`lang` of the UI language, no horizontal scroll, axe-core (serious/critical fail); run by itself on every page left open at the end of a passing test, which also fails on any console error or uncaught exception |
+| The API cut off on purpose (`page.route(…).abort()`) | `allowNetworkErrors()` (the browser's `net::ERR_…` lines are then expected) |
+| Page loaded, toasts, the sidebar, area steps | `settled(page)`, `expectToast`, `openSidebar` / `navTo` (`ui.ts`), `catalog.ts`, `rx.ts`, `ux.ts` |
+
+- Locate by role and accessible name in the project's language (`getByRole("button", {name: t.addDrug})`), like a
+  user; never by CSS class unless nothing else exists (MUI internals).
+- Wait with Playwright's web-first assertions (`await expect(…).toBeVisible()`), never `waitForTimeout`.
+- Each test makes its own clinic and users: tests run in parallel against one database and never see each other's
+  data. Don't change the template clinic outside `e2e/template-edits/`.
+- An axe finding that is a known bug is listed in `KNOWN_AXE` (`checks.ts`) with its `BUG-nnn`, limited to the
+  elements its row documents: reported, not failed, so the rest of the scan still guards every page.
+- `npm run e2e` first type-checks and lints the specs (`tsc -p e2e`, ESLint): fix those errors first.
+
 ## Known bugs
 
-See [known-bugs.md](known-bugs.md): mark the test (xUnit `Skip = "BUG-0nn: …"`, Vitest `test.skip("BUG-1nn: … @ID")`,
-Playwright `test.fixme("BUG-1nn: … @ID")`), add the row. Known-bug tests count as covered-but-known-bug in the
-traceability report and are listed in the summary; a skip without its `BUG-nnn` ID fails the run.
+A test that fails because the app contradicts a **clear** doc is never weakened to pass. From the end of M1.6, a bug a
+new test finds in the feature being built is **fixed with that feature**, in the same step (the test then passes
+unchanged). Only a bug that can't be fixed there (outside the step's scope, or deferred by the user) is marked and
+listed in [known-bugs.md](known-bugs.md); a rule the docs don't settle is a question for the user, not a bug. The
+entries collected during M1.6 are fixed after it, one per commit ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)).
+
+Marking (the ID in the marker, the case tags kept):
+- xUnit: `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a **plain string literal**;
+- Vitest: `test.skip("BUG-612: <one line> @DOSE-012", …)`;
+- Playwright: `test.fixme("BUG-612: <one line> @RX-004", …)`.
+
+Known-bug tests count as covered-but-known-bug in the traceability report and are listed in `artifacts/summary.md`;
+a skip without its `BUG-nnn` ID fails the run. Fixing one: [known-bugs.md § How to clear an entry](known-bugs.md#how-to-clear-an-entry).

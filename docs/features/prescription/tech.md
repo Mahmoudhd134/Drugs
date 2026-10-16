@@ -122,10 +122,16 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
 - The execCommand fallback requires a real user click.
 
 ## Testing notes
-Browser (real clicks, :5173, Arabic + English, desktop + 375px): add group (description fallback),
-add drugs with Enter, ⊕ other eye insertion and button hiding, line edit with note, eye clash
-error, editor content (RTL, bold names, sentences, note), legacy storage migration, copied
-plain text/HTML. M1.6.0: a group with two lines for the same drug and effective eye → one line added, the toast says
-"Duplicated in the group, not added: 1" / «مكرر في المجموعة ولم يُضف: 1» (EN/AR, 1280/375); an `ask` line + a right
-line of the same drug, right chosen → the "Two dosings for the same eye" dialog, the picked dosing added, no
-"duplicated" line; fast double clicks on a drug and on a group add it once (one flow, one dialog).
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[RX](../../testing/test-catalog.md#rx--prescription-builder); a change here adds or fixes its cases and tests. The
+prescription has no API of its own (no `api` cases).
+
+| Level | Tests |
+|---|---|
+| unit | Vitest `ClinicHub.Web/src/features/prescription/prescriptionText.test.ts` (plain text, HTML, paste HTML), `usePrescriptionLines.test.ts` (per-clinic storage, legacy migration, other eye, undo), `src/utils/clipboard.test.ts` |
+| ui | `ClinicHub.Web/src/features/prescription/pages/` (adding drugs and groups, "ask" eye, conflicts), `components/` (line edit, editor dialog, panels) |
+| e2e | `ClinicHub.Web/e2e/prescription/` (add drugs, add group, conflicts, edit lines, copy with the clipboard read back, clear + undo and storage) |
+
+Still by hand (`manual` cases, run in the [dress rehearsal](../../testing/dress-rehearsal.md)): RX-080 pasting into
+Word, RX-081 into Windows Notepad and WhatsApp, RX-082 copying over plain http on the LAN, UX-011 a real phone, UX-037
+the async Clipboard API over the real HTTPS deployment.

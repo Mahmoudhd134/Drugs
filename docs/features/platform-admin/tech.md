@@ -376,6 +376,25 @@ action (`<Can>`, or capability flags on the adapter) comes with the clinic-side 
   requests at most.
 
 ## Testing notes
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[ADM](../../testing/test-catalog.md#adm--platform-admin) (admin authorization, the clinics list, create and
+provisioning, rename, suspend, delete, roles, staff, the last owner, the Owner label, lockout after an admin change);
+a change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Platform/Clinics/`, `Access/Roles/` (`RoleRules`, `DefaultRoles`, validators), `Access/StaffMembers/` (`StaffRules`, validators); Vitest `ClinicHub.Web/src/features/roles/permissionChoice.test.ts` |
+| api | `tests/ClinicHub.IntegrationTests/Admin/` (collections and helpers: its [README](../../../tests/ClinicHub.IntegrationTests/Admin/README.md); includes the ported M1.5 acceptance matrix; "restarted API" cases on a variant app) (`./test.ps1 -Area admin`) |
+| ui | `ClinicHub.Web/src/features/admin/` (clinics, create, clinic page, overview, delete dialog), `src/features/roles/`, `src/features/staff/`, `src/app/App.adminRoutes.test.tsx` |
+| e2e | `ClinicHub.Web/e2e/admin/` (clinics list, create, overview, layout, roles, staff), `e2e/auth/lost-clinic.spec.ts`, `e2e/auth/picker.spec.ts` |
+
+Mutation: `AdminClinicFilter.cs` is a critical file (85%, scored by the `admin` tests:
+[testing README § Mutation testing](../../testing/README.md#mutation-testing)).
+
+### Before M1.6: manual verification (record)
+
+Kept because test cases and the [HLD](../../design/platform-hld.md#m1-clinic-platform) cite it (e.g. ADM-157, ADM-232).
+
 **M1.5.5**, verified in the built-in browser on a scratch database `drags_m155` (fresh dev seed; dropped afterwards; the
 main dev DB untouched), API on `:5055` from the Release build serving the built SPA, opened as `http://m155.localhost:5055`
 (the owner and the staff member on their own hosts, `owner155.` / `staff155.localhost`), English and Arabic, 1280 and

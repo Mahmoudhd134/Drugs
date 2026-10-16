@@ -122,7 +122,19 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
   src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
-docs/                          this documentation
+  src/**/*.test.ts(x)          Vitest unit + component tests, next to the code; src/test/: their helpers (providers,
+                               MSW handlers, builders, page harnesses)
+  e2e/                         Playwright end-to-end specs per area (auth/, catalog/, prescription/, …); support/:
+                               fixtures, API data builders, expected texts, page checks; global-setup.ts (own API + DB)
+tests/                         automated tests (docs/testing/README.md)
+  ClinicHub.UnitTests/         xUnit: Domain + Application pure rules and validators, per module (Access/, Catalog/, …)
+  ClinicHub.IntegrationTests/  xUnit + WebApplicationFactory on PostgreSQL, per area (Auth/, Access/, Isolation/,
+                               Errors/, Admin/, Catalog/); Harness/ (databases, builders, login, clock), SelfTests/
+  fixtures/                    dosing-cases.json: dosing/taper rule parity cases
+  tools/                       traceability (catalog IDs ↔ tests), coverage gates, mutation score
+  stryker-config.json, coverage.runsettings   Stryker.NET (the 6 critical files) and coverage settings
+test.ps1                       the test runner: -Tier step | full | release (reports in artifacts/, git-ignored)
+docs/                          this documentation (docs/testing/: the test guide, catalog, known bugs, dress rehearsal)
 deploy.ps1, DEPLOY.md          production build + IIS guide
 ```
 
@@ -634,9 +646,15 @@ Checks before committing:
 ```bash
 cd ClinicHub.Web && npx tsc -b && npx eslint src
 dotnet build ClinicHub.sln             # all projects; use -c Release if Rider is running the Debug build
+./test.ps1 -Tier step                  # PowerShell, Docker running: unit + Vitest + integration smoke and the changed
+                                       # areas (+ e2e smoke when ClinicHub.Web/ changed), ≈ 6–10 min
+./test.ps1 -Tier full                  # at the end of a feature or milestone and before merging to main
 ```
 
-There are no automated tests yet. Verify UI changes in the browser at `http://localhost:5173`.
+Tests: tiers, reports, gates and how to add a test at each level are in the [testing README](../testing/README.md);
+what to test is the [test catalog](../testing/test-catalog.md). The test runs build in Release and use their own
+databases (`drags_it_*`, `drags_e2e_*`), never `drags`, so Rider can keep running the API. Still check UI changes in
+the browser at `http://localhost:5173` (Arabic and English, phone width).
 
 Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.md` (`deploy.ps1`).
 
@@ -672,7 +690,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
-- No automated tests.
+- Tests run locally only (`test.ps1`; no CI). Open app bugs found by the tests: [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist
 
@@ -684,5 +702,9 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 2. Frontend: `src/features/<feature>/` with `types.ts`, `api.ts` (keys + hooks), `components/`,
    `pages/`; lazy route in `CLINIC_ROUTES` (`app/App.tsx`) and a nav item in `NAV_ITEMS` (`app/navigation.tsx`); strings in `en.ts` **and** `ar.ts`.
 3. Check RTL (switch to Arabic) and mobile width.
-4. Run the checks above.
-5. Docs: `docs/features/<feature>/tech.md` + `business.md`, and update the overviews.
+4. Docs: `docs/features/<feature>/tech.md` + `business.md`, and update the overviews.
+5. Test cases: add the feature's cases to the [test catalog](../testing/test-catalog.md) (the area's next IDs, or a new
+   area for a new feature) and fix the cases whose behavior changed.
+6. Tests at each case's level (`unit`, `api`, `ui`, `e2e`), tagged with the case IDs
+   ([testing README § Adding a test](../testing/README.md#adding-a-test)), in the same commit as the code and docs.
+7. Run the checks above: `./test.ps1 -Tier step` after each round, `./test.ps1 -Tier full` when the feature is done.

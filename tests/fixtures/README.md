@@ -7,11 +7,13 @@ Data files shared by the backend and frontend tests. Expected values come from t
 
 The dosing and taper rules exist twice: C# `DosingRules` (`ClinicHub.Domain/Catalog/DosingRules.cs`) and TypeScript
 `features/dosing/types.ts` + `taperConfig.ts` ([M1.6 design D6](../../docs/design/m1.6-test-foundation.md#d6-rule-parity-between-c-and-typescript)).
-Both test suites run every case of this file, so the two can't drift:
+Both test suites are meant to run every case of this file, so the two can't drift:
 
 - **xUnit** (`tests/ClinicHub.UnitTests/Catalog/Parity`): `DosingRules.Normalize` + `IsValid`, and the drug or group
   validator with the API's error mapping (`errors`).
-- **Vitest** (phase B): `normalizeDosing` + `dosingErrors`, and the Arabic sentence (`ar`).
+- **Vitest**: `normalizeDosing` + `dosingErrors`, and the Arabic sentence (`ar`). **Not wired yet**: no Vitest test
+  reads this file today (the TypeScript rules are tested on their own in `features/dosing/types.test.ts` and
+  `taper.test.ts`), so only the C# side runs it.
 
 ### Shape
 
@@ -40,7 +42,7 @@ Both test suites run every case of this file, so the two can't drift:
 | `errors` | when `valid` is false | The API's `errors` for this dosing alone: `field` (`defaultDosing`, or `items[0].dosing` when the dosing is the first group line) and `code` (always `invalidDosing`). The SPA's own per-field errors (`doseAmount`, `taperSteps.<i>.durationUnit`…) are not listed |
 | `normalized` | when `valid` is true | The normalized dosing with **only its set fields** (null and absent fields left out, also inside `taperSteps`); `null` = no dosing at all (the API stores null; TS: `isDosingEmpty`) |
 | `apiOnly` | no | `true` when only the API enforces the row's rule, because the SPA can't produce that input: unknown or mis-cased codes, blank code strings, a NUL or more than 200 characters in the custom text (the field stops at 200), the `ask` eye on a drug default (the form only offers it on group lines), a one-step schedule whose step breaks the step rules (months, bedtime: the API folds it into a plain dosing first, the SPA checks the steps first and refuses it; an accepted difference, [tapering tech](../../docs/features/tapering/tech.md#edge-cases--limitations)). Both sides check `normalized` of valid rows; the TypeScript side skips the `valid` / `dosingErrors` comparison of these rows. The C# side checks every row |
-| `ar` | no | The Arabic sentence of a valid dosing (`dosingToText`); filled by the frontend in phase B |
+| `ar` | no | The Arabic sentence of a valid dosing (`dosingToText`); to be filled with the Vitest side (no row has it yet) |
 
 Compare `normalized` after dropping null/undefined fields on both sides. Numbers are plain JSON numbers (`2`, `0.5`);
 no row relies on number formatting (`2` vs `2.0`).

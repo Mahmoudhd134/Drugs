@@ -109,19 +109,15 @@ Catalog calls never send a clinic: it comes from the token. The SPA picks the cl
   `prescription.lines.<clinicId>`.)*
 
 ## Testing notes
-Verified manually (no automated tests before M1.6) on a reset DB, API on :5000, Vite on :5173:
-- Seed: template (id 1, 0 drugs), Demo clinic (id 2, 10,000 drugs), Second demo clinic (id 3,
-  3 drugs, 1 group with 3 items, all `ClinicId = 3`).
-- curl: each clinic lists only its drugs/groups; template and unknown ids list nothing; GET, PUT
-  and DELETE of the other clinic's drug and group → 404 (rows intact); a group in clinic 3 with a
-  clinic 2 drug → `drugNotFound`.
-- New drug, group and items get the right `ClinicId`; `CreatedAt`/`UpdatedAt` in UTC; an update
-  changes only `UpdatedAt`.
-- After review fixes: a dosing-only drug edit and a lines-only group edit move `UpdatedAt` (not
-  `CreatedAt`); `X-Dev-Clinic-Id: 99` / `abc` → 400; seed on a fresh DB (migrated with
-  `dotnet ef database update`) creates all three clinics.
-- Composite FKs: a raw SQL insert of an item linking a clinic 3 group to a clinic 2 drug fails
-  on `FK_DrugGroupItems_Drugs_DrugId_ClinicId` (or `..._DrugGroups_DrugGroupId_ClinicId`); group
-  create, line replace, drug edit, drug delete (cascades its line) and group delete all work.
-- Browser (Demo clinic): drugs list, edit, delete; group create, edit, delete; group added to a
-  prescription. No console errors.
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[ISO](../../testing/test-catalog.md#iso--clinic-isolation) (catalog routes across clinics, the clinic from the token
+only, the template clinic, the database guards, timestamps); a change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| api | `tests/ClinicHub.IntegrationTests/Isolation/` (two clinics side by side; raw SQL only for the "changed outside the app" and database-guard cases) (`./test.ps1 -Area isolation`) |
+| ui | `ClinicHub.Web/src/app/App.clinicLost.test.tsx` |
+| e2e | `ClinicHub.Web/e2e/isolation/clinics.spec.ts`, `e2e/auth/picker.spec.ts` |
+
+Mutation: `ClinicAndTimestampsInterceptor.cs` is one of the 6 critical files (85% on its own, scored by the
+`isolation` tests: [testing README § Mutation testing](../../testing/README.md#mutation-testing)).

@@ -1,6 +1,8 @@
 # Test catalog
 
-Status: **for review** (M1.6.1, 2026-10-15). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
+Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; every later step adds and fixes its cases
+([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
+Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
 [D7](../design/m1.6-test-foundation.md#d7-what-stays-manual)).
 
@@ -9,8 +11,9 @@ Status: **for review** (M1.6.1, 2026-10-15). Defined by the [M1.6 test foundatio
 The MVP ends with one full, free acceptance test by the client. This catalog lists everything the client could check,
 one behavior per line, taken from the business docs (the client's view) and the tech docs (API rules, exact codes): every
 rule and limit (both sides), every message, permissions, clinic isolation, both languages, phone width, double clicks,
-stale data and lost access. W1–W3 of M1.6 turn the cases into automated tests; the `manual` ones and every P0 case
-are also run by hand in the [dress rehearsal](dress-rehearsal.md). The feature docs stay the source of truth: when a
+stale data and lost access. M1.6 turned the cases into automated tests (phases A–C of the
+[design](../design/m1.6-test-foundation.md#7-sub-steps-and-phases)); the `manual` ones and every P0 case are also run by
+hand in the [dress rehearsal](dress-rehearsal.md). The feature docs stay the source of truth: when a
 case and its source disagree, the source wins and the case is fixed.
 
 ## How to read it
@@ -40,7 +43,8 @@ case and its source disagree, the source wins and the case is fixed.
 - E2E covers P0 and P1 cases only (Chromium only): a P2 case whose level includes `e2e` is covered by a component or
   `api` test where that is cheap, else left open (reported).
 - Every later step adds its feature's cases here, in the same commit as its docs and tests (a new area only for a new
-  feature), and fixes the cases whose behavior it changes.
+  feature), fixes the cases whose behavior it changes, and updates the [summary](#summary) counts
+  ([testing README § The test catalog](README.md#the-test-catalog-and-traceability)).
 - `manual` cases are not automated: they are run in the [dress rehearsal](dress-rehearsal.md) (with every P0 case).
 
 ## Open questions
