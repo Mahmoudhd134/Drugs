@@ -82,7 +82,15 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 - Code lists are fixed in code (MVP). Changing a code requires a data migration for stored values.
 
 ## Testing notes
-- API: valid dosing saved; non-applicable fields cleared; bad unit/frequency/eye, amount without
-  unit, missing counts, missing custom text, negative amount → 400 `invalidDosing`; empty → null.
-- Browser (desktop + 375px, Arabic + English): form prefill, live preview, custom frequency,
-  validation highlight, Arabic sentence alignment in both directions.
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[DOSE](../../testing/test-catalog.md#dose--structured-dosing); a change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Catalog/StructuredDosing/` (`DosingRules`), `Catalog/Parity/` (the C#/TypeScript parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/types.test.ts`, `dosingText.test.ts` (every Arabic sentence case) |
+| api | `tests/ClinicHub.IntegrationTests/Catalog/Doses/DosingTests.cs` (`./test.ps1 -Area catalog`) |
+| ui | `ClinicHub.Web/src/features/dosing/components/` (`DosingFields`), `src/features/drugs/components/DrugFormDialog.test.tsx` |
+| e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts` |
+
+A rule changed here changes both `DosingRules` and `types.ts`: add or fix its row in `dosing-cases.json`
+([fixtures README](../../../tests/fixtures/README.md)).

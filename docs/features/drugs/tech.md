@@ -107,9 +107,13 @@ else 401 / 403 ([access](../access/tech.md#api)).
 - No duplicate-name check: two drugs may share a name.
 
 ## Testing notes
-M1.6.1 (Q6): every folding in both directions (stored «أسبرين» found by «اسبرين» and back; ى/ي, ة/ه, ؤ/و, ئ/ي,
-diacritics, tatweel, superscript alef), prefix ranking after folding, paging counts, Latin and `%00` unchanged, a
-rename updates `SearchName`; migration up → down → up with data.
-Verified via API calls (create with Arabic text, search Arabic, prefix ranking, blank name → 400,
-update, delete, default dosing save/normalize/validate) and in the browser (dialog fields,
-`dir=auto`, dosing section, sentence in table and picker).
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[DRUG](../../testing/test-catalog.md#drug--drug-catalog) (incl. the Arabic-normalized search, DRUG-088 to DRUG-102); a
+change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Catalog/Drugs/` (validators), `Common/Search/` (`SearchText` folding), `Common/Validation/` |
+| api | `tests/ClinicHub.IntegrationTests/Catalog/Drugs/` (CRUD, validation, list, search), `Catalog/Migrations/` (`AddSearchNames` up → down → up with data, DRUG-101) (`./test.ps1 -Area catalog`) |
+| ui | `ClinicHub.Web/src/features/drugs/` (`DrugFormDialog`, `DrugPicker`, `DrugsPage`) |
+| e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts`, `drugs-list.spec.ts`, `inheritance.spec.ts` |

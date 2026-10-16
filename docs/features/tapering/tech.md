@@ -87,11 +87,12 @@ Invalid schedules return 400 `invalidDosing`.
 - A long schedule stays one sentence (one paragraph when copied).
 
 ## Testing notes
-- API (scripted, 27 checks): save/read/update/remove a taper, one-step folding, taper-only
-  dosing, 8 invalid schedules and 3 invalid step doses rejected, 10 steps accepted, open-ended
-  last step, group override with taper and with step dose (unit inherited), first-step dose moved
-  to the dosing.
-- Browser (Arabic + English, desktop + 375px): switch on/off pre-fill, generator, open-ended last
-  step + "Add step", step dose sentence, inherit-mode hint and copying the drug's steps, add group
-  with "ask" eye, conflict dialog with both schedules, identical taper skipped on re-add,
-  validation highlight, Edit & copy output, no horizontal overflow, tooltips.
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[TAPER](../../testing/test-catalog.md#taper--tapering-schedules); a change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Catalog/Tapering/`, `Catalog/Parity/` (the parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/taper.test.ts` (start, add step, total, generator), `dosingText.test.ts`, `types.test.ts` |
+| api | `tests/ClinicHub.IntegrationTests/Catalog/Doses/TaperTests.cs` (`./test.ps1 -Area catalog`) |
+| ui | `ClinicHub.Web/src/features/dosing/components/TaperStepsEditor*.test.tsx`, `dosingDialogs.test.tsx`, the drug and group-line dialogs' tests |
+| e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts`, `inheritance.spec.ts` |

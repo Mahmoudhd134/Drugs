@@ -357,8 +357,26 @@ implementations in `ClinicHub.Infrastructure/Identity/`, HTTP and cookie in `Cli
   (M1.5.3); the latter two reuse an existing user of the phone.
 
 ## Testing notes
-Verified manually on a reset DB (API on :5000 in Development, Vite on :5173). With a Python script
-against the API:
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
+[AUTH](../../testing/test-catalog.md#auth--login-otp-sessions-contexts) (OTP, verify, tokens, sessions and refresh,
+contexts and the picker, logout, lost contexts, several tabs); a change here adds or fixes its cases and tests.
+
+| Level | Tests |
+|---|---|
+| unit | `tests/ClinicHub.UnitTests/Identity/` (`Login/`: OTP hash and validators; `Sessions/`: `SessionRules`, `TokenService`; `Users/`: `PhoneNormalizer`); Vitest `ClinicHub.Web/src/features/auth/session.test.ts` |
+| api | `tests/ClinicHub.IntegrationTests/Auth/` (the real OTP flow and limits, a frozen test clock for every expiry and grace) (`./test.ps1 -Area auth`) |
+| ui | `ClinicHub.Web/src/features/auth/` (login and picker pages, user menu), `src/app/App.session.test.tsx`, `App.contexts.test.tsx`, `App.clinicLost.test.tsx` |
+| e2e | `ClinicHub.Web/e2e/auth/` (login, picker, session, lost clinic, template), `e2e/template-edits/` |
+
+Mutation: `VerifyOtpCommandHandler.cs`, `RefreshSessionCommandHandler.cs` and `MembershipService.cs` are critical files
+(85% each, scored by the `auth` tests: [testing README § Mutation testing](../../testing/README.md#mutation-testing)).
+Still by hand (`manual`, in the [dress rehearsal](../../testing/dress-rehearsal.md)): AUTH-167, staying logged in after
+a reload over the real HTTPS deployment.
+
+### Before M1.6: manual verification (record)
+
+Kept because test cases cite it (e.g. AUTH-026, AUTH-107). Verified manually on a reset DB (API on :5000 in
+Development, Vite on :5173). With a Python script against the API:
 - invalid phone → `invalidPhone`; unknown phone gets a code (`devCode`, 300 s), a second request
   → 429 `tooManyRequests`, the right code → 403 `noAccess` with no cookie, reused → `invalidCode`;
   4 wrong codes → `invalidCode`, 5th → `tooManyAttempts`, then the right code → `tooManyAttempts`;

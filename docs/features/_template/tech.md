@@ -25,4 +25,7 @@ Folder, controller, DTOs, validation rules, ordering/search rules, side effects.
 What happens on delete/concurrent edits/empty states; known gaps.
 
 ## Testing notes
-How it was verified (API calls, browser checks, migration up/down).
+The feature's catalog area and case IDs ([test catalog](../../testing/test-catalog.md)) and where its tests are, per
+level (unit, api, ui, e2e: [testing README § Adding a test](../../testing/README.md#adding-a-test)); the `manual` cases
+left for the dress rehearsal; anything checked by hand that no case covers (e.g. a migration up → down → up on real
+data).

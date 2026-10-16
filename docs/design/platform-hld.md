@@ -5,10 +5,11 @@ M1.4 architecture refactor are done ([clinic scoping](../features/clinic-scoping
 [login](../features/auth/tech.md), [access](../features/access/tech.md), [architecture](architecture.md));
 M1.5 platform admin is built ([design](m1.5-platform-admin.md); the admin API for clinics, provisioning, roles and
 staff, the admin area and its clinic, role and staff screens: [platform admin](../features/platform-admin/tech.md));
-M1.6 test foundation is next. See [Delivery](#12-delivery-phase-1-mvp).
+M1.6 test foundation is built ([design](m1.6-test-foundation.md), [testing README](../testing/README.md)): from now on
+every step adds its test cases and tests with its feature. See [Delivery](#12-delivery-phase-1-mvp).
 Decided in discussion on 2026-10-11.
-When each step is built it gets its own `docs/features/<feature>/` (tech + business) and the
-overviews are updated; this file stays the big picture.
+When each step is built it gets its own `docs/features/<feature>/` (tech + business), its cases in the
+[test catalog](../testing/test-catalog.md) and their tests, and the overviews are updated; this file stays the big picture.
 
 The MVP covers the clinic platform, **patients** (with dynamic forms) and the **patient portal**. It is
 the base of the full product, **not a throwaway**: later features (audit, support access, owners
@@ -55,7 +56,7 @@ M1.1–M1.3 (phases 1–3), M1.4 (phase 3.5), M1.5 (phase 4) and M3.2 (phase 5).
 | NFR-4 | Display OTP mode is **opt-in by config** (startup warning outside Development); hard-blocked again in Production once an SMS sender exists. |
 | NFR-5 | All times stored in UTC (`timestamptz`). Every table has `CreatedAt`/`UpdatedAt` (built: except the join tables `RolePermissions` and `StaffRoles`). |
 | NFR-6 | One deployable (API + SPA), one PostgreSQL database. Production requires HTTPS. |
-| NFR-7 | Up to M1.5 every step is verified manually (API calls + browser). **M1.6** adds the test foundation for everything built so far (integration tests on a real PostgreSQL for isolation, permissions, auth and the error contract; unit tests for pure rules and validators; a few end-to-end browser flows); from then on each step adds tests with its feature. |
+| NFR-7 | **Automated tests** (since M1.6; up to M1.5 every step was verified by hand). Every documented behavior is a case of the [test catalog](../testing/test-catalog.md) (P0/P1/P2, level `unit`/`api`/`ui`/`e2e`/`manual`), proved by xUnit unit and integration tests (the real app on PostgreSQL), Vitest unit and component tests and Playwright end-to-end journeys (Chromium only: desktop Arabic and English, a phone), run locally by `test.ps1` in three tiers (`step` after each round, `full` at a feature's end and before merging to `main`, `release` at a milestone's end; no CI). Gates: 100% of the P0 and P1 cases have a test (P2 reported, not gated); backend coverage ≥ 90% lines / 85% branches (95% branches in the critical modules); frontend pure logic ≥ 95% lines / 90% branches and 85% mutation; Stryker.NET ≥ 85% on each of the 6 critical backend files. Trimmed by the user (2026-10-15): e2e for P0 and P1 cases only, Chromium only, backend mutation on those 6 files only, P2 not gated. Each step adds its cases and tests with its feature ([testing README](../testing/README.md), [design](m1.6-test-foundation.md)). |
 | NFR-8 | The SMS/WhatsApp OTP sender, rate limits per IP and the Display-mode block in Production land in M3.2, before launch. |
 
 ### 1.3 Out of the MVP (designed for, not built)
@@ -625,7 +626,7 @@ implementation session and validated before the next (terms in the [status](#hig
 
 | Milestone | Steps | Status |
 |---|---|---|
-| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.5 ✅, **M1.6 next** |
+| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.6 ✅ |
 | **M2 Patients** | M2.1 dynamic forms · M2.2 patients · M2.3 patient portal | not started |
 | **M3 Production readiness** | M3.1 frontend enhancements ([12.1](#121-enhancements-m31)) · M3.2 hardening → **launch** | not started |
 
@@ -638,7 +639,7 @@ implementation session and validated before the next (terms in the [status](#hig
 | M1.3 | **Access** (was "phase 3"): staff, roles, permissions, `[HasPermission]`, `<Can>`. The cached per-request permission check should also verify the staff member (and clinic) is still active, closing the ≤ 15 min gap after removal/suspension | ✅ **Done** (2026-10-12): catalog endpoints, nav, pages and buttons are permission-gated; verified with Owner, Assistant and a read-only Viewer ([access](../features/access/tech.md)). Built with: HybridCache (10 min expiry, 30 s local) instead of a 60 s in-memory cache, invalidated by tag; `StaffRoles` with composite FKs including `ClinicId` (no `AccessService` check needed); migration `AddRoles` added on top of `Initial`; `GET /permissions` returns the catalog for any token (M1.5's role editor) |
 | M1.4 | **Architecture refactor** (was "phase 3.5"; pure refactor, no behavior change): 4 layers, MediatR use cases, `Result`/`Error`, one ProblemDetails shape ([architecture](architecture.md)) | ✅ **Done** (2026-10-14) in three parts plus a layout follow-up; the same endpoints and responses verified manually after each |
 | M1.5 | ✅ **Built** ([design](m1.5-platform-admin.md), five sub-steps: M1.5.1 admin foundations + clinic lifecycle API; M1.5.2 provisioning, `POST /admin/clinics` and the dev seed through it, with sample template content; M1.5.3 roles and staff API with the admin clinic filter; M1.5.4 admin area and clinic screens; M1.5.5 role and staff screens, reusable through a data adapter). **Platform admin** (was "phase 4"): clinic admin, provisioning, template content, super-admin/owner seeding, admin area (the `Clinics` table, template row and dev seed exist since M1.1; in Development the template gets sample drugs/groups since M1.5.2, copied by provisioning). Role and staff screens are reusable components so clinics can manage their own later | Super admin creates a clinic and its owner logs in to a copied catalog. ✅ (2026-10-15): verified in the browser end to end, also a staff member added with a custom role seeing exactly what it grants and losing the clinic once removed ([platform admin](../features/platform-admin/tech.md#testing-notes)) |
-| M1.6 | **Test foundation**: automated tests for M1.1–M1.5 (see NFR-7) | Tests green in one command; isolation, permissions, auth and the error contract covered |
+| M1.6 | ✅ **Built** ([design](m1.6-test-foundation.md): W0 behavior fixes, the [test catalog](../testing/test-catalog.md) of 1,187 cases, then three phases of parallel tracks: the foundation and frontend tests, the integration and e2e tracks, closing runs and docs). **Test foundation**: automated tests for M1.1–M1.5 (see NFR-7): xUnit unit + integration on PostgreSQL, Vitest unit + component, Playwright e2e, the `test.ps1` runner with its tiers and gates, catalog traceability, mutation on the critical code; app bugs found by the tests are listed in [known bugs](../testing/known-bugs.md) and fixed after M1.6. From now on every step adds its catalog cases and tests with its feature | Tests green in one command; isolation, permissions, auth and the error contract covered ([testing README](../testing/README.md)) |
 
 ### M2 Patients
 

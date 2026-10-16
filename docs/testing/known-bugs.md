@@ -1,29 +1,35 @@
 # Known bugs (found by the tests)
 
-Status: collected during M1.6 phases A–C, fixed after M1.6 ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)).
+Status: the entries below were collected while M1.6 wrote the tests and are fixed after M1.6, one per commit ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)).
 
 A known bug is an app behavior that contradicts a **clear** rule in the docs, found while writing a test. The test is
 kept exactly as the doc says (never weakened to pass) and marked as a known bug; the bug is listed here. A rule the docs
 don't settle is not a bug: it goes to the user's question list and the case keeps today's behavior.
 
+From the end of M1.6, a bug a new test finds in the feature being built is fixed with that feature, in the same step,
+and never listed here. Only a bug that can't be fixed there (outside the step's scope, or deferred by the user) gets an
+entry ([testing README § Known bugs](README.md#known-bugs)).
+
 ## How to add an entry
 
 1. Re-read the doc. If the doc is clear and the app disagrees, it is a bug.
-2. Mark the test with the next free ID of your range (phase A: infra BUG-001…049; other tracks get their own range
-   from the orchestrator):
-   - xUnit: `[Fact(Skip = "BUG-012: <one line>")]` (or `[Theory(Skip = …)]`), keeping its `[Trait("Case", …)]` tags;
-   - Vitest: `test.skip("BUG-112: <one line> @DOSE-012", …)`;
-   - Playwright: `test.fixme("BUG-212: <one line> @RX-004", …)`.
-3. Add a row below (a track writes `docs/testing/known-bugs.<track>.md` with the same table; the orchestrator folds it
-   in). The orchestrator checks each entry (app vs doc) before accepting it.
+2. Mark the test with the next free ID (IDs are never reused: take the next number above the highest one in this file
+   and in its history, `git log -p -- docs/testing/known-bugs.md`):
+   - xUnit: `[Fact(Skip = "BUG-612: <one line>")]` (or `[Theory(Skip = …)]`), a plain string literal, keeping its
+     `[Trait("Case", …)]` tags;
+   - Vitest: `test.skip("BUG-612: <one line> @DOSE-012", …)`;
+   - Playwright: `test.fixme("BUG-612: <one line> @RX-004", …)`; an axe finding: a `KNOWN_AXE` entry in
+     `ClinicHub.Web/e2e/support/checks.ts`, limited to the elements the row documents.
+3. Add a row below. Whoever validates the step checks the entry (app vs doc) before accepting it.
 
 Known-bug tests don't count against the gates: the traceability report counts their cases as covered-but-known-bug and
 lists them; `artifacts/summary.md` shows the count.
 
-## How to clear an entry (after M1.6)
+## How to clear an entry
 
-One bug per commit: fix the app, remove the `Skip` / `.skip` / `.fixme` marker from every test that names the ID (they
-must now pass, unchanged), delete the row here, and update the docs if the fix changes behavior.
+One bug per commit: fix the app, remove the `Skip` / `.skip` / `.fixme` marker (or the `KNOWN_AXE` entry) from every
+test that names the ID (they must now pass, unchanged), delete the row here, and update the docs if the fix changes
+behavior.
 
 ## Entries
 
