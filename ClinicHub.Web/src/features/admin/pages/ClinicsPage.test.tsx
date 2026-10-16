@@ -43,9 +43,11 @@ describe("clinics list @area:admin", () => {
         const [first, second] = rows();
         expect(within(first).getByText("نشطة")).toBeInTheDocument();
         expect(within(second).getByText("موقوفة")).toBeInTheDocument();
+        // The Arabic medium date (the English one is "Oct 1, 2026"): day/month/year with Latin digits, the separators
+        // kept right-to-left by RLM marks; not the English date, no Arabic-Indic digit
         const date = within(first).getAllByRole("cell")[3].textContent ?? "";
-        expect(date).toContain("2026");
-        expect(date).not.toMatch(/[٠-٩]/);
+        expect(date).toBe("01\u200f/10\u200f/2026");
+        expect(date).not.toMatch(/[A-Za-z٠-٩]/);
     });
 
     test("no clinic at all: «لا توجد عيادات بعد» with the first-clinic hint @ADM-032", async () => {
@@ -163,7 +165,8 @@ describe("clinics list @area:admin", () => {
 
     test("the list request fails: «تعذّر تحميل البيانات.» with «إعادة المحاولة», which loads it @ADM-044", async () => {
         let calls = 0;
-        server.use(http.get(api("/admin/clinics"), () => (++calls === 1
+        // The first load and its one retry (a 5xx is retried once, as in the app) fail
+        server.use(http.get(api("/admin/clinics"), () => (++calls <= 2
             ? problem(500, "unexpected")
             : HttpResponse.json({items: [aClinicDetails({name: "Clinic A"})], totalCount: 1, page: 1, pageSize: 20}))));
         const {user} = await renderAdmin("/admin", {lang: "ar"});

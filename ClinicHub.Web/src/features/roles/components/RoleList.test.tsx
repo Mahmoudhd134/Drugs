@@ -134,7 +134,8 @@ describe("roles list @area:admin", () => {
         let calls = 0;
         server.use(
             ...adminClinicsHandlers([clinic]), permissionsHandler(),
-            http.get(api(`/admin/clinics/${clinic.id}/roles`), () => (++calls === 1 ? problem(500, "unexpected") : HttpResponse.json(defaultRoles()))),
+            // The first load and its one retry (a 5xx is retried once, as in the app) fail
+            http.get(api(`/admin/clinics/${clinic.id}/roles`), () => (++calls <= 2 ? problem(500, "unexpected") : HttpResponse.json(defaultRoles()))),
         );
         const {user} = await renderAdmin(`/admin/clinics/${clinic.id}/roles`, {lang: "ar"});
         expect(await screen.findByText("تعذّر تحميل البيانات.")).toBeInTheDocument();
@@ -144,12 +145,17 @@ describe("roles list @area:admin", () => {
 });
 
 describe("the Owner label and stored role names @area:admin", () => {
-    test("the Owner role (isOwner) reads «المالك» in Arabic and \"Owner\" in English; the API's name is \"Owner\" @ADM-257", async () => {
-        const roles = defaultRoles();
-        expect(roles[0]).toMatchObject({name: "Owner", isOwner: true});
-        await openRolesTab(roles, {lang: "ar"});
+    test("the Owner role (isOwner, stored as \"Owner\" as the API returns it) reads «المالك» in Arabic and \"Owner\" in English @ADM-257", async () => {
+        // The stored name the API returns (proven at api level) is the input here, not a check
+        const roles = () => [anOwnerRole({name: "Owner"}), aRole({name: "Doctor"})];
+        const arabic = await openRolesTab(roles(), {lang: "ar"});
         expect(within(roleRows()[0]).getByText("المالك")).toBeInTheDocument();
         expect(within(roleRows()[0]).queryByText("Owner")).not.toBeInTheDocument();
+        arabic.unmount();
+
+        await openRolesTab(roles());
+        expect(within(roleRows()[0]).getByText("Owner")).toBeInTheDocument();
+        expect(within(roleRows()[0]).queryByText("المالك")).not.toBeInTheDocument();
     });
 
     test("Doctor, Assistant and «قراءة فقط» show as stored, in both languages @ADM-260", async () => {

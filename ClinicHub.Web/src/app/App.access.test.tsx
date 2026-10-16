@@ -53,7 +53,7 @@ describe("permissions in the app @area:access", () => {
         return {button, retry, release};
     };
 
-    test("/me fails: the load error with «إعادة المحاولة», not the no-permission page; Retry loads it again and recovers", async () => {
+    test("/me fails: the load error with «إعادة المحاولة», not the no-permission page; Retry loads it again and recovers @ACC-072", async () => {
         const {retry, release} = await meFailsThenRecovers();
         await retry();
         expect(await screen.findByRole("progressbar")).toBeInTheDocument();
@@ -63,11 +63,12 @@ describe("permissions in the app @area:access", () => {
         expect(screen.queryByText("تعذّر تحميل البيانات.")).not.toBeInTheDocument();
     });
 
-    test.skip("BUG-175: Retry never shows its own progress (meRetrying is never true); the error is replaced by the page spinner @ACC-072", async () => {
+    test.fails("BUG-175: Retry never shows its own progress (meRetrying is never true); the error is replaced by the page spinner @ACC-072", async () => {
         const {button, retry, release} = await meFailsThenRecovers();
         await retry();
-        // The load error stays, its «إعادة المحاولة» showing progress (MUI loading button: disabled, a spinner inside)
-        await waitFor(() => expect(button).toBeDisabled());
+        // The load error stays, its «إعادة المحاولة» showing progress (MUI loading button: disabled, a spinner inside).
+        // The answer is held, so the state is stable: a short wait keeps this expected failure fast.
+        await waitFor(() => expect(button).toBeDisabled(), {timeout: 3000});
         expect(within(button).getByRole("progressbar")).toBeInTheDocument();
         expect(screen.getByText("تعذّر تحميل البيانات.")).toBeInTheDocument();
         release();

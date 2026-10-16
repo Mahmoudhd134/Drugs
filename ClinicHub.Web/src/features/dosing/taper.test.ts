@@ -1,4 +1,5 @@
 import {describe, expect, test} from "vitest";
+import i18n from "../../i18n";
 import {addStep, generateTaper, scheduleToStep, startSchedule, taperTotal, type TaperPlan} from "./taper.ts";
 import type {TaperStep} from "./types.ts";
 
@@ -90,6 +91,51 @@ describe("taperTotal @area:catalog", () => {
         expect(taperTotal([{frequency: "daily", frequencyValue: 4}, {frequency: "daily", frequencyValue: 3, durationUnit: "weeks"}]))
             .toEqual({days: 0, openEnded: null});
         expect(taperTotal([])).toEqual({days: 0, openEnded: null});
+    });
+});
+
+describe("the total's days and words (the chip that shows them: TaperStepsEditor.test.tsx) @area:catalog", () => {
+    const ar = i18n.getFixedT("ar");
+    const en = i18n.getFixedT("en");
+    const weeks = (t: typeof ar, count: number) => t("dosing.taper.totalWeeks", {count});
+    const days = (t: typeof ar, count: number) => t("dosing.taper.totalDays", {count});
+
+    test("1 week + 1 week: 14 days, «المدة الإجمالية: أسبوعين» / \"Total: 2 weeks\" @TAPER-046", () => {
+        expect(taperTotal([daily(4), daily(3)])).toEqual({days: 14, openEnded: null});
+        expect(weeks(ar, 2)).toBe("المدة الإجمالية: أسبوعين");
+        expect(weeks(en, 2)).toBe("Total: 2 weeks");
+    });
+
+    test("whole weeks: 7 / 14 / 21 / 77 days read «أسبوع» / «أسبوعين» / «3 أسابيع» / «11 أسبوعًا» @TAPER-047", () => {
+        expect(taperTotal([daily(4, 7, "days")]).days).toBe(7);
+        expect(taperTotal([daily(4, 2)]).days).toBe(14);
+        expect(taperTotal([daily(4, 1), daily(3, 14, "days")]).days).toBe(21);
+        expect(taperTotal([daily(4, 10), daily(3, 7, "days")]).days).toBe(77);
+        expect([1, 2, 3, 11].map(count => weeks(ar, count))).toEqual([
+            "المدة الإجمالية: أسبوع",
+            "المدة الإجمالية: أسبوعين",
+            "المدة الإجمالية: 3 أسابيع",
+            "المدة الإجمالية: 11 أسبوعًا",
+        ]);
+    });
+
+    test("1 week + 3 days: 10 days, «المدة الإجمالية: 10 أيام»; 1 / 2 / 15 / 100 days @TAPER-048", () => {
+        expect(taperTotal([daily(4), daily(3, 3, "days")])).toEqual({days: 10, openEnded: null});
+        expect(days(ar, 10)).toBe("المدة الإجمالية: 10 أيام");
+        expect([1, 2, 15, 100].map(count => days(ar, count))).toEqual([
+            "المدة الإجمالية: يوم واحد",
+            "المدة الإجمالية: يومين",
+            "المدة الإجمالية: 15 يومًا",
+            "المدة الإجمالية: 100 يوم",
+        ]);
+    });
+
+    test("2 weeks then continuous: «المدة الإجمالية: أسبوعين، ثم بصفة مستمرة» / \"Total: 2 weeks, then: Continuous\" @TAPER-049", () => {
+        const total = taperTotal([daily(4), daily(3), {frequency: "daily", frequencyValue: 2, durationUnit: "continuous"}]);
+        expect(total).toEqual({days: 14, openEnded: "continuous"});
+        const then = (t: typeof ar) => t("dosing.taper.totalThen", {total: weeks(t, 2), period: t(`dosing.durations.${total.openEnded}`)});
+        expect(then(ar)).toBe("المدة الإجمالية: أسبوعين، ثم بصفة مستمرة");
+        expect(then(en)).toBe("Total: 2 weeks, then: Continuous");
     });
 });
 

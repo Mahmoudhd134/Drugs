@@ -145,6 +145,7 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["تم تغيير اسم العيادة", () => t("admin.clinic.renamed")],
             ["تم إيقاف العيادة", () => t("admin.clinic.disabled")],
             ["تم تفعيل العيادة", () => t("admin.clinic.enabled")],
+            ["العيادة موقوفة: لا يستطيع موظفوها دخولها. فعّلها ليعود لهم الدخول.", () => t("admin.clinic.suspendedInfo")],
             ["إيقاف «اسم العيادة»؟", () => t("admin.clinic.disableTitle", {name: "اسم العيادة"})],
             ["يفقد موظفوها الدخول بمجرد قيامهم بأي إجراء تالٍ، حتى من يعمل داخلها الآن. لا يُحذف شيء، ويمكنك تفعيلها من جديد في أي وقت.",
                 () => t("admin.clinic.disableMessage")],

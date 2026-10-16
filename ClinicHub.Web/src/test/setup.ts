@@ -1,9 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import {afterAll, afterEach, beforeAll, beforeEach, vi} from "vitest";
-import {cleanup, configure} from "@testing-library/react";
+import {cleanup, configure, fireEvent} from "@testing-library/react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import {restoreClipboard} from "./clipboard.ts";
+import {takeForbiddenQueries} from "./render.tsx";
 import {server} from "./server.ts";
 import {resetStorage} from "./storage.ts";
 import {installMatchMedia, setViewportWidth} from "./viewport.ts";
@@ -49,6 +50,10 @@ const settleRequests = async () => {
 };
 
 afterEach(async () => {
+    // react-hot-toast pauses every toast's timer while the pointer is over its Toaster (a click on a toast's button
+    // leaves it there) and keeps that pause in its module store: end it while the Toaster is still mounted, so the
+    // next test's toasts time out as they should
+    document.querySelectorAll("[data-rht-toaster]").forEach(toaster => fireEvent.mouseLeave(toaster));
     cleanup();
     vi.useRealTimers();
     await settleRequests();
@@ -62,8 +67,15 @@ afterEach(async () => {
     await i18n.changeLanguage("en");
     resetStorage();
     setViewportWidth();
+    // Both lists are emptied before either fails the test, so neither leaks into the next one
     const missed = unhandled.splice(0);
-    if (missed.length) throw new Error(`Requests without a handler (add one with server.use): ${missed.join(", ")}`);
+    const forbidden = takeForbiddenQueries();
+    const problems = [
+        ...(missed.length ? [`Requests without a handler (add one with server.use): ${missed.join(", ")}`] : []),
+        ...(forbidden.length ? [`Queries answered 403 under renderWithProviders, which lacks the app's 403 handling ` +
+            `(a toast and /me reloaded): use startApp for this case. ${forbidden.join(", ")}`] : []),
+    ];
+    if (problems.length) throw new Error(problems.join(" | "));
 });
 
 afterAll(() => server.close());

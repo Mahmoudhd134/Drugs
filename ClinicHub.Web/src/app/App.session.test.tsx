@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {screen, waitFor} from "@testing-library/react";
+import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
@@ -18,6 +18,7 @@ import {
     server,
     sessionIn,
     startApp,
+    toastTexts,
 } from "../test";
 
 // The session in the running app: docs/features/auth/tech.md "Frontend" (session.ts, api/client.ts, AuthProvider,
@@ -111,6 +112,32 @@ describe("staying logged in @area:auth", () => {
 });
 
 describe("logging out @area:auth", () => {
+    test("logged out in another tab: this tab works until its next refresh mid-session, which opens /login with no message @AUTH-159", async () => {
+        // The page load's refresh works; the other tab's logout ends the session, so the next refresh answers 401
+        const refresh = refreshSequence(sessionIn(clinicA), problem(401, "unauthorized"));
+        server.use(
+            refresh.handler,
+            meByContext(),
+            http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})]))),
+            http.get(api("/drug-groups"), () => problem(401, "unauthorized")),
+            http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})),
+        );
+        const app = await startApp({route: "/drugs", lang: "ar"});
+        expect(await screen.findByText("Tobradex")).toBeInTheDocument();
+
+        // The next call answers 401 (the access token gone stale): the in-session refresh, not a page load
+        await app.user.click(screen.getAllByRole("link", {name: "المجموعات"})[0]);
+
+        await expectPath("/login");
+        expect(refresh.calls()).toBe(2);
+        expect(await screen.findByRole("button", {name: "إرسال الكود"})).toBeInTheDocument();
+        expect(app.session.getSession()).toEqual({status: "anonymous"});
+        // No message: neither a toast (the clinic-loss toasts are shown in a later task) nor an alert on the login page
+        await act(() => new Promise(resolve => setTimeout(resolve, 100)));
+        expect(toastTexts()).toEqual([]);
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
     test("the API unreachable: the user stays logged in and sees an error @AUTH-157", async () => {
         server.use(
             refreshSequence(sessionIn(clinicA)).handler,

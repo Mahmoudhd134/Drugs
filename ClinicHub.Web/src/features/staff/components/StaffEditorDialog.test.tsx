@@ -5,6 +5,8 @@ import {
     aClinicDetails,
     api,
     aStaffMember,
+    clickOutside,
+    expectStillOpen,
     fillIn,
     findToast,
     problem,
@@ -47,6 +49,15 @@ const openAdd = async (lang: "ar" | "en" = "ar") => {
     return {...rendered, dialog, phone, fullName, submit};
 };
 
+/** The roles error is the role boxes' own (tech "StaffEditorDialog": `aria-invalid` and the message as their description). */
+const expectRolesError = (dialog: HTMLElement, message: string) => {
+    const boxes = within(dialog).getAllByRole("checkbox");
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) {
+        expect(box).toHaveAttribute("aria-invalid", "true");
+        expect(box).toHaveAccessibleDescription(message);
+    }
+};
 
 describe("add a staff member @area:admin", () => {
     test("the dialog: the phone (LTR, its hint), the full name, a box per role (the Owner as \"Owner\" with \"Every permission\") @ADM-244", async () => {
@@ -81,6 +92,7 @@ describe("add a staff member @area:admin", () => {
         expect(phone).toHaveAccessibleDescription("رقم الموبايل مطلوب.");
         expect(fullName).toHaveAccessibleDescription("الاسم مطلوب.");
         expect(within(dialog).getByText("اختر دورًا واحدًا على الأقل.")).toBeInTheDocument();
+        expectRolesError(dialog, "اختر دورًا واحدًا على الأقل.");
         await waitFor(() => expect(phone).toHaveFocus());
         expect(recorded.writes()).toEqual([]);
     });
@@ -91,6 +103,7 @@ describe("add a staff member @area:admin", () => {
         expect(phone).toHaveAccessibleDescription("Mobile number is required.");
         expect(fullName).toHaveAccessibleDescription("Name is required.");
         expect(within(dialog).getByText("Choose at least one role.")).toBeInTheDocument();
+        expectRolesError(dialog, "Choose at least one role.");
     });
 
     const fillAndSubmit = async (form: Awaited<ReturnType<typeof openAdd>>, roleName: RegExp = /Assistant/) => {
@@ -142,12 +155,38 @@ describe("add a staff member @area:admin", () => {
         await fillAndSubmit(form);
 
         await waitFor(() => expect(within(form.dialog).getByText(message)).toBeInTheDocument());
-        const boxes = within(form.dialog).getAllByRole("checkbox");
-        for (const box of boxes) {
-            expect(box).toHaveAttribute("aria-invalid", "true");
-            expect(box).toHaveAccessibleDescription(message);
-        }
-        await waitFor(() => expect(boxes[0]).toHaveFocus());
+        expectRolesError(form.dialog, message);
+        await waitFor(() => expect(within(form.dialog).getAllByRole("checkbox")[0]).toHaveFocus());
+    });
+});
+
+describe("staff editor while saving @area:admin", () => {
+    // The same guard as the role editor's ADM-193
+    test("while adding, the editor can't be closed (Esc, backdrop, Cancel) until the answer @ADM-292", async () => {
+        let answer: () => void = () => undefined;
+        const answered = new Promise<void>(resolve => {
+            answer = resolve;
+        });
+        const form = await openAdd("ar");
+        server.use(http.post(api(`/admin/clinics/${form.clinic.id}/staff`), async () => {
+            await answered;
+            return HttpResponse.json(aStaffMember({fullName: "نور"}), {status: 201});
+        }));
+        await fillIn(form.user, form.phone, "01001234567");
+        await form.user.type(form.fullName, "نور");
+        await form.user.click(within(form.dialog).getByRole("checkbox", {name: /Assistant/}));
+        await form.submit();
+        await waitFor(() => expect(within(form.dialog).getByRole("button", {name: "إلغاء"})).toBeDisabled());
+
+        await form.user.keyboard("{Escape}");
+        await expectStillOpen(form.dialog);
+        await clickOutside(form.user, form.dialog);
+        await expectStillOpen(form.dialog);
+        expect(form.fullName).toHaveValue("نور");
+
+        answer();
+        expect(await findToast()).toBe("تمت إضافة «⁨نور⁩»");
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 });
 

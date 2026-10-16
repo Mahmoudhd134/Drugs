@@ -5,6 +5,8 @@ import {
     aClinicDetails,
     api,
     aRole,
+    clickOutside,
+    expectStillOpen,
     fillIn,
     findToast,
     PERMISSION_CATALOG,
@@ -14,6 +16,7 @@ import {
     renderWithProviders,
     rolesHandler,
     server,
+    setViewportWidth,
 } from "../../../test";
 import type {Role} from "../types.ts";
 import {RoleEditorHarness} from "../../../test/pages/EditorHarness.tsx";
@@ -231,12 +234,33 @@ describe("role editor: saving @area:admin", () => {
         await save();
         expect(await within(dialog).findByRole("button", {name: "جارٍ الحفظ…"})).toBeDisabled();
         expect(within(dialog).getByRole("button", {name: "إلغاء"})).toBeDisabled();
+        // Neither Esc nor a backdrop click starts closing it (checked once a closing animation would be over)
         await user.keyboard("{Escape}");
-        expect(screen.getByRole("dialog")).toBeInTheDocument();
+        await expectStillOpen(dialog);
+        await clickOutside(user, dialog);
+        await expectStillOpen(dialog);
+        expect(name).toHaveValue("Editors");
 
         answer();
         expect(await findToast()).toBe("تم إنشاء الدور «⁨Editors⁩»");
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+});
+
+describe("role editor on a phone @area:admin", () => {
+    test("at 375 px: full screen, only the content scrolls, Save and Cancel outside it @ADM-194", async () => {
+        setViewportWidth(375);
+        const {dialog} = await openEditor();
+        expect(dialog).toHaveClass("MuiDialog-paperFullScreen");
+        const content = dialog.querySelector<HTMLElement>(".MuiDialogContent-root")!;
+        expect(content).toContainElement(within(dialog).getByRole("checkbox", {name: AR.drugsList}));
+        for (const button of ["حفظ", "إلغاء"]) {
+            const control = within(dialog).getByRole("button", {name: button});
+            expect(content).not.toContainElement(control);
+            expect(control.closest(".MuiDialogActions-root")).not.toBeNull();
+        }
+        // The content is the part that scrolls (MUI DialogContent: overflow-y auto) inside the flex-column form
+        expect(getComputedStyle(content).overflowY).toBe("auto");
     });
 });
 
@@ -266,7 +290,8 @@ describe("role editor: the permission catalog @area:admin", () => {
     test("failed: \"Couldn't load data.\" with Retry, which loads it @ADM-191", async () => {
         let calls = 0;
         const {user, dialog} = await openWithCatalog(http.get(api("/permissions"), () =>
-            (++calls === 1 ? problem(500, "unexpected") : HttpResponse.json(PERMISSION_CATALOG))));
+            // The first load and its one retry (a 5xx is retried once, as in the app) fail
+            (++calls <= 2 ? problem(500, "unexpected") : HttpResponse.json(PERMISSION_CATALOG))));
         expect(await within(dialog).findByText("Couldn't load data.")).toBeInTheDocument();
         await user.click(within(dialog).getByRole("button", {name: "Retry"}));
         expect(await within(dialog).findAllByRole("checkbox")).toHaveLength(11);

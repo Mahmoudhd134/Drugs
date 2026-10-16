@@ -137,9 +137,10 @@ describe("language on start @area:i18n", () => {
         expect(errors).not.toHaveBeenCalled();
     });
 
-    test("first visit: any Arabic browser locale gives Arabic, else English; then the stored choice", async () => {
+    test("first visit: any Arabic browser locale gives Arabic, else English; then the stored choice @I18N-021", async () => {
         expect((await startApp(null, ["ar-SA"])).resolvedLanguage).toBe("ar");
         expect((await startApp(null, ["en-GB"])).resolvedLanguage).toBe("en");
+        expect((await startApp(null, ["fr-FR"])).resolvedLanguage).toBe("en");
         expect((await startApp("ar", ["en-US"])).resolvedLanguage).toBe("ar");
         vi.resetModules();
     });

@@ -117,17 +117,34 @@ describe("dosing fields: the eye toggle and the preview @area:catalog", () => {
     });
 
     test("no dosing: the preview says «لا توجد جرعة محددة» / \"No dosing set\" in a muted color @DOSE-082", async () => {
+        // "Muted" as the doc means it: not the sentence's colour, one of the theme's muted text tones (which one is
+        // BUG-505's business: its contrast)
         const theme = createAppTheme("rtl");
+        const hasColor = (element: Element, color: string) => {
+            try {
+                expect(element).toHaveStyle({color});
+                return true;
+            } catch {
+                return false;
+            }
+        };
+        const expectMuted = (element: Element) => {
+            expect(hasColor(element, theme.palette.text.primary), "not the sentence's colour").toBe(false);
+            expect([theme.palette.text.secondary, theme.palette.text.disabled].some(color => hasColor(element, color)),
+                "a muted text tone").toBe(true);
+        };
         const {unmount} = await renderFields("ar");
         expect(preview()).toHaveTextContent(/^لا توجد جرعة محددة$/);
-        expect(preview()).toHaveStyle({color: theme.palette.text.disabled});
+        expectMuted(preview());
         unmount();
         await renderFields("en");
         expect(preview("Prescription text")).toHaveTextContent(/^No dosing set$/);
-        expect(preview("Prescription text")).toHaveStyle({color: theme.palette.text.disabled});
+        expectMuted(preview("Prescription text"));
         // A sentence is not muted
         await renderFields("en", {doseUnit: "drop"});
-        expect(screen.getAllByText("Prescription text")[1].nextElementSibling).not.toHaveStyle({color: theme.palette.text.disabled});
+        const sentence = screen.getAllByText("Prescription text")[1].nextElementSibling!;
+        expect(sentence).toHaveTextContent(/^نقطة واحدة$/);
+        expect([theme.palette.text.secondary, theme.palette.text.disabled].some(color => hasColor(sentence, color))).toBe(false);
     });
 
     test("hovering the dose field shows «اكتب 0.5 لنصف قرص أو نصف نقطة.» @DOSE-083", async () => {

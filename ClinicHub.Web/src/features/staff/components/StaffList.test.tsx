@@ -121,7 +121,8 @@ describe("staff list @area:admin", () => {
             ...adminClinicsHandlers([clinic]),
             // The Staff tab also asks for the clinic's roles (adminRolesApi, for the staff editor)
             rolesHandler(clinic.id, Object.values(staffRoles())),
-            http.get(api(`/admin/clinics/${clinic.id}/staff`), () => (++calls === 1
+            // The first load and its one retry (a 5xx is retried once, as in the app) fail
+            http.get(api(`/admin/clinics/${clinic.id}/staff`), () => (++calls <= 2
                 ? problem(500, "unexpected")
                 : HttpResponse.json({items: [aStaffMember({fullName: "نور"})], totalCount: 1, page: 1, pageSize: 20}))),
         );

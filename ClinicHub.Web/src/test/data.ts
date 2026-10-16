@@ -74,6 +74,22 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     {key: "prescriptions.create", module: "prescription", resource: "prescriptions", action: "create", requires: ["drugs.list"]},
 ];
 
+/**
+ * `keys` with their requirements, transitively, in catalog order: the expanded set `/me` returns (access tech:
+ * `PermissionSet.Of` adds the requirements; roles are stored closed). A role can't hold `groups.create` without
+ * `groups.list` and `drugs.list`, so neither can a test user.
+ */
+export const withRequirements = (keys: readonly string[]): Permission[] => {
+    const held = new Set<string>();
+    const add = (key: string) => {
+        if (held.has(key)) return;
+        held.add(key);
+        PERMISSION_CATALOG.find(p => p.key === key)?.requires.forEach(add);
+    };
+    keys.forEach(add);
+    return PERMISSION_CATALOG.filter(p => held.has(p.key)).map(p => p.key as Permission);
+};
+
 /** Every permission key (what the Owner gets in `/me`). */
 export const ALL_PERMISSIONS = PERMISSION_CATALOG.map(p => p.key as Permission);
 

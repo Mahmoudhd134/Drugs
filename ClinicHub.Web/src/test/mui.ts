@@ -75,3 +75,26 @@ export const leaveTooltip = async (element: HTMLElement) => {
     onFakeClock(() => fireEvent.mouseLeave(tooltipTarget(element)));
     await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
 };
+
+/** A click on an MUI dialog's backdrop (the container around its paper, where MUI listens for it). */
+export const clickOutside = async (user: UserEvent | { click: (element: Element) => Promise<void> }, dialog: HTMLElement) =>
+    user.click(dialog.closest(".MuiDialog-container") as HTMLElement);
+
+/**
+ * Waits in real time past MUI's dialog exit transition (225 ms at most). A dialog that started closing (Esc, a backdrop
+ * click) stays in the document, not hidden, during its fade-out: assert "still open" only after this.
+ */
+export const pastExitTransition = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 400)));
+
+/**
+ * After an Esc or a backdrop click that must not close `dialog`: waits past the exit transition, then expects the same
+ * dialog still shown (not fading out, not unmounted).
+ */
+export const expectStillOpen = async (dialog: HTMLElement) => {
+    await pastExitTransition();
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.closest(".MuiDialog-root")).not.toHaveAttribute("aria-hidden");
+    const container = dialog.closest<HTMLElement>(".MuiDialog-container");
+    expect(container?.style.opacity ?? "").not.toBe("0");
+    expect(screen.getAllByRole("dialog")).toContain(dialog);
+};

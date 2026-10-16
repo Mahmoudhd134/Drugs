@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {screen, waitFor, within} from "@testing-library/react";
+import {screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aDrug,
@@ -111,24 +111,6 @@ describe("group editor by permission @area:access", () => {
             await waitFor(() => expect(location().pathname).toBe("/groups"));
             unmount();
         }
-    });
-
-    test("for a role without groups.list, Save, Cancel and Back go to / @ACC-067", async () => {
-        server.use(http.post(api("/drug-groups"), () => HttpResponse.json(group, {status: 201})));
-        const canCreateOnly: Permission[] = ["drugs.list", "groups.create"];
-        for (const button of ["إلغاء", "رجوع"]) {
-            const {user, location, unmount} = await openEditor(canCreateOnly, "new");
-            await user.click(await screen.findByRole("button", {name: button}));
-            await waitFor(() => expect(location().pathname).toBe("/"));
-            unmount();
-        }
-        const {user, location} = await openEditor(canCreateOnly, "new");
-        await user.click(await screen.findByRole("textbox", {name: /اسم المجموعة/}));
-        await user.paste("Post cataract");
-        await user.click(await screen.findByText("Tobradex"));
-        await user.click(screen.getByRole("button", {name: "حفظ"}));
-        await waitFor(() => expect(location().pathname).toBe("/"));
-        expect(within(document.body).queryByText("ليست لديك صلاحية")).not.toBeInTheDocument();
     });
 });
 

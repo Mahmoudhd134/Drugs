@@ -6,12 +6,14 @@ import {
     aDrug,
     api,
     drugsHandlers,
+    findToast,
     isolate,
     networkError,
     problem,
     recordRequests,
     renderWithProviders,
     server,
+    toastTexts,
 } from "../../../test";
 import type {Drug} from "../types.ts";
 import {DrugsPage} from "./DrugsPage.tsx";
@@ -168,6 +170,19 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
             expect(within(dialog).getByRole("button", {name: "حذف"})).toBeInTheDocument();
             page.unmount();
         }
+    });
+
+    test.each([
+        ["ar", "هذا العنصر لم يعد موجودًا."],
+        ["en", "This item no longer exists."],
+    ] as const)("already deleted in another window (%s): the toast %s @DRUG-087", async (lang, message) => {
+        server.use(groupsOf([]), http.delete(api("/drugs/:id"), () => problem(404, "notFound")));
+        const page = await openPage([aDrug({name: "Tobradex"})], lang);
+        const dialog = await clickDelete(page.user, "Tobradex", lang);
+        await page.user.click(within(dialog).getByRole("button", {name: lang === "ar" ? "حذف" : "Delete"}));
+
+        expect(await findToast()).toBe(message);
+        expect(toastTexts()).toEqual([message]);
     });
 
     test("deleting the only row of the last page steps back one page @DRUG-085", async () => {
