@@ -1,54 +1,10 @@
-# React + TypeScript + Vite
+# ClinicHub.Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The ClinicHub SPA (React + TypeScript + MUI, English and Arabic RTL): drug catalog, drug groups and the prescription
+builder. The API (`ClinicHub.Api`) serves the built app; architecture and conventions: [docs/tech/overview.md](../docs/tech/overview.md).
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+- `npm ci`, then `npm run dev`: Vite at http://localhost:5173, `/api` proxied to the API at http://localhost:5000.
+- `npm run build`: type-check and build into `../ClinicHub.Api/wwwroot`. Checks: `npx tsc -b && npx eslint src`.
+- `npm run test` (Vitest unit + component), `npm run test:coverage` (+ the coverage gates), `npm run test:mutation`
+  (StrykerJS on the pure logic), `npm run e2e` (Playwright: builds the SPA and the API and runs them on a test database).
+- How to write and run tests (all levels, `../test.ps1`): [docs/testing/README.md](../docs/testing/README.md).

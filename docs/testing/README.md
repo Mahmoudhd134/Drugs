@@ -211,8 +211,8 @@ Rules for every level ([design D10](../design/m1.6-test-foundation.md#d10-review
 - No sleeps: time through the test clock (`Clock.Advance`), waits through the framework's assertions (`findBy…`,
   Playwright's `expect`).
 - Tests are independent: every suite runs in a random order; never rely on another test's data.
-- A dosing or taper rule that both C# and TypeScript implement gets a row in `tests/fixtures/dosing-cases.json`
-  ([fixtures README](../../tests/fixtures/README.md)).
+- A dosing or taper rule that both C# and TypeScript implement gets a row in `tests/fixtures/dosing-cases.json` (run by
+  both sides: `Catalog/Parity` and `src/features/dosing/parity.test.ts`; [fixtures README](../../tests/fixtures/README.md)).
 
 ## Backend unit tests (`tests/ClinicHub.UnitTests`)
 

@@ -5,7 +5,7 @@ import viteConfig from './vite.config.ts'
 // ClinicHub.Web (Stryker runs in a copy of this folder) and without coverage.
 export default mergeConfig(viteConfig, defineConfig({
     test: {
-        exclude: ['src/i18n/locales/docMessages.test.ts'],
+        exclude: ['src/i18n/locales/docMessages.test.ts', 'src/features/dosing/parity.test.ts'],
         sequence: {shuffle: false},
     },
 }))

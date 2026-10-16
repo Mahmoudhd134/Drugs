@@ -21,7 +21,6 @@ import {
     searchBox,
     setLanguage,
     shownName,
-    textRect,
     textsOf,
     tourClinic,
 } from "../support/ux.ts";
@@ -32,6 +31,71 @@ const EASTERN_DIGITS = /[٠-٩۰-۹]/;
 const expectWesternDigits = async (page: Page, what: string) => {
     const text = await page.evaluate(() => document.body.innerText);
     expect(text.match(EASTERN_DIGITS), `${what}: Western digits only`).toBeNull();
+};
+
+/** Where a piece of text is on screen: its box on each line it takes (line 0 = the element's first line). */
+type LinePiece = { line: number; left: number; right: number }[];
+
+/**
+ * The first occurrence of each text inside the element, measured in one go (a Range per text, one box per line
+ * fragment); the boxes of all pieces are then grouped into lines by their vertical middle.
+ */
+const linePieces = async (element: Locator, texts: string[]): Promise<LinePiece[]> => {
+    const rects = await element.evaluate((root, wanted) => wanted.map(text => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const index = (node.textContent ?? "").indexOf(text);
+            if (index < 0) continue;
+            const range = document.createRange();
+            range.setStart(node, index);
+            range.setEnd(node, index + text.length);
+            return [...range.getClientRects()].filter(r => r.width > 0)
+                .map(r => ({left: r.left, right: r.right, top: r.top, bottom: r.bottom}));
+        }
+        throw new Error(`"${text}" not found in ${root.textContent}`);
+    }), texts);
+    // A box starts a new line when its middle is below the boxes of the line before
+    const middles = rects.flat().map(r => ({mid: (r.top + r.bottom) / 2, bottom: r.bottom})).sort((a, b) => a.mid - b.mid);
+    const lineEnds: number[] = [];
+    for (const {mid, bottom} of middles) {
+        if (!lineEnds.length || mid > lineEnds[lineEnds.length - 1]) lineEnds.push(bottom);
+    }
+    const lineOf = (r: { top: number; bottom: number }) => {
+        const mid = (r.top + r.bottom) / 2;
+        const index = lineEnds.findIndex(end => mid <= end);
+        return index < 0 ? lineEnds.length - 1 : index;
+    };
+    return rects.map((boxes, i) => {
+        expect(boxes.length, `«${texts[i]}» is on screen`).toBeGreaterThan(0);
+        const byLine = new Map<number, { line: number; left: number; right: number }>();
+        for (const r of boxes) {
+            const line = lineOf(r);
+            const seen = byLine.get(line);
+            byLine.set(line, seen ? {line, left: Math.min(seen.left, r.left), right: Math.max(seen.right, r.right)} : {line, left: r.left, right: r.right});
+        }
+        return [...byLine.values()].sort((a, b) => a.line - b.line);
+    });
+};
+
+/**
+ * `first` comes before `second` in reading order: on an earlier line, or on the same line on its reading side (right in
+ * Arabic, left in English). Glyph boxes may touch or overlap a little (side bearings, fallback fonts): on the same line
+ * each piece's middle is past the other's middle and at most half a glyph inside its edge.
+ */
+const expectPrecedes = (lang: Lang, first: LinePiece, second: LinePiece, what: string) => {
+    const a = first[first.length - 1];
+    const b = second[0];
+    expect(a.line, `${what}: not on a later line`).toBeLessThanOrEqual(b.line);
+    if (a.line < b.line) return;
+    const mid = (r: { left: number; right: number }) => (r.left + r.right) / 2;
+    const slack = 8;
+    if (lang === "ar") {
+        expect(mid(a), `${what}: on the right`).toBeGreaterThan(Math.max(mid(b), b.right - slack));
+        expect(mid(b), `${what}: on the left`).toBeLessThan(Math.min(mid(a), a.left + slack));
+    } else {
+        expect(mid(a), `${what}: on the left`).toBeLessThan(Math.min(mid(b), b.left + slack));
+        expect(mid(b), `${what}: on the right`).toBeGreaterThan(Math.max(mid(a), a.right - slack));
+    }
 };
 
 /** Shown exactly as typed (whole text of a visible element). */
@@ -186,25 +250,18 @@ test.describe("Content in both languages @area:i18n", () => {
             await signIn(page, clinic.owner.phone);
             const [opening, closing] = lang === "ar" ? ["«", "»"] : ["“", "”"];
 
-            /** Quote, name, quote and the next word in reading order on screen (right to left in Arabic). */
+            /**
+             * Quote, name, quote and the next words in reading order on screen: line by line from the top, and on a line
+             * right to left in Arabic (left to right in English). The message may wrap (a phone, a long toast), so each
+             * piece is measured per line; the four are measured at once after the toast's grow animation has ended.
+             */
             const expectInOrder = async (element: Locator, next: string, what: string) => {
-                const before = await textRect(element, opening);
-                const shown = await textRect(element, name);
-                const after = await textRect(element, closing);
-                const rest = await textRect(element, next);
-                // Glyph boxes may touch or overlap a little (side bearings, fallback fonts): the quotes' middles are past
-                // the name's middle and at most half a glyph inside its ends
-                const mid = (r: { left: number; right: number }) => (r.left + r.right) / 2;
-                const slack = 8;
-                if (lang === "ar") {
-                    expect(mid(before), `${what}: « right of the name`).toBeGreaterThan(Math.max(mid(shown), shown.right - slack));
-                    expect(mid(after), `${what}: » left of the name`).toBeLessThan(Math.min(mid(shown), shown.left + slack));
-                    expect(mid(rest), `${what}: the sentence goes on left of »`).toBeLessThan(mid(after));
-                } else {
-                    expect(mid(before), `${what}: “ left of the name`).toBeLessThan(Math.min(mid(shown), shown.left + slack));
-                    expect(mid(after), `${what}: ” right of the name`).toBeGreaterThan(Math.max(mid(shown), shown.right - slack));
-                    expect(mid(rest), `${what}: the sentence goes on right of ”`).toBeGreaterThan(mid(after));
-                }
+                await animationsDone(element.page());
+                const [before, shown, after, rest] = await linePieces(element, [opening, name, closing, next]);
+                const [quote1, quote2] = [opening, closing];
+                expectPrecedes(lang, before, shown, `${what}: ${quote1} before the name`);
+                expectPrecedes(lang, shown, after, `${what}: ${quote2} after the name`);
+                expectPrecedes(lang, after, rest, `${what}: the sentence goes on after ${quote2}`);
             };
 
             await addDrugToRx(page, t, name);

@@ -87,7 +87,7 @@ Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
 
 | Level | Tests |
 |---|---|
-| unit | `tests/ClinicHub.UnitTests/Catalog/StructuredDosing/` (`DosingRules`), `Catalog/Parity/` (the C#/TypeScript parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/types.test.ts`, `dosingText.test.ts` (every Arabic sentence case) |
+| unit | `tests/ClinicHub.UnitTests/Catalog/StructuredDosing/` (`DosingRules`), `Catalog/Parity/` (the C#/TypeScript parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/types.test.ts`, `dosingText.test.ts` (every Arabic sentence case), `parity.test.ts` (the same fixture against `types.ts`) |
 | api | `tests/ClinicHub.IntegrationTests/Catalog/Doses/DosingTests.cs` (`./test.ps1 -Area catalog`) |
 | ui | `ClinicHub.Web/src/features/dosing/components/` (`DosingFields`), `src/features/drugs/components/DrugFormDialog.test.tsx` |
 | e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts` |
