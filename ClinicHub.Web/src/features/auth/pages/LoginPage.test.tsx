@@ -184,6 +184,38 @@ describe("login page: code step @area:auth", () => {
     });
 });
 
+describe("login page: where a logged-in user goes @area:auth", () => {
+    const from = {pathname: "/drugs", search: "?q=amox", hash: "", state: null, key: "drugs"};
+
+    /** The login page, sent there from `sentFrom` (RequireAuth's `from`), rendered for a logged-in `user`. */
+    const openLoggedIn = async (user: Parameters<typeof renderWithProviders>[1] = {}, sentFrom = from) => {
+        server.use(http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})));
+        return renderWithProviders(<LoginPage/>, {lang: "ar", route: {pathname: "/login", state: {from: sentFrom}}, path: "/login", ...user});
+    };
+
+    // The page renders logged in right after its own login (signIn), possibly before its own navigation: this redirect
+    // must go to the same place, or it replaces the remembered page with the home
+    test("in a clinic, sent from /drugs?q=amox: /drugs?q=amox opens, not the home @AUTH-169", async () => {
+        const page = await openLoggedIn();
+        await waitFor(() => expect(page.location().pathname).toBe("/drugs"));
+        expect(page.location().search).toBe("?q=amox");
+        expect(screen.queryByRole("button", {name: "إرسال الكود"})).not.toBeInTheDocument();
+    });
+
+    test.each([
+        {name: "the platform", context: "platform", home: "/admin"},
+        {name: "no context yet", context: null, home: "/select-clinic"},
+    ] as const)("in $name, sent from /drugs?q=amox: the context's home $home, not the remembered page @AUTH-170", async ({context, home}) => {
+        const page = await openLoggedIn({user: {context}});
+        await waitFor(() => expect(page.location().pathname).toBe(home));
+    });
+
+    test("in a clinic, sent from /admin/clinics/5: the home /, not the remembered page @AUTH-170", async () => {
+        const page = await openLoggedIn({}, {...from, pathname: "/admin/clinics/5", search: ""});
+        await waitFor(() => expect(page.location().pathname).toBe("/"));
+    });
+});
+
 describe("login page: refusals of the code @area:auth", () => {
     /** The message the page shows when verify answers `answer` (in `lang`). */
     const refusal = async (answer: () => Response, lang: LanguageCode = "ar") => {

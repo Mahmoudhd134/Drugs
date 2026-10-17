@@ -64,7 +64,7 @@ Cases per area and priority, and per level (a case with two levels counts once i
 
 | Area | P0 | P1 | P2 | Total | unit | api | ui | e2e | manual |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 54 | 48 | 1 |
+| [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 55 | 48 | 1 |
 | [ISO](#iso--clinic-isolation) | 20 | 17 | 6 | 43 | 0 | 39 | 1 | 4 | 0 |
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
@@ -295,7 +295,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-166 | Given an auth call stalls, then it times out after 15 s and later auth calls still run | P2 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-167 | Given a deployment over HTTPS (not localhost), when a logged-in user reloads, then they stay logged in; over plain http they must log in again | P1 | manual | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
 | AUTH-168 | Given an anonymous user, when any app route (`/`, `/drugs`, `/groups/1`, `/admin`, `/select-clinic`) opens, then `/login` | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
-| AUTH-169 | Given an anonymous user opened `/drugs`, when the login lands in a clinic, then `/drugs` opens | P1 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-169 | Given an anonymous user opened `/drugs`, when the login lands in a clinic, then `/drugs` opens (with its query string; the home `/` never opens in between) | P1 | ui+e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-170 | Given an anonymous user opened `/drugs`, when the login lands on the picker (several contexts), or opened `/admin…`, then the remembered page is not reopened (the context's home instead) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-171 | Given a clinic context, when `/admin` (or `/admin/clinics/new`, `/admin/clinics/{id}`) opens, then `/` and no admin page or admin request shows; given the platform context, when `/drugs` opens, then `/admin`; given no context, when `/` opens, then `/select-clinic` | P0 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-172 | Given a logged-in user, when `/login` opens, then their context's home opens (`/`, `/admin` or `/select-clinic`) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |

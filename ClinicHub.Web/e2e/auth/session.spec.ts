@@ -150,7 +150,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
         }
     });
 
-    test.fail("BUG-503: anonymous on /drugs: after a login that lands in a clinic, /drugs opens @AUTH-169", async ({page, t, data}) => {
+    test("anonymous on /drugs: after a login that lands in a clinic, /drugs opens @AUTH-169", async ({page, t, data}) => {
         const clinic = await data.clinic();
         await page.goto("/drugs");
         await expect(page).toHaveURL(/\/login$/);
