@@ -117,8 +117,8 @@ describe("dosing fields: the eye toggle and the preview @area:catalog", () => {
     });
 
     test("no dosing: the preview says «لا توجد جرعة محددة» / \"No dosing set\" in a muted color @DOSE-082", async () => {
-        // "Muted" as the doc means it: not the sentence's colour, one of the theme's muted text tones (which one is
-        // BUG-505's business: its contrast)
+        // "Muted" as the doc means it: not the sentence's colour, one of the theme's muted text tones (the page checks'
+        // axe scan holds its contrast, UX-036)
         const theme = createAppTheme("rtl");
         const hasColor = (element: Element, color: string) => {
             try {

@@ -100,7 +100,7 @@ export const ClinicOverview = () => {
                             <Stack component="ul" sx={{m: 0, p: 0, listStyle: "none", gap: 0.75}}>
                                 {clinic.owners.map(owner => (
                                     <li key={owner.staffId}>
-                                        <Box component="span" dir="auto" sx={{fontWeight: 600}}>{owner.fullName}</Box>
+                                        <Box component="span" dir="auto" sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{owner.fullName}</Box>
                                         {" · "}
                                         {/* Phones stay left to right in Arabic (else the "+" moves to the end) */}
                                         <Box component="span" dir="ltr" sx={{color: "text.secondary", whiteSpace: "nowrap"}}>{owner.phone}</Box>

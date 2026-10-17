@@ -83,10 +83,12 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
     const auth = session.status === "authenticated" ? session.auth : null;
     const meQuery = useMeQuery(contextKey(auth?.context ?? null), auth !== null);
     const me = meQuery.data;
-    // Failed (after its retry): pages show a load error with Retry, not "no permission"
-    const meFailed = auth !== null && me === undefined && meQuery.isError;
+    // Failed (after its retry): pages show a load error with Retry, not "no permission". It stays failed while Retry
+    // loads it again: TanStack Query puts a query without data back to `pending` (error cleared) when it fetches, but
+    // keeps its error count, so "fetching after an error" is the retry in progress (the load error, Retry loading)
+    const meRetrying = auth !== null && me === undefined && meQuery.isFetching && meQuery.errorUpdateCount > 0;
+    const meFailed = auth !== null && me === undefined && (meQuery.isError || meRetrying);
     const meReady = auth !== null && me !== undefined;
-    const meRetrying = meFailed && meQuery.isFetching;
     const refetchMe = meQuery.refetch;
     const retryMe = useCallback(() => void refetchMe(), [refetchMe]);
 

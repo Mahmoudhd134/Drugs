@@ -1,10 +1,8 @@
 import {alpha} from "@mui/material/styles";
+import {WARNING_COLOR} from "../../../app/theme.ts";
 
-/**
- * "Disabled" text and outlines: a darker amber than the theme's warning (#ed6c02 is ≈ 3:1 on white), ≈ 5:1 so small
- * text passes WCAG AA.
- */
-const DISABLED_COLOR = "#b45309";
+/** "Disabled" text and outlines: the theme's warning amber (≈ 5:1 on white, so small text passes WCAG AA). */
+const DISABLED_COLOR = WARNING_COLOR;
 
 export const disabledChipSx = {color: DISABLED_COLOR, borderColor: alpha(DISABLED_COLOR, 0.6)};
 

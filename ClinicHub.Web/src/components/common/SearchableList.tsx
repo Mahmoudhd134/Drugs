@@ -73,7 +73,7 @@ export const SearchableList = <T, >(props: Props<T>) => {
             />
 
             <Box sx={{height: 4, mt: 1}}>
-                {isFetching && !isLoading && <LinearProgress sx={{borderRadius: 1}}/>}
+                {isFetching && !isLoading && <LinearProgress sx={{borderRadius: 1}} aria-label={t("common.loading")}/>}
             </Box>
 
             {totalCount !== undefined && !isLoading && !isError && items.length > 0 && (
@@ -84,7 +84,7 @@ export const SearchableList = <T, >(props: Props<T>) => {
 
             {isLoading ? (
                 <Box sx={{display: "flex", justifyContent: "center", py: 4}}>
-                    <CircularProgress size={28}/>
+                    <CircularProgress size={28} aria-label={t("common.loading")}/>
                 </Box>
             ) : isError ? (
                 <Alert
@@ -97,7 +97,7 @@ export const SearchableList = <T, >(props: Props<T>) => {
                 <Typography color="text.secondary" sx={{textAlign: "center", py: 4}}>{emptyText}</Typography>
             ) : (
                 <Box sx={{maxHeight, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 2}}>
-                    <List id={listId} ref={listRef} disablePadding role="listbox">
+                    <List id={listId} ref={listRef} disablePadding role="listbox" aria-label={t("common.searchResults")}>
                         {items.map((item, index) => (
                             <ListItemButton
                                 key={getKey(item)}
@@ -118,7 +118,7 @@ export const SearchableList = <T, >(props: Props<T>) => {
                     {hasMore && onLoadMore && (
                         <Box sx={{p: 1, textAlign: "center", borderTop: 1, borderColor: "divider"}}>
                             <Button size="small" onClick={onLoadMore} disabled={isLoadingMore}>
-                                {isLoadingMore ? <CircularProgress size={18}/> : t("common.loadMore")}
+                                {isLoadingMore ? <CircularProgress size={18} aria-label={t("common.loading")}/> : t("common.loadMore")}
                             </Button>
                         </Box>
                     )}

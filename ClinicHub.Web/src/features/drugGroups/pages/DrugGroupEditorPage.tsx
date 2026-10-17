@@ -64,7 +64,7 @@ export const DrugGroupEditorPage = () => {
                 {getErrorMessage(details.error)}
             </Alert>
         ) : (
-            <Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress/></Box>
+            <Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress aria-label={t("common.loading")}/></Box>
         );
     }
 

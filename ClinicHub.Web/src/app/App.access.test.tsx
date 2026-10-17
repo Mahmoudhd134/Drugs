@@ -63,11 +63,11 @@ describe("permissions in the app @area:access", () => {
         expect(screen.queryByText("تعذّر تحميل البيانات.")).not.toBeInTheDocument();
     });
 
-    test.fails("BUG-175: Retry never shows its own progress (meRetrying is never true); the error is replaced by the page spinner @ACC-072", async () => {
+    test("Retry shows its own progress: the load error stays, its «إعادة المحاولة» loading, until /me answers @ACC-072", async () => {
         const {button, retry, release} = await meFailsThenRecovers();
         await retry();
         // The load error stays, its «إعادة المحاولة» showing progress (MUI loading button: disabled, a spinner inside).
-        // The answer is held, so the state is stable: a short wait keeps this expected failure fast.
+        // The answer is held, so the state is stable: a short wait is enough.
         await waitFor(() => expect(button).toBeDisabled(), {timeout: 3000});
         expect(within(button).getByRole("progressbar")).toBeInTheDocument();
         expect(screen.getByText("تعذّر تحميل البيانات.")).toBeInTheDocument();

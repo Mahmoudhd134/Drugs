@@ -43,6 +43,12 @@ describe("clinic Overview @area:admin", () => {
         expect(details().getByText("Dr. Omar")).toBeInTheDocument();
     });
 
+    test("a 256-character unbroken owner name wraps (overflow-wrap: anywhere), never cut @UX-009", async () => {
+        const fullName = "O".padEnd(256, "W");
+        const {details} = await openOverview({owners: [{staffId: 7, fullName, phone: "+201001234567"}]});
+        expect(getComputedStyle(details().getByText(fullName)).overflowWrap).toBe("anywhere");
+    });
+
     test("in Arabic: «نشطة», the date «1 أكتوبر 2026» with Latin digits, the owners' phones left to right @ADM-092", async () => {
         const {details} = await openOverview({
             status: "active", createdAt: "2026-10-01T09:00:00Z",

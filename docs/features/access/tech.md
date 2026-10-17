@@ -210,7 +210,10 @@ whatever its `Status`.
 | `components/PermissionControls.tsx` | `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` (MUI). They take no `component` prop: gate link-buttons with `<Can>` |
 | `components/RequirePermission.tsx` | Route guard: spinner until `ready`, then the page, its `fallback`, or `NoPermissionPage` ("No permission" + a link to `/`, unless `showHome={false}`); if `/me` failed, `PermissionsLoadError` (load failed + Retry) instead of a false "no permission" |
 
-- `useAuth()` exposes `meReady`, `meFailed`, `meRetrying`, `retryMe` (Retry shows progress); `Me.permissions` is the expanded key list.
+- `useAuth()` exposes `meReady`, `meFailed`, `meRetrying`, `retryMe` (Retry shows progress: while `/me` loads again
+  after a failure, `meFailed` stays true and `meRetrying` is true, so the load error stays with its Retry loading; read
+  from the query's error count, since TanStack Query puts a query without data back to `pending` when it refetches);
+  `Me.permissions` is the expanded key list.
 - Routes: `CLINIC_ROUTES` in `app/App.tsx` (`path`, `page`, permission rule, optional `denied`), each
   wrapped in `RequirePermission`. `/` (prescription) uses `denied: <FirstAllowedPage/>`
   (`app/FirstAllowedPage.tsx`): the first `NAV_ITEMS` page the user may open, or the no-permission page without its home link (`/` would loop).

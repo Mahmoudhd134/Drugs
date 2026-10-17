@@ -449,6 +449,14 @@ Swagger UI is available in Development at `/swagger`.
   refetch on focus), emotion cache per direction (`rtl` cache adds the stylis RTL plugin), MUI theme
   from `createAppTheme(direction)`, `CssBaseline`, `AuthProvider` (session restore, `useAuth()`),
   `Toaster`.
+- **Accessible names** (axe, UX-036): every progress indicator (`LinearProgress`, `CircularProgress`) has
+  `aria-label={t("common.loading")}`; a `role="listbox"` has a name (`SearchableList`: `common.searchResults`); a MUI
+  `List` holds `ListItem`s (`<li>`), a `ListItemButton` goes inside one (`disablePadding`); controls built by a library
+  get theirs from the app (the Quill toolbar: `EditorContent`, `prescription.toolbar.*`).
+- **Contrast**: text reads at ≥ 4.5:1 (axe `color-contrast`). The theme's `warning` is `#b45309` (MUI's `#ed6c02` gives
+  white text 3.1:1: the login page's filled display-mode banner); muted text that must be read uses `text.secondary`,
+  never `text.disabled` (the dosing preview's «لا توجد جرعة محددة», the group dialogs' boxes, the staff editor's locked
+  phone explanation: a disabled field's helper text is set back to `text.secondary`).
 - **Toasts** (`react-hot-toast`'s `Toaster`, bottom-center; `white-space: pre-line`, so a message's parts joined with
   `\n` show on their own lines, and `overflow-wrap: anywhere`, so a long name wraps): success, error or neutral
   (plain) style; each closes by itself after the library's time (some longer, e.g. 8 s for the lost-clinic messages).

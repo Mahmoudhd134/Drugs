@@ -88,7 +88,7 @@ export const useGroupAddDialogs = () => {
             <Typography variant="caption" color="text.secondary">{label}</Typography>
             {/* Nothing to write (empty, or only «بدون عين») */}
             {!dosingToText(dosing)
-                ? <Typography color="text.disabled">{t("dosing.noDosing")}</Typography>
+                ? <Typography color="text.secondary">{t("dosing.noDosing")}</Typography>
                 : <DosingText dosing={dosing}/>}
         </Box>
     );
@@ -100,7 +100,7 @@ export const useGroupAddDialogs = () => {
                     slotProps={{transition: {onExited: () => !eyeOpen && setEyeRequest(null)}}} maxWidth="xs" fullWidth>
                 <DialogTitle>{t("prescription.chooseEyeTitle")}</DialogTitle>
                 <DialogContent>
-                    <DialogContentText sx={{mb: 2}}>
+                    <DialogContentText sx={{mb: 2, overflowWrap: "anywhere"}}>
                         {t("prescription.chooseEyeMessage", {name: eyeRequest?.groupName})}
                     </DialogContentText>
                     <Stack direction="row" sx={{gap: 1}}>
@@ -121,7 +121,7 @@ export const useGroupAddDialogs = () => {
                     slotProps={{transition: {onExited: () => !conflictOpen && setConflict(null)}}} maxWidth="sm" fullWidth>
                 <DialogTitle>{t(inGroup ? "prescription.groupClashTitle" : "prescription.conflictTitle")}</DialogTitle>
                 <DialogContent>
-                    <DialogContentText sx={{mb: 2}}>
+                    <DialogContentText sx={{mb: 2, overflowWrap: "anywhere"}}>
                         {t(inGroup ? "prescription.groupClashMessage" : "prescription.conflictMessage", {name: conflict?.drugName})}
                     </DialogContentText>
                     {conflict && (
