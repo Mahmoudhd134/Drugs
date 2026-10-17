@@ -5,17 +5,20 @@ import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {requestOtp, useOtpMode, verifyOtp} from "../api.ts";
 import {homeOf, useAuth} from "../useAuth.ts";
-import type {AuthResult} from "../types.ts";
+import type {Context} from "../types.ts";
 import {FullPageSpinner} from "../../../components/common/FullPageSpinner.tsx";
 
 /** Pages outside the clinic app, with what is below them (paths match without case, like the router's). */
 const OUTSIDE_CLINIC_APP = ["/login", "/select-clinic", "/platform", "/admin"];
 
-/** Pages a user may come back to after logging in (only inside the clinic app). */
-const returnPath = (auth: AuthResult, from: Location | undefined) => {
+/**
+ * Where a logged-in user goes from /login: the page they were sent here from (RequireAuth's `from`) when they are in a
+ * clinic and it is inside the clinic app; else the context's home (also for a logged-in user opening /login, no `from`).
+ */
+const landingOf = (context: Context | null, from: Location | undefined) => {
     const pathname = from?.pathname.toLowerCase();
     const outsideClinicApp = !pathname || OUTSIDE_CLINIC_APP.some(p => pathname === p || pathname.startsWith(`${p}/`));
-    return auth.context?.type === "clinic" && from && !outsideClinicApp ? `${from.pathname}${from.search}` : homeOf(auth.context);
+    return context?.type === "clinic" && from && !outsideClinicApp ? `${from.pathname}${from.search}` : homeOf(context);
 };
 
 /**
@@ -46,9 +49,10 @@ export const LoginPage = () => {
     }, [step, resendAt, now]);
 
     if (status === "loading") return <FullPageSpinner/>;
-    if (status === "authenticated") return <Navigate to={homeOf(context)} replace/>;
-
     const from = (location.state as { from?: Location } | null)?.from;
+    // Also renders right after this page's own login (signIn below), possibly before its navigate: both must go to the
+    // same place, or the later one replaces the remembered page with the home
+    if (status === "authenticated") return <Navigate to={landingOf(context, from)} replace/>;
 
     const verify = async (value: string) => {
         setBusy(true);
@@ -56,7 +60,7 @@ export const LoginPage = () => {
         try {
             const auth = await verifyOtp(phone, value);
             signIn(auth);
-            navigate(returnPath(auth, from), {replace: true});
+            navigate(landingOf(auth.context, from), {replace: true});
         } catch (e) {
             setError(getErrorMessage(e));
             setBusy(false);

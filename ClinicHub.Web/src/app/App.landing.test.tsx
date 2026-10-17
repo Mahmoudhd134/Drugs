@@ -57,6 +57,15 @@ const logInFrom = async (route: string, auth: AuthResult) => {
 };
 
 describe("where the login lands @area:auth", () => {
+    test("opened /drugs?q=amox, the login lands in a clinic: /drugs?q=amox opens, the home / never opened @AUTH-169", async () => {
+        const {paths} = await logInFrom("/drugs?q=amox", sessionIn(clinicA));
+
+        expect(await screen.findByRole("heading", {name: "الأدوية"})).toBeInTheDocument();
+        await expectPath("/drugs");
+        expect(window.location.search).toBe("?q=amox");
+        expect(paths).not.toContain("/");
+    });
+
     test("opened /drugs, the login lands on the picker (several clinics): /select-clinic, /drugs never reopened @AUTH-170", async () => {
         const {app, paths} = await logInFrom("/drugs", sessionIn(null, [clinicA, clinicB]));
 

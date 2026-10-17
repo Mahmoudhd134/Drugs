@@ -39,8 +39,8 @@ export type TestUser = {
 export type RenderWithProvidersOptions = Omit<RenderOptions, "wrapper"> & {
     /** The UI language (default "en"); "ar" also sets `<html dir="rtl">` and the RTL emotion cache */
     lang?: LanguageCode;
-    /** The URL the app is at (default "/") */
-    route?: string;
+    /** The URL the app is at (default "/"), or the location with its state (e.g. `{pathname: "/login", state: {from}}`) */
+    route?: string | Partial<Location>;
     /** The route pattern `ui` is mounted on, for `useParams` (default: any path) */
     path?: string;
     /** The logged-in user (default: the Owner of clinic 1); ignored when `auth` sets `status` other than authenticated */

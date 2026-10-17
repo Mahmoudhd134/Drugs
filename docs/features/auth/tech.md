@@ -320,11 +320,14 @@ Startup refuses a configuration outside these ranges (`AppSettings.Validate`, th
   `/login` (remembers the page; after login it reopens it only when the login lands in a clinic context and the page
   is inside the clinic app, not `/login`, `/select-clinic`, `/platform` or `/admin…`; else the context's home); wrong/no context → that context's home (`/`, `/admin` or
   `/select-clinic`). Its outlet is keyed by the context, so every page re-mounts on a switch. A logged-in user
-  opening `/login` goes to their context's home.
+  opening `/login` (nothing remembered) goes to their context's home.
 - **`LoginPage`**: phone → code. In display mode (`GET /auth/otp/mode`, or a response with
   `devCode`) a warning banner ("OTP display mode") is always visible; the code appears in an alert,
   is filled in and submitted automatically. Resend button with countdown; "change number" (back to the phone step,
-  the number kept). The submit button is disabled while the phone (or the code) is empty.
+  the number kept). The submit button is disabled while the phone (or the code) is empty. Where it goes once logged in
+  (`landingOf(context, from)`, `from` = `RequireAuth`'s remembered location): the verify handler's `navigate` and the
+  page's own logged-in redirect (it renders logged in right after `signIn`, before the navigation lands) use the same
+  target, so neither replaces the remembered page with the home.
 - **`SelectClinicPage`**: title «اختر العيادة» / "Choose a clinic", subtitle «اختر المكان الذي تريد العمل فيه الآن.» /
   "Pick where you want to work now."; the contexts (platform admin first, then the clinics and the template in the
   API's order), each with its hint: «إدارة المنصة» / "Platform admin" with «العيادات وإعدادات المنصة كلها» / "Clinics and
