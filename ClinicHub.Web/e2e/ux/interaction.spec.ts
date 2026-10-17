@@ -3,9 +3,12 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
 import {unique, uniqueDigits} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
+import {dropDaily} from "../support/rx.ts";
+import {RX_TEXTS} from "../support/texts-rx.ts";
 import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
+    addGroupToRx,
     countNamed,
     dialog,
     drugRow,
@@ -332,8 +335,8 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
-            // (Inputs holding the name scroll inside themselves: not checked. The groups list's cards: their own test
-            // below; the Groups-tab picker and the line dialogs' titles: known bugs BUG-587 and BUG-589, below.)
+            // (Inputs holding the name scroll inside themselves: not checked. The groups list's cards, the Groups-tab
+            // picker, the line dialogs' titles and the group-add dialogs: their own tests, below.)
             const fits = async (what: string, shown: Locator) => {
                 await noHorizontalScroll(page, what);
                 const open = dialog(page);
@@ -371,7 +374,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await fits("already-added toast", toast(page, u.alreadyAdded(name)));
         });
 
-    test.fail("BUG-589: the group line dialog and the prescription line dialog cut a 256-character drug name in their title instead of wrapping it @UX-009",
+    test("the group line dialog and the prescription line dialog wrap a 256-character drug name in their title @UX-009",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
@@ -423,7 +426,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expect(card.getByRole("button", {name: t.delete})).toBeVisible();
         });
 
-    test.fail("BUG-587: the prescription's Groups-tab picker cuts a 256-character group name instead of wrapping it @UX-009",
+    test("the prescription's Groups-tab picker wraps a 256-character group name @UX-009",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -436,5 +439,34 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expect(shown).toBeVisible();
             await noHorizontalScroll(page, "group picker");
             await expectNotCut(shown, "group picker");
+        });
+
+    test("adding a group: «أي عين؟» and «موجود بالفعل في الروشتة» wrap a 256-character group / drug name in their message @UX-009",
+        async ({page, data, lang}) => {
+            const {t, u} = textsOf(lang);
+            const rt = RX_TEXTS[lang];
+            const clinic = await data.clinic();
+            const drug = await drugWith(data, clinic, {name: `L${unique()}`.padEnd(256, "W"), defaultDosing: dropDaily(4, 1, "right")});
+            const asks = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: dropDaily(2, 1)});
+            // The drug's line already there (right eye, 4 times) clashes with the group's (6 times); the group's other
+            // line asks the eye
+            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"),
+                [{drug, dosing: {frequency: "daily", frequencyValue: 6}}, {drug: asks, dosing: {eye: "ask"}}]);
+            await signIn(page, clinic.owner.phone);
+            await addDrugToRx(page, t, drug.name);
+            await expect(linesPanel(page, u).getByText(drug.name, {exact: true})).toBeVisible();
+            const fits = async (what: string, shown: Locator) => {
+                await expect(shown).toBeVisible();
+                await noHorizontalScroll(page, what);
+                await fitsTheScreen(page, dialog(page), what);
+                await expectNotCut(shown, what);
+            };
+
+            await addGroupToRx(page, t, group.name);
+            await fits("choose-eye dialog", dialog(page).getByText(rt.chooseEyeMessage(group.name), {exact: true}));
+            await dialog(page).getByRole("button", {name: rt.eyeLeft, exact: true}).click();
+            await fits("conflict dialog", dialog(page).getByText(rt.conflictMessage(drug.name), {exact: true}));
+            await dialog(page).getByRole("button", {name: rt.keepCurrent, exact: true}).click();
+            await expectNoDialog(page);
         });
 });

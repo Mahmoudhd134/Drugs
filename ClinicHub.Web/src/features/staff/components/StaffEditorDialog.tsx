@@ -186,7 +186,11 @@ const StaffForm = ({member, roles, save, onClose}: FormProps) => {
                         autoFocus={adding}
                         fullWidth
                         // Phones stay left to right in Arabic
-                        slotProps={{htmlInput: {dir: "ltr", inputMode: "tel", maxLength: 30}}}
+                        slotProps={{
+                            htmlInput: {dir: "ltr", inputMode: "tel", maxLength: 30},
+                            // The locked phone's explanation is read, not greyed out like the field (contrast ≥ 4.5:1)
+                            formHelperText: {sx: {"&.Mui-disabled": {color: "text.secondary"}}},
+                        }}
                     />
                     <TextField
                         label={t("staff.editor.fullName")}

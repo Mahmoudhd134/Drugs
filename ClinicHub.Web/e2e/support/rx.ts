@@ -294,11 +294,7 @@ export const expectInOrder = async (element: Locator, parts: string[]) => {
     }
 };
 
-/**
- * The page checks (support/checks.ts `expectHealthyPage`) with the rich-text editor open: the Quill toolbar's unnamed
- * buttons and alignment picker (BUG-570, `prescription/editor-axe.spec.ts`) are let through by KNOWN_AXE for those two
- * rules only; every other rule is checked on the toolbar too.
- */
+/** The page checks (support/checks.ts `expectHealthyPage`) with the rich-text editor open, its toolbar included. */
 export const expectEditorHealthy = async (page: Page, lang: "ar" | "en", testInfo: TestInfo) => {
     await expectHealthyPage(page, lang, testInfo);
 };

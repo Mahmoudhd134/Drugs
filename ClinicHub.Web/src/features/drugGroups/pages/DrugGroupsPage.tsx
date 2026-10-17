@@ -100,7 +100,7 @@ export const DrugGroupsPage = () => {
                     placeholder={t("groups.searchPlaceholder")}
                 />
             </Paper>
-            <Box sx={{height: 4, mb: 1}}>{groups.isFetching && <LinearProgress/>}</Box>
+            <Box sx={{height: 4, mb: 1}}>{groups.isFetching && <LinearProgress aria-label={t("common.loading")}/>}</Box>
 
             {groups.isError ? (
                 <Alert

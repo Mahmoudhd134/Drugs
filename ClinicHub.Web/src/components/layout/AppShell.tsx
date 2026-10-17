@@ -7,6 +7,7 @@ import {
     Drawer,
     IconButton,
     List,
+    ListItem,
     ListItemButton,
     ListItemIcon,
     ListItemText,
@@ -56,21 +57,23 @@ export const AppShell = ({homeTo, homeLabel, contextLabel, contextTitle, navItem
             <List disablePadding>
                 {navItems.map(item => {
                     const active = isActive(item, pathname);
+                    // Each entry in its own <li> (a list holds list items only)
                     return (
-                        <ListItemButton
-                            key={item.to}
-                            component={RouterLink}
-                            to={item.to}
-                            className={active ? "active" : undefined}
-                            aria-current={active ? "page" : undefined}
-                            // Named explicitly: some tools don't take the name from the nested text
-                            aria-label={t(item.labelKey)}
-                            onClick={() => setMobileOpen(false)}
-                            sx={navButtonSx}
-                        >
-                            <ListItemIcon>{item.icon}</ListItemIcon>
-                            <ListItemText primary={t(item.labelKey)} slotProps={{primary: {fontWeight: "inherit"}}}/>
-                        </ListItemButton>
+                        <ListItem key={item.to} disablePadding>
+                            <ListItemButton
+                                component={RouterLink}
+                                to={item.to}
+                                className={active ? "active" : undefined}
+                                aria-current={active ? "page" : undefined}
+                                // Named explicitly: some tools don't take the name from the nested text
+                                aria-label={t(item.labelKey)}
+                                onClick={() => setMobileOpen(false)}
+                                sx={navButtonSx}
+                            >
+                                <ListItemIcon>{item.icon}</ListItemIcon>
+                                <ListItemText primary={t(item.labelKey)} slotProps={{primary: {fontWeight: "inherit"}}}/>
+                            </ListItemButton>
+                        </ListItem>
                     );
                 })}
             </List>

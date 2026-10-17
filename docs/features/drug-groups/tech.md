@@ -113,7 +113,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     already in the group shows `groups.alreadyInGroupForEye`.
   - `components/GroupItemDialog.tsx`: `DosingFields` in **inherit mode** (`inheritFrom` = drug
     default: empty fields display "Drug default", preview shows the merged result) with
-    `allowAskEye`, plus a "Use drug default" button that clears the override.
+    `allowAskEye`, plus a "Use drug default" button that clears the override. The drug name under its title wraps
+    (`overflow-wrap: anywhere`), so a long unbroken name is never cut.
   - Save validates name and ≥ 1 line on the client. Unsaved-changes guard on Back/Cancel and
     `beforeunload`: it compares the **trimmed** name with the saved one and `itemsSignature` (the lines as they would be
     saved: drug, override, order) with the loaded lines, so a change undone by hand (a line dragged away and back, an
@@ -122,7 +123,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     drug's default eye changed) get an error chip `groups.eyeClash` ("Same drug and eye as another line"); editors see
     an alert `groups.eyeClashSave` above the lines, and Save is blocked with the same message as a toast until a line
     is removed or its eye changed (M1.6.0).
-- **`GroupPicker`** (prescription page): name, line count («الأدوية: N»), the drug names joined with " · ".
+- **`GroupPicker`** (prescription page): name, line count («الأدوية: N»), the drug names joined with " · " (at most
+  2 lines). A long unbroken name wraps (`overflow-wrap: anywhere`), never cut.
 - **`api.ts`**: `drugGroupKeys`; `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`,
   `useSaveDrugGroup` (`{ id, name, items }`), `useDeleteDrugGroup`.
 - Adding a group to a prescription (eye question, conflicts): see [prescription tech](../prescription/tech.md).

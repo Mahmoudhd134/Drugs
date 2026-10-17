@@ -37,13 +37,13 @@ export const GroupPicker = ({onSelect, autoFocus, maxHeight, enabled = true}: Pr
                 <Stack direction="row" sx={{gap: 1.5, width: "100%", alignItems: "flex-start"}}>
                     <Box sx={{flex: 1, minWidth: 0}}>
                         <Stack direction="row" sx={{gap: 1, alignItems: "center", flexWrap: "wrap"}}>
-                            <Typography sx={{fontWeight: 600}}>{group.name}</Typography>
+                            <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{group.name}</Typography>
                             <Chip size="small" label={t("groups.drugCount", {count: group.items.length})}/>
                         </Stack>
                         <Typography
                             variant="body2"
                             color="text.secondary"
-                            sx={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden"}}
+                            sx={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere"}}
                         >
                             {group.items.map(i => i.drug.name).join(" · ")}
                         </Typography>

@@ -98,8 +98,8 @@ export const animationsDone = async (page: Page) => {
 
 /**
  * The page checks (support/checks.ts `expectHealthyPage`: dir/lang, loaded, no horizontal scroll, axe without
- * serious/critical violations but the known bugs, each on its documented elements only: with the Edit & copy editor
- * open, BUG-570's Quill toolbar buttons) in the UI language now, once the animations ended.
+ * serious/critical violations but the known bugs, each on its documented elements only) in the UI language now, once
+ * the animations ended.
  */
 export const pageChecks = async (page: Page, what: string) => {
     await test.step(`page checks: ${what}`, async () => {
