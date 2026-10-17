@@ -10,7 +10,6 @@ import {
     Paper,
     Stack,
     TextField,
-    Tooltip,
     Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
@@ -45,6 +44,7 @@ import type {DrugGroup} from "../types.ts";
 import {PERMISSIONS} from "../../access/permissions.ts";
 import {usePermissions} from "../../access/usePermissions.ts";
 import {PermissionButton} from "../../access/components/PermissionControls.tsx";
+import {TapTooltip} from "../../../components/common/TapTooltip.tsx";
 
 // Long chip labels wrap onto a second line instead of being cut off on narrow screens
 const wrappingChip = {maxWidth: "100%", height: "auto", "& .MuiChip-label": {whiteSpace: "normal", py: 0.25}};
@@ -288,14 +288,14 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                                         <Chip size="small" color="error" icon={<ErrorIcon/>} label={t("groups.eyeClash")} sx={wrappingChip}/>
                                                     )}
                                                     {!isDosingEmpty(item.dosing) && (
-                                                        <Tooltip title={t("groups.customDosingInfo")}>
+                                                        <TapTooltip title={t("groups.customDosingInfo")}>
                                                             <Chip size="small" variant="outlined" color="primary" label={t("groups.customDosing")} sx={wrappingChip}/>
-                                                        </Tooltip>
+                                                        </TapTooltip>
                                                     )}
                                                     {effective.eye === ASK_EYE && (
-                                                        <Tooltip title={t("dosing.askEyeInfo")}>
+                                                        <TapTooltip title={t("dosing.askEyeInfo")}>
                                                             <Chip size="small" variant="outlined" color="secondary" label={t("dosing.askEyeHint")} sx={wrappingChip}/>
-                                                        </Tooltip>
+                                                        </TapTooltip>
                                                     )}
                                                 </Stack>
                                             </>
