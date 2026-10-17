@@ -6,6 +6,7 @@ import {
     Chip,
     CircularProgress,
     List,
+    ListItem,
     ListItemButton,
     ListItemIcon,
     ListItemText,
@@ -71,28 +72,30 @@ export const SelectClinicPage = () => {
             </div>
             <Card variant="outlined">
                 {contextsQuery.isPending ? (
-                    <Stack sx={{alignItems: "center", py: 4}}><CircularProgress/></Stack>
+                    <Stack sx={{alignItems: "center", py: 4}}><CircularProgress aria-label={t("common.loading")}/></Stack>
                 ) : contexts.length === 0 ? (
                     <EmptyState icon={<LocalHospitalIcon/>} title={t("auth.noContexts")}/>
                 ) : (
                     <List disablePadding>
                         {contexts.map(context => {
                             const key = contextKey(context);
+                            // Each entry in its own <li> (a list holds list items only)
                             return (
-                                <ListItemButton
-                                    key={key}
-                                    divider
-                                    selected={key === contextKey(current)}
-                                    disabled={pending !== null && pending !== key}
-                                    onClick={() => void choose(context)}
-                                    sx={{py: 1.5}}
-                                >
-                                    <ListItemIcon>{icon(context)}</ListItemIcon>
-                                    <ListItemText primary={label(context)} secondary={hint(context)}/>
-                                    {pending === key && <CircularProgress size={20}/>}
-                                    {key === contextKey(current) && pending === null &&
-                                        <Chip size="small" label={t("auth.current")}/>}
-                                </ListItemButton>
+                                <ListItem key={key} disablePadding>
+                                    <ListItemButton
+                                        divider
+                                        selected={key === contextKey(current)}
+                                        disabled={pending !== null && pending !== key}
+                                        onClick={() => void choose(context)}
+                                        sx={{py: 1.5}}
+                                    >
+                                        <ListItemIcon>{icon(context)}</ListItemIcon>
+                                        <ListItemText primary={label(context)} secondary={hint(context)}/>
+                                        {pending === key && <CircularProgress size={20} aria-label={t("common.loading")}/>}
+                                        {key === contextKey(current) && pending === null &&
+                                            <Chip size="small" label={t("auth.current")}/>}
+                                    </ListItemButton>
+                                </ListItem>
                             );
                         })}
                     </List>

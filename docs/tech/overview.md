@@ -119,7 +119,7 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
                                <RequirePermission>, api.ts (the permission catalog)
   src/features/roles/, staff/  reusable role and staff lists + editors; data only through an adapter (no URLs)
   src/features/admin/          admin layout, clinic pages and tabs, adapters.ts (adminRolesApi / adminStaffApi)
-  src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight
+  src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight, useDialogSave, useOpeningKey
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
   src/**/*.test.ts(x)          Vitest unit + component tests, next to the code; src/test/: their helpers (providers,
@@ -293,8 +293,10 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
 
 A missing drug or group answers `notFound` (the SPA shows "this item no longer exists"). An id that is not a whole
-number (`/drugs/abc`) matches no route (`{id:int}`): `GET` → 404 `notFound`, other methods → 405 `methodNotAllowed`
-(the non-GET quirk in [architecture](../design/architecture.md#carry-over-to-m15)).
+number (`/drugs/abc`, `/drug-groups/abc`, any `{id:int}` segment) fails its route's constraint: the methods that route
+has (`GET`/`PUT`/`DELETE` on `/drugs/{id:int}`) and `GET` always → 404 `notFound`, the other methods (`POST`, `PATCH`
+on `/drugs/abc`; `PUT` on `/admin/clinics/abc/suspend`) → 405 `methodNotAllowed` (the method check runs before the
+constraint; the non-GET quirk in [architecture](../design/architecture.md#carry-over-to-m15)).
 `/api/*` paths never fall back to the SPA's `index.html`.
 
 ### Adding a use case
@@ -449,13 +451,25 @@ Swagger UI is available in Development at `/swagger`.
   refetch on focus), emotion cache per direction (`rtl` cache adds the stylis RTL plugin), MUI theme
   from `createAppTheme(direction)`, `CssBaseline`, `AuthProvider` (session restore, `useAuth()`),
   `Toaster`.
+- **Accessible names** (axe, UX-036): every progress indicator (`LinearProgress`, `CircularProgress`) has
+  `aria-label={t("common.loading")}`; a `role="listbox"` has a name (`SearchableList`: `common.searchResults`); a MUI
+  `List` holds `ListItem`s (`<li>`), a `ListItemButton` goes inside one (`disablePadding`); controls built by a library
+  get theirs from the app (the Quill toolbar: `EditorContent`, `prescription.toolbar.*`).
+- **Contrast**: text reads at ≥ 4.5:1 (axe `color-contrast`). The theme's `warning` is `#b45309` (MUI's `#ed6c02` gives
+  white text 3.1:1: the login page's filled display-mode banner); muted text that must be read uses `text.secondary`,
+  never `text.disabled` (the dosing preview's «لا توجد جرعة محددة», the group dialogs' boxes, the staff editor's locked
+  phone explanation: a disabled field's helper text is set back to `text.secondary`).
 - **Toasts** (`react-hot-toast`'s `Toaster`, bottom-center; `white-space: pre-line`, so a message's parts joined with
   `\n` show on their own lines, and `overflow-wrap: anywhere`, so a long name wraps): success, error or neutral
   (plain) style; each closes by itself after the library's time (some longer, e.g. 8 s for the lost-clinic messages).
   **Dismissing** (the user's decision, 2026-10-16): every toast also has a small × icon button (tooltip and accessible
   name «إغلاق» / "Close", `common.close`) that closes it at once, and on a touch phone swiping it sideways closes it;
-  closing one toast leaves the others. Not built yet: today a toast can only wait to close by itself
-  ([BUG-621](../testing/known-bugs.md), built after M1.6).
+  closing one toast leaves the others; a swipe shorter than 60 px springs back. Closing removes the toast at once
+  (`toast.remove`, no exit delay). The toaster is `components/common/AppToaster.tsx` (`AppToaster`: react-hot-toast
+  headless through `useToaster`, laid out as the library's `Toaster`; each toast a `ToastBar` with the button at its
+  end, so on the left in Arabic), mounted by `AppProviders` and by the Vitest `renderWithProviders`. As in the library,
+  a mouse over the toasts pauses their timers; a finger doesn't (a tap also fires mouse events, and once the tapped
+  toast is gone the pointer never leaves, which would keep the other toasts paused for good).
 - Routes (`app/App.tsx`), each page lazy-loaded as its own chunk (`Suspense`). Login pages use
   `SimpleLayout`; the clinic app is `AppLayout` behind `RequireAuth context="clinic"`
   ([login](../features/auth/tech.md)); the platform admin is `AdminLayout` behind `RequireAuth context="platform"`
@@ -562,12 +576,34 @@ Swagger UI is available in Development at `/swagger`.
 | `SortableList` | dnd-kit vertical list; drag handle per row; mouse, touch and keyboard reordering |
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
-| `InfoTip` | Small ⓘ icon with a tooltip (on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s, `leaveTouchDelay` 5000) to explain a field or option |
-| `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs |
+| `InfoTip` | Small ⓘ icon with a tooltip (a `TapTooltip`: on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s) to explain a field or option |
+| `TapTooltip` | A `Tooltip` for tooltips that explain (ⓘ, why a control is disabled, the group editor line's custom-dosing and ask-the-eye chips in the read-only view; in edit mode a tap on the line opens its dosing dialog): a quick tap shows it at once and it stays ~5 s (`leaveTouchDelay` 5000); hover and focus as usual. MUI's default needs a 700 ms long press, and even with `enterTouchDelay={0}` a touchend in the same tick (a quick tap) cancels its open timer, so it is controlled and the child's `touchend` opens it; MUI's leave timer closes it. The child takes the ref and event props (wrap a disabled control in a `span`); `tap={false}` keeps MUI's touch behaviour while a tap is the control's own action. Used by `InfoTip`, the `Permission*` denied tooltip, the tapering steps editor's disabled step dose / «إضافة مرحلة», the role list's held-role Delete |
+| `AppToaster` | The app's toaster ([App shell](#app-shell) "Toasts"): bottom-center, every toast with a × «إغلاق» / "Close" icon button and swipe-to-close; mounted once by `AppProviders` |
+| `FormDialog` | The `Dialog` of a create/edit form saving through `useDialogSave`: Esc and a backdrop click do nothing while the save is in flight (contract below) |
+| `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs; its `onSubmit` is `useDialogSave`'s `submit` (below) |
 
 Hooks (`src/hooks`): `useDebouncedValue`, `useLanguage`, `useFormatDate` (dates in the UI language, Latin digits),
 `useSingleFlight` (`once(action)`: a call while the previous one runs is ignored; a mutation's `isPending` re-renders
 too late to stop a double click). Use it for every create/save/delete button.
+
+Every create/edit dialog whose Save calls the API (drug, role, staff, Rename clinic) follows one contract:
+- `FormDialog` (`components/common`): the MUI `Dialog` of such a form. Not closable while the save is in flight: Esc
+  and a backdrop click do nothing (`useDialogSave` tells it through a context), Cancel is disabled by the form
+  (`isPending`); the typed values are kept. When no save runs, Esc closes it without saving (UX-023).
+- `useDialogSave(save)` → `{submit, done}`: the form's `onSubmit` (one save at a time, through `useSingleFlight`). `save`
+  resolves `true` when it succeeded and the dialog closes, `false` otherwise (invalid input, an API error). After a
+  success the form stays locked until it unmounts: `done` is true (Save is `disabled={isPending || done}`) and every
+  later submit (a second click or Enter landing after a fast answer, while the dialog fades out) is ignored. After a
+  failure it unlocks at once, so the user can fix the input and save again.
+- `useOpeningKey(open)`: a number that changes each time `open` turns true, used as the form's `key`. Every opening
+  mounts a fresh form (from the given entity, or empty), also when reopened during the closing animation (MUI keeps the
+  closing content mounted until it has faded out), and so also unlocked. The clinic Delete dialog and the prescription
+  editor («تعديل ونسخ», rebuilt from the current lines) use it too.
+- The clinic Delete dialog (a confirmation; its delete runs in the page) is not closable while deleting either:
+  `onClose={pending ? undefined : onClose}`.
+
+The line dialogs (group line, prescription line) save locally and synchronously; their form is rendered only while a line
+is given (`{item && <Form key={item.key}/>}`), so it is gone as soon as they close.
 
 Permission pieces (`features/access`, [details](../features/access/tech.md#frontend-srcfeaturesaccess)):
 
@@ -575,7 +611,7 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 |---|---|
 | `usePermissions()` | `{ can, canAll, canAny, allows, ready }` for logic |
 | `<Can permission / anyOf / allOf fallback?>` | Render children only when allowed |
-| `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` | Gated MUI controls; `whenDenied="disable"` shows them disabled with a tooltip (default hidden) |
+| `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` | Gated MUI controls; `whenDenied="disable"` shows them disabled with a tooltip (`TapTooltip`: on hover, and on tap at once, staying ~5 s; default hidden) |
 | `withPermission(Component)` | Gate any control that takes `disabled` the same way |
 | `<RequirePermission>` | Route guard with the "No permission" page |
 
@@ -704,7 +740,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
-- Tests run locally only (`test.ps1`; no CI). Open app bugs found by the tests: [known bugs](../testing/known-bugs.md).
+- Tests run locally only (`test.ps1`; no CI). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist
 

@@ -3,9 +3,12 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
 import {unique, uniqueDigits} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
+import {dropDaily} from "../support/rx.ts";
+import {RX_TEXTS} from "../support/texts-rx.ts";
 import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
+    addGroupToRx,
     countNamed,
     dialog,
     drugRow,
@@ -214,7 +217,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await page.keyboard.press("Enter");
             await expectToast(page, t.drugAdded);
             await page.waitForTimeout(1500);
-            // (The second Enter may land on «إضافة دواء» and open the dialog again: BUG-588, DRUG-104, not this case)
+            // (The second Enter may land on «إضافة دواء» and open the dialog again, empty: DRUG-104, not this case)
             if (await dialog(page).count()) await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
@@ -222,7 +225,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(posts.length, "one POST").toBe(1);
         });
 
-    test.fail("BUG-586: a fast answer frees the save while the dialog fades out: the second click of a double click landing after it creates the drug again @UX-024",
+    test("a double click whose second click lands after a fast answer (the dialog fading out) creates the drug once @UX-024",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -247,7 +250,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(posts.length, "one POST").toBe(1);
         });
 
-    test.fail("BUG-588: the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») shows the name just saved instead of starting empty @DRUG-104",
+    test("the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») starts empty, not with the name just saved @DRUG-104",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -259,7 +262,9 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const saved = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
             await field.press("Enter");
             await saved;
-            // The focus is back on «إضافة دواء» while the dialog fades out: Enter opens it again
+            // The focus is back on «إضافة دواء» while the dialog fades out (the page behind it still aria-hidden): Enter
+            // opens it again
+            await expect(page.getByRole("button", {name: t.addDrug, includeHidden: true})).toBeFocused();
             await page.keyboard.press("Enter");
             await expect(dialog(page).getByRole("textbox", {name: t.drugName}), "a new drug starts empty").toHaveValue("");
             await dialog(page).getByRole("button", {name: t.cancel}).click();
@@ -331,7 +336,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
 
             // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
             // (Inputs holding the name scroll inside themselves: not checked. The groups list's cards, the Groups-tab
-            // picker and the line dialogs' titles: known bugs BUG-591, BUG-587 and BUG-589, below.)
+            // picker, the line dialogs' titles and the group-add dialogs: their own tests, below.)
             const fits = async (what: string, shown: Locator) => {
                 await noHorizontalScroll(page, what);
                 const open = dialog(page);
@@ -369,7 +374,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await fits("already-added toast", toast(page, u.alreadyAdded(name)));
         });
 
-    test.fail("BUG-589: the group line dialog and the prescription line dialog cut a 256-character drug name in their title instead of wrapping it @UX-009",
+    test("the group line dialog and the prescription line dialog wrap a 256-character drug name in their title @UX-009",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
@@ -394,7 +399,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(problems, "the drug name is shown whole in both dialog titles").toEqual([]);
         });
 
-    test.fail("BUG-591: the groups list's cards cut a group name and a drug name (one line, ellipsis) instead of wrapping them: a 256-character one, and an ordinary «بعد عملية المياه البيضاء …» @UX-009",
+    test("the groups list's cards wrap a group name and a drug name inside the card, never cut them: a 256-character one, and an ordinary «بعد عملية المياه البيضاء …» @UX-009",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -421,7 +426,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expect(card.getByRole("button", {name: t.delete})).toBeVisible();
         });
 
-    test.fail("BUG-587: the prescription's Groups-tab picker cuts a 256-character group name instead of wrapping it @UX-009",
+    test("the prescription's Groups-tab picker wraps a 256-character group name @UX-009",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -434,5 +439,34 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expect(shown).toBeVisible();
             await noHorizontalScroll(page, "group picker");
             await expectNotCut(shown, "group picker");
+        });
+
+    test("adding a group: «أي عين؟» and «موجود بالفعل في الروشتة» wrap a 256-character group / drug name in their message @UX-009",
+        async ({page, data, lang}) => {
+            const {t, u} = textsOf(lang);
+            const rt = RX_TEXTS[lang];
+            const clinic = await data.clinic();
+            const drug = await drugWith(data, clinic, {name: `L${unique()}`.padEnd(256, "W"), defaultDosing: dropDaily(4, 1, "right")});
+            const asks = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: dropDaily(2, 1)});
+            // The drug's line already there (right eye, 4 times) clashes with the group's (6 times); the group's other
+            // line asks the eye
+            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"),
+                [{drug, dosing: {frequency: "daily", frequencyValue: 6}}, {drug: asks, dosing: {eye: "ask"}}]);
+            await signIn(page, clinic.owner.phone);
+            await addDrugToRx(page, t, drug.name);
+            await expect(linesPanel(page, u).getByText(drug.name, {exact: true})).toBeVisible();
+            const fits = async (what: string, shown: Locator) => {
+                await expect(shown).toBeVisible();
+                await noHorizontalScroll(page, what);
+                await fitsTheScreen(page, dialog(page), what);
+                await expectNotCut(shown, what);
+            };
+
+            await addGroupToRx(page, t, group.name);
+            await fits("choose-eye dialog", dialog(page).getByText(rt.chooseEyeMessage(group.name), {exact: true}));
+            await dialog(page).getByRole("button", {name: rt.eyeLeft, exact: true}).click();
+            await fits("conflict dialog", dialog(page).getByText(rt.conflictMessage(drug.name), {exact: true}));
+            await dialog(page).getByRole("button", {name: rt.keepCurrent, exact: true}).click();
+            await expectNoDialog(page);
         });
 });

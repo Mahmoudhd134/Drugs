@@ -1,7 +1,6 @@
-import {type FormEvent, useState} from "react";
+import {useState} from "react";
 import {
     Button,
-    Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
@@ -15,8 +14,10 @@ import {useTheme} from "@mui/material/styles";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
+import {FormDialog} from "../../../components/common/FormDialog.tsx";
 import {DialogForm} from "../../../components/common/DialogForm.tsx";
-import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
+import {useDialogSave} from "../../../hooks/useDialogSave.ts";
+import {useOpeningKey} from "../../../hooks/useOpeningKey.ts";
 import {useSaveDrug} from "../api.ts";
 import type {Drug} from "../types.ts";
 import {DrugText} from "./DrugText.tsx";
@@ -35,9 +36,11 @@ type Props = {
 export const DrugFormDialog = ({open, drug, readOnly, onClose}: Props) => {
     const {t} = useTranslation();
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
+    const opening = useOpeningKey(open);
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
+        // Not closable while saving: the result would come after the dialog is gone
+        <FormDialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             <DialogTitle>{drug === null ? t("drugs.new") : readOnly ? t("drugs.details") : t("drugs.edit")}</DialogTitle>
             {readOnly && drug !== null ? (
                 <>
@@ -49,37 +52,31 @@ export const DrugFormDialog = ({open, drug, readOnly, onClose}: Props) => {
                     </DialogActions>
                 </>
             ) : (
-                // The dialog unmounts this after closing, so it starts from the given drug on each open
-                <DrugForm drug={drug} onClose={onClose}/>
+                // Each opening starts from the given drug, also when reopened during the closing animation
+                <DrugForm key={opening} drug={drug} onClose={onClose}/>
             )}
-        </Dialog>
+        </FormDialog>
     );
 };
 
 const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) => {
     const {t} = useTranslation();
     const saveDrug = useSaveDrug();
-    const once = useSingleFlight();
     const [name, setName] = useState(drug?.name ?? "");
     const [description, setDescription] = useState(drug?.description ?? "");
     const [dosing, setDosing] = useState<Dosing>(drug?.defaultDosing ?? {});
     const [showNameRequired, setShowNameRequired] = useState(false);
     const [showDosingErrors, setShowDosingErrors] = useState(false);
 
-    const handleSubmit = (e: FormEvent) => {
-        e.preventDefault();
-        void once(save);
-    };
-
-    // One save at a time (a double click would add the drug twice)
-    const save = async () => {
+    // One save at a time, locked once saved (a double click would add the drug twice)
+    const {submit, done} = useDialogSave(async () => {
         if (!name.trim()) {
             setShowNameRequired(true);
-            return;
+            return false;
         }
         if (dosingErrors(dosing).length) {
             setShowDosingErrors(true);
-            return;
+            return false;
         }
 
         try {
@@ -91,15 +88,17 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
             });
             toast.success(drug === null ? t("drugs.created") : t("drugs.updated"));
             onClose();
+            return true;
         } catch (error) {
             toast.error(getErrorMessage(error));
+            return false;
         }
-    };
+    });
 
     const nameError = showNameRequired && !name.trim();
 
     return (
-        <DialogForm onSubmit={handleSubmit}>
+        <DialogForm onSubmit={submit}>
             <DialogContent sx={{pt: 1}}>
                 <Stack sx={{gap: 2, pt: 1}}>
                     <TextField
@@ -133,7 +132,7 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>
                 <Button onClick={onClose} disabled={saveDrug.isPending}>{t("common.cancel")}</Button>
-                <Button type="submit" variant="contained" disabled={saveDrug.isPending}>
+                <Button type="submit" variant="contained" disabled={saveDrug.isPending || done}>
                     {saveDrug.isPending ? t("common.saving") : t("common.save")}
                 </Button>
             </DialogActions>

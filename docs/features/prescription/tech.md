@@ -90,14 +90,19 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
   ⊕ add for the other eye (only when possible), ✕ remove. Clicking the row text also edits.
 - `components/useGroupAddDialogs.tsx`: promise-based dialogs `askEye` and `askConflict`
   (render `dialogs` in the page). On a phone (375 px) the conflict dialog's two boxes («الحالي» / «من المجموعة») are
-  stacked (side by side from `sm`) and the eye dialog's three buttons (right / left / both) fit on one row.
+  stacked (side by side from `sm`) and the eye dialog's three buttons (right / left / both) fit on one row. The group
+  or drug name in their message wraps (`overflow-wrap: anywhere`), so a long unbroken name is never cut.
 - `components/LineEditDialog.tsx`: `DosingFields` + note, both starting from the line's current dosing and note (its
   "Prescription text" preview is the dosing sentence only: for an eye-only dosing just the eye part; the line adds the
   drug description, see Text formats); the note is saved trimmed (only spaces = no note); blocks save on
   invalid fields; shows
-  `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens.
+  `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens. The drug name under its
+  title wraps (`overflow-wrap: anywhere`).
 - `components/EditorDialog.tsx` + `EditorContent.tsx`: lazy-loaded Quill editor, rebuilt from the
-  current lines on every open. Edits are not saved.
+  current lines on every open (`useOpeningKey`: also when reopened during the closing animation). Edits are not saved.
+  Quill builds its toolbar without names: after it mounts,
+  `EditorContent` sets an `aria-label` on each control (`TOOLBAR_NAMES`: the icon buttons, the alignment picker's label
+  and its 4 options) from `prescription.toolbar.*`, in the UI language («عريض», «المحاذاة», … / "Bold", "Alignment", …).
 
 ### Text formats (`prescriptionText.ts`)
 - A line renders as: drug name, then its details: the dosing sentence (`dosingToText`); **or**, when the dosing

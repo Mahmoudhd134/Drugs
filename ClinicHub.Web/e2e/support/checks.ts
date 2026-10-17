@@ -8,81 +8,30 @@ import type {Lang} from "./texts.ts";
  * uncaught exception and no API error answer (400–499) the test did not declare.
  */
 
-/** Where a flagged element sits, read in the page (so a known bug matches only its documented elements). */
+/**
+ * Where a flagged element sits, read in the page (so a known bug matches only its documented elements). A known bug
+ * adds the fields its entry needs (e.g. "a `role=listbox` list that a search field controls"), read in `spotOf`.
+ */
 type Spot = {
     html: string;
     /** The element is no longer in the page (axe then names `:root`): the page changed during the scan */
     gone: boolean;
-    /** A `role="listbox"` list that a search field (`input[type=search]`) controls by `aria-controls` */
-    searchResultList: boolean;
-    /** The `<ul>` right inside the sidebar's `<nav>` (the permanent one on desktop, the drawer on a phone) */
-    sidebarList: boolean;
-    /** The `<ul>` of the clinic picker's card on /select-clinic */
-    pickerList: boolean;
-    /**
-     * One of the documented list loading bars: an unnamed MUI LinearProgress alone in its 4 px box right after a search
-     * field's box, inside `main`, on the drugs list (/drugs: the box under the search, above the table), the groups
-     * list (/groups: under the search's card) or a SearchableList picker (/, /groups/new, /groups/:id: under its
-     * search field).
-     */
-    listLoadingBar: boolean;
-    /** A button of the Quill toolbar (`.ql-toolbar button`) in a dialog (the «تعديل قبل النسخ» editor) */
-    quillToolbarButton: boolean;
-    /** The Quill toolbar's alignment picker label (`.ql-picker-label[role=button]`) in that dialog */
-    quillPickerLabel: boolean;
 };
 
 /**
  * Axe findings that are known app bugs (docs/testing/known-bugs.md), each limited to the rule and the elements its row
  * documents. They are reported in the test's attachments, not failed, so the rest of the scan still guards every page;
- * the same rule on any other element fails. Each bug's own test (`onlyBug`) fails on it until it is fixed.
+ * the same rule on any other element fails. Each bug's own test (`onlyBug`) fails on it until it is fixed. None today.
  */
-export const KNOWN_AXE: { bug: string; rule: string; matches: (spot: Spot) => boolean }[] = [
-    // The SearchableList result lists (prescription, group editor pickers): role="listbox" without an accessible name
-    {bug: "BUG-500", rule: "aria-input-field-name", matches: s => s.searchResultList},
-    // MUI Lists whose entries are ListItemButtons directly, not <li>: the sidebar (<a>; desktop and phone), the picker
-    {bug: "BUG-501", rule: "list", matches: s => s.sidebarList || s.pickerList},
-    // The login page's display-mode banner: white on the warning orange (#ed6c02), 3.1:1
-    {bug: "BUG-502", rule: "color-contrast", matches: s => /OTP display mode|وضع عرض الكود/.test(s.html)},
-    // The drug dialog's dosing preview while empty: "No dosing set" in text.disabled on #f5f5f5, 2.6:1
-    {bug: "BUG-505", rule: "color-contrast", matches: s => /No dosing set|لا توجد جرعة محددة/.test(s.html)},
-    // The staff editor's locked phone: its explanation (helper text) in the disabled grey, 2.7:1
-    {bug: "BUG-506", rule: "color-contrast", matches: s => /The number can't be changed|لا يمكن تغيير الرقم/.test(s.html)},
-    // The loading bar (MUI LinearProgress without aria-label) of DrugsPage, DrugGroupsPage and SearchableList
-    {bug: "BUG-551", rule: "aria-progressbar-name", matches: s => s.listLoadingBar},
-    // The Edit-before-copying dialog's Quill toolbar: its icon buttons, and its alignment picker's label
-    {bug: "BUG-570", rule: "button-name", matches: s => s.quillToolbarButton},
-    {bug: "BUG-570", rule: "aria-command-name", matches: s => s.quillPickerLabel},
-];
+export const KNOWN_AXE: { bug: string; rule: string; matches: (spot: Spot) => boolean }[] = [];
 
 const spotOf = async (page: Page, target: string, html: string): Promise<Spot> => {
-    const nowhere = {
-        gone: true, searchResultList: false, sidebarList: false, pickerList: false, listLoadingBar: false,
-        quillToolbarButton: false, quillPickerLabel: false,
-    };
     const where = await page.evaluate(({selector, html}) => {
         const el = document.querySelector(selector);
         if (!el || (el === document.documentElement && !/^<html\b/i.test(html))) return null;
-        const id = el.getAttribute("id");
-        const listPage = /^\/(drugs|groups(\/[^/]+)?)?\/?$/.test(location.pathname);
-        const box = el.parentElement;
-        const before = box?.previousElementSibling;
-        const besideSearch = !!before && (before.matches("input[type=search]") || !!before.querySelector("input[type=search]"));
-        const editorToolbar = !!el.closest(".MuiDialog-paper .ql-toolbar");
-        return {
-            gone: false,
-            searchResultList: el.getAttribute("role") === "listbox" && !!id
-                && !!document.querySelector(`input[type=search][aria-controls="${CSS.escape(id)}"]`),
-            sidebarList: el.tagName === "UL" && !!el.parentElement?.matches(".MuiDrawer-paper nav"),
-            pickerList: el.tagName === "UL" && location.pathname === "/select-clinic" && !!el.parentElement?.matches(".MuiCard-root"),
-            listLoadingBar: listPage && !!el.closest("main")
-                && el.matches(".MuiLinearProgress-root[role=progressbar]:not([aria-label]):not([aria-labelledby])")
-                && !!box && box.children.length === 1 && getComputedStyle(box).height === "4px" && besideSearch,
-            quillToolbarButton: editorToolbar && el.tagName === "BUTTON",
-            quillPickerLabel: editorToolbar && el.matches(".ql-picker-label[role=button]"),
-        };
+        return {gone: false};
     }, {selector: target, html}).catch(() => null);
-    return {html, ...(where ?? nowhere)};
+    return {html, ...(where ?? {gone: true})};
 };
 
 /** How a page check treats the known axe bugs (KNOWN_AXE). */

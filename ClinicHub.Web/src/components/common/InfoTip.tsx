@@ -1,10 +1,11 @@
 import type {ReactNode} from "react";
-import {Box, Tooltip} from "@mui/material";
+import {Box} from "@mui/material";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import {TapTooltip} from "./TapTooltip.tsx";
 
 /** A small ⓘ icon that explains something on hover, focus or tap. */
 export const InfoTip = ({title}: { title: ReactNode }) => (
-    <Tooltip title={title} enterTouchDelay={0} leaveTouchDelay={5000} arrow>
+    <TapTooltip title={title} arrow>
         <Box
             component="span"
             tabIndex={0}
@@ -14,5 +15,5 @@ export const InfoTip = ({title}: { title: ReactNode }) => (
         >
             <InfoOutlinedIcon sx={{fontSize: 18}}/>
         </Box>
-    </Tooltip>
+    </TapTooltip>
 );

@@ -58,7 +58,7 @@ const LineForm = ({line, onClose, onSave}: { line: PrescriptionLine } & Omit<Pro
         <>
             <DialogTitle>
                 {t("prescription.editLine")}
-                <Typography color="text.secondary" sx={{fontWeight: 600}}>{line.drug.name}</Typography>
+                <Typography color="text.secondary" sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{line.drug.name}</Typography>
             </DialogTitle>
             <DialogContent>
                 <Stack sx={{gap: 2, pt: 1}}>

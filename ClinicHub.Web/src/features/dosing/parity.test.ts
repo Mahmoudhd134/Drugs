@@ -23,10 +23,8 @@ interface DosingCase {
 const cases = (JSON.parse(fixtureText) as { cases: DosingCase[] }).cases;
 
 /**
- * BUG-590 (docs/testing/known-bugs.md): `normalizeDosing` keeps a whitespace-only code (`" "`), which the API's
- * `Normalize` turns into null (DOSE-064), and `dosingErrors` then counts `" "` as a unit (a dose amount with a blank
- * unit passes, the API refuses it). The SPA's selects never produce one (the rows are `apiOnly`), so these rows are
- * checked in full (`valid` too) as expected failures.
+ * Rows with a whitespace-only code (`" "`), which both sides normalize to null (DOSE-064). The SPA's
+ * selects never produce one (the rows are `apiOnly`), so these rows are checked in full (`valid` too).
  */
 const BLANK_CODE_ROWS = [
     "blank strings for codes normalize to null",
@@ -83,7 +81,7 @@ describe("Dosing rule parity: tests/fixtures/dosing-cases.json against types.ts 
 
     test.each(rows(row => !isBlankCodeRow(row) && !nothingToCheck(row)))("%s @DOSE-066", (_name, row) => checkRow(row));
 
-    test.fails.each(rows(isBlankCodeRow))(
-        "BUG-590: normalizeDosing and dosingErrors keep a whitespace-only code that the API normalizes to null: %s @DOSE-064",
+    test.each(rows(isBlankCodeRow))(
+        "a whitespace-only code normalizes to null, as in the API: %s @DOSE-064",
         (_name, row) => checkRow(row, {checkValid: true}));
 });

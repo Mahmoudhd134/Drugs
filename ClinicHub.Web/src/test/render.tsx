@@ -8,11 +8,11 @@ import createCache from "@emotion/cache";
 import {prefixer} from "stylis";
 import rtlPlugin from "@mui/stylis-plugin-rtl";
 import {CssBaseline, ThemeProvider} from "@mui/material";
-import {Toaster} from "react-hot-toast";
 import {vi} from "vitest";
 import i18n from "../i18n";
 import {getLanguage, type LanguageCode} from "../i18n/languages.ts";
 import {createAppTheme} from "../app/theme.ts";
+import {AppToaster} from "../components/common/AppToaster.tsx";
 import {AuthContext, type AuthValue} from "../features/auth/useAuth.ts";
 import type {Context, Me} from "../features/auth/types.ts";
 import type {Permission} from "../features/access/permissions.ts";
@@ -39,8 +39,8 @@ export type TestUser = {
 export type RenderWithProvidersOptions = Omit<RenderOptions, "wrapper"> & {
     /** The UI language (default "en"); "ar" also sets `<html dir="rtl">` and the RTL emotion cache */
     lang?: LanguageCode;
-    /** The URL the app is at (default "/") */
-    route?: string;
+    /** The URL the app is at (default "/"), or the location with its state (e.g. `{pathname: "/login", state: {from}}`) */
+    route?: string | Partial<Location>;
     /** The route pattern `ui` is mounted on, for `useParams` (default: any path) */
     path?: string;
     /** The logged-in user (default: the Owner of clinic 1); ignored when `auth` sets `status` other than authenticated */
@@ -123,7 +123,7 @@ export const buildAuth = (user: TestUser = {}, overrides: Partial<AuthValue> = {
 /**
  * Renders `ui` inside the app's real providers: MUI theme (+ RTL emotion cache in Arabic), i18n in `lang` (and
  * `<html lang dir>`), a fresh QueryClient (`createTestQueryClient`), a MemoryRouter at `route`, the auth context of `user`, and the
- * Toaster (toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
+ * app's Toaster (`AppToaster`: toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
  * `queryClient`, `location()` and `clipboard` (with the `clipboard` option).
  *
  * @example
@@ -153,7 +153,7 @@ export const renderWithProviders = async (ui: ReactElement, options: RenderWithP
                             {children}
                         </AuthContext.Provider>
                     </MemoryRouter>
-                    <Toaster/>
+                    <AppToaster/>
                 </ThemeProvider>
             </CacheProvider>
         </QueryClientProvider>

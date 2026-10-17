@@ -155,6 +155,65 @@ describe("normalizeDosing @area:catalog", () => {
     });
 });
 
+describe("blank codes are no code, as in the API (C# DosingRules.Blank) @area:catalog", () => {
+    const blanks = ["", " ", "\t ", "\n"] as unknown as never[];
+
+    test("a blank dose unit, frequency, duration unit or eye normalizes to null @DOSE-064", () => {
+        for (const b of blanks) {
+            expect(normalizeDosing({doseUnit: b}).doseUnit).toBeNull();
+            expect(normalizeDosing({frequency: b}).frequency).toBeNull();
+            expect(normalizeDosing({durationUnit: b}).durationUnit).toBeNull();
+            expect(normalizeDosing({eye: b}).eye).toBeNull();
+            expect(isDosingEmpty({doseUnit: b, frequency: b, durationUnit: b, eye: b})).toBe(true);
+        }
+        expect(normalizeDosing({doseUnit: " " as never, eye: "left"})).toMatchObject({doseUnit: null, eye: "left"});
+        // A set code is kept as is (the API does not trim codes either)
+        expect(normalizeDosing({doseUnit: "drop", frequency: "bedtime", durationUnit: "continuous", eye: "both"}))
+            .toMatchObject({doseUnit: "drop", frequency: "bedtime", durationUnit: "continuous", eye: "both"});
+    });
+
+    test("each blank code alone is no dosing; next to a set eye there are no instructions @DOSE-064", () => {
+        for (const field of ["doseUnit", "frequency", "durationUnit", "eye"] as const) {
+            expect(isDosingEmpty({[field]: " "} as Dosing), field).toBe(true);
+            expect(hasDosingInstructions({[field]: " ", eye: "right"} as Dosing), field).toBe(false);
+        }
+    });
+
+    test("a blank code drops the value that goes with it @DOSE-064", () => {
+        expect(normalizeDosing({frequency: " " as never, frequencyValue: 3, frequencyText: "x"}))
+            .toMatchObject({frequency: null, frequencyValue: null, frequencyText: null});
+        expect(normalizeDosing({durationUnit: " " as never, durationValue: 4})).toMatchObject({durationUnit: null, durationValue: null});
+    });
+
+    test("a dose amount with a blank unit is missing its unit @DOSE-064", () => {
+        for (const b of blanks) expect(dosingErrors({doseAmount: 2, doseUnit: b})).toEqual(["doseUnit"]);
+        expect(dosingErrors({doseAmount: 2, doseUnit: "drop"})).toEqual([]);
+    });
+
+    test("a step's blank frequency or duration unit normalizes to null and is reported missing @DOSE-064", () => {
+        for (const b of blanks) {
+            expect(normalizeStep({frequency: b, frequencyValue: 4, durationUnit: b, durationValue: 2}))
+                .toEqual({doseAmount: null, frequency: null, frequencyValue: null, durationValue: null, durationUnit: null});
+            expect(dosingErrors({doseUnit: "drop", taperSteps: [step(), step({frequency: b})]})).toEqual(["taperSteps.1.frequency"]);
+            expect(dosingErrors({doseUnit: "drop", taperSteps: [step({durationUnit: b}), step()]})).toEqual(["taperSteps.0.durationUnit"]);
+        }
+    });
+
+    test("a single step with blank codes folds into no frequency and no duration @DOSE-064", () => {
+        expect(normalizeDosing({doseUnit: "drop", taperSteps: [step({frequency: " " as never, durationUnit: " " as never})]}))
+            .toMatchObject({taperSteps: null, frequency: null, frequencyValue: null, durationUnit: null, durationValue: null});
+    });
+
+    test("a blank eye is no eye: same dosing and eyeKey none @DOSE-064", () => {
+        expect(eyeKey({eye: " " as never})).toBe("none");
+        expect(eyeKey({eye: "" as never})).toBe("none");
+        expect(sameDosing({eye: " " as never}, {})).toBe(true);
+        expect(sameDosing({doseUnit: " " as never, frequency: "bedtime"}, {frequency: "bedtime"})).toBe(true);
+        expect(mergeDosing({eye: "left"}, {eye: " " as never}).eye).toBe("left");
+        expect(mergeDosing({doseAmount: 1, doseUnit: "drop"}, {doseUnit: " " as never})).toMatchObject({doseAmount: 1, doseUnit: "drop"});
+    });
+});
+
 describe("sameDosing, eyeKey, otherEye, hasDosingInstructions @area:catalog", () => {
     test("dosings that differ only in fields that don't apply are the same @DOSE-067", () => {
         expect(sameDosing({frequency: "bedtime", frequencyValue: 3}, {frequency: "bedtime"})).toBe(true);

@@ -1,6 +1,8 @@
 import {lazy, Suspense} from "react";
 import {Box, CircularProgress, Dialog, useMediaQuery} from "@mui/material";
 import {useTheme} from "@mui/material/styles";
+import {useOpeningKey} from "../../../hooks/useOpeningKey.ts";
+import {useTranslation} from "react-i18next";
 import type {PrescriptionLine} from "../types.ts";
 
 // The rich-text editor is large, so it's only downloaded when first opened
@@ -13,13 +15,15 @@ type Props = {
 };
 
 export const EditorDialog = ({open, lines, onClose}: Props) => {
+    const {t} = useTranslation();
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
+    const opening = useOpeningKey(open);
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
-            {/* The dialog unmounts this after closing, so it's rebuilt from the current selection on each open */}
-            <Suspense fallback={<Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress/></Box>}>
-                <EditorContent lines={lines} onClose={onClose}/>
+            {/* Each opening is rebuilt from the current lines, also when reopened during the closing animation */}
+            <Suspense fallback={<Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress aria-label={t("common.loading")}/></Box>}>
+                <EditorContent key={opening} lines={lines} onClose={onClose}/>
             </Suspense>
         </Dialog>
     );

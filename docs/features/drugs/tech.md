@@ -82,7 +82,10 @@ else 401 / 403 ([access](../access/tech.md#api)).
   (`useConfirm`). Clicking a row opens edit.
 - **Dialog** `components/DrugFormDialog.tsx`: create/edit with Name (required), Description
   (multiline) and a "Default dosing" section (`DosingFields`); save is blocked while
-  `dosingErrors` is not empty. Inputs use `dir="auto"`. Remounts on each open (state starts from the given drug).
+  `dosingErrors` is not empty. Inputs use `dir="auto"`. Remounts on each open (`useOpeningKey`: state starts from the
+  given drug, also when reopened during the closing animation). Saves through `useDialogSave`: one save at a time, and
+  once saved Save stays disabled (Enter ignored) while the dialog fades out; a failed save unlocks at once.
+  Not closable while saving (`FormDialog`: Esc and a backdrop click do nothing, Cancel disabled).
   On open the name field has the focus (new: «دواء جديد» with empty fields).
   `maxWidth="md"` (room for tapering steps); full-screen on small screens.
 - **Reusable components** (used by other features):

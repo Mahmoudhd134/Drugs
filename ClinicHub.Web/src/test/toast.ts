@@ -1,7 +1,7 @@
 import {expect} from "vitest";
 import {waitFor} from "@testing-library/react";
 
-/** The texts of the toasts shown now (react-hot-toast's `<Toaster>`, which renderWithProviders mounts), newest first. */
+/** The texts of the toasts shown now (`AppToaster`, which renderWithProviders mounts), newest first. */
 export const toastTexts = () =>
     Array.from(document.querySelectorAll("[data-rht-toaster] [role=status]")).map(toast => toast.textContent ?? "");
 

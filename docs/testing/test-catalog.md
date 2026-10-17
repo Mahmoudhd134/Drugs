@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -64,19 +64,19 @@ Cases per area and priority, and per level (a case with two levels counts once i
 
 | Area | P0 | P1 | P2 | Total | unit | api | ui | e2e | manual |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 54 | 48 | 1 |
+| [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 55 | 48 | 1 |
 | [ISO](#iso--clinic-isolation) | 20 | 17 | 6 | 43 | 0 | 39 | 1 | 4 | 0 |
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 142 | 92 | 292 | 3 | 165 | 79 | 48 | 0 |
-| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 23 | 15 | 0 |
-| [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 40 | 24 | 0 |
+| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 24 | 15 | 0 |
+| [GRP](#grp--drug-groups) | 32 | 43 | 24 | 99 | 0 | 34 | 41 | 24 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
-| [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
+| [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 24 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
-| [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 2 | 0 | 15 | 21 | 2 |
-| **All** | **352** | **518** | **321** | **1191** | **192** | **532** | **292** | **235** | **7** |
+| [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 17 | 21 | 2 |
+| **All** | **353** | **519** | **322** | **1194** | **194** | **532** | **298** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -295,7 +295,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-166 | Given an auth call stalls, then it times out after 15 s and later auth calls still run | P2 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-167 | Given a deployment over HTTPS (not localhost), when a logged-in user reloads, then they stay logged in; over plain http they must log in again | P1 | manual | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
 | AUTH-168 | Given an anonymous user, when any app route (`/`, `/drugs`, `/groups/1`, `/admin`, `/select-clinic`) opens, then `/login` | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
-| AUTH-169 | Given an anonymous user opened `/drugs`, when the login lands in a clinic, then `/drugs` opens | P1 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-169 | Given an anonymous user opened `/drugs`, when the login lands in a clinic, then `/drugs` opens (with its query string; the home `/` never opens in between) | P1 | ui+e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-170 | Given an anonymous user opened `/drugs`, when the login lands on the picker (several contexts), or opened `/admin…`, then the remembered page is not reopened (the context's home instead) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-171 | Given a clinic context, when `/admin` (or `/admin/clinics/new`, `/admin/clinics/{id}`) opens, then `/` and no admin page or admin request shows; given the platform context, when `/drugs` opens, then `/admin`; given no context, when `/` opens, then `/select-clinic` | P0 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-172 | Given a logged-in user, when `/login` opens, then their context's home opens (`/`, `/admin` or `/select-clinic`) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
@@ -603,7 +603,7 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 | ERR-015 | Given `GET /api/v1/unknown`, then 404 `notFound` ProblemDetails (never the SPA's `index.html`) | P0 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-016 | Given a non-GET method on an unknown `/api` route (e.g. `POST /api/v1/unknown`), then 405 `methodNotAllowed` (documented quirk) | P2 | api | [architecture § Carry-over](../design/architecture.md#carry-over-to-m15) |
 | ERR-017 | Given a wrong method on a known route (e.g. `PATCH /api/v1/drugs/1`, `DELETE /api/v1/permissions`), then 405 `methodNotAllowed` ProblemDetails | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
-| ERR-018 | Given `GET /api/v1/drugs/abc` (an id that is not a whole number), then 404 `notFound`; `PUT` or `DELETE /api/v1/drugs/abc` → 405 `methodNotAllowed` | P2 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
+| ERR-018 | Given an id that is not a whole number in any `{id:int}` route (`/api/v1/drugs/abc`, `/api/v1/drug-groups/abc`, `/api/v1/drugs/abc/groups`, the admin clinic/role/staff routes), then the methods that route has (`GET`, `PUT`, `DELETE` on `/drugs/abc`; `POST` on `/admin/clinics/abc/suspend`) and `GET` always → 404 `notFound`, the other methods (`POST`, `PATCH` on `/drugs/abc`; `PUT` on `/admin/clinics/abc/suspend`) → 405 `methodNotAllowed` ProblemDetails | P2 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-019 | Given a client route (e.g. `/drugs`, `/groups/5`) requested from the server, then 200 `index.html` (deep links and reloads work) | P1 | api+e2e | [tech overview § Runtime](../tech/overview.md#runtime-architecture) |
 
 ### Unexpected errors
@@ -885,7 +885,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-173 | Given the Roles tab, then the Owner role is first, shown «المالك» (en "Owner") with the chip «مقفل» / "Locked", no edit or delete button, and the line «كل الصلاحيات دائمًا. لا يمكن تعديل هذا الدور أو حذفه.» | P1 | ui | [business: roles][adm-b-roles] |
 | ADM-174 | Given Doctor (11), Assistant (9), a 6-key role and an empty role, then the summaries «كل الصلاحيات» / "All permissions", «9 صلاحيات: الأدوية، المجموعات، الروشتة», «6 صلاحيات: الأدوية، المجموعات», «بلا صلاحيات» / "No permissions"; also «صلاحية واحدة: …», «صلاحيتان: …», «11 صلاحية: …» | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-175 | Given each role, then the staff column shows every holder, active or not | P1 | ui | [business: screens][adm-b-screens] |
-| ADM-176 | Given a role held by 3 staff, then its Delete is disabled (still focusable) and its tooltip «ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.» / "Held by 3 staff members. Take it away from them first."; held by 1 → «ممنوح لموظف واحد. …» | P1 | ui | [business: screens][adm-b-screens] |
+| ADM-176 | Given a role held by 3 staff, then its Delete is disabled (still focusable) and its tooltip «ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.» / "Held by 3 staff members. Take it away from them first." (on hover, or at once on a phone tap); held by 1 → «ممنوح لموظف واحد. …» | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-177 | Given an unused role, when Delete, then the confirm «حذف الدور «X»؟ لا يمكن التراجع عن ذلك. لا يمكن حذف دور ممنوح لموظفين: أزِل هذا الدور من موظفيه أولًا.» opens with the focus on Cancel | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-178 | Given the delete confirm, when confirming (double click), then one `DELETE`, the toast «تم حذف الدور «X»» and the row is gone | P1 | e2e | [business: messages][adm-b-msg] |
 | ADM-179 | Given "New role", then the dialog shows the name (max 100), the sections «الأدوية والمجموعات» (Drugs, Groups) and «الروشتة», 11 checkboxes with their translated labels, and «المختار: 0 من 11.» | P1 | ui | [business: screens][adm-b-screens] |
@@ -1170,7 +1170,7 @@ Sources: [drugs business](../features/drugs/business.md), [drugs tech](../featur
 | DRUG-066 | Given an existing drug, when clicking its row (or the ✎ button), then «تعديل الدواء» opens pre-filled with its name, description and default dosing | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
 | DRUG-067 | Given the edit dialog, when changing the name and saving, then the toast «تم تحديث الدواء» (English "Drug updated") appears and the row shows the new name | P0 | e2e | [drugs § الرسائل](../features/drugs/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | DRUG-068 | Given the edit dialog was cancelled after changes, when it is opened again, then it shows the saved values (the form restarts from the drug) | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
-| DRUG-104 | Given the drug dialog closing (saved, or cancelled with text typed), when it is opened again during the closing animation (e.g. a second Enter on «إضافة دواء», where the focus went back), then it starts from the given drug: empty for a new drug, not the text of the closing form | P2 | e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| DRUG-104 | Given the drug dialog closing (saved, or cancelled with text typed), when it is opened again during the closing animation (e.g. a second Enter on «إضافة دواء», where the focus went back), then it starts from the given drug: empty for a new drug, not the text of the closing form | P2 | ui+e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-069 | Given the drug dialog with only empty dosing fields, when saving, then the request sends `defaultDosing: null` | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-070 | Given the drug dialog while a save is in progress, then Save shows «جارٍ الحفظ…» and Save/Cancel are disabled | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-071 | Given a drug in two groups, when its name or default dosing is edited, then both groups' editors and pickers show the new name/sentence without a reload (the groups were refreshed) | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
@@ -1283,6 +1283,7 @@ Sources: [groups business](../features/drug-groups/business.md), [groups tech](.
 | GRP-059 | Given an existing group, when the editor opens, then the title is «تعديل المجموعة» and the name and lines are pre-filled | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
 | GRP-060 | Given `/groups/abc` or `/groups/1.5`, when opened, then the app redirects to `/groups` | P2 | ui | [overview § App shell](../tech/overview.md#app-shell) |
 | GRP-061 | Given `/groups/{id}` of a deleted or unknown group, when opened, then an error «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» is shown instead of the form | P1 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
+| GRP-099 | Given a group opened earlier (cached) whose drug was renamed or got a new default dosing since, when its editor opens again, then the loading spinner shows until the group is fetched again and the form shows the fresh name and sentence, never the cached ones; a failed fetch shows the error with «إعادة المحاولة» instead of the cached form; a refetch while the editor is open keeps the form and its changes | P0 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
 | GRP-062 | Given the editor's Delete button, when confirmed, then «تم حذف المجموعة» and the app goes back to the list | P1 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | GRP-063 | Given a group deleted in another window, when this editor saves, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 | GRP-064 | Given a user with `groups.details` but not `groups.update`, when opening a group, then the title is «المجموعة», the name is read-only and there is no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle | P1 | e2e | [groups § المستخدمون](../features/drug-groups/business.md#المستخدمون) |
@@ -1422,7 +1423,7 @@ through xUnit (`DosingRules`) and Vitest (`normalizeDosing`/`dosingErrors`).
 | DOSE-061 | Given bedtime / asNeeded / custom with a `frequencyValue`, then normalize drops the value | P1 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
 | DOSE-062 | Given a non-custom frequency with `frequencyText`, then normalize drops the text; custom text is trimmed | P1 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
 | DOSE-063 | Given continuous / untilNextVisit with a `durationValue`, then normalize drops the value | P1 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
-| DOSE-064 | Given blank strings for codes (`doseUnit:""`, `eye:" "`), then they normalize to null | P2 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend) |
+| DOSE-064 | Given blank strings for codes (`doseUnit:""`, `eye:" "`, a step's `frequency` / `durationUnit`), then they normalize to null, in the API and in the SPA's `normalizeDosing` / `normalizeStep` (so `isDosingEmpty` and `dosingErrors` agree with the API: a dose amount with a blank unit is missing its unit) | P2 | unit | [dosing tech § Backend](../features/dosing/tech.md#backend), [§ Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
 | DOSE-065 | Given all fields empty, then normalize returns null (API) and the drug stores `defaultDosing: null` | P1 | unit+api | [dosing tech § Data model](../features/dosing/tech.md#data-model) |
 | DOSE-066 | Given the same input, then C# `DosingRules.Normalize`/`IsValid` and TS `normalizeDosing`/`dosingErrors` agree for every row of `tests/fixtures/dosing-cases.json` | P0 | unit | [M1.6 § D6](../design/m1.6-test-foundation.md#d6-rule-parity-between-c-and-typescript) |
 | DOSE-067 | Given two dosings that differ only in fields that don't apply, then `sameDosing` is true | P1 | unit | [dosing tech § Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
@@ -1553,14 +1554,14 @@ Sources: [tapering business](../features/tapering/business.md), [tapering tech](
 | TAPER-063 | Given any dosing dialog (drug, group line, prescription line), then the «تقليل تدريجي» switch with an ⓘ («تقليل الجرعة على مراحل، …») is shown | P1 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-064 | Given daily 4 for 1 week, when switching tapering on, then two step rows appear (4 then 3 times a day, 1 week each) instead of the frequency/period rows | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-065 | Given a schedule, when switching tapering off, then step 1 becomes the normal frequency and period | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
-| TAPER-066 | Given 9 steps, when clicking «إضافة مرحلة», then 10 steps and the button becomes disabled with the tooltip «أقصى عدد للمراحل: 10» | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| TAPER-066 | Given 9 steps, when clicking «إضافة مرحلة», then 10 steps and the button becomes disabled with the tooltip «أقصى عدد للمراحل: 10» (on hover, or at once on a phone tap) | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | TAPER-067 | Given «إضافة مرحلة» enabled, when hovering, then «تضيف مرحلة في النهاية بمرة أقل في اليوم. يمكنك تعديلها بعد ذلك.» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-068 | Given steps, when clicking a step's ✕ «حذف المرحلة», then that step is removed; with one step left the ✕ is disabled | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-069 | Given steps, then only the last step's period list offers «بصفة مستمرة» and «حتى الزيارة القادمة»; the others offer أيام / أسابيع only; step frequency offers مرات في اليوم / كل عدد ساعات only | P0 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-070 | Given an open-ended period on a step that is not last, then the field is red, its value stays visible and the hint «المرحلة الأخيرة فقط يمكن أن تكون «بصفة مستمرة» أو «حتى الزيارة القادمة».» is shown; save is blocked | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | TAPER-071 | Given a step with a missing or out-of-range number, when saving, then that step's field is red and nothing is saved | P0 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-072 | Given a unit and a dose above, then step 1's dose field is disabled, shows the dose above and has the tooltip «المرحلة الأولى تأخذ الجرعة المكتوبة بالأعلى.» | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
-| TAPER-073 | Given no unit above, then the step dose fields are disabled with the tooltip «اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.» | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
+| TAPER-073 | Given no unit above, then the step dose fields are disabled with the tooltip «اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.» (on hover, or at once on a phone tap) | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-074 | Given a unit above, then step 2+ dose fields are enabled, their placeholder is the dose above (or 1), and the tooltip reads «جرعة هذه المرحلة بنفس الوحدة المختارة بالأعلى. …» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-075 | Given a step dose typed (step 2 = 1 drop), then the preview shows the step dose in the sentence | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-076 | Given a group line whose drug default is a taper and no override schedule, then the dialog shows «الجرعة الافتراضية للدواء فيها تقليل تدريجي. فعّل هذا الخيار لتغييره في هذه المجموعة.» and the preview shows the drug's steps | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
@@ -1676,9 +1677,9 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 | RX-073 | Given the clipboard write fails (API rejected and execCommand false), when copying, then the error toast «تعذّر النسخ. حدّد النص وانسخه يدويًا.» appears | P1 | ui | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | RX-074 | Given a non-secure context (plain http), when copying, then the `copy`-event fallback puts both HTML and plain text on the clipboard | P1 | unit | [rx tech § Clipboard](../features/prescription/tech.md#clipboard-srcutilsclipboardts) |
 | RX-075 | Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ» opens (after loading) with «التعديلات هنا للنسخ فقط ولا يتم حفظها.» and the content: bold names, sentences, notes, right-to-left | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
-| RX-076 | Given the editor, then its toolbar offers bold, italic, underline, numbered and bulleted lists, direction, alignment and clear formatting | P2 | ui | [rx § النسخ](../features/prescription/business.md#النسخ) |
+| RX-076 | Given the editor, then its toolbar offers bold, italic, underline, numbered and bulleted lists, direction, alignment and clear formatting, each control named in the UI language («عريض», «المحاذاة», … / "Bold", "Alignment", …) | P2 | ui | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-077 | Given text made bold and a numbered list in the editor, when clicking «نسخ», then the copied HTML keeps them and the plain text has "1. " items, with «تم النسخ» | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
-| RX-078 | Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines) | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
+| RX-078 | Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines, also when reopened during the closing animation) | P0 | ui+e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-079 | Given a line added after closing the editor, when reopening it, then the new line is in its content | P2 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-080 | Given the copied text pasted into Word (desktop), then names are bold, sentences Arabic, paragraphs right-to-left and right-aligned, a blank line between drugs, editor formatting kept | P0 | manual | [M1.6 § D7](../design/m1.6-test-foundation.md#d7-what-stays-manual) |
 | RX-081 | Given the copied text pasted into Windows Notepad (incl. Windows 11 Notepad) and WhatsApp, then plain text without formatting, lines as in the plain-text format | P1 | manual | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
@@ -1767,7 +1768,7 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | UX-012 | Given every icon-only button in these areas (✎, ⊕, ✕, delete, search clear «مسح», remove step, menu), then it has a tooltip and an accessible name in the UI language | P1 | ui | [tech overview § Code conventions](../tech/overview.md#code-conventions) |
-| UX-013 | Given an ⓘ icon, when hovering, focusing it with Tab, or tapping it on a phone, then its explanation shows (after a tap it stays ~5 s, then hides) | P1 | e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-013 | Given an ⓘ icon, when hovering, focusing it with Tab, or tapping it on a phone, then its explanation shows (after a tap it stays ~5 s, then hides) | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-014 | Given the «نسخ» and «تعديل ونسخ» buttons with lines, when hovering, then «نسخ الروشتة كما هي. اللصق في Word يحتفظ بالتنسيق.» / «تعديل النص أولًا (عريض، قوائم، محاذاة) ثم نسخه.»; when disabled (empty list), no tooltip | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components), [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | UX-015 | Given the generator's fields, when hovering, then «عدد المرات في اليوم في المرحلة الأولى», «عدد المرات التي تقل في كل مرحلة», «عدد المرات في اليوم في المرحلة الأخيرة», «المدة التي تستمر فيها كل مرحلة» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 
@@ -1793,6 +1794,8 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | UX-026 | Given `useSingleFlight`, when `once(action)` is called while the previous call runs, then the second call is ignored and resolves to undefined; after the first finishes (or throws), a new call runs | P1 | unit | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-027 | Given a search list (drug or group picker), when an item is double-clicked, then it is selected once (the second click of a burst, `event.detail > 1`, is ignored); keyboard Enter (`detail` 0) still selects | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-028 | Given a delete confirmation, when double-clicking «حذف», then one DELETE request is sent and no error toast appears | P2 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-040 | Given a create/edit dialog saving through `useDialogSave` in a `FormDialog` (drug, role, staff, Rename clinic), when its save is in flight, then Esc and a click outside don't close it (the typed values kept); when the save succeeds (also a 404 that closes it), then the form stays locked until the dialog has closed (Save disabled; a second click, Enter or submit sends nothing); when it fails (invalid input or an API error), then it unlocks at once (Esc closes it again) and saving again sends the request | P1 | unit+ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-041 | Given a dialog whose form is keyed by `useOpeningKey`, when it is opened again (also right after closing, during the closing animation), then a new form mounts (from the given entity, or empty); while it stays open the form is kept | P2 | unit | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 
 ### Load errors and app updates
 
@@ -1812,5 +1815,5 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| UX-038 | Given a toast showing (e.g. «تم حذف الدواء» after a delete), when clicking its × icon button (tooltip and accessible name «إغلاق» / "Close"), then that toast closes at once, before its own time, and other toasts stay | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |
+| UX-038 | Given a toast showing (e.g. «تم حذف الدواء» after a delete), when clicking its × icon button (tooltip and accessible name «إغلاق» / "Close"), then that toast closes at once, before its own time, and other toasts stay and still close by themselves in their time (also after a tap on a touch phone) | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |
 | UX-039 | Given a toast on a touch phone (375 px), when swiping it sideways, then it closes | P2 | e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |

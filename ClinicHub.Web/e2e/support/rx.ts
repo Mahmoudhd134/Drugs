@@ -217,8 +217,10 @@ export const expectGroupToast = async (page: Page, lines: string[], style: "succ
     // joined by spaces, or a message laid out on one line, don't pass (a string `toHaveText` normalizes whitespace)
     const rendered = (await shown.innerText()).split("\n").map(line => line.trim()).filter(Boolean);
     expect(rendered, "each part of the toast on its own line").toEqual(lines);
-    // react-hot-toast: a success toast has its icon next to the message, a plain `toast()` none
-    const hasIcon = await shown.evaluate(el => (el.parentElement?.children.length ?? 0) > 1);
+    // react-hot-toast: a success toast has its icon next to the message, a plain `toast()` none (the × «إغلاق» button
+    // next to it on every toast is not an icon)
+    const hasIcon = await shown.evaluate(el => [...(el.parentElement?.children ?? [])]
+        .some(sibling => sibling !== el && !sibling.matches("button") && !sibling.querySelector("button")));
     expect(hasIcon, `the toast is in the ${style} style`).toBe(style === "success");
 };
 
@@ -294,11 +296,7 @@ export const expectInOrder = async (element: Locator, parts: string[]) => {
     }
 };
 
-/**
- * The page checks (support/checks.ts `expectHealthyPage`) with the rich-text editor open: the Quill toolbar's unnamed
- * buttons and alignment picker (BUG-570, `prescription/editor-axe.spec.ts`) are let through by KNOWN_AXE for those two
- * rules only; every other rule is checked on the toolbar too.
- */
+/** The page checks (support/checks.ts `expectHealthyPage`) with the rich-text editor open, its toolbar included. */
 export const expectEditorHealthy = async (page: Page, lang: "ar" | "en", testInfo: TestInfo) => {
     await expectHealthyPage(page, lang, testInfo);
 };

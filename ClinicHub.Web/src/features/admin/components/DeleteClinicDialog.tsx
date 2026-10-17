@@ -1,6 +1,7 @@
 import {type FormEvent, useState} from "react";
 import {Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
+import {useOpeningKey} from "../../../hooks/useOpeningKey.ts";
 
 type Props = {
     open: boolean;
@@ -17,12 +18,15 @@ type Props = {
 const typable = (name: string) => name.normalize("NFC").replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
 
 /** Deleting is final (no restore in the app), so the clinic's name must be typed first. */
-export const DeleteClinicDialog = ({open, clinicName, pending, onConfirm, onClose}: Props) => (
-    <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth="sm" fullWidth>
-        {/* Unmounted after closing, so each open starts empty */}
-        <DeleteForm clinicName={clinicName} pending={pending} onConfirm={onConfirm} onClose={onClose}/>
-    </Dialog>
-);
+export const DeleteClinicDialog = ({open, clinicName, pending, onConfirm, onClose}: Props) => {
+    // Each opening starts empty, also when reopened during the closing animation
+    const opening = useOpeningKey(open);
+    return (
+        <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth="sm" fullWidth>
+            <DeleteForm key={opening} clinicName={clinicName} pending={pending} onConfirm={onConfirm} onClose={onClose}/>
+        </Dialog>
+    );
+};
 
 const DeleteForm = ({clinicName, pending, onConfirm, onClose}: Omit<Props, "open">) => {
     const {t} = useTranslation();

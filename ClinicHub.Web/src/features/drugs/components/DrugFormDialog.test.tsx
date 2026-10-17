@@ -1,12 +1,16 @@
 import {describe, expect, test, vi} from "vitest";
-import {screen, waitFor, within} from "@testing-library/react";
+import {useState} from "react";
+import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aDrug,
     api,
     choose,
+    clickOutside,
+    expectStillOpen,
     fillIn,
     findToast,
+    holdTimers,
     isRed,
     problem,
     recordRequests,
@@ -278,4 +282,121 @@ describe("drug dialog: tapering steps on save @area:catalog", () => {
         expect(recorded.writes()).toEqual([]);
         expect(onClose).not.toHaveBeenCalled();
     });
+});
+
+describe("drug dialog: locked once saved, fresh on each opening @area:catalog", () => {
+    test("a save that succeeded keeps the form locked while the dialog closes: Save disabled, Enter or a submit sends nothing more @UX-040",
+        async () => {
+            server.use(...saveHandlers());
+            const recorded = recordRequests();
+            // Still rendered open after onClose: as during the closing animation
+            const {user, onClose} = await renderDialog();
+            await fillIn(user, nameField(), "Tobradex");
+            await user.click(screen.getByRole("button", {name: "حفظ"}));
+            await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+            const save = screen.getByRole("button", {name: "حفظ"});
+            expect(save).toBeDisabled();
+            await user.type(nameField(), "{Enter}");
+            // Any other submit of the form (a click on a disabled button does nothing in a browser)
+            await act(async () => fireEvent.submit(save.closest("form")!));
+            expect(recorded.writes()).toHaveLength(1);
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+    test("while the save is in flight Esc and a click outside don't close it (typed name kept); after the answer it closes @UX-040",
+        async () => {
+            let answer: () => void = () => undefined;
+            const answered = new Promise<void>(resolve => (answer = resolve));
+            server.use(http.post(api("/drugs"), async ({request}) => {
+                const body = await request.json() as SaveDrug;
+                await answered;
+                return HttpResponse.json({id: 501, ...body}, {status: 201});
+            }));
+            const {user, onClose} = await renderDialog();
+            const dialog = screen.getByRole("dialog");
+            await fillIn(user, nameField(), "Tobradex");
+            await user.click(screen.getByRole("button", {name: "حفظ"}));
+            expect(await screen.findByRole("button", {name: "جارٍ الحفظ…"})).toBeDisabled();
+            await user.keyboard("{Escape}");
+            await clickOutside(user, dialog);
+            await expectStillOpen(dialog);
+            expect(onClose).not.toHaveBeenCalled();
+            expect(nameField()).toHaveValue("Tobradex");
+
+            answer();
+            await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+        });
+
+    test("Esc closes it again once a save failed (no save in flight) @UX-040", async () => {
+        server.use(http.post(api("/drugs"), () => problem(500, "internalError")));
+        const {user, onClose} = await renderDialog();
+        await fillIn(user, nameField(), "Tobradex");
+        await user.click(screen.getByRole("button", {name: "حفظ"}));
+        await findToast();
+        await waitFor(() => expect(screen.getByRole("button", {name: "حفظ"})).toBeEnabled());
+        await user.keyboard("{Escape}");
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    test("a save that failed unlocks at once: Save enabled, and saving again sends the drug again @UX-040", async () => {
+        let posts = 0;
+        server.use(http.post(api("/drugs"), async ({request}) => ++posts === 1
+            ? problem(500, "internalError")
+            : HttpResponse.json({id: 501, ...(await request.json() as SaveDrug)}, {status: 201})));
+        const {user, onClose} = await renderDialog();
+        await fillIn(user, nameField(), "Tobradex");
+        await user.click(screen.getByRole("button", {name: "حفظ"}));
+        await findToast();
+        await waitFor(() => expect(screen.getByRole("button", {name: "حفظ"})).toBeEnabled());
+        expect(onClose).not.toHaveBeenCalled();
+
+        await user.type(nameField(), "{Enter}");
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+        expect(posts).toBe(2);
+    });
+
+    test("reopened during its closing animation (after a save, or a Cancel with text typed): it starts empty and unlocked @DRUG-104",
+        async () => {
+            server.use(...saveHandlers());
+            let closed: () => void = () => undefined;
+            const Page = () => {
+                const [open, setOpen] = useState(false);
+                return (
+                    <>
+                        <button onClick={() => setOpen(true)}>إضافة دواء</button>
+                        <DrugFormDialog open={open} drug={null} onClose={() => {
+                            setOpen(false);
+                            closed();
+                        }}/>
+                    </>
+                );
+            };
+            const {user} = await renderWithProviders(<Page/>, {lang: "ar"});
+            // While the dialog fades out, the page behind it is still aria-hidden
+            const reopen = () => user.click(screen.getByRole("button", {name: "إضافة دواء", hidden: true}));
+            const field = () => within(screen.getByRole("dialog", {hidden: true})).getByRole("textbox", {name: "الاسم", hidden: true});
+            const save = () => within(screen.getByRole("dialog", {hidden: true})).getByRole("button", {name: "حفظ", hidden: true});
+
+            // Saved: the closing animation is held (its timers don't run) while the dialog is reopened
+            await reopen();
+            await fillIn(user, field(), "Tobradex");
+            const timers = holdTimers();
+            const closing = new Promise<void>(resolve => (closed = resolve));
+            await user.click(save());
+            await act(async () => closing);
+            const dialog = screen.getByRole("dialog", {hidden: true});
+            await reopen();
+            expect(screen.getByRole("dialog", {hidden: true}), "the same, still closing dialog").toBe(dialog);
+            expect(field()).toHaveValue("");
+            expect(save()).toBeEnabled();
+
+            // Cancelled with text typed
+            await fillIn(user, field(), "Typed then cancelled");
+            await user.click(within(dialog).getByRole("button", {name: "إلغاء", hidden: true}));
+            await reopen();
+            expect(screen.getByRole("dialog", {hidden: true})).toBe(dialog);
+            expect(field()).toHaveValue("");
+            await timers.release();
+        });
 });

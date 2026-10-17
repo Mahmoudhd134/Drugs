@@ -107,7 +107,7 @@ export const DrugsPage = () => {
                         placeholder={t("drugs.searchPlaceholder")}
                     />
                 </Box>
-                <Box sx={{height: 4}}>{drugs.isFetching && <LinearProgress/>}</Box>
+                <Box sx={{height: 4}}>{drugs.isFetching && <LinearProgress aria-label={t("common.loading")}/>}</Box>
 
                 {drugs.isError ? (
                     <Alert

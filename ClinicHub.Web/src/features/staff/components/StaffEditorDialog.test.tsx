@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
@@ -19,6 +19,8 @@ import {
 import type {Role} from "../../roles/types.ts";
 import type {StaffMember} from "../types.ts";
 import {StaffEditorHarness} from "../../../test/pages/EditorHarness.tsx";
+import {adminRolesApi, adminStaffApi} from "../../admin/adapters.ts";
+import {StaffEditorDialog} from "./StaffEditorDialog.tsx";
 import {asStaffRole, openStaffTab, staffRoles} from "../../../test/pages/staffTab.ts";
 
 // The staff editor: docs/features/platform-admin/business.md "الشاشات" (إضافة موظف / تعديل موظف), "الموظفون" and
@@ -289,5 +291,35 @@ describe("edit a staff member @area:admin", () => {
         server.use(http.put(api(`/admin/clinics/${clinic.id}/staff/${member.id}`), () => HttpResponse.json(member)));
         await user.click(within(dialog).getByRole("button", {name: "Save"}));
         expect(await findToast()).toBe("“⁨Nour⁩” saved");
+    });
+});
+
+describe("staff editor: locked once saved @area:admin", () => {
+    test.each([
+        ["added", () => HttpResponse.json(aStaffMember({fullName: "نور"}), {status: 201})],
+        ["the clinic gone meanwhile (404: the dialog closes)", () => problem(404, "notFound")],
+    ] as const)("%s: «إضافة» stays disabled and Enter sends nothing more while it closes @UX-040", async (_, answer) => {
+        const clinic = aClinicDetails();
+        server.use(rolesHandler(clinic.id, Object.values(staffRoles())),
+            http.post(api(`/admin/clinics/${clinic.id}/staff`), answer));
+        const onClose = vi.fn();
+        // Kept rendered open after onClose: as during its closing animation
+        const {user} = await renderWithProviders(
+            <StaffEditorDialog open member={null} adapter={adminStaffApi(clinic.id)} rolesAdapter={adminRolesApi(clinic.id)} onClose={onClose}/>,
+            {lang: "ar", user: {context: "platform"}});
+        const dialog = await screen.findByRole("dialog");
+        const [, firstRole] = await within(dialog).findAllByRole("checkbox");
+        const fullName = within(dialog).getByRole("textbox", {name: LABELS.ar.fullName});
+        await fillIn(user, within(dialog).getByRole("textbox", {name: LABELS.ar.phone}), "01001234567");
+        await fillIn(user, fullName, "نور");
+        await user.click(firstRole);
+        const recorded = recordRequests();
+        await user.click(within(dialog).getByRole("button", {name: LABELS.ar.submitAdd}));
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+        await waitFor(() => expect(within(dialog).getByRole("button", {name: LABELS.ar.submitAdd})).toBeDisabled());
+        await user.type(fullName, "{Enter}");
+        expect(recorded.writes()).toHaveLength(1);
+        expect(onClose).toHaveBeenCalledTimes(1);
     });
 });

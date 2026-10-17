@@ -254,7 +254,7 @@ export const DosingFields = ({value, onChange, showErrors, inheritFrom, allowAsk
 
             <Box sx={{mt: 2, p: 1.5, borderRadius: 2, bgcolor: "action.hover"}}>
                 <Typography variant="caption" color="text.secondary">{t("dosing.preview")}</Typography>
-                <Typography dir="rtl" lang="ar" sx={{fontWeight: 500}} color={preview ? "text.primary" : "text.disabled"}>
+                <Typography dir="rtl" lang="ar" sx={{fontWeight: 500}} color={preview ? "text.primary" : "text.secondary"}>
                     {preview || t("dosing.noDosing")}
                 </Typography>
                 {effective.eye === ASK_EYE && (

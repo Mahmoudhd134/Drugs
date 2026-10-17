@@ -70,6 +70,21 @@ export const hoverTooltip = async (element: HTMLElement) => {
     return tooltip.textContent ?? "";
 };
 
+/**
+ * A quick finger tap on `element` (or the ancestor its Tooltip wraps): touchend right after touchstart, before any timer
+ * runs (as a fast tap or Playwright's tap()); then the clock moves 2 s (past MUI's default 1.5 s touch leave delay).
+ * Returns the text of the tooltip still shown (a `TapTooltip`), or fails when none is.
+ */
+export const tapTooltip = async (element: HTMLElement) => {
+    onFakeClock(() => {
+        const target = tooltipTarget(element);
+        fireEvent.touchStart(target);
+        fireEvent.touchEnd(target);
+    });
+    const tooltip = await screen.findByRole("tooltip");
+    return tooltip.textContent ?? "";
+};
+
 /** Moves the mouse off `element` and waits until its tooltip has closed (before hovering the next one). */
 export const leaveTooltip = async (element: HTMLElement) => {
     onFakeClock(() => fireEvent.mouseLeave(tooltipTarget(element)));

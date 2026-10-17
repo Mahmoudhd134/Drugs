@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
@@ -20,6 +20,8 @@ import {
 } from "../../../test";
 import type {Role} from "../types.ts";
 import {RoleEditorHarness} from "../../../test/pages/EditorHarness.tsx";
+import {adminRolesApi} from "../../admin/adapters.ts";
+import {RoleEditorDialog} from "./RoleEditorDialog.tsx";
 import {defaultRoles} from "../../../test/pages/rolesTab.ts";
 
 // The role editor: docs/features/platform-admin/business.md "الشاشات" (دور جديد / تعديل دور), "الأدوار" and "الرسائل
@@ -295,5 +297,56 @@ describe("role editor: the permission catalog @area:admin", () => {
         expect(await within(dialog).findByText("Couldn't load data.")).toBeInTheDocument();
         await user.click(within(dialog).getByRole("button", {name: "Retry"}));
         expect(await within(dialog).findAllByRole("checkbox")).toHaveLength(11);
+    });
+});
+
+describe("role editor: locked once saved @area:admin", () => {
+    /** The editor of a new role kept rendered open after onClose: as during its closing animation. */
+    const openKept = async () => {
+        const clinic = aClinicDetails();
+        server.use(permissionsHandler(), rolesHandler(clinic.id, defaultRoles()));
+        const onClose = vi.fn();
+        const rendered = await renderWithProviders(
+            <RoleEditorDialog open role={null} adapter={adminRolesApi(clinic.id)} onClose={onClose}/>,
+            {lang: "ar", user: {context: "platform"}});
+        const dialog = await screen.findByRole("dialog");
+        const name = await within(dialog).findByRole("textbox", {name: /^اسم الدور/});
+        const saveButton = () => within(dialog).getByRole("button", {name: "حفظ"});
+        return {...rendered, clinic, onClose, name, saveButton};
+    };
+
+    test.each([
+        ["saved", () => HttpResponse.json(aRole({name: "Editors"}), {status: 201})],
+        ["gone meanwhile (404: the dialog closes)", () => problem(404, "notFound")],
+    ] as const)("%s: Save stays disabled and Enter sends nothing more while it closes @UX-040", async (_, answer) => {
+        const {user, clinic, onClose, name, saveButton} = await openKept();
+        server.use(http.post(api(`/admin/clinics/${clinic.id}/roles`), answer));
+        const recorded = recordRequests();
+        await fillIn(user, name, "Editors");
+        await user.click(saveButton());
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+        await waitFor(() => expect(saveButton()).toBeDisabled());
+        await user.type(name, "{Enter}");
+        expect(recorded.writes()).toHaveLength(1);
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    test("a save that failed (roleNameTaken) unlocks at once: saving again sends the role again @UX-040", async () => {
+        const {user, clinic, onClose, name, saveButton} = await openKept();
+        let posts = 0;
+        server.use(http.post(api(`/admin/clinics/${clinic.id}/roles`), () => ++posts === 1
+            ? problem(409, "roleNameTaken")
+            : HttpResponse.json(aRole({name: "Editors 2"}), {status: 201})));
+        await fillIn(user, name, "Editors");
+        await user.click(saveButton());
+        await waitFor(() => expect(name).toHaveAccessibleDescription("يوجد دور آخر في هذه العيادة بنفس الاسم."));
+        expect(saveButton()).toBeEnabled();
+        expect(onClose).not.toHaveBeenCalled();
+
+        await fillIn(user, name, "Editors 2");
+        await user.click(saveButton());
+        await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+        expect(posts).toBe(2);
     });
 });

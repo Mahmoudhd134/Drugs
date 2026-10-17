@@ -6,8 +6,7 @@ import type {ClinicHandle, Data} from "../support/data.ts";
 
 /**
  * Closing a toast before its time (business overview § قواعد عامة, tech overview § App shell "Dismissing"): an ×
- * icon button «إغلاق» / "Close" on every toast, and a sideways swipe on a touch phone. Not built yet (BUG-621): both
- * tests are expected failures until it is.
+ * icon button «إغلاق» / "Close" on every toast, and a sideways swipe on a touch phone.
  */
 
 /** One toast as shown (react-hot-toast: each toast is a child of the toaster), its message, buttons and all. */
@@ -48,7 +47,7 @@ const swipe = async (page: Page, target: Locator, dx: number) => {
 };
 
 test.describe("Closing a toast @area:ux", () => {
-    test.fail("BUG-621: a toast's × icon button («إغلاق» / \"Close\") closes that toast at once, the other one stays @UX-038",
+    test("a toast's × icon button («إغلاق» / \"Close\") closes that toast at once, the other one stays @UX-038",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -59,7 +58,19 @@ test.describe("Closing a toast @area:ux", () => {
             await expect(second, "the other toast stays").toBeVisible();
         });
 
-    test.fail("BUG-621: on a touch phone a toast swiped sideways closes @UX-039", async ({page, data, lang, isMobile}) => {
+    test("on a touch phone, a tap on a toast's × closes it and the other toast still closes by itself in its time @UX-038",
+        async ({page, data, lang, isMobile}) => {
+            test.skip(!isMobile, "the phone project");
+            const {t} = textsOf(lang);
+            const clinic = await data.clinic();
+            const {first, second} = await twoToasts(page, data, clinic, lang);
+            await first.getByRole("button", {name: t.close}).tap({timeout: 2_000});
+            await expect(first, "closed at once").toBeHidden({timeout: 1_000});
+            // A tap must not pause the other toasts' timers: its 4 s (already partly gone) and the exit, with margin
+            await expect(second, "the other toast closes by itself").toBeHidden({timeout: 7_000});
+        });
+
+    test("on a touch phone a toast swiped sideways closes @UX-039", async ({page, data, lang, isMobile}) => {
         test.skip(!isMobile, "the phone project");
         const clinic = await data.clinic();
         const {first} = await twoToasts(page, data, clinic, lang);

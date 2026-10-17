@@ -1,10 +1,9 @@
-import {type FormEvent, useEffect, useRef, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {
     Alert,
     Box,
     Button,
     CircularProgress,
-    Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
@@ -17,8 +16,10 @@ import {useTheme} from "@mui/material/styles";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {splitFormErrors, toApiError} from "../../../api/errors.ts";
+import {FormDialog} from "../../../components/common/FormDialog.tsx";
 import {DialogForm} from "../../../components/common/DialogForm.tsx";
-import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
+import {useDialogSave} from "../../../hooks/useDialogSave.ts";
+import {useOpeningKey} from "../../../hooks/useOpeningKey.ts";
 import {type PermissionDefinition, usePermissionCatalog} from "../../access/api.ts";
 import {withRequirements} from "../permissionChoice.ts";
 import {useSaveRole} from "../useRoles.ts";
@@ -43,16 +44,11 @@ export const RoleEditorDialog = ({open, role, adapter, onClose}: Props) => {
     const save = useSaveRole(adapter);
     const catalog = usePermissionCatalog();
     // Each opening starts from the role given, also when reopened during the closing animation
-    const [opening, setOpening] = useState(0);
-    const [wasOpen, setWasOpen] = useState(open);
-    if (open !== wasOpen) {
-        setWasOpen(open);
-        if (open) setOpening(n => n + 1);
-    }
+    const opening = useOpeningKey(open);
 
     return (
         // Not closable while saving: the result would come after the dialog is gone
-        <Dialog open={open} onClose={save.isPending ? undefined : onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
+        <FormDialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             <DialogTitle sx={{overflowWrap: "anywhere"}}>
                 {role === null ? t("roles.editor.newTitle") : t("roles.editor.editTitle", {name: role.name})}
             </DialogTitle>
@@ -77,7 +73,7 @@ export const RoleEditorDialog = ({open, role, adapter, onClose}: Props) => {
                     </DialogActions>
                 </>
             )}
-        </Dialog>
+        </FormDialog>
     );
 };
 
@@ -90,7 +86,6 @@ type FormProps = {
 
 const RoleForm = ({role, catalog, save, onClose}: FormProps) => {
     const {t} = useTranslation();
-    const once = useSingleFlight();
     const nameInput = useRef<HTMLInputElement>(null);
     const [name, setName] = useState(role?.name ?? "");
     const [permissions, setPermissions] = useState(() => new Set(withRequirements(catalog, role?.permissions ?? [])));
@@ -106,38 +101,38 @@ const RoleForm = ({role, catalog, save, onClose}: FormProps) => {
         nameInput.current?.focus();
     });
 
-    const handleSubmit = (e: FormEvent) => {
-        e.preventDefault();
-        // One save at a time (a double click would create the role twice)
-        void once(async () => {
-            if (!name.trim()) {
-                setNameError(t("errors.nameRequired"));
-                nameInput.current?.focus();
-                return;
+    // One save at a time, locked once saved (a double click would create the role twice)
+    const {submit, done} = useDialogSave(async () => {
+        if (!name.trim()) {
+            setNameError(t("errors.nameRequired"));
+            nameInput.current?.focus();
+            return false;
+        }
+        try {
+            const saved = await save.mutateAsync({
+                id: role?.id ?? null,
+                name: name.trim(),
+                permissions: [...withRequirements(catalog, permissions), ...unknownKeys],
+            });
+            toast.success(t(role === null ? "roles.created" : "roles.updated", {name: saved.name}));
+            onClose();
+            return true;
+        } catch (error) {
+            const {fields, others} = splitFormErrors(error, ["name"], {roleNameTaken: "name"});
+            if (fields.name) {
+                setNameError(fields.name);
+                focusName.current = true;
             }
-            try {
-                const saved = await save.mutateAsync({
-                    id: role?.id ?? null,
-                    name: name.trim(),
-                    permissions: [...withRequirements(catalog, permissions), ...unknownKeys],
-                });
-                toast.success(t(role === null ? "roles.created" : "roles.updated", {name: saved.name}));
-                onClose();
-            } catch (error) {
-                const {fields, others} = splitFormErrors(error, ["name"], {roleNameTaken: "name"});
-                if (fields.name) {
-                    setNameError(fields.name);
-                    focusName.current = true;
-                }
-                if (others.length) toast.error(others.join("\n"));
-                // The role (or the clinic) is gone meanwhile: nothing left to edit (the list loads again without it)
-                if (toApiError(error)?.status === 404) onClose();
-            }
-        });
-    };
+            if (others.length) toast.error(others.join("\n"));
+            // The role (or the clinic) is gone meanwhile: nothing left to edit (the list loads again without it)
+            if (toApiError(error)?.status !== 404) return false;
+            onClose();
+            return true;
+        }
+    });
 
     return (
-        <DialogForm onSubmit={handleSubmit}>
+        <DialogForm onSubmit={submit}>
             <DialogContent sx={{pt: 1}}>
                 <Stack sx={{gap: 2.5, pt: 1}}>
                     <TextField
@@ -175,7 +170,7 @@ const RoleForm = ({role, catalog, save, onClose}: FormProps) => {
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>
                 <Button onClick={onClose} disabled={save.isPending}>{t("common.cancel")}</Button>
-                <Button type="submit" variant="contained" disabled={save.isPending}>
+                <Button type="submit" variant="contained" disabled={save.isPending || done}>
                     {save.isPending ? t("common.saving") : t("common.save")}
                 </Button>
             </DialogActions>

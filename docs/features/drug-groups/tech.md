@@ -91,10 +91,18 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   eye), `toSaveItems` (empty override → `null`), `itemsSignature` (unsaved-changes check).
 - **List page** `pages/DrugGroupsPage.tsx` (`/groups`): search, card grid (12/page), each card shows
   the group name, the line count and the first 4 drug names. A long name (group or drug, even one unbroken 256-character
-  word) wraps inside the card, never cut with "…" (the user's decision, 2026-10-16; today the card cuts them:
-  [BUG-591](../../testing/known-bugs.md)).
+  word) wraps inside the card, never cut with "…" (the user's decision, 2026-10-16): the title and the drug names
+  have no `noWrap`, they break with `overflowWrap: "anywhere"` (as `DrugText`); the line count chip stays at the
+  title's first line. The grid stretches the cards of one row to the same height.
 - **Editor page** `pages/DrugGroupEditorPage.tsx` (`/groups/new`, `/groups/:id`): a new group opens with the focus in
   the name field and the empty state «لا توجد أدوية في هذه المجموعة» / "No drugs in this group".
+  - Opening `/groups/:id` **always fetches the group again** (`useDrugGroup`: `staleTime: 0`, `refetchOnMount:
+    "always"`) and shows the page spinner until that answer arrives (`isFetchedAfterMount`): a copy cached earlier (e.g.
+    before one of its drugs was renamed or got a new default dosing) is never shown. A failed fetch shows the error with
+    «إعادة المحاولة» (`common.retry`) instead of the form, even when a cached copy exists. The first fresh answer is kept
+    while the editor shows that group: a later refetch of it (e.g. the invalidation of a save or delete, just before
+    leaving) neither resets the form nor moves the unsaved-changes baseline. Showing another group drops it, so coming
+    back to the first one waits for a fresh answer again.
   - Lines use the shared `DosingLineList`: number, drug, `LineDetails` with the **effective** dosing (its
     sentence; or the drug description when it has no dose, frequency, duration or tapering, followed by the eye part
     if any: [prescription](../prescription/tech.md#text-formats-prescriptiontextts); an `ask`-only line shows the
@@ -105,7 +113,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     already in the group shows `groups.alreadyInGroupForEye`.
   - `components/GroupItemDialog.tsx`: `DosingFields` in **inherit mode** (`inheritFrom` = drug
     default: empty fields display "Drug default", preview shows the merged result) with
-    `allowAskEye`, plus a "Use drug default" button that clears the override.
+    `allowAskEye`, plus a "Use drug default" button that clears the override. The drug name under its title wraps
+    (`overflow-wrap: anywhere`), so a long unbroken name is never cut.
   - Save validates name and ≥ 1 line on the client. Unsaved-changes guard on Back/Cancel and
     `beforeunload`: it compares the **trimmed** name with the saved one and `itemsSignature` (the lines as they would be
     saved: drug, override, order) with the loaded lines, so a change undone by hand (a line dragged away and back, an
@@ -114,7 +123,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     drug's default eye changed) get an error chip `groups.eyeClash` ("Same drug and eye as another line"); editors see
     an alert `groups.eyeClashSave` above the lines, and Save is blocked with the same message as a toast until a line
     is removed or its eye changed (M1.6.0).
-- **`GroupPicker`** (prescription page): name, line count («الأدوية: N»), the drug names joined with " · ".
+- **`GroupPicker`** (prescription page): name, line count («الأدوية: N»), the drug names joined with " · " (at most
+  2 lines). A long unbroken name wraps (`overflow-wrap: anywhere`), never cut.
 - **`api.ts`**: `drugGroupKeys`; `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`,
   `useSaveDrugGroup` (`{ id, name, items }`), `useDeleteDrugGroup`.
 - Adding a group to a prescription (eye question, conflicts): see [prescription tech](../prescription/tech.md).
@@ -123,6 +133,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 
 ## Edge cases & limitations
 - Sidebar navigation with unsaved changes discards them without asking (BrowserRouter has no blocker).
+- An open editor is not updated live: a drug edited in another tab (or a group saved elsewhere) while the editor is open
+  shows up the next time the editor is opened (accepted; each open fetches the group again).
 - No "duplicate group" action; no per-line note in groups.
 - Overrides are stored per part; there is no way to override only the dose amount while inheriting
   the unit (dose amount + unit are one part).

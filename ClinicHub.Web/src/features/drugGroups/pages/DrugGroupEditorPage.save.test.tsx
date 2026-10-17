@@ -1,12 +1,16 @@
 import {describe, expect, test} from "vitest";
-import {screen, waitFor, within} from "@testing-library/react";
+import {act, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
-import {http} from "msw";
+import {http, HttpResponse} from "msw";
+import {useNavigate} from "react-router-dom";
 import {
     aDrug,
     aGroup,
     anItem,
     api,
+    createTestQueryClient,
+    drugGroupsHandlers,
+    drugsHandlers,
     findToast,
     isRed,
     problem,
@@ -14,11 +18,13 @@ import {
     renderWithProviders,
     server,
 } from "../../../test";
+import {drugGroupKeys} from "../api.ts";
 import type {DrugGroup} from "../types.ts";
 import {DrugGroupEditorPage} from "./DrugGroupEditorPage.tsx";
 import {
     discardDialog,
     layoutSortableRows,
+    lineDetails,
     lineRows,
     lineSummary,
     openEditor,
@@ -78,6 +84,122 @@ describe("group editor: opening @area:catalog", () => {
             recorded.stop();
             unmount();
         }
+    });
+});
+
+describe("group editor: always the group as it is now @area:catalog", () => {
+    // The group as the app cached it earlier, and as the API answers now (its drug renamed and given a new description
+    // on the drugs page meanwhile)
+    const groupNowAndBefore = () => {
+        const now = aGroup({name: "Post cataract", items: [anItem(aDrug({name: "Tobradex ST", description: "New note"}))]});
+        const before: DrugGroup = {...now, items: [anItem({...now.items[0].drug, name: "Tobradex", description: "Old note"})]};
+        return {now, before};
+    };
+
+    /** GET /drug-groups/:id answering `group` only once `release()` is called; `requests()` counts the GETs. */
+    const heldGroupAnswer = (group: DrugGroup) => {
+        let release = () => {};
+        const held = new Promise<void>(resolve => (release = resolve));
+        let count = 0;
+        server.use(
+            ...drugsHandlers(group.items.map(i => i.drug)),
+            http.get(api("/drug-groups/:id"), async () => {
+                count++;
+                await held;
+                return HttpResponse.json(group);
+            }),
+        );
+        return {release, requests: () => count};
+    };
+
+    /** Opens `/groups/{id}` with `before` already in the cache (opened earlier in the session). */
+    const openWithCached = async (before: DrugGroup) => {
+        const queryClient = createTestQueryClient();
+        queryClient.setQueryData(drugGroupKeys.detail(before.id), before);
+        return renderWithProviders(<DrugGroupEditorPage/>, {lang: "ar", route: `/groups/${before.id}`, path: "/groups/:id", queryClient});
+    };
+
+    test("a group cached from before: the loading shows until the group is fetched again, then the form shows the fresh lines, never the cached ones @GRP-099 @DRUG-071", async () => {
+        const {now, before} = groupNowAndBefore();
+        const answer = heldGroupAnswer(now);
+        await openWithCached(before);
+
+        await waitFor(() => expect(answer.requests()).toBe(1));
+        expect(screen.getByRole("progressbar")).toBeInTheDocument();
+        expect(screen.queryByRole("textbox", {name: "اسم المجموعة"})).not.toBeInTheDocument();
+        expect(screen.queryByText("Tobradex")).not.toBeInTheDocument();
+        expect(screen.queryByText("Old note")).not.toBeInTheDocument();
+
+        answer.release();
+        expect(await screen.findByText("Tobradex ST")).toBeInTheDocument();
+        expect(nameField()).toHaveValue("Post cataract");
+        expect(lineSummary()).toEqual([["1", "Tobradex ST"]]);
+        expect(lineDetails(lineRows()[0])).toContain("New note");
+        expect(screen.queryByText("Old note")).not.toBeInTheDocument();
+        expect(answer.requests()).toBe(1);
+    });
+
+    test("a group cached from before whose fetch fails: the error with «إعادة المحاولة» instead of the cached form @GRP-099", async () => {
+        const {before} = groupNowAndBefore();
+        server.use(http.get(api("/drug-groups/:id"), () => problem(404, "notFound")));
+        await openWithCached(before);
+
+        expect(await screen.findByText("هذا العنصر لم يعد موجودًا.")).toBeInTheDocument();
+        expect(screen.getByRole("button", {name: "إعادة المحاولة"})).toBeInTheDocument();
+        expect(screen.queryByRole("textbox", {name: "اسم المجموعة"})).not.toBeInTheDocument();
+        expect(screen.queryByText("Tobradex")).not.toBeInTheDocument();
+    });
+
+    test("the group fetched again while the editor is open (e.g. after a save elsewhere): the form and its changes stay @GRP-099", async () => {
+        const {now} = groupNowAndBefore();
+        const {user, queryClient} = await openEditor({group: now});
+        await user.type(nameField(), " 2");
+        const changed = {...now, name: "Renamed elsewhere", items: []};
+        server.use(...drugGroupsHandlers([changed]));
+
+        await act(() => queryClient.refetchQueries({queryKey: drugGroupKeys.detail(now.id)}));
+        expect(queryClient.getQueryData(drugGroupKeys.detail(now.id))).toEqual(changed);
+        expect(nameField()).toHaveValue("Post cataract 2");
+        expect(lineSummary()).toEqual([["1", "Tobradex ST"]]);
+        // The baseline stays the group as opened: undoing the change leaves without asking
+        await user.clear(nameField());
+        await user.type(nameField(), "Post cataract");
+        await user.click(screen.getByRole("button", {name: "رجوع"}));
+        expect(discardDialog()).not.toBeInTheDocument();
+    });
+
+    test("the same page going from group A to B and back to A before B answers: A waits for a fresh answer, its earlier copy is not shown @GRP-099", async () => {
+        const drug = aDrug({name: "Tobradex"});
+        const a = aGroup({name: "Group A", items: [anItem(drug)]});
+        const b = aGroup({name: "Group B", items: [anItem(drug)]});
+        const answers = new Map<number, DrugGroup>([[a.id, a], [b.id, b]]);
+        let gate = Promise.resolve();
+        let release = () => {};
+        server.use(
+            ...drugsHandlers([drug]),
+            http.get(api("/drug-groups/:id"), async ({params}) => {
+                await gate;
+                return HttpResponse.json(answers.get(Number(params.id)));
+            }),
+        );
+        // Links outside the page: the route param changes, the page stays mounted
+        const GoTo = () => {
+            const navigate = useNavigate();
+            return [a, b].map(g => <button key={g.id} onClick={() => navigate(`/groups/${g.id}`)}>{`go ${g.name}`}</button>);
+        };
+        const {user} = await renderWithProviders(<><GoTo/><DrugGroupEditorPage/></>, {lang: "ar", route: `/groups/${a.id}`, path: "/groups/:id"});
+        await waitFor(() => expect(nameField()).toHaveValue("Group A"));
+
+        gate = new Promise<void>(resolve => (release = resolve));
+        await user.click(screen.getByRole("button", {name: "go Group B"}));
+        await waitFor(() => expect(screen.queryByRole("textbox", {name: "اسم المجموعة"})).not.toBeInTheDocument());
+        answers.set(a.id, {...a, name: "Group A renamed"});
+        await user.click(screen.getByRole("button", {name: "go Group A"}));
+        expect(screen.getByRole("progressbar")).toBeInTheDocument();
+        expect(screen.queryByRole("textbox", {name: "اسم المجموعة"})).not.toBeInTheDocument();
+
+        release();
+        await waitFor(() => expect(nameField()).toHaveValue("Group A renamed"));
     });
 });
 

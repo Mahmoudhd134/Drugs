@@ -79,7 +79,7 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
             await expect(lineOf(page, ct, tablets.name).getByText(ct.groupDosing, {exact: true})).toHaveCount(0);
         });
 
-    test("editing the name and default dosing of a drug in two groups: the group cards and the pickers show the new name and sentence without a reload (no case tag: the case also needs the editors, see BUG-550 below)",
+    test("editing the name and default dosing of a drug in two groups: the group cards and the pickers show the new name and sentence without a reload (no case tag: DRUG-071 also needs the editors, see the next test)",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -130,7 +130,7 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
             await settled(page);
         });
 
-    test.fail("BUG-550: editing the name and default dosing of a drug in two groups: both groups' editors, opened before, show the new name and sentence without a reload @DRUG-071",
+    test("editing the name and default dosing of a drug in two groups: both groups' editors, opened before, show the new name and sentence without a reload @DRUG-071",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();

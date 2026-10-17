@@ -98,8 +98,8 @@ export const animationsDone = async (page: Page) => {
 
 /**
  * The page checks (support/checks.ts `expectHealthyPage`: dir/lang, loaded, no horizontal scroll, axe without
- * serious/critical violations but the known bugs, each on its documented elements only: with the Edit & copy editor
- * open, BUG-570's Quill toolbar buttons) in the UI language now, once the animations ended.
+ * serious/critical violations but the known bugs, each on its documented elements only) in the UI language now, once
+ * the animations ended.
  */
 export const pageChecks = async (page: Page, what: string) => {
     await test.step(`page checks: ${what}`, async () => {
@@ -145,10 +145,7 @@ const cutReason = (e: Element): string | null => {
  * Cut text that is a known app bug (docs/testing/known-bugs.md), limited to its documented elements: reported in the
  * test's attachments, not failed (the bug's own test, `test.fail`, fails on it until it is fixed).
  */
-const KNOWN_CUT = [
-    // The groups list page (`/groups` exactly): its cards: the group name (h6) and the first four drug names (li) are one line with an ellipsis
-    {bug: "BUG-591", path: "/groups", selector: "main .MuiCard-root h6.MuiTypography-noWrap, main .MuiCard-root li.MuiTypography-noWrap"},
-];
+const KNOWN_CUT: {bug: string; path: string; selector: string}[] = [];
 
 /**
  * No cut UI text in `scope`, and no overlapping buttons. Checked: every visible button, tab, chip label, form label,

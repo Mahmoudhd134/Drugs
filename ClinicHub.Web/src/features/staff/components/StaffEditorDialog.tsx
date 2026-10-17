@@ -1,11 +1,10 @@
-import {type FormEvent, useEffect, useId, useRef, useState} from "react";
+import {useEffect, useId, useRef, useState} from "react";
 import {
     Alert,
     Box,
     Button,
     Checkbox,
     CircularProgress,
-    Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
@@ -24,8 +23,10 @@ import {useTheme} from "@mui/material/styles";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {splitFormErrors, toApiError} from "../../../api/errors.ts";
+import {FormDialog} from "../../../components/common/FormDialog.tsx";
 import {DialogForm} from "../../../components/common/DialogForm.tsx";
-import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
+import {useDialogSave} from "../../../hooks/useDialogSave.ts";
+import {useOpeningKey} from "../../../hooks/useOpeningKey.ts";
 import {useRoles} from "../../roles/useRoles.ts";
 import type {Role, RolesAdapter} from "../../roles/types.ts";
 import {useRoleLabel} from "../../roles/roleLabel.ts";
@@ -55,16 +56,11 @@ export const StaffEditorDialog = ({open, member, adapter, rolesAdapter, onClose}
     const save = useSaveStaff(adapter);
     const roles = useRoles(rolesAdapter);
     // Each opening starts from the member given, also when reopened during the closing animation
-    const [opening, setOpening] = useState(0);
-    const [wasOpen, setWasOpen] = useState(open);
-    if (open !== wasOpen) {
-        setWasOpen(open);
-        if (open) setOpening(n => n + 1);
-    }
+    const opening = useOpeningKey(open);
 
     return (
         // Not closable while saving: the result would come after the dialog is gone
-        <Dialog open={open} onClose={save.isPending ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
+        <FormDialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
             <DialogTitle sx={{overflowWrap: "anywhere"}}>
                 {member === null ? t("staff.editor.addTitle") : t("staff.editor.editTitle", {name: member.fullName})}
             </DialogTitle>
@@ -89,7 +85,7 @@ export const StaffEditorDialog = ({open, member, adapter, rolesAdapter, onClose}
                     </DialogActions>
                 </>
             )}
-        </Dialog>
+        </FormDialog>
     );
 };
 
@@ -103,7 +99,6 @@ type FormProps = {
 const StaffForm = ({member, roles, save, onClose}: FormProps) => {
     const {t} = useTranslation();
     const roleLabel = useRoleLabel();
-    const once = useSingleFlight();
     const adding = member === null;
     const [phone, setPhone] = useState("");
     const [fullName, setFullName] = useState(member?.fullName ?? "");
@@ -130,37 +125,37 @@ const StaffForm = ({member, roles, save, onClose}: FormProps) => {
     // Roles deleted meanwhile are not offered (nor sent)
     const pickedIds = roleIds.filter(id => roles.some(r => r.id === id));
 
-    const handleSubmit = (e: FormEvent) => {
-        e.preventDefault();
-        // One save at a time (a double click would add the person twice)
-        void once(async () => {
-            const required: Partial<Record<Field, string>> = {
-                phone: adding && !phone.trim() ? t("staff.editor.phoneRequired") : undefined,
-                fullName: fullName.trim() ? undefined : t("errors.nameRequired"),
-                roleIds: pickedIds.length ? undefined : t("errors.rolesRequired"),
-            };
-            if (FIELDS.some(f => required[f])) {
-                showErrors(required);
-                return;
-            }
-            try {
-                const saved = await save.mutateAsync(adding
-                    ? {id: null, body: {phone: phone.trim(), fullName: fullName.trim(), roleIds: pickedIds}}
-                    : {id: member.id, body: {fullName: fullName.trim(), isActive, roleIds: pickedIds}});
-                toast.success(t(adding ? "staff.added" : "staff.updated", {name: saved.fullName}));
-                onClose();
-            } catch (error) {
-                const {fields, others} = splitFormErrors(error, FIELDS, CODE_FIELDS);
-                showErrors(fields);
-                const code = toApiError(error)?.code;
-                // Why the clinic needs its owner, and what to do instead
-                const messages = code === "lastOwner" ? [...others, t("staff.lastOwnerHint")] : others;
-                if (messages.length) toast.error(messages.join("\n"), {duration: code === "lastOwner" ? 8000 : undefined});
-                // The staff member (or the clinic) is gone meanwhile: nothing left to edit (the list loads again)
-                if (toApiError(error)?.status === 404) onClose();
-            }
-        });
-    };
+    // One save at a time, locked once saved (a double click would add the person twice)
+    const {submit, done} = useDialogSave(async () => {
+        const required: Partial<Record<Field, string>> = {
+            phone: adding && !phone.trim() ? t("staff.editor.phoneRequired") : undefined,
+            fullName: fullName.trim() ? undefined : t("errors.nameRequired"),
+            roleIds: pickedIds.length ? undefined : t("errors.rolesRequired"),
+        };
+        if (FIELDS.some(f => required[f])) {
+            showErrors(required);
+            return false;
+        }
+        try {
+            const saved = await save.mutateAsync(adding
+                ? {id: null, body: {phone: phone.trim(), fullName: fullName.trim(), roleIds: pickedIds}}
+                : {id: member.id, body: {fullName: fullName.trim(), isActive, roleIds: pickedIds}});
+            toast.success(t(adding ? "staff.added" : "staff.updated", {name: saved.fullName}));
+            onClose();
+            return true;
+        } catch (error) {
+            const {fields, others} = splitFormErrors(error, FIELDS, CODE_FIELDS);
+            showErrors(fields);
+            const code = toApiError(error)?.code;
+            // Why the clinic needs its owner, and what to do instead
+            const messages = code === "lastOwner" ? [...others, t("staff.lastOwnerHint")] : others;
+            if (messages.length) toast.error(messages.join("\n"), {duration: code === "lastOwner" ? 8000 : undefined});
+            // The staff member (or the clinic) is gone meanwhile: nothing left to edit (the list loads again)
+            if (toApiError(error)?.status !== 404) return false;
+            onClose();
+            return true;
+        }
+    });
 
     const toggleRole = (id: number) => {
         setRoleIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
@@ -168,7 +163,7 @@ const StaffForm = ({member, roles, save, onClose}: FormProps) => {
     };
 
     return (
-        <DialogForm onSubmit={handleSubmit}>
+        <DialogForm onSubmit={submit}>
             <DialogContent sx={{pt: 1}}>
                 <Stack sx={{gap: 2.5, pt: 1}}>
                     <TextField
@@ -191,7 +186,11 @@ const StaffForm = ({member, roles, save, onClose}: FormProps) => {
                         autoFocus={adding}
                         fullWidth
                         // Phones stay left to right in Arabic
-                        slotProps={{htmlInput: {dir: "ltr", inputMode: "tel", maxLength: 30}}}
+                        slotProps={{
+                            htmlInput: {dir: "ltr", inputMode: "tel", maxLength: 30},
+                            // The locked phone's explanation is read, not greyed out like the field (contrast ≥ 4.5:1)
+                            formHelperText: {sx: {"&.Mui-disabled": {color: "text.secondary"}}},
+                        }}
                     />
                     <TextField
                         label={t("staff.editor.fullName")}
@@ -277,7 +276,7 @@ const StaffForm = ({member, roles, save, onClose}: FormProps) => {
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>
                 <Button onClick={onClose} disabled={save.isPending}>{t("common.cancel")}</Button>
-                <Button type="submit" variant="contained" disabled={save.isPending}>
+                <Button type="submit" variant="contained" disabled={save.isPending || done}>
                     {save.isPending ? t("common.saving") : adding ? t("staff.editor.add") : t("common.save")}
                 </Button>
             </DialogActions>

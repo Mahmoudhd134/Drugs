@@ -118,7 +118,7 @@ test.describe("Permissions in the UI @area:access", () => {
             await expect(page.getByRole("tooltip")).toHaveText(t.noPermissionTooltip);
         });
 
-    test.fail("BUG-504: an Assistant on a phone taps the disabled Delete of the group editor: «ليست لديك صلاحية» shows @ACC-066",
+    test("an Assistant on a phone taps the disabled Delete of the group editor: «ليست لديك صلاحية» shows @ACC-066",
         async ({page, t, data, isMobile}) => {
             test.skip(!isMobile, "touch only");
             const {group, staff} = await setUp(data, "Assistant");
