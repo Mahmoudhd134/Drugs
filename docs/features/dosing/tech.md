@@ -49,9 +49,12 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 ## Frontend (`src/features/dosing/`)
 - `types.ts`: code lists, `Dosing` type, and helpers that match the API rules:
   `normalizeDosing`, `isDosingEmpty`, `dosingErrors` (list of invalid fields), `eyeKey`
-  (`eye ?? "none"`), `otherEye` (right ↔ left), `mergeDosing(base, override)` (each empty part of
+  (`eye ?? "none"`; a blank eye is `"none"` too), `otherEye` (right ↔ left), `mergeDosing(base, override)` (each empty part of
   the override is taken from the base: dose, frequency, duration, eye; a tapering schedule counts
   as frequency + duration together), `sameDosing` (compare normalized values), `ASK_EYE`.
+  As in the API (`DosingRules.Blank`), `normalizeDosing` / `normalizeStep` treat a blank code (`""`, `" "`) as no code:
+  `doseUnit`, `frequency`, `durationUnit`, `eye` and a step's `frequency` / `durationUnit` become null (a set code is
+  kept as is). The selects never send one; this keeps the helpers in parity with the API (`DOSE-064`).
 - `dosingText.ts` → `dosingToText(dosing)`: builds the sentence **always in Arabic**, using
   `i18n.getFixedT("ar")`. Order: dose → eye → frequency → duration; missing parts are skipped.
   `0.5` uses the "half" wording (نصف قرص). Example: «نقطتين في العين اليسرى 6 مرات يوميًا لمدة أسبوعين».

@@ -48,16 +48,23 @@ export const MAX_FREQUENCY_TEXT_LENGTH = 200;
 export const frequencyNeedsValue = (f?: Frequency | null) => f === "daily" || f === "everyHours";
 export const durationNeedsValue = (u?: DurationUnit | null) => u === "days" || u === "weeks" || u === "months";
 
-export const normalizeStep = (s: TaperStep | null | undefined): TaperStep => ({
-    doseAmount: s?.doseAmount ?? null,
-    frequency: s?.frequency || null,
-    frequencyValue: frequencyNeedsValue(s?.frequency) ? s?.frequencyValue ?? null : null,
-    durationValue: durationNeedsValue(s?.durationUnit) ? s?.durationValue ?? null : null,
-    durationUnit: s?.durationUnit || null,
-});
+/** A code that is missing, empty or whitespace only is no code (C# `DosingRules.Blank`); any other is kept as is. */
+const blank = <T extends string>(code: T | null | undefined): T | null => (code?.trim() ? code : null);
+
+export const normalizeStep = (s: TaperStep | null | undefined): TaperStep => {
+    const frequency = blank(s?.frequency);
+    const durationUnit = blank(s?.durationUnit);
+    return {
+        doseAmount: s?.doseAmount ?? null,
+        frequency,
+        frequencyValue: frequencyNeedsValue(frequency) ? s?.frequencyValue ?? null : null,
+        durationValue: durationNeedsValue(durationUnit) ? s?.durationValue ?? null : null,
+        durationUnit,
+    };
+};
 
 /**
- * Drops fields that don't apply to the chosen options (same rules as the API). A tapering
+ * Drops fields that don't apply to the chosen options (same rules as the API); a blank code (`""`, `" "`) is no code. A tapering
  * schedule clears frequency and duration; a one-step schedule becomes a plain frequency + duration.
  */
 export const normalizeDosing = (d: Dosing | null | undefined): Dosing => {
@@ -72,15 +79,17 @@ export const normalizeDosing = (d: Dosing | null | undefined): Dosing => {
         schedule = steps.length === 1 ? steps[0] : {};
         if (steps.length === 1) steps = null;
     }
+    const frequency = blank(schedule.frequency);
+    const durationUnit = blank(schedule.durationUnit);
     return {
         doseAmount,
-        doseUnit: d.doseUnit || null,
-        frequency: schedule.frequency || null,
-        frequencyValue: frequencyNeedsValue(schedule.frequency) ? schedule.frequencyValue ?? null : null,
-        frequencyText: schedule.frequency === "custom" ? schedule.frequencyText?.trim() || null : null,
-        durationValue: durationNeedsValue(schedule.durationUnit) ? schedule.durationValue ?? null : null,
-        durationUnit: schedule.durationUnit || null,
-        eye: d.eye || null,
+        doseUnit: blank(d.doseUnit),
+        frequency,
+        frequencyValue: frequencyNeedsValue(frequency) ? schedule.frequencyValue ?? null : null,
+        frequencyText: frequency === "custom" ? schedule.frequencyText?.trim() || null : null,
+        durationValue: durationNeedsValue(durationUnit) ? schedule.durationValue ?? null : null,
+        durationUnit,
+        eye: blank(d.eye),
         taperSteps: steps,
     };
 };
@@ -143,7 +152,7 @@ export const dosingErrors = (d: Dosing): DosingField[] => {
 };
 
 /** A drug can appear once per eye in a prescription or group; this is the eye part of that key. */
-export const eyeKey = (d: Dosing | null | undefined): DosingEye => d?.eye ?? "none";
+export const eyeKey = (d: Dosing | null | undefined): DosingEye => blank(d?.eye) ?? "none";
 
 export const otherEye = (eye: DosingEye | null | undefined): Eye | null =>
     eye === "right" ? "left" : eye === "left" ? "right" : null;

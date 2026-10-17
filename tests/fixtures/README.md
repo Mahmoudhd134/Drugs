@@ -17,9 +17,9 @@ Both test suites run every case of this file (`DOSE-066`), so the two can't drif
   errors are its own) nor `ar`. Stryker leaves it out (`vitest.stryker.config.ts`: it reads a file outside
   `ClinicHub.Web`). Rows where the two sides disagree are known bugs there, run as expected failures
   (`test.fails.each(rows)("BUG-nnn: … %s @DOSE-064", …)`, checked in full, `valid` too), tagged with their narrow case
-  only (not `@DOSE-066`, which the other rows keep covered): today BUG-590 (a whitespace-only code, `@DOSE-064`: «blank
-  strings for codes normalize to null», «blank unit next to a set eye: only the eye stays», «dose amount with a blank
-  unit»).
+  only (not `@DOSE-066`, which the other rows keep covered); none today. The whitespace-only code rows («blank strings
+  for codes normalize to null», «blank unit next to a set eye: only the eye stays», «dose amount with a blank unit»)
+  run the same way (checked in full, `valid` too) as passing tests tagged `@DOSE-064` only.
 
 ### Shape
 
