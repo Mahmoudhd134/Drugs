@@ -3,10 +3,10 @@ import {act, screen, waitFor, within} from "@testing-library/react";
 import {aClinicContext, aDrug, drugsHandlers, meByContext, refreshSequence, server, sessionIn, startApp, toastTexts} from "../test";
 
 // Toasts can be dismissed: docs/business/overview.md and docs/tech/overview.md (the toasts: an × icon closes one at
-// once, a swipe on a phone too). Not built yet: BUG-621 (docs/testing/known-bugs.md); the swipe is e2e only (UX-039).
+// once, a swipe on a phone too). The swipe is e2e only (UX-039).
 
 describe("dismissing a toast @area:ux", () => {
-    test.fails("BUG-621: the toast's × («إغلاق») closes that toast at once, the other one stays @UX-038", async () => {
+    test("the toast's × («إغلاق») closes that toast at once, the other one stays @UX-038", async () => {
         server.use(refreshSequence(sessionIn(aClinicContext())).handler, meByContext(), ...drugsHandlers([aDrug({name: "Tobradex"})]));
         await startApp({route: "/drugs", lang: "ar"});
         await screen.findByText("Tobradex");

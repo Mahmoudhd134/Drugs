@@ -8,11 +8,11 @@ import createCache from "@emotion/cache";
 import {prefixer} from "stylis";
 import rtlPlugin from "@mui/stylis-plugin-rtl";
 import {CssBaseline, ThemeProvider} from "@mui/material";
-import {Toaster} from "react-hot-toast";
 import {vi} from "vitest";
 import i18n from "../i18n";
 import {getLanguage, type LanguageCode} from "../i18n/languages.ts";
 import {createAppTheme} from "../app/theme.ts";
+import {AppToaster} from "../components/common/AppToaster.tsx";
 import {AuthContext, type AuthValue} from "../features/auth/useAuth.ts";
 import type {Context, Me} from "../features/auth/types.ts";
 import type {Permission} from "../features/access/permissions.ts";
@@ -123,7 +123,7 @@ export const buildAuth = (user: TestUser = {}, overrides: Partial<AuthValue> = {
 /**
  * Renders `ui` inside the app's real providers: MUI theme (+ RTL emotion cache in Arabic), i18n in `lang` (and
  * `<html lang dir>`), a fresh QueryClient (`createTestQueryClient`), a MemoryRouter at `route`, the auth context of `user`, and the
- * Toaster (toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
+ * app's Toaster (`AppToaster`: toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
  * `queryClient`, `location()` and `clipboard` (with the `clipboard` option).
  *
  * @example
@@ -153,7 +153,7 @@ export const renderWithProviders = async (ui: ReactElement, options: RenderWithP
                             {children}
                         </AuthContext.Provider>
                     </MemoryRouter>
-                    <Toaster/>
+                    <AppToaster/>
                 </ThemeProvider>
             </CacheProvider>
         </QueryClientProvider>

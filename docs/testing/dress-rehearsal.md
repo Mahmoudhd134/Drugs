@@ -658,7 +658,7 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `UX-002` (P0, e2e) Given 375 px, when opening the drug dialog, group line dialog and prescription line dialog, then they are full-screen, only the content scrolls, and Save/Cancel stay visible
 - [ ] `UX-011` (P1, manual) Given a real phone (touch), when adding a group, editing a line, dragging to reorder and copying, then everything works by touch
 - [ ] `UX-013` (P1, e2e; the tap only on a real phone) On a real phone, in the drug dialog, tap ⓘ next to «تقليل تدريجي»: the explanation shows and stays about 5 s (the e2e test sends the touch events from the page: Chromium's emulated tap closes the tooltip at once, so the real tap is checked here)
-- [ ] `UX-038` / `UX-039` (P1 ui+e2e / P2 e2e; the swipe only on a real phone) On a real phone, make a toast show (e.g. delete a drug: «تم حذف الدواء») and swipe it sideways: it closes at once; make another and tap its × («إغلاق» / "Close"): it closes, other toasts stay (built after M1.6: [BUG-621](known-bugs.md) until then)
+- [ ] `UX-038` / `UX-039` (P1 ui+e2e / P2 e2e; the swipe only on a real phone) On a real phone, make a toast show (e.g. delete a drug: «تم حذف الدواء») and swipe it sideways: it closes at once; make another and tap its × («إغلاق» / "Close"): it closes, other toasts stay
 
 #### UX · Confirmations, focus and keyboard
 
