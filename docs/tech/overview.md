@@ -119,7 +119,7 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
                                <RequirePermission>, api.ts (the permission catalog)
   src/features/roles/, staff/  reusable role and staff lists + editors; data only through an adapter (no URLs)
   src/features/admin/          admin layout, clinic pages and tabs, adapters.ts (adminRolesApi / adminStaffApi)
-  src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight
+  src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight, useDialogSave, useOpeningKey
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
   src/**/*.test.ts(x)          Vitest unit + component tests, next to the code; src/test/: their helpers (providers,
@@ -563,11 +563,31 @@ Swagger UI is available in Development at `/swagger`.
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
 | `InfoTip` | Small ⓘ icon with a tooltip (on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s, `leaveTouchDelay` 5000) to explain a field or option |
-| `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs |
+| `FormDialog` | The `Dialog` of a create/edit form saving through `useDialogSave`: Esc and a backdrop click do nothing while the save is in flight (contract below) |
+| `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs; its `onSubmit` is `useDialogSave`'s `submit` (below) |
 
 Hooks (`src/hooks`): `useDebouncedValue`, `useLanguage`, `useFormatDate` (dates in the UI language, Latin digits),
 `useSingleFlight` (`once(action)`: a call while the previous one runs is ignored; a mutation's `isPending` re-renders
 too late to stop a double click). Use it for every create/save/delete button.
+
+Every create/edit dialog whose Save calls the API (drug, role, staff, Rename clinic) follows one contract:
+- `FormDialog` (`components/common`): the MUI `Dialog` of such a form. Not closable while the save is in flight: Esc
+  and a backdrop click do nothing (`useDialogSave` tells it through a context), Cancel is disabled by the form
+  (`isPending`); the typed values are kept. When no save runs, Esc closes it without saving (UX-023).
+- `useDialogSave(save)` → `{submit, done}`: the form's `onSubmit` (one save at a time, through `useSingleFlight`). `save`
+  resolves `true` when it succeeded and the dialog closes, `false` otherwise (invalid input, an API error). After a
+  success the form stays locked until it unmounts: `done` is true (Save is `disabled={isPending || done}`) and every
+  later submit (a second click or Enter landing after a fast answer, while the dialog fades out) is ignored. After a
+  failure it unlocks at once, so the user can fix the input and save again.
+- `useOpeningKey(open)`: a number that changes each time `open` turns true, used as the form's `key`. Every opening
+  mounts a fresh form (from the given entity, or empty), also when reopened during the closing animation (MUI keeps the
+  closing content mounted until it has faded out), and so also unlocked. The clinic Delete dialog and the prescription
+  editor («تعديل ونسخ», rebuilt from the current lines) use it too.
+- The clinic Delete dialog (a confirmation; its delete runs in the page) is not closable while deleting either:
+  `onClose={pending ? undefined : onClose}`.
+
+The line dialogs (group line, prescription line) save locally and synchronously; their form is rendered only while a line
+is given (`{item && <Form key={item.key}/>}`), so it is gone as soon as they close.
 
 Permission pieces (`features/access`, [details](../features/access/tech.md#frontend-srcfeaturesaccess)):
 

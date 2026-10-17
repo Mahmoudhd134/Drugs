@@ -625,7 +625,7 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `RX-072` (P0, e2e) Given the English UI, when copying, then the copied text is still the Arabic sentences, right-to-left
 - [ ] `RX-075` (P0, e2e) Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ» opens (after loading) with «التعديلات هنا للنسخ فقط ولا يتم حفظها.» and the content: bold names, sentences, notes, right-to-left
 - [ ] `RX-077` (P0, e2e) Given text made bold and a numbered list in the editor, when clicking «نسخ», then the copied HTML keeps them and the plain text has "1. " items, with «تم النسخ»
-- [ ] `RX-078` (P0, e2e) Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines)
+- [ ] `RX-078` (P0, ui+e2e) Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines, also when reopened during the closing animation)
 - [ ] `RX-080` (P0, manual) Given the copied text pasted into Word (desktop), then names are bold, sentences Arabic, paragraphs right-to-left and right-aligned, a blank line between drugs, editor formatting kept
 - [ ] `RX-081` (P1, manual) Given the copied text pasted into Windows Notepad (incl. Windows 11 Notepad) and WhatsApp, then plain text without formatting, lines as in the plain-text format
 - [ ] `RX-082` (P1, manual) Given the app opened over plain http on the LAN (real click), when copying, then the paste into Word still keeps the formatting

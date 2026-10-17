@@ -97,7 +97,7 @@ None of its own. Reads drugs and groups through the existing endpoints (`GET /dr
   invalid fields; shows
   `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens.
 - `components/EditorDialog.tsx` + `EditorContent.tsx`: lazy-loaded Quill editor, rebuilt from the
-  current lines on every open. Edits are not saved.
+  current lines on every open (`useOpeningKey`: also when reopened during the closing animation). Edits are not saved.
 
 ### Text formats (`prescriptionText.ts`)
 - A line renders as: drug name, then its details: the dosing sentence (`dosingToText`); **or**, when the dosing

@@ -69,14 +69,14 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 142 | 92 | 292 | 3 | 165 | 79 | 48 | 0 |
-| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 23 | 15 | 0 |
+| [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 24 | 15 | 0 |
 | [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 40 | 24 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
-| [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
+| [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 24 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
-| [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 2 | 0 | 15 | 21 | 2 |
-| **All** | **352** | **518** | **321** | **1191** | **192** | **532** | **292** | **235** | **7** |
+| [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 16 | 21 | 2 |
+| **All** | **352** | **519** | **322** | **1193** | **194** | **532** | **295** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -1170,7 +1170,7 @@ Sources: [drugs business](../features/drugs/business.md), [drugs tech](../featur
 | DRUG-066 | Given an existing drug, when clicking its row (or the ✎ button), then «تعديل الدواء» opens pre-filled with its name, description and default dosing | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
 | DRUG-067 | Given the edit dialog, when changing the name and saving, then the toast «تم تحديث الدواء» (English "Drug updated") appears and the row shows the new name | P0 | e2e | [drugs § الرسائل](../features/drugs/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | DRUG-068 | Given the edit dialog was cancelled after changes, when it is opened again, then it shows the saved values (the form restarts from the drug) | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
-| DRUG-104 | Given the drug dialog closing (saved, or cancelled with text typed), when it is opened again during the closing animation (e.g. a second Enter on «إضافة دواء», where the focus went back), then it starts from the given drug: empty for a new drug, not the text of the closing form | P2 | e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| DRUG-104 | Given the drug dialog closing (saved, or cancelled with text typed), when it is opened again during the closing animation (e.g. a second Enter on «إضافة دواء», where the focus went back), then it starts from the given drug: empty for a new drug, not the text of the closing form | P2 | ui+e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-069 | Given the drug dialog with only empty dosing fields, when saving, then the request sends `defaultDosing: null` | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-070 | Given the drug dialog while a save is in progress, then Save shows «جارٍ الحفظ…» and Save/Cancel are disabled | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-071 | Given a drug in two groups, when its name or default dosing is edited, then both groups' editors and pickers show the new name/sentence without a reload (the groups were refreshed) | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
@@ -1678,7 +1678,7 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 | RX-075 | Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ» opens (after loading) with «التعديلات هنا للنسخ فقط ولا يتم حفظها.» and the content: bold names, sentences, notes, right-to-left | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-076 | Given the editor, then its toolbar offers bold, italic, underline, numbered and bulleted lists, direction, alignment and clear formatting | P2 | ui | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-077 | Given text made bold and a numbered list in the editor, when clicking «نسخ», then the copied HTML keeps them and the plain text has "1. " items, with «تم النسخ» | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
-| RX-078 | Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines) | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
+| RX-078 | Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines, also when reopened during the closing animation) | P0 | ui+e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-079 | Given a line added after closing the editor, when reopening it, then the new line is in its content | P2 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-080 | Given the copied text pasted into Word (desktop), then names are bold, sentences Arabic, paragraphs right-to-left and right-aligned, a blank line between drugs, editor formatting kept | P0 | manual | [M1.6 § D7](../design/m1.6-test-foundation.md#d7-what-stays-manual) |
 | RX-081 | Given the copied text pasted into Windows Notepad (incl. Windows 11 Notepad) and WhatsApp, then plain text without formatting, lines as in the plain-text format | P1 | manual | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
@@ -1793,6 +1793,8 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | UX-026 | Given `useSingleFlight`, when `once(action)` is called while the previous call runs, then the second call is ignored and resolves to undefined; after the first finishes (or throws), a new call runs | P1 | unit | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-027 | Given a search list (drug or group picker), when an item is double-clicked, then it is selected once (the second click of a burst, `event.detail > 1`, is ignored); keyboard Enter (`detail` 0) still selects | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-028 | Given a delete confirmation, when double-clicking «حذف», then one DELETE request is sent and no error toast appears | P2 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-040 | Given a create/edit dialog saving through `useDialogSave` in a `FormDialog` (drug, role, staff, Rename clinic), when its save is in flight, then Esc and a click outside don't close it (the typed values kept); when the save succeeds (also a 404 that closes it), then the form stays locked until the dialog has closed (Save disabled; a second click, Enter or submit sends nothing); when it fails (invalid input or an API error), then it unlocks at once (Esc closes it again) and saving again sends the request | P1 | unit+ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-041 | Given a dialog whose form is keyed by `useOpeningKey`, when it is opened again (also right after closing, during the closing animation), then a new form mounts (from the given entity, or empty); while it stays open the form is kept | P2 | unit | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 
 ### Load errors and app updates
 

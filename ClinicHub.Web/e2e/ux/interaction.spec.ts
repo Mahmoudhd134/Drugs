@@ -214,7 +214,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await page.keyboard.press("Enter");
             await expectToast(page, t.drugAdded);
             await page.waitForTimeout(1500);
-            // (The second Enter may land on «إضافة دواء» and open the dialog again: BUG-588, DRUG-104, not this case)
+            // (The second Enter may land on «إضافة دواء» and open the dialog again, empty: DRUG-104, not this case)
             if (await dialog(page).count()) await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
@@ -222,7 +222,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(posts.length, "one POST").toBe(1);
         });
 
-    test.fail("BUG-586: a fast answer frees the save while the dialog fades out: the second click of a double click landing after it creates the drug again @UX-024",
+    test("a double click whose second click lands after a fast answer (the dialog fading out) creates the drug once @UX-024",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -247,7 +247,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(posts.length, "one POST").toBe(1);
         });
 
-    test.fail("BUG-588: the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») shows the name just saved instead of starting empty @DRUG-104",
+    test("the new-drug dialog reopened during its closing animation (a second Enter on «إضافة دواء») starts empty, not with the name just saved @DRUG-104",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
@@ -259,7 +259,9 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const saved = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
             await field.press("Enter");
             await saved;
-            // The focus is back on «إضافة دواء» while the dialog fades out: Enter opens it again
+            // The focus is back on «إضافة دواء» while the dialog fades out (the page behind it still aria-hidden): Enter
+            // opens it again
+            await expect(page.getByRole("button", {name: t.addDrug, includeHidden: true})).toBeFocused();
             await page.keyboard.press("Enter");
             await expect(dialog(page).getByRole("textbox", {name: t.drugName}), "a new drug starts empty").toHaveValue("");
             await dialog(page).getByRole("button", {name: t.cancel}).click();
