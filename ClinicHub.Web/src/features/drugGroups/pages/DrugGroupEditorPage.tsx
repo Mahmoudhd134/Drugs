@@ -288,12 +288,12 @@ const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: Dru
                                                         <Chip size="small" color="error" icon={<ErrorIcon/>} label={t("groups.eyeClash")} sx={wrappingChip}/>
                                                     )}
                                                     {!isDosingEmpty(item.dosing) && (
-                                                        <TapTooltip title={t("groups.customDosingInfo")}>
+                                                        <TapTooltip title={t("groups.customDosingInfo")} tap={readOnly}>
                                                             <Chip size="small" variant="outlined" color="primary" label={t("groups.customDosing")} sx={wrappingChip}/>
                                                         </TapTooltip>
                                                     )}
                                                     {effective.eye === ASK_EYE && (
-                                                        <TapTooltip title={t("dosing.askEyeInfo")}>
+                                                        <TapTooltip title={t("dosing.askEyeInfo")} tap={readOnly}>
                                                             <Chip size="small" variant="outlined" color="secondary" label={t("dosing.askEyeHint")} sx={wrappingChip}/>
                                                         </TapTooltip>
                                                     )}

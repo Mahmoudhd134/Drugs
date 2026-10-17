@@ -1,7 +1,8 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, anItem, choose, findToast, hoverTooltip, isolate, toastTexts} from "../../../test";
+import {aDrug, aGroup, anItem, choose, findToast, hoverTooltip, isolate, tapTooltip, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
+import type {Permission} from "../../access/permissions.ts";
 import {dosingPreview} from "../../../test/pages/dosing.ts";
 import {lineDetails, lineRows, lineSummary, openEditor, pickerOption} from "../../../test/pages/groupEditor.tsx";
 
@@ -114,6 +115,25 @@ describe("group editor: the lines @area:catalog", () => {
         const chip = within(first).getByText("جرعة خاصة بالمجموعة");
         expect(within(second).queryByText("جرعة خاصة بالمجموعة")).not.toBeInTheDocument();
         expect(await hoverTooltip(chip)).toBe("لهذا الدواء جرعة خاصة في هذه المجموعة بدل جرعته الافتراضية.");
+    });
+
+    // In the read-only view a tap on a line does nothing else, so it shows the chip's explanation at once (in edit mode
+    // a tap on the line opens its dosing dialog, as before)
+    const viewOnly: Permission[] = ["groups.list", "groups.details"];
+
+    test("read-only on a phone: a quick tap on «جرعة خاصة بالمجموعة» shows its tooltip @GRP-069", async () => {
+        const group = aGroup({items: [anItem(aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks}), {frequency: "daily", frequencyValue: 6})]});
+        await openEditor({group, permissions: viewOnly});
+        const chip = within(lineRows()[0]).getByText("جرعة خاصة بالمجموعة");
+        expect(await tapTooltip(chip)).toBe("لهذا الدواء جرعة خاصة في هذه المجموعة بدل جرعته الافتراضية.");
+    });
+
+    test("read-only on a phone: a quick tap on «العين تُحدد عند إضافة المجموعة» shows its tooltip @GRP-079", async () => {
+        const group = aGroup({items: [anItem(aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}}), {eye: "ask"})]});
+        await openEditor({group, permissions: viewOnly});
+        const chip = within(lineRows()[0]).getByText("العين تُحدد عند إضافة المجموعة");
+        expect(await tapTooltip(chip))
+            .toBe("العين غير محددة في المجموعة: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها المجموعة.");
     });
 
     test("in English the chip reads \"Group dosing\" @GRP-069", async () => {
