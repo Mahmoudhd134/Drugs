@@ -577,7 +577,7 @@ Swagger UI is available in Development at `/swagger`.
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
 | `InfoTip` | Small ⓘ icon with a tooltip (a `TapTooltip`: on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s) to explain a field or option |
-| `TapTooltip` | A `Tooltip` for tooltips that explain (ⓘ, why a control is disabled): a quick tap shows it at once and it stays ~5 s (`leaveTouchDelay` 5000); hover and focus as usual. MUI's default needs a 700 ms long press, and even with `enterTouchDelay={0}` a touchend in the same tick (a quick tap) cancels its open timer, so it is controlled and the child's `touchend` opens it; MUI's leave timer closes it. The child takes the ref and event props (wrap a disabled control in a `span`); `tap={false}` keeps MUI's touch behaviour while a tap is the control's own action. Used by `InfoTip`, the `Permission*` denied tooltip, the tapering steps editor's disabled step dose / «إضافة مرحلة», the role list's held-role Delete |
+| `TapTooltip` | A `Tooltip` for tooltips that explain (ⓘ, why a control is disabled, the group editor line's custom-dosing and ask-the-eye chips): a quick tap shows it at once and it stays ~5 s (`leaveTouchDelay` 5000); hover and focus as usual. MUI's default needs a 700 ms long press, and even with `enterTouchDelay={0}` a touchend in the same tick (a quick tap) cancels its open timer, so it is controlled and the child's `touchend` opens it; MUI's leave timer closes it. The child takes the ref and event props (wrap a disabled control in a `span`); `tap={false}` keeps MUI's touch behaviour while a tap is the control's own action. Used by `InfoTip`, the `Permission*` denied tooltip, the tapering steps editor's disabled step dose / «إضافة مرحلة», the role list's held-role Delete |
 | `AppToaster` | The app's toaster ([App shell](#app-shell) "Toasts"): bottom-center, every toast with a × «إغلاق» / "Close" icon button and swipe-to-close; mounted once by `AppProviders` |
 | `FormDialog` | The `Dialog` of a create/edit form saving through `useDialogSave`: Esc and a backdrop click do nothing while the save is in flight (contract below) |
 | `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs; its `onSubmit` is `useDialogSave`'s `submit` (below) |
@@ -740,7 +740,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
-- Tests run locally only (`test.ps1`; no CI). Open app bugs found by the tests: [known bugs](../testing/known-bugs.md).
+- Tests run locally only (`test.ps1`; no CI). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist
 

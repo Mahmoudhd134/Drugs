@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -75,8 +75,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 24 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
-| [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 16 | 21 | 2 |
-| **All** | **353** | **519** | **322** | **1194** | **194** | **532** | **296** | **235** | **7** |
+| [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 17 | 21 | 2 |
+| **All** | **353** | **519** | **322** | **1194** | **194** | **532** | **298** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 

@@ -1,6 +1,6 @@
 # Known bugs (found by the tests)
 
-Status: the entries below were collected while M1.6 wrote the tests (and in its final review: BUG-621) and are fixed after M1.6, one per commit ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)).
+Status: all entries found during M1.6 (the tests, and the final review: BUG-621) were fixed after M1.6 (2026-10-18), one per commit ([design D9](../design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)); the Entries table is empty.
 
 A known bug is an app behavior that contradicts a **clear** rule in the docs, found while writing a test. The test is
 kept exactly as the doc says (never weakened to pass) and marked as a known bug; the bug is listed here. A rule the docs
