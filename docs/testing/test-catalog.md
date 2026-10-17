@@ -1815,5 +1815,5 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| UX-038 | Given a toast showing (e.g. «تم حذف الدواء» after a delete), when clicking its × icon button (tooltip and accessible name «إغلاق» / "Close"), then that toast closes at once, before its own time, and other toasts stay | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |
+| UX-038 | Given a toast showing (e.g. «تم حذف الدواء» after a delete), when clicking its × icon button (tooltip and accessible name «إغلاق» / "Close"), then that toast closes at once, before its own time, and other toasts stay and still close by themselves in their time (also after a tap on a touch phone) | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |
 | UX-039 | Given a toast on a touch phone (375 px), when swiping it sideways, then it closes | P2 | e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |

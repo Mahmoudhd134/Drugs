@@ -456,8 +456,12 @@ Swagger UI is available in Development at `/swagger`.
   (plain) style; each closes by itself after the library's time (some longer, e.g. 8 s for the lost-clinic messages).
   **Dismissing** (the user's decision, 2026-10-16): every toast also has a small × icon button (tooltip and accessible
   name «إغلاق» / "Close", `common.close`) that closes it at once, and on a touch phone swiping it sideways closes it;
-  closing one toast leaves the others. Not built yet: today a toast can only wait to close by itself
-  ([BUG-621](../testing/known-bugs.md), built after M1.6).
+  closing one toast leaves the others; a swipe shorter than 60 px springs back. Closing removes the toast at once
+  (`toast.remove`, no exit delay). The toaster is `components/common/AppToaster.tsx` (`AppToaster`: react-hot-toast
+  headless through `useToaster`, laid out as the library's `Toaster`; each toast a `ToastBar` with the button at its
+  end, so on the left in Arabic), mounted by `AppProviders` and by the Vitest `renderWithProviders`. As in the library,
+  a mouse over the toasts pauses their timers; a finger doesn't (a tap also fires mouse events, and once the tapped
+  toast is gone the pointer never leaves, which would keep the other toasts paused for good).
 - Routes (`app/App.tsx`), each page lazy-loaded as its own chunk (`Suspense`). Login pages use
   `SimpleLayout`; the clinic app is `AppLayout` behind `RequireAuth context="clinic"`
   ([login](../features/auth/tech.md)); the platform admin is `AdminLayout` behind `RequireAuth context="platform"`
@@ -565,6 +569,7 @@ Swagger UI is available in Development at `/swagger`.
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
 | `InfoTip` | Small ⓘ icon with a tooltip (on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s, `leaveTouchDelay` 5000) to explain a field or option |
+| `AppToaster` | The app's toaster ([App shell](#app-shell) "Toasts"): bottom-center, every toast with a × «إغلاق» / "Close" icon button and swipe-to-close; mounted once by `AppProviders` |
 | `FormDialog` | The `Dialog` of a create/edit form saving through `useDialogSave`: Esc and a backdrop click do nothing while the save is in flight (contract below) |
 | `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs; its `onSubmit` is `useDialogSave`'s `submit` (below) |
 

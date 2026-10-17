@@ -50,10 +50,10 @@ const settleRequests = async () => {
 };
 
 afterEach(async () => {
-    // react-hot-toast pauses every toast's timer while the pointer is over its Toaster (a click on a toast's button
-    // leaves it there) and keeps that pause in its module store: end it while the Toaster is still mounted, so the
-    // next test's toasts time out as they should
-    document.querySelectorAll("[data-rht-toaster]").forEach(toaster => fireEvent.mouseLeave(toaster));
+    // react-hot-toast pauses every toast's timer while a mouse is over the toaster (`AppToaster`; a click on a toast's
+    // button leaves it there) and keeps that pause in its module store: end it while the toaster is still mounted, so
+    // the next test's toasts time out as they should
+    document.querySelectorAll("[data-rht-toaster]").forEach(toaster => fireEvent.pointerLeave(toaster));
     cleanup();
     vi.useRealTimers();
     await settleRequests();

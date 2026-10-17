@@ -6,8 +6,8 @@ import createCache from "@emotion/cache";
 import {prefixer} from "stylis";
 import rtlPlugin from "@mui/stylis-plugin-rtl";
 import {CssBaseline, ThemeProvider} from "@mui/material";
-import {Toaster} from "react-hot-toast";
 import {createAppTheme} from "./theme.ts";
+import {AppToaster} from "../components/common/AppToaster.tsx";
 import {useLanguage} from "../hooks/useLanguage.ts";
 import {AuthProvider} from "../features/auth/AuthProvider.tsx";
 import {getErrorMessage, toApiError} from "../api/errors.ts";
@@ -62,11 +62,7 @@ export const AppProviders = ({children}: { children: ReactNode }) => {
                 <ThemeProvider theme={theme}>
                     <CssBaseline/>
                     <AuthProvider>{children}</AuthProvider>
-                    <Toaster
-                        position="bottom-center"
-                        // A long unbroken name wraps instead of running off the screen
-                        toastOptions={{style: {fontFamily: theme.typography.fontFamily, whiteSpace: "pre-line", overflowWrap: "anywhere"}}}
-                    />
+                    <AppToaster/>
                 </ThemeProvider>
             </CacheProvider>
         </QueryClientProvider>
