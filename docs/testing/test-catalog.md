@@ -75,8 +75,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 23 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
-| [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 2 | 0 | 15 | 21 | 2 |
-| **All** | **352** | **518** | **321** | **1191** | **192** | **532** | **292** | **235** | **7** |
+| [UX](#ux--cross-cutting-ui) | 6 | 19 | 14 | 39 | 2 | 0 | 16 | 21 | 2 |
+| **All** | **352** | **518** | **321** | **1191** | **192** | **532** | **293** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -885,7 +885,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-173 | Given the Roles tab, then the Owner role is first, shown «المالك» (en "Owner") with the chip «مقفل» / "Locked", no edit or delete button, and the line «كل الصلاحيات دائمًا. لا يمكن تعديل هذا الدور أو حذفه.» | P1 | ui | [business: roles][adm-b-roles] |
 | ADM-174 | Given Doctor (11), Assistant (9), a 6-key role and an empty role, then the summaries «كل الصلاحيات» / "All permissions", «9 صلاحيات: الأدوية، المجموعات، الروشتة», «6 صلاحيات: الأدوية، المجموعات», «بلا صلاحيات» / "No permissions"; also «صلاحية واحدة: …», «صلاحيتان: …», «11 صلاحية: …» | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-175 | Given each role, then the staff column shows every holder, active or not | P1 | ui | [business: screens][adm-b-screens] |
-| ADM-176 | Given a role held by 3 staff, then its Delete is disabled (still focusable) and its tooltip «ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.» / "Held by 3 staff members. Take it away from them first."; held by 1 → «ممنوح لموظف واحد. …» | P1 | ui | [business: screens][adm-b-screens] |
+| ADM-176 | Given a role held by 3 staff, then its Delete is disabled (still focusable) and its tooltip «ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.» / "Held by 3 staff members. Take it away from them first." (on hover, or at once on a phone tap); held by 1 → «ممنوح لموظف واحد. …» | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-177 | Given an unused role, when Delete, then the confirm «حذف الدور «X»؟ لا يمكن التراجع عن ذلك. لا يمكن حذف دور ممنوح لموظفين: أزِل هذا الدور من موظفيه أولًا.» opens with the focus on Cancel | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-178 | Given the delete confirm, when confirming (double click), then one `DELETE`, the toast «تم حذف الدور «X»» and the row is gone | P1 | e2e | [business: messages][adm-b-msg] |
 | ADM-179 | Given "New role", then the dialog shows the name (max 100), the sections «الأدوية والمجموعات» (Drugs, Groups) and «الروشتة», 11 checkboxes with their translated labels, and «المختار: 0 من 11.» | P1 | ui | [business: screens][adm-b-screens] |
@@ -1553,14 +1553,14 @@ Sources: [tapering business](../features/tapering/business.md), [tapering tech](
 | TAPER-063 | Given any dosing dialog (drug, group line, prescription line), then the «تقليل تدريجي» switch with an ⓘ («تقليل الجرعة على مراحل، …») is shown | P1 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-064 | Given daily 4 for 1 week, when switching tapering on, then two step rows appear (4 then 3 times a day, 1 week each) instead of the frequency/period rows | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-065 | Given a schedule, when switching tapering off, then step 1 becomes the normal frequency and period | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
-| TAPER-066 | Given 9 steps, when clicking «إضافة مرحلة», then 10 steps and the button becomes disabled with the tooltip «أقصى عدد للمراحل: 10» | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| TAPER-066 | Given 9 steps, when clicking «إضافة مرحلة», then 10 steps and the button becomes disabled with the tooltip «أقصى عدد للمراحل: 10» (on hover, or at once on a phone tap) | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | TAPER-067 | Given «إضافة مرحلة» enabled, when hovering, then «تضيف مرحلة في النهاية بمرة أقل في اليوم. يمكنك تعديلها بعد ذلك.» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-068 | Given steps, when clicking a step's ✕ «حذف المرحلة», then that step is removed; with one step left the ✕ is disabled | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-069 | Given steps, then only the last step's period list offers «بصفة مستمرة» and «حتى الزيارة القادمة»; the others offer أيام / أسابيع only; step frequency offers مرات في اليوم / كل عدد ساعات only | P0 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-070 | Given an open-ended period on a step that is not last, then the field is red, its value stays visible and the hint «المرحلة الأخيرة فقط يمكن أن تكون «بصفة مستمرة» أو «حتى الزيارة القادمة».» is shown; save is blocked | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | TAPER-071 | Given a step with a missing or out-of-range number, when saving, then that step's field is red and nothing is saved | P0 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-072 | Given a unit and a dose above, then step 1's dose field is disabled, shows the dose above and has the tooltip «المرحلة الأولى تأخذ الجرعة المكتوبة بالأعلى.» | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
-| TAPER-073 | Given no unit above, then the step dose fields are disabled with the tooltip «اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.» | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
+| TAPER-073 | Given no unit above, then the step dose fields are disabled with the tooltip «اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.» (on hover, or at once on a phone tap) | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-074 | Given a unit above, then step 2+ dose fields are enabled, their placeholder is the dose above (or 1), and the tooltip reads «جرعة هذه المرحلة بنفس الوحدة المختارة بالأعلى. …» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-075 | Given a step dose typed (step 2 = 1 drop), then the preview shows the step dose in the sentence | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-076 | Given a group line whose drug default is a taper and no override schedule, then the dialog shows «الجرعة الافتراضية للدواء فيها تقليل تدريجي. فعّل هذا الخيار لتغييره في هذه المجموعة.» and the preview shows the drug's steps | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
@@ -1767,7 +1767,7 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | UX-012 | Given every icon-only button in these areas (✎, ⊕, ✕, delete, search clear «مسح», remove step, menu), then it has a tooltip and an accessible name in the UI language | P1 | ui | [tech overview § Code conventions](../tech/overview.md#code-conventions) |
-| UX-013 | Given an ⓘ icon, when hovering, focusing it with Tab, or tapping it on a phone, then its explanation shows (after a tap it stays ~5 s, then hides) | P1 | e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-013 | Given an ⓘ icon, when hovering, focusing it with Tab, or tapping it on a phone, then its explanation shows (after a tap it stays ~5 s, then hides) | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-014 | Given the «نسخ» and «تعديل ونسخ» buttons with lines, when hovering, then «نسخ الروشتة كما هي. اللصق في Word يحتفظ بالتنسيق.» / «تعديل النص أولًا (عريض، قوائم، محاذاة) ثم نسخه.»; when disabled (empty list), no tooltip | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components), [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | UX-015 | Given the generator's fields, when hovering, then «عدد المرات في اليوم في المرحلة الأولى», «عدد المرات التي تقل في كل مرحلة», «عدد المرات في اليوم في المرحلة الأخيرة», «المدة التي تستمر فيها كل مرحلة» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 

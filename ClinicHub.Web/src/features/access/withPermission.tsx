@@ -1,6 +1,6 @@
 import {type ComponentType, forwardRef, type Ref} from "react";
-import {Tooltip} from "@mui/material";
 import {useTranslation} from "react-i18next";
+import {TapTooltip} from "../../components/common/TapTooltip.tsx";
 import type {PermissionRule} from "./permissions.ts";
 import {usePermissions} from "./usePermissions.ts";
 
@@ -21,13 +21,13 @@ export const withPermission = <P extends { disabled?: boolean }>(Component: Comp
         if (allows({permission, anyOf, allOf})) return <Component {...({...rest, ref} as unknown as P)}/>;
         if (whenDenied === "hide") return null;
         // A disabled control gets no mouse events, so the tooltip (and any outer Tooltip's ref) sits
-        // on a wrapper; the outer tooltip's own title is replaced by "no permission"
+        // on a wrapper; the outer tooltip's own title is replaced by "no permission". A tap shows it too
         return (
-            <Tooltip title={t("access.noPermissionTooltip")}>
+            <TapTooltip title={t("access.noPermissionTooltip")}>
                 <span ref={ref as Ref<HTMLSpanElement>} style={{display: "inline-flex"}}>
                     <Component {...(rest as unknown as P)} disabled/>
                 </span>
-            </Tooltip>
+            </TapTooltip>
         );
     });
     Wrapped.displayName = `withPermission(${Component.displayName ?? Component.name ?? "Component"})`;

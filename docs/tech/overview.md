@@ -562,7 +562,8 @@ Swagger UI is available in Development at `/swagger`.
 | `SortableList` | dnd-kit vertical list; drag handle per row; mouse, touch and keyboard reordering |
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
-| `InfoTip` | Small ⓘ icon with a tooltip (on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s, `leaveTouchDelay` 5000) to explain a field or option |
+| `InfoTip` | Small ⓘ icon with a tooltip (a `TapTooltip`: on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s) to explain a field or option |
+| `TapTooltip` | A `Tooltip` for tooltips that explain (ⓘ, why a control is disabled): a quick tap shows it at once and it stays ~5 s (`leaveTouchDelay` 5000); hover and focus as usual. MUI's default needs a 700 ms long press, and even with `enterTouchDelay={0}` a touchend in the same tick (a quick tap) cancels its open timer, so it is controlled and the child's `touchend` opens it; MUI's leave timer closes it. The child takes the ref and event props (wrap a disabled control in a `span`); `tap={false}` keeps MUI's touch behaviour while a tap is the control's own action. Used by `InfoTip`, the `Permission*` denied tooltip, the tapering steps editor's disabled step dose / «إضافة مرحلة», the role list's held-role Delete |
 | `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs |
 
 Hooks (`src/hooks`): `useDebouncedValue`, `useLanguage`, `useFormatDate` (dates in the UI language, Latin digits),
@@ -575,7 +576,7 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 |---|---|
 | `usePermissions()` | `{ can, canAll, canAny, allows, ready }` for logic |
 | `<Can permission / anyOf / allOf fallback?>` | Render children only when allowed |
-| `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` | Gated MUI controls; `whenDenied="disable"` shows them disabled with a tooltip (default hidden) |
+| `PermissionButton`, `PermissionIconButton`, `PermissionMenuItem`, `PermissionFab` | Gated MUI controls; `whenDenied="disable"` shows them disabled with a tooltip (`TapTooltip`: on hover, and on tap at once, staying ~5 s; default hidden) |
 | `withPermission(Component)` | Gate any control that takes `disabled` the same way |
 | `<RequirePermission>` | Route guard with the "No permission" page |
 

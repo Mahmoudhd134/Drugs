@@ -68,7 +68,8 @@ Invalid schedules return 400 `invalidDosing`.
   is hidden (it is the dose above, already shown there).
 - `components/TaperGenerator.tsx`: "Generate…" button + popover; shows the step count or an error.
 - Dosing dialogs (drug form, group line, prescription line) are `maxWidth="md"` so a step row fits.
-- Shared `components/common/InfoTip.tsx`: ⓘ icon with a tooltip (tap-friendly).
+- Shared `components/common/InfoTip.tsx`: ⓘ icon with a tooltip (tap-friendly). The disabled step dose field and the
+  disabled «إضافة مرحلة» (at the step limit) explain why in a `TapTooltip` (a tap on a phone shows it at once, ~5 s).
 - i18n: `dosing.taper.*`, `dosing.amountInfo`, `dosing.askEyeInfo`, `dosing.inheritInfo`,
   `prescription.quickCopyInfo/editAndCopyInfo/clearAllInfo`, `groups.customDosingInfo`.
 - Tooltips were added across the app: dose field, "Ask when adding" eye, group chips, copy and

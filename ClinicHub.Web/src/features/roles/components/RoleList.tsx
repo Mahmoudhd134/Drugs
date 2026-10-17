@@ -24,6 +24,7 @@ import LockIcon from "@mui/icons-material/LockOutlined";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../../api/errors.ts";
+import {TapTooltip} from "../../../components/common/TapTooltip.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {usePermissionCatalog} from "../../access/api.ts";
@@ -137,7 +138,7 @@ export const RoleList = ({adapter}: { adapter: RolesAdapter }) => {
                                                     </Tooltip>
                                                     {role.staffCount > 0 ? (
                                                         // Held by someone: can't be deleted. Focusable (aria-disabled), so the reason is reached and said
-                                                        <Tooltip title={t("roles.deleteHeld", {count: role.staffCount})} describeChild enterTouchDelay={0}>
+                                                        <TapTooltip title={t("roles.deleteHeld", {count: role.staffCount})} describeChild>
                                                             <IconButton
                                                                 aria-disabled
                                                                 disableTouchRipple
@@ -146,7 +147,7 @@ export const RoleList = ({adapter}: { adapter: RolesAdapter }) => {
                                                             >
                                                                 <DeleteIcon fontSize="small"/>
                                                             </IconButton>
-                                                        </Tooltip>
+                                                        </TapTooltip>
                                                     ) : (
                                                         <Tooltip title={t("roles.delete")}>
                                                             <IconButton

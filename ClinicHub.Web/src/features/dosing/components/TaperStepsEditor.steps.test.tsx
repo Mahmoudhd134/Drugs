@@ -1,7 +1,7 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {createAppTheme} from "../../../app/theme.ts";
-import {hoverTooltip, optionsOf, renderWithProviders} from "../../../test";
+import {hoverTooltip, optionsOf, renderWithProviders, tapTooltip} from "../../../test";
 import type {Dosing, TaperStep} from "../types.ts";
 import {DosingHarness} from "../../../test/pages/DosingHarness.tsx";
 import {dosingPreview, harnessValue, stepBadges, stepRow} from "../../../test/pages/dosing.ts";
@@ -81,6 +81,13 @@ describe("tapering: the steps editor @area:catalog", () => {
         expect(await hoverTooltip(add)).toBe("أقصى عدد للمراحل: 10");
     });
 
+    test("a quick tap on the disabled «إضافة مرحلة» (phone) shows «أقصى عدد للمراحل: 10» at once @TAPER-066", async () => {
+        await renderFields({taperSteps: [10, 9, 9, 8, 7, 6, 5, 4, 3, 2].map(times => daily(times))});
+        const add = screen.getByRole("button", {name: "إضافة مرحلة"});
+        expect(add).toBeDisabled();
+        expect(await tapTooltip(add)).toBe("أقصى عدد للمراحل: 10");
+    });
+
     test("hovering an enabled «إضافة مرحلة» explains it @TAPER-067", async () => {
         await renderFields({taperSteps: [daily(4), daily(3)]});
         expect(await hoverTooltip(screen.getByRole("button", {name: "إضافة مرحلة"})))
@@ -125,6 +132,12 @@ describe("tapering: step doses @area:catalog", () => {
         await renderFields({taperSteps: [daily(4), daily(3), daily(2)]});
         for (const n of [2, 3]) expect(stepDose(n)).toBeDisabled();
         expect(await hoverTooltip(stepDose(2))).toBe("اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.");
+    });
+
+    test("a quick tap on a disabled step dose (phone) shows «اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.» at once @TAPER-073", async () => {
+        await renderFields({taperSteps: [daily(4), daily(3)]});
+        expect(stepDose(2)).toBeDisabled();
+        expect(await tapTooltip(stepDose(2))).toBe("اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.");
     });
 
     test("with a unit, steps 2+ take a dose: placeholder = the dose above (or 1) and the «جرعة هذه المرحلة…» tooltip @TAPER-074", async () => {
