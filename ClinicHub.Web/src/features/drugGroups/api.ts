@@ -39,8 +39,9 @@ export const useDrugGroup = (id: number | null, {enabled = true}: QueryOptions =
         queryKey: drugGroupKeys.detail(id ?? 0),
         queryFn: async () => (await api.get<DrugGroup>(`/drug-groups/${id}`)).data,
         enabled: enabled && id !== null,
-        // Always edit the latest version
+        // Always edit the latest version: fetched again each time the editor opens, even over a cached copy
         staleTime: 0,
+        refetchOnMount: "always",
     });
 
 type SaveDrugGroup = { id: number | null; name: string; items: SaveDrugGroupItem[] };

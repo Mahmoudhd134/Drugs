@@ -55,11 +55,19 @@ export const DrugGroupEditorPage = () => {
     const groupId = id === undefined ? null : Number(id);
     const {can} = usePermissions();
     const details = useDrugGroup(Number.isInteger(groupId) ? groupId : null, {enabled: can(PERMISSIONS.groups.details)});
+    // The group as answered by a fetch made since the editor opened: a cached copy (e.g. from before one of its drugs
+    // was edited) is never shown. Kept once taken, so a later refetch neither resets the form nor moves its baseline;
+    // dropped when the page shows another group, so coming back to this one waits for a fresh answer again.
+    const fresh = details.isFetchedAfterMount && details.isSuccess ? details.data : undefined;
+    const [opened, setOpened] = useState<{ groupId: number; group: DrugGroup } | null>(null);
+    if (opened && opened.groupId !== groupId) setOpened(null);
+    else if (!opened && fresh && groupId !== null) setOpened({groupId, group: fresh});
+    const group = opened?.groupId === groupId ? opened.group : fresh;
 
     if (groupId !== null && !Number.isInteger(groupId)) return <Navigate to="/groups" replace/>;
 
-    if (groupId !== null && !details.data) {
-        return details.isError ? (
+    if (groupId !== null && !group) {
+        return details.isError && details.isFetchedAfterMount ? (
             <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void details.refetch()}>{t("common.retry")}</Button>}>
                 {getErrorMessage(details.error)}
             </Alert>
@@ -69,7 +77,7 @@ export const DrugGroupEditorPage = () => {
     }
 
     // Remount per group so the form starts from that group's values
-    return <GroupEditor key={groupId ?? "new"} groupId={groupId} initial={details.data}/>;
+    return <GroupEditor key={groupId ?? "new"} groupId={groupId} initial={group}/>;
 };
 
 const GroupEditor = ({groupId, initial}: { groupId: number | null; initial?: DrugGroup }) => {

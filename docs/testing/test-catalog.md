@@ -70,13 +70,13 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 142 | 92 | 292 | 3 | 165 | 79 | 48 | 0 |
 | [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 24 | 15 | 0 |
-| [GRP](#grp--drug-groups) | 31 | 43 | 24 | 98 | 0 | 34 | 40 | 24 | 0 |
+| [GRP](#grp--drug-groups) | 32 | 43 | 24 | 99 | 0 | 34 | 41 | 24 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 24 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 16 | 21 | 2 |
-| **All** | **352** | **519** | **322** | **1193** | **194** | **532** | **295** | **235** | **7** |
+| **All** | **353** | **519** | **322** | **1194** | **194** | **532** | **296** | **235** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -1283,6 +1283,7 @@ Sources: [groups business](../features/drug-groups/business.md), [groups tech](.
 | GRP-059 | Given an existing group, when the editor opens, then the title is «تعديل المجموعة» and the name and lines are pre-filled | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
 | GRP-060 | Given `/groups/abc` or `/groups/1.5`, when opened, then the app redirects to `/groups` | P2 | ui | [overview § App shell](../tech/overview.md#app-shell) |
 | GRP-061 | Given `/groups/{id}` of a deleted or unknown group, when opened, then an error «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» is shown instead of the form | P1 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
+| GRP-099 | Given a group opened earlier (cached) whose drug was renamed or got a new default dosing since, when its editor opens again, then the loading spinner shows until the group is fetched again and the form shows the fresh name and sentence, never the cached ones; a failed fetch shows the error with «إعادة المحاولة» instead of the cached form; a refetch while the editor is open keeps the form and its changes | P0 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
 | GRP-062 | Given the editor's Delete button, when confirmed, then «تم حذف المجموعة» and the app goes back to the list | P1 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | GRP-063 | Given a group deleted in another window, when this editor saves, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 | GRP-064 | Given a user with `groups.details` but not `groups.update`, when opening a group, then the title is «المجموعة», the name is read-only and there is no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle | P1 | e2e | [groups § المستخدمون](../features/drug-groups/business.md#المستخدمون) |

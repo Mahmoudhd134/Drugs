@@ -95,6 +95,13 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   [BUG-591](../../testing/known-bugs.md)).
 - **Editor page** `pages/DrugGroupEditorPage.tsx` (`/groups/new`, `/groups/:id`): a new group opens with the focus in
   the name field and the empty state «لا توجد أدوية في هذه المجموعة» / "No drugs in this group".
+  - Opening `/groups/:id` **always fetches the group again** (`useDrugGroup`: `staleTime: 0`, `refetchOnMount:
+    "always"`) and shows the page spinner until that answer arrives (`isFetchedAfterMount`): a copy cached earlier (e.g.
+    before one of its drugs was renamed or got a new default dosing) is never shown. A failed fetch shows the error with
+    «إعادة المحاولة» (`common.retry`) instead of the form, even when a cached copy exists. The first fresh answer is kept
+    while the editor shows that group: a later refetch of it (e.g. the invalidation of a save or delete, just before
+    leaving) neither resets the form nor moves the unsaved-changes baseline. Showing another group drops it, so coming
+    back to the first one waits for a fresh answer again.
   - Lines use the shared `DosingLineList`: number, drug, `LineDetails` with the **effective** dosing (its
     sentence; or the drug description when it has no dose, frequency, duration or tapering, followed by the eye part
     if any: [prescription](../prescription/tech.md#text-formats-prescriptiontextts); an `ask`-only line shows the
@@ -123,6 +130,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 
 ## Edge cases & limitations
 - Sidebar navigation with unsaved changes discards them without asking (BrowserRouter has no blocker).
+- An open editor is not updated live: a drug edited in another tab (or a group saved elsewhere) while the editor is open
+  shows up the next time the editor is opened (accepted; each open fetches the group again).
 - No "duplicate group" action; no per-line note in groups.
 - Overrides are stored per part; there is no way to override only the dose amount while inheriting
   the unit (dose amount + unit are one part).
