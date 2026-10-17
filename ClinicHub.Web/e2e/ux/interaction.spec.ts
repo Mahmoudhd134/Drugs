@@ -330,8 +330,8 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
-            // (Inputs holding the name scroll inside themselves: not checked. The groups list's cards, the Groups-tab
-            // picker and the line dialogs' titles: known bugs BUG-591, BUG-587 and BUG-589, below.)
+            // (Inputs holding the name scroll inside themselves: not checked. The groups list's cards: their own test
+            // below; the Groups-tab picker and the line dialogs' titles: known bugs BUG-587 and BUG-589, below.)
             const fits = async (what: string, shown: Locator) => {
                 await noHorizontalScroll(page, what);
                 const open = dialog(page);
@@ -394,7 +394,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(problems, "the drug name is shown whole in both dialog titles").toEqual([]);
         });
 
-    test.fail("BUG-591: the groups list's cards cut a group name and a drug name (one line, ellipsis) instead of wrapping them: a 256-character one, and an ordinary «بعد عملية المياه البيضاء …» @UX-009",
+    test("the groups list's cards wrap a group name and a drug name inside the card, never cut them: a 256-character one, and an ordinary «بعد عملية المياه البيضاء …» @UX-009",
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();

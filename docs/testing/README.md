@@ -510,7 +510,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 - An axe finding that is a known bug is listed in `KNOWN_AXE` (`checks.ts`) with its `BUG-nnn`, limited to the rule
   and the elements its row documents: reported (the test's attachments), not failed, so the rest of the scan still
   guards every page. Cut text that is a known bug is listed the same way in `KNOWN_CUT` (`ux.ts`, used by
-  `expectNoCutOrOverlap`; today BUG-591's group cards).
+  `expectNoCutOrOverlap`; empty today).
 - A known-bug test is `test.fail("BUG-nnn: … @CASE", …)`: it runs and must fail (a project where the bug doesn't show:
   a conditional `test.skip(condition, "<why> (BUG-nnn)")` at its top). An axe bug's own test checks the page with
   `expectHealthyPage(page, lang, testInfo, {onlyBug: "BUG-nnn"})`: that bug's allowance is dropped, the other known

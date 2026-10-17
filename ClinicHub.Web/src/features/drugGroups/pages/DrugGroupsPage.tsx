@@ -137,8 +137,9 @@ export const DrugGroupsPage = () => {
                                     sx={{flexGrow: 1, alignItems: "flex-start", display: "flex"}}
                                 >
                                     <CardContent sx={{width: "100%"}}>
-                                        <Stack direction="row" sx={{gap: 1, alignItems: "center", mb: 1.5}}>
-                                            <Typography variant="h6" sx={{fontSize: 17, flex: 1, minWidth: 0}} noWrap>
+                                        {/* Names wrap inside the card (even an unbroken 256-character one), never cut with "…" */}
+                                        <Stack direction="row" sx={{gap: 1, alignItems: "flex-start", mb: 1.5}}>
+                                            <Typography variant="h6" sx={{fontSize: 17, flex: 1, minWidth: 0, overflowWrap: "anywhere"}}>
                                                 {group.name}
                                             </Typography>
                                             <Chip size="small" color="primary" variant="outlined"
@@ -146,7 +147,7 @@ export const DrugGroupsPage = () => {
                                         </Stack>
                                         <Box component="ol" sx={{m: 0, paddingInlineStart: 2.5, color: "text.secondary"}}>
                                             {group.items.slice(0, PREVIEW_DRUGS).map(({drug}, index) => (
-                                                <Typography component="li" variant="body2" key={index} noWrap>
+                                                <Typography component="li" variant="body2" key={index} sx={{overflowWrap: "anywhere"}}>
                                                     {drug.name}
                                                 </Typography>
                                             ))}

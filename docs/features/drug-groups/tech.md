@@ -91,8 +91,9 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   eye), `toSaveItems` (empty override → `null`), `itemsSignature` (unsaved-changes check).
 - **List page** `pages/DrugGroupsPage.tsx` (`/groups`): search, card grid (12/page), each card shows
   the group name, the line count and the first 4 drug names. A long name (group or drug, even one unbroken 256-character
-  word) wraps inside the card, never cut with "…" (the user's decision, 2026-10-16; today the card cuts them:
-  [BUG-591](../../testing/known-bugs.md)).
+  word) wraps inside the card, never cut with "…" (the user's decision, 2026-10-16): the title and the drug names
+  have no `noWrap`, they break with `overflowWrap: "anywhere"` (as `DrugText`); the line count chip stays at the
+  title's first line. The grid stretches the cards of one row to the same height.
 - **Editor page** `pages/DrugGroupEditorPage.tsx` (`/groups/new`, `/groups/:id`): a new group opens with the focus in
   the name field and the empty state «لا توجد أدوية في هذه المجموعة» / "No drugs in this group".
   - Lines use the shared `DosingLineList`: number, drug, `LineDetails` with the **effective** dosing (its
