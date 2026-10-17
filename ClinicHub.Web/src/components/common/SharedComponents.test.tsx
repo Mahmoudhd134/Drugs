@@ -2,13 +2,14 @@ import {beforeEach, describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {Link, Route, Routes} from "react-router-dom";
 import {http, HttpResponse} from "msw";
-import {aDrug, aGroup, aPage, api, drugGroupsHandlers, hoverTooltip, renderWithProviders, server} from "../../test";
+import {aDrug, aGroup, aPage, api, drugGroupsHandlers, hoverTooltip, renderWithProviders, server, tapTooltip} from "../../test";
 import type {Drug} from "../../features/drugs/types.ts";
 import {DrugPicker} from "../../features/drugs/components/DrugPicker.tsx";
 import {GroupPicker} from "../../features/drugGroups/components/GroupPicker.tsx";
 import {AppShell} from "../layout/AppShell.tsx";
 import {PageBoundary} from "./PageBoundary.tsx";
 import {useConfirm} from "./useConfirm.tsx";
+import {InfoTip} from "./InfoTip.tsx";
 
 // Shared components: docs/tech/overview.md "Shared components (components/common)" (SearchableList, PageBoundary,
 // useConfirm), "App shell", "Data fetching" (loading states), "Code conventions" (icon-only buttons).
@@ -209,5 +210,12 @@ describe("app bar icon buttons @area:ux", () => {
 
         await renderWithProviders(shell, {lang: "en"});
         expect(screen.getByRole("button", {name: "Open menu"})).toBeInTheDocument();
+    });
+});
+
+describe("ⓘ on a touch screen @area:ux", () => {
+    test("a quick tap on an ⓘ shows its explanation at once, still shown after 2 s @UX-013", async () => {
+        await renderWithProviders(<InfoTip title="شرح الخيار"/>, {lang: "ar"});
+        expect(await tapTooltip(screen.getByRole("img", {name: "شرح الخيار"}))).toBe("شرح الخيار");
     });
 });

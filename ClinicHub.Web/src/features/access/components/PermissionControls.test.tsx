@@ -1,5 +1,5 @@
-import {describe, expect, test} from "vitest";
-import {screen} from "@testing-library/react";
+import {afterEach, describe, expect, test, vi} from "vitest";
+import {act, fireEvent, screen} from "@testing-library/react";
 import {Chip, Menu, Tooltip} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import {hoverTooltip, leaveTooltip, renderWithProviders} from "../../../test";
@@ -102,6 +102,42 @@ describe("gated controls @area:access", () => {
         expect(screen.queryByText("Can allOf")).not.toBeInTheDocument();
         expect(screen.getByText("Can fallback")).toBeInTheDocument();
         expect(screen.getByText("Can permission")).toBeInTheDocument();
+    });
+
+    describe("on a touch screen", () => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        /** Moves the fake clock `ms` in 100 ms steps, each in its own act() (a timer set by a re-render exists only after it). */
+        const advance = (ms: number) => {
+            for (let passed = 0; passed < ms; passed += 100) {
+                act(() => {
+                    vi.advanceTimersByTime(100);
+                });
+            }
+        };
+
+        test("a quick tap on the disabled control shows «ليست لديك صلاحية» at once, and it hides again ~5 s later @ACC-066", async () => {
+            await renderWithProviders(
+                <PermissionIconButton permission="groups.delete" whenDenied="disable" aria-label="Delete group"><AddIcon/></PermissionIconButton>,
+                {lang: "ar", user: {permissions: ["groups.list"]}},
+            );
+            const wrapper = screen.getByRole("button", {name: "Delete group"}).parentElement!;
+            vi.useFakeTimers({toFake: ["setTimeout", "clearTimeout"]});
+
+            // A quick finger tap: touchend right after touchstart, before any timer runs (MUI's default needs a 700 ms long press)
+            fireEvent.touchStart(wrapper);
+            fireEvent.touchEnd(wrapper);
+            advance(500);
+            expect(screen.getByRole("tooltip")).toHaveTextContent(NO_PERMISSION);
+
+            // Still there to be read after MUI's default 1.5 s, gone after 5 s
+            advance(2500);
+            expect(screen.getByRole("tooltip")).toHaveTextContent(NO_PERMISSION);
+            advance(3000);
+            expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+        });
     });
 
     test("the tooltip in English: \"You don't have permission\" @ACC-070", async () => {

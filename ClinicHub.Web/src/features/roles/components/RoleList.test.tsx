@@ -10,6 +10,7 @@ import {
     aRole,
     findToast,
     hoverTooltip,
+    tapTooltip,
     isolate,
     leaveTooltip,
     PERMISSION_CATALOG,
@@ -104,6 +105,12 @@ describe("roles list @area:admin", () => {
         await leaveTooltip(held);
 
         expect(await hoverTooltip(deleteButton(roleRow("Viewer")))).toBe("ممنوح لموظف واحد. أزِل هذا الدور من موظفيه أولًا.");
+    });
+
+    test("a quick tap on a held role's Delete (phone) shows «ممنوح لـ 3 موظفين…» at once @ADM-176", async () => {
+        await openRolesTab([anOwnerRole(), aRole({name: "Assistant", staffCount: 3})], {lang: "ar"});
+        expect(await tapTooltip(deleteButton(roleRow("Assistant")))).toBe("ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.");
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     test("the held tooltip in English: \"Held by 3 staff members. Take it away from them first.\" @ADM-176", async () => {

@@ -2,6 +2,7 @@ import {Avatar, Box, Button, Chip, Grid, IconButton, MenuItem, Stack, TextField,
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import {useTranslation} from "react-i18next";
+import {TapTooltip} from "../../../components/common/TapTooltip.tsx";
 import {
     ALLOW_STEP_DOSE,
     ENABLE_TAPER_GENERATOR,
@@ -69,12 +70,13 @@ export const TaperStepsEditor = ({steps, onChange, errors, doseUnit, lineDose}: 
                             {ALLOW_STEP_DOSE && (
                                 // Last on phones (third line), first on wider screens; step 1 shows the dose above
                                 <Grid size={{xs: 5, sm: 2}} sx={{order: {xs: 1, sm: 0}, display: {xs: i === 0 ? "none" : "block", sm: "block"}}}>
-                                    <Tooltip
+                                    <TapTooltip
                                         title={i === 0
                                             ? t("dosing.taper.firstStepDose")
                                             : doseUnit ? t("dosing.taper.stepDoseInfo") : t("dosing.taper.stepDoseNoUnit")}
                                         placement="top"
                                         enterDelay={400}
+                                        tap={i === 0 || !doseUnit}
                                     >
                                         {/* span: a disabled field can't show a tooltip */}
                                         <span>
@@ -91,7 +93,7 @@ export const TaperStepsEditor = ({steps, onChange, errors, doseUnit, lineDose}: 
                                                 slotProps={{htmlInput: {min: 0, step: 0.5}, inputLabel: {shrink: true}}}
                                             />
                                         </span>
-                                    </Tooltip>
+                                    </TapTooltip>
                                 </Grid>
                             )}
                             <Grid size={{xs: 7, sm: 4}}>
@@ -170,13 +172,13 @@ export const TaperStepsEditor = ({steps, onChange, errors, doseUnit, lineDose}: 
             })}
 
             <Stack direction="row" sx={{gap: 1, alignItems: "center", flexWrap: "wrap"}}>
-                <Tooltip title={canAdd ? t("dosing.taper.addStepInfo") : t("dosing.taper.maxSteps", {count: MAX_TAPER_STEPS})}>
+                <TapTooltip title={canAdd ? t("dosing.taper.addStepInfo") : t("dosing.taper.maxSteps", {count: MAX_TAPER_STEPS})} tap={!canAdd}>
                     <span>
                         <Button size="small" startIcon={<AddIcon/>} onClick={() => onChange(addStep)} disabled={!canAdd}>
                             {t("dosing.taper.addStep")}
                         </Button>
                     </span>
-                </Tooltip>
+                </TapTooltip>
                 {ENABLE_TAPER_GENERATOR && <TaperGenerator steps={steps} onGenerate={(generated) => onChange(() => generated)}/>}
                 <Box sx={{flex: 1}}/>
                 <TotalChip steps={steps}/>
