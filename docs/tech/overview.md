@@ -293,8 +293,10 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
 
 A missing drug or group answers `notFound` (the SPA shows "this item no longer exists"). An id that is not a whole
-number (`/drugs/abc`) matches no route (`{id:int}`): `GET` → 404 `notFound`, other methods → 405 `methodNotAllowed`
-(the non-GET quirk in [architecture](../design/architecture.md#carry-over-to-m15)).
+number (`/drugs/abc`, `/drug-groups/abc`, any `{id:int}` segment) fails its route's constraint: the methods that route
+has (`GET`/`PUT`/`DELETE` on `/drugs/{id:int}`) and `GET` always → 404 `notFound`, the other methods (`POST`, `PATCH`
+on `/drugs/abc`; `PUT` on `/admin/clinics/abc/suspend`) → 405 `methodNotAllowed` (the method check runs before the
+constraint; the non-GET quirk in [architecture](../design/architecture.md#carry-over-to-m15)).
 `/api/*` paths never fall back to the SPA's `index.html`.
 
 ### Adding a use case

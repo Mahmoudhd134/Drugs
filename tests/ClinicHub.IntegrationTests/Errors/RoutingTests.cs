@@ -52,24 +52,45 @@ public class RoutingTests(AppFixture app) : IntegrationTest(app)
         ProblemShape.ShouldHaveTheShape(second.Body, HttpStatusCode.MethodNotAllowed, "methodNotAllowed", "/api/v1/permissions");
     }
 
-    [Fact]
+    // Every {id:int} route with "abc" in its int segment: the methods its template has → 404 notFound (the route is a
+    // candidate for the method, its constraint fails), and GET always (the SPA fallback is a GET candidate, as for
+    // ERR-015); the other methods → 405 methodNotAllowed (no candidate for the method, as for ERR-016)
+    [Theory]
     [Trait("Case", "ERR-018")]
-    public async Task Getting_an_id_that_is_not_a_whole_number_is_404()
+    [InlineData("/api/v1/drugs/abc", "GET PUT DELETE", "POST PATCH")]
+    [InlineData("/api/v1/drugs/abc/groups", "GET", "POST PUT DELETE PATCH")]
+    [InlineData("/api/v1/drug-groups/abc", "GET PUT DELETE", "POST PATCH")]
+    [InlineData("/api/v1/admin/clinics/abc", "GET PUT DELETE", "POST PATCH")]
+    [InlineData("/api/v1/admin/clinics/abc/suspend", "POST GET", "PUT DELETE PATCH")]
+    [InlineData("/api/v1/admin/clinics/abc/activate", "POST GET", "PUT DELETE PATCH")]
+    [InlineData("/api/v1/admin/clinics/abc/roles", "GET POST", "PUT DELETE PATCH")]
+    [InlineData("/api/v1/admin/clinics/1/roles/abc", "PUT DELETE GET", "POST PATCH")]
+    [InlineData("/api/v1/admin/clinics/abc/staff", "GET POST", "PUT DELETE PATCH")]
+    [InlineData("/api/v1/admin/clinics/1/staff/abc", "PUT DELETE GET", "POST PATCH")]
+    public async Task An_id_that_is_not_a_whole_number_is_404_for_the_routes_methods_and_get_and_405_for_the_others(
+        string url, string notFoundMethods, string methodNotAllowedMethods)
     {
-        var owner = await OwnerAsync();
+        var client = url.StartsWith("/api/v1/admin/") ? await Login.SharedSuperAdminAsync() : await OwnerAsync();
 
-        await (await owner.GetAsync("/api/v1/drugs/abc")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        await (await owner.GetAsync("/api/v1/drug-groups/abc")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-    }
+        foreach (var (methods, status, code) in new[]
+                 {
+                     (notFoundMethods, HttpStatusCode.NotFound, "notFound"),
+                     (methodNotAllowedMethods, HttpStatusCode.MethodNotAllowed, "methodNotAllowed"),
+                 })
+        {
+            foreach (var method in methods.Split(' '))
+            {
+                var request = new HttpRequestMessage(new HttpMethod(method), url);
+                if (method is not ("GET" or "DELETE"))
+                    request.Content = new StringContent("""{"name":"Tobradex"}""", System.Text.Encoding.UTF8, "application/json");
 
-    [Fact(Skip = "BUG-350: PUT and DELETE /api/v1/drugs/abc answer 404 notFound, the docs say 405 methodNotAllowed")]
-    [Trait("Case", "ERR-018")]
-    public async Task Another_method_on_an_id_that_is_not_a_whole_number_is_405()
-    {
-        var owner = await OwnerAsync();
+                var response = await client.SendAsync(request);
 
-        await (await owner.PutAsync("/api/v1/drugs/abc", new { name = "Tobradex" })).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
-        await (await owner.DeleteAsync("/api/v1/drugs/abc")).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+                response.StatusCode.ShouldBe(status, $"{method} {url}");
+                var problem = await response.ShouldBeProblemAsync(status, code);
+                ProblemShape.ShouldHaveTheShape(problem.Body, status, code, url);
+            }
+        }
     }
 
     [Fact]
