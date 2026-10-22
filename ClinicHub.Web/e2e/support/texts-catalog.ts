@@ -64,6 +64,16 @@ const ar = {
     addDrugs: "إضافة أدوية",
     pageN: (n: number) => `الصفحة ${n}`,
     goToPageN: (n: number) => `الذهاب إلى الصفحة ${n}`,
+    // M1.7c: the drugs page's filters (contract § 3.1, § 3.4; business «صفحة الأدوية», «الرسائل التي تظهر للمستخدم»)
+    drugsSubtitle: (n: number) => `إجمالي الأدوية: ${g(n)}`,
+    sourceLabel: "الأدوية المعروضة",
+    sourceAll: "الكل",
+    sourceShared: "المشتركة",
+    sourceOwn: "أدوية العيادة",
+    noOwnDrugs: "لا توجد أدوية خاصة بالعيادة بعد.",
+    noFilterResults: "لا توجد أدوية مطابقة للفلاتر.",
+    clearFilters: "مسح الفلاتر",
+    drugsEmptyTitle: "لا توجد أدوية بعد",
 };
 
 export type CatalogTexts = typeof ar;
@@ -117,6 +127,15 @@ const en: CatalogTexts = {
     addDrugs: "Add drugs",
     pageN: n => `Page ${n}`,
     goToPageN: n => `Go to page ${n}`,
+    drugsSubtitle: n => `Total drugs: ${g(n)}`,
+    sourceLabel: "Drugs to show",
+    sourceAll: "All",
+    sourceShared: "Shared",
+    sourceOwn: "Clinic's own",
+    noOwnDrugs: "This clinic has no drugs of its own yet.",
+    noFilterResults: "No drugs match the filters.",
+    clearFilters: "Clear filters",
+    drugsEmptyTitle: "No drugs yet",
 };
 
 export const CATALOG_TEXTS: Record<Lang, CatalogTexts> = {ar, en};

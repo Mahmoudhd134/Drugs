@@ -2,6 +2,9 @@ import type {Locator, Page} from "@playwright/test";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique, uniqueDigits} from "../support/phones.ts";
 import type {Lang} from "../support/texts.ts";
+import {TREE_TEXTS} from "../support/texts-rx.ts";
+import {DrugTreeUi} from "../support/tree.ts";
+import {IMPORTED} from "../support/shared.ts";
 import {DOSINGS, TEN_STEP_TAPER} from "../support/texts-ux.ts";
 import {expectToast, toast} from "../support/ui.ts";
 import {
@@ -24,6 +27,9 @@ import {
     textsOf,
     tourClinic,
 } from "../support/ux.ts";
+
+/** The drug tree of the page's main area (the prescription's «الأدوية» tab; support/tree.ts). */
+const treeOf = (page: Page, lang: Lang) => new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]);
 
 /** Arabic-Indic digits (٠–٩) and their Persian forms (۰–۹): never in the UI. */
 const EASTERN_DIGITS = /[٠-٩۰-۹]/;
@@ -130,10 +136,8 @@ test.describe("Content in both languages @area:i18n", () => {
                     await expectShown(page, tour.arabic.name, "protocol line");
                     await open(page, "/");
                     await rxTab(page, t, "drugs");
-                    await searchBox(page, t.searchDrugs).fill(tour.arabic.name);
-                    const option = page.getByRole("option").filter({visible: true}).filter({hasText: tour.arabic.name});
-                    await expectShown(option, tour.arabic.name, "drug picker");
-                    await expectShown(option, tour.arabic.description!, "drug picker");
+                    // The drug tree shows the name only, no description (M1.7c: DRUG-059)
+                    await expectShown(await treeOf(page, ui).show(tour.arabic.name), tour.arabic.name, "drug tree");
                     await rxTab(page, t, "protocols");
                     await searchBox(page, t.searchProtocols).fill(latinProtocol.name);
                     await expectShown(page.getByRole("option").filter({visible: true}), latinProtocol.name, "protocol picker");
@@ -141,7 +145,7 @@ test.describe("Content in both languages @area:i18n", () => {
             }
         });
 
-    test("in the English UI the dosing sentences are Arabic: drugs table, picker, dialog preview, protocol lines, prescription lines, conflict boxes and the copied text @I18N-009",
+    test("in the English UI the dosing sentences are Arabic: drugs table, drug tree, dialog preview, protocol lines, prescription lines, conflict boxes and the copied text; a shared drug shows none @I18N-009",
         async ({page, data}, testInfo) => {
             test.skip(testInfo.project.name === "ar-desktop", "the English UI (en-desktop, and the phone switched to English)");
             const tour = await tourClinic(data);
@@ -166,10 +170,12 @@ test.describe("Content in both languages @area:i18n", () => {
 
             await open(page, "/");
             await rxTab(page, t, "drugs");
-            await searchBox(page, t.searchDrugs).fill(tour.latin.name);
-            await expectShown(page.getByRole("option").filter({visible: true}), DOSINGS.oneDropFour.text, "drug picker");
-            await searchBox(page, t.searchDrugs).fill("");
-            await addDrugToRx(page, t, tour.latin.name);
+            // A shared drug has no dosing: no sentence in its tree row (design M1.7 D3)
+            const shared = await treeOf(page, "en").show(IMPORTED.vigamox);
+            await expect(shared.locator("[lang=ar]"), "no sentence on a shared drug's row").toHaveCount(0);
+            const latin = await treeOf(page, "en").show(tour.latin.name);
+            await expectShown(latin, DOSINGS.oneDropFour.text, "drug tree");
+            await treeOf(page, "en").select(tour.latin.name);
             await expectShown(page.locator("main"), DOSINGS.oneDropFour.text, "prescription line");
             await addProtocolToRx(page, t, tour.protocol.name);
             await dialog(page).getByRole("button", {name: u.eyeLeft, exact: true}).click();

@@ -24,6 +24,7 @@ import {
 } from "../../../test";
 import type {AdminCategory, SaveCategory} from "./types.ts";
 import {renderAdmin} from "../../../test/pages/admin.tsx";
+import {LONG_CATEGORY_NAME, ORDER_CATEGORIES, sortedNames} from "../../../test/pages/drugsPage.tsx";
 
 // The super admin's categories page `/admin/categories` (design M1.7 D5, D8, D9; M1.7b contract "Admin categories page"):
 // each category with its subcategories (sorted, pins last), a «بدون تصنيف فرعي» row when `noSubCategoryDrugCount > 0`,
@@ -249,4 +250,33 @@ describe("admin categories: the toasts can be dismissed @area:ux", () => {
             await act(async () => within(first).getByRole("button", {name: "إغلاق"}).click());
             await waitFor(() => expect(toastTexts()).toEqual(["تم حذف التصنيف"]), {timeout: 1000});
         });
+});
+
+describe("admin categories: the order @area:admin", () => {
+    /** `ORDER_CATEGORIES` as `GET /admin/drug-categories` answers them (with a few drugs each). */
+    const adminRows = () => ORDER_CATEGORIES.map(c => anAdminCategory({
+        id: c.id, nameEn: c.nameEn, nameAr: c.nameAr, pinnedLast: c.pinnedLast, drugCount: 2,
+        subCategories: c.subCategories.map(s => anAdminSubCategory({...s, drugCount: 1})),
+    }));
+
+    /** The given names in the order they appear in the page. */
+    const inPageOrder = (names: string[]) => [...names].sort((a, b) => {
+        const [x, y] = [screen.getByText(a, {exact: true}), screen.getByText(b, {exact: true})];
+        return x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+
+    test.each(["ar", "en"] as const)("(%s) categories and subcategories by Intl.Collator, «أخرى» and «غير مصنف» last, as in the drugs page and the dialog @CAT-145",
+        async (lang) => {
+            const rows = adminRows();
+            await openPage(rows, lang);
+            const categories = sortedNames(ORDER_CATEGORIES, lang);
+            expect(inPageOrder(categories)).toEqual(categories);
+            const subCategories = sortedNames(ORDER_CATEGORIES[3].subCategories, lang);
+            expect(inPageOrder(subCategories)).toEqual(subCategories);
+        });
+
+    test("the 37-character «مكافحة الشيخوخة وشد البشرة وحول العين» is shown whole @CAT-145", async () => {
+        await openPage(adminRows());
+        expect(screen.getByText(LONG_CATEGORY_NAME, {exact: true})).toBeInTheDocument();
+    });
 });
