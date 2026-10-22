@@ -14,6 +14,7 @@ const PURE_LOGIC = [
     'src/features/dosing/taper.ts',
     'src/features/prescription/prescriptionText.ts',
     'src/features/prescription/usePrescriptionLines.ts',
+    'src/features/protocols/legacyRoutes.ts',
     'src/features/roles/permissionChoice.ts',
     'src/api/errors.ts',
     'src/api/dataScope.ts',
