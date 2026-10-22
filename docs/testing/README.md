@@ -89,6 +89,9 @@ All at once; none stops the others (so one run reports every failure).
 - `step` on CI runs **every** integration test (they take ≈ 30 s there), not the areas `test.ps1` picks from the diff.
 - The free plan runs 20 jobs at once: a `full` run takes 11, so runs of several sessions at the same moment queue a
   few minutes; `step` (4 jobs) is the one to use while working.
+- A push to the branch of an open pull request (drafts too) also starts that pull request's `full` run: on such a
+  branch, `./ci.ps1 -Tier full` would run it twice, so wait for the pull request's run instead (`gh pr checks --watch`);
+  `step` and `release` runs come on top of it (and may queue behind it).
 
 ## Running the tests locally: `test.ps1`
 
