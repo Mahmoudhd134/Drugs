@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {aDrug, aLine, aProtocolDrug, ARABIC_DRUG_NAME, aSharedDrug, DIGITS_FIRST_NAME, expectOwnDirection} from "../../test";
+import {aDrug, aLine, aProtocolDrug, ARABIC_DRUG_NAME, aSharedDrug, DIGITS_FIRST_NAME} from "../../test";
 import type {Dosing} from "../dosing/types.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml, linesToPlainText} from "./prescriptionText.ts";
 
@@ -32,8 +32,8 @@ describe("linesToPlainText @area:prescription", () => {
         expect(linesToPlainText([aLine(drug, {eye: "right"}, "N")])).toBe("Name\nسطر1\nسطر2\nفي العين اليمنى\nN");
         expect(linesToPlainText([aLine(drug, {eye: "none"}, "N")])).toBe("Name\nسطر1\nسطر2\nN");
         expect(linesToHtml([aLine(drug, {eye: "right"}, "N")]))
-            .toBe(`${P}<strong>Name</strong><br>سطر1<br>سطر2<br>في العين اليمنى<br>N</p>`);
-        expect(linesToHtml([aLine(drug, {eye: "none"}, "N")])).toBe(`${P}<strong>Name</strong><br>سطر1<br>سطر2<br>N</p>`);
+            .toBe(`${P}<strong dir="ltr">Name</strong><br>سطر1<br>سطر2<br>في العين اليمنى<br>N</p>`);
+        expect(linesToHtml([aLine(drug, {eye: "none"}, "N")])).toBe(`${P}<strong dir="ltr">Name</strong><br>سطر1<br>سطر2<br>N</p>`);
     });
 
     test("the note and the description are trimmed", () => {
@@ -46,13 +46,13 @@ describe("linesToHtml @area:prescription", () => {
         const a = aLine(aDrug({name: "A"}), twoDropsLeft, "سطر1\nسطر2");
         const b = aLine(aDrug({name: "B", description: "وصف"}), {});
         expect(linesToHtml([a, b]))
-            .toBe(`${P}<strong>A</strong><br>${SENTENCE}<br>سطر1<br>سطر2</p>${SPACER}${P}<strong>B</strong><br>وصف</p>`);
+            .toBe(`${P}<strong dir="ltr">A</strong><br>${SENTENCE}<br>سطر1<br>سطر2</p>${SPACER}${P}<strong dir="ltr">B</strong><br>وصف</p>`);
         expect(linesToHtml([])).toBe("");
     });
 
     test("<, >, & and \" in a name, description or note are escaped @RX-068", () => {
         const html = linesToHtml([aLine(aDrug({name: `<b>"Tobra" & Dex</b>`, description: "<script>x</script>"}), {}, `a < b & "c" > d`)]);
-        expect(html).toBe(`${P}<strong>&lt;b&gt;&quot;Tobra&quot; &amp; Dex&lt;/b&gt;</strong>`
+        expect(html).toBe(`${P}<strong dir="ltr">&lt;b&gt;&quot;Tobra&quot; &amp; Dex&lt;/b&gt;</strong>`
             + `<br>&lt;script&gt;x&lt;/script&gt;<br>a &lt; b &amp; &quot;c&quot; &gt; d</p>`);
         const parsed = new DOMParser().parseFromString(html, "text/html").body;
         expect(parsed.querySelectorAll("b, script")).toHaveLength(0);
@@ -63,7 +63,7 @@ describe("linesToHtml @area:prescription", () => {
 describe("htmlForPaste @area:prescription", () => {
     test("Quill classes become dir and inline styles, no class remains @RX-069", () => {
         const html = htmlForPaste(
-            `${P}<strong>A</strong></p>${SPACER}`
+            `${P}<strong dir="ltr">A</strong></p>${SPACER}`
             + '<p class="ql-direction-rtl ql-align-right ql-indent-2">indented</p>'
             + '<p class="ql-indent-1">ltr indent</p>'
             + '<p class="ql-align-center">centered</p>'
@@ -71,7 +71,7 @@ describe("htmlForPaste @area:prescription", () => {
             + '<h2 class="ql-align-right">title</h2>',
         );
         expect(html).toBe(
-            '<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><strong>A</strong></p>'
+            '<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><strong dir="ltr">A</strong></p>'
             + '<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><br></p>'
             + '<p dir="rtl" style="text-align:right;margin-right:6em;margin-top:0;margin-bottom:0">indented</p>'
             + '<p style="margin-left:3em;margin-top:0;margin-bottom:0">ltr indent</p>'
@@ -84,7 +84,7 @@ describe("htmlForPaste @area:prescription", () => {
 
     test("the prescription's own HTML, ready for Word", () => {
         const html = htmlForPaste(linesToHtml([aLine(aDrug({name: "A"}), twoDropsLeft)]));
-        expect(html).toBe(`<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><strong>A</strong><br>${SENTENCE}</p>`);
+        expect(html).toBe(`<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><strong dir="ltr">A</strong><br>${SENTENCE}</p>`);
     });
 });
 
@@ -117,7 +117,7 @@ describe("shared drugs in the copied text @area:prescription", () => {
         const adminMade = aLine(aProtocolDrug(aSharedDrug({name: "<b>X</b> & Y"})), {});
         expect(linesToPlainText([carboplatin, adminMade])).toBe(`CARBOPLATIN "EBEWE" 150 MG VIAL\n\n<b>X</b> & Y`);
         const html = linesToHtml([carboplatin, adminMade]);
-        expect(html).toBe(`${P}<strong>CARBOPLATIN &quot;EBEWE&quot; 150 MG VIAL</strong></p>${SPACER}${P}<strong>&lt;b&gt;X&lt;/b&gt; &amp; Y</strong></p>`);
+        expect(html).toBe(`${P}<strong dir="ltr">CARBOPLATIN &quot;EBEWE&quot; 150 MG VIAL</strong></p>${SPACER}${P}<strong dir="ltr">&lt;b&gt;X&lt;/b&gt; &amp; Y</strong></p>`);
         const parsed = new DOMParser().parseFromString(html, "text/html").body;
         expect(parsed.querySelectorAll("b")).toHaveLength(0);
         expect(Array.from(parsed.querySelectorAll("strong")).map(s => s.textContent)).toEqual([`CARBOPLATIN "EBEWE" 150 MG VIAL`, "<b>X</b> & Y"]);
@@ -127,7 +127,7 @@ describe("shared drugs in the copied text @area:prescription", () => {
         // The line's dosing after the eye question: the override's eye, nothing from the (absent) drug default
         const line = aLine(aProtocolDrug(aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"})), {eye: "right"});
         expect(linesToPlainText([line])).toBe("VIGAMOX 0.5% EYE DROPS 5 ML\nفي العين اليمنى");
-        expect(linesToHtml([line])).toBe(`${P}<strong>VIGAMOX 0.5% EYE DROPS 5 ML</strong><br>في العين اليمنى</p>`);
+        expect(linesToHtml([line])).toBe(`${P}<strong dir="ltr">VIGAMOX 0.5% EYE DROPS 5 ML</strong><br>في العين اليمنى</p>`);
     });
 
     test("a shared drug with no dosing and no description: the name alone, nothing invented @CAT-172", () => {
@@ -137,13 +137,19 @@ describe("shared drugs in the copied text @area:prescription", () => {
 });
 
 describe("the copied HTML gives each drug name its own direction @area:i18n", () => {
-    test("«1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name: inside the RTL paragraphs, each name is isolated with its own direction (<bdi> / dir=\"auto\"), so Word keeps the Latin order @CAT-234",
+    // Decision D27 (copied HTML): Word ignores dir="auto" and <bdi>, so the name's <strong> gets an explicit direction
+    // from the name's first strong character: Latin → dir="ltr", Arabic → dir="rtl", none → "ltr"
+    test("«1 2 3 (ONE TWO THREE) 20 F.C.TABS.» → <strong dir=\"ltr\">, an own drug typed in Arabic → <strong dir=\"rtl\">, a name without letters → ltr; the paragraphs stay RTL @CAT-234",
         () => {
-            const html = htmlForPaste(linesToHtml([aLine(aSharedDrug({name: DIGITS_FIRST_NAME}), twoDropsLeft), aLine(aDrug({name: ARABIC_DRUG_NAME}))]));
-            const body = new DOMParser().parseFromString(html, "text/html").body;
-            expectOwnDirection(body, DIGITS_FIRST_NAME);
-            expectOwnDirection(body, ARABIC_DRUG_NAME);
-            // The paragraphs stay right to left (the prescription is Arabic, RX-069)
-            expect(Array.from(body.querySelectorAll("p")).every(p => p.getAttribute("dir") === "rtl")).toBe(true);
+            const latin = aLine(aSharedDrug({name: DIGITS_FIRST_NAME}), twoDropsLeft);
+            const arabic = aLine(aDrug({name: ARABIC_DRUG_NAME}));
+            const digits = aLine(aDrug({name: "123 (456)"}));
+            const pasted = '<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0">';
+            expect(htmlForPaste(linesToHtml([latin, arabic, digits]))).toBe(
+                `${pasted}<strong dir="ltr">${DIGITS_FIRST_NAME}</strong><br>${SENTENCE}</p>`
+                + `${pasted}<br></p>`
+                + `${pasted}<strong dir="rtl">${ARABIC_DRUG_NAME}</strong></p>`
+                + `${pasted}<br></p>`
+                + `${pasted}<strong dir="ltr">123 (456)</strong></p>`);
         });
 });

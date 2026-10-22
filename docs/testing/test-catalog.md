@@ -76,8 +76,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [RX](#rx--prescription-builder) | 40 | 45 | 24 | 109 | 38 | 0 | 25 | 49 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 21 | 16 | 43 | 4 | 0 | 19 | 21 | 2 |
-| [CAT](#cat--shared-catalog-and-categories) | 55 | 71 | 41 | 167 | 10 | 117 | 20 | 28 | 1 |
-| **All** | **416** | **600** | **368** | **1384** | **206** | **660** | **324** | **268** | **8** |
+| [CAT](#cat--shared-catalog-and-categories) | 55 | 71 | 43 | 169 | 10 | 119 | 20 | 28 | 1 |
+| **All** | **416** | **600** | **370** | **1386** | **206** | **662** | **324** | **268** | **8** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2108,7 +2108,7 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | CAT-233 | 👁 Given the Arabic UI and the drugs «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» (shared) and «قطرة مرطبة 10 مل.» (own, typed in Arabic), then every place showing a drug name isolates it with its own direction (`<bdi>` or `dir="auto"` around exactly the name): the clinic drugs page rows, the drug picker (protocol editor, prescription drugs tab), the prescription lines, the protocol cards (prescription protocol picker, protocols list; each name on its own, not one joined text) and the admin shared drugs list, so the Latin name keeps its left-to-right order (not «.20 F.C.TABS (ONE TWO THREE) 3 2 1») and the Arabic one stays right to left | P1 | ui | [decisions D27](../design/m1.7b-decisions-pending-user.md), «يظهر الدواء المشترك باسمه الإنجليزي الكامل كما في المصدر» (T5 acceptance A1) |
-| CAT-234 | Given those two drugs on a prescription, when it is copied (`htmlForPaste(linesToHtml(…))`), then inside the right-to-left paragraphs each name is isolated with its own direction (`<bdi>` or `dir="auto"`), so Word keeps the Latin name's order | P1 | unit | [decisions D27](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A1) |
+| CAT-234 | Given those two drugs on a prescription, when it is copied (`htmlForPaste(linesToHtml(…))`), then inside the right-to-left paragraphs each name's `<strong>` has an explicit direction from the name's first strong character (Word ignores `dir="auto"` and `<bdi>`): `<strong dir="ltr">` for the Latin name, `<strong dir="rtl">` for the Arabic one, `ltr` for a name without letters, so Word keeps the Latin name's order | P1 | unit | [decisions D27](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A1) |
 | CAT-235 | Given the drug search (clinic drugs page, protocol editor picker, prescription drugs tab), then its placeholder names what it matches: «ابحث بالاسم أو المادة الفعالة أو التصنيف…» / "Search by name, active ingredient or category…" (never the hidden Arabic name, Q7) | P2 | ui | [decisions D29](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A3) |
 | CAT-236 | Given `/admin/drugs` and `/admin/categories`, then each row button's accessible name ends with its row's name in quotes («تعديل «الاسم»» / "Edit “name”"): a shared drug's edit and «تعطيل» / «تفعيل», a category's and a subcategory's rename and delete (a blocked delete too), in Arabic and English, so no two rows share a button name | P2 | ui | [decisions D30](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A4) |
 | CAT-237 | Given `/admin/drugs` at 800 × 900 (sidebar shown), Arabic and English, then the search's placeholder «ابحث في الكتالوج المشترك…» / "Search the shared catalog…" is shown whole (its text fits the field) and the page has no cut text | P2 | e2e | T5 acceptance A5 |
