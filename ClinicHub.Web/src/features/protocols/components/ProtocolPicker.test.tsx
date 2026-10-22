@@ -28,7 +28,10 @@ describe("protocol picker @area:catalog", () => {
         await renderPicker([aProtocol({name: "Post cataract", items: [anItem(aDrug({name: "Tobradex"})), anItem(aDrug({name: "Vigamox"})), anItem(aDrug({name: "قطرة مرطبة"}))]})]);
         const option = within((await screen.findByText("Post cataract")).closest("[role=option]") as HTMLElement);
         expect(option.getByText("الأدوية: 3")).toBeInTheDocument();
-        expect(option.getByText("Tobradex · Vigamox · قطرة مرطبة")).toBeInTheDocument();
+        // The names line as a whole (each name sits in its own element, CAT-233): same names, same order, " · " between
+        const namesLine = option.getByText((_, element) => element?.textContent === "Tobradex · Vigamox · قطرة مرطبة"
+            && Array.from(element.children).every(child => child.textContent !== element.textContent));
+        expect(namesLine).toBeInTheDocument();
     });
 
     test("in English the count reads \"Drugs: N\" @GRP-044", async () => {
