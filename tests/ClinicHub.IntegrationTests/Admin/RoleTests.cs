@@ -124,20 +124,20 @@ public class RoleTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ADM-148")]
-    public async Task Edit_groups_brings_open_group_group_list_and_drug_list()
+    public async Task Edit_protocols_brings_open_protocol_protocol_list_and_drug_list()
     {
         var admin = await Login.SharedSuperAdminAsync();
         var a = await Data.Clinic();
 
-        var role = await admin.CreateRoleAsync(a.Id, "Group editors", "groups.update");
+        var role = await admin.CreateRoleAsync(a.Id, "Protocol editors", "protocols.update");
 
-        role.Permissions.ShouldBe(["drugs.list", "groups.list", "groups.details", "groups.update"]);
+        role.Permissions.ShouldBe(["drugs.list", "protocols.list", "protocols.details", "protocols.update"]);
     }
 
     [Theory]
     [Trait("Case", "ADM-149")]
     [InlineData("prescriptions.create", new[] { "drugs.list", "prescriptions.create" })]
-    [InlineData("groups.create", new[] { "drugs.list", "groups.list", "groups.create" })]
+    [InlineData("protocols.create", new[] { "drugs.list", "protocols.list", "protocols.create" })]
     [InlineData("drugs.delete", new[] { "drugs.list", "drugs.details", "drugs.delete" })]
     public async Task Each_permission_brings_what_it_needs(string picked, string[] saved)
     {
@@ -154,8 +154,8 @@ public class RoleTests(AppFixture app) : IntegrationTest(app)
         var admin = await Login.SharedSuperAdminAsync();
         var a = await Data.Clinic();
 
-        (await admin.CreateRoleAsync(a.Id, "Multi", "groups.update", "drugs.delete", "drugs.list")).Permissions
-            .ShouldBe(["drugs.list", "drugs.details", "drugs.delete", "groups.list", "groups.details", "groups.update"]);
+        (await admin.CreateRoleAsync(a.Id, "Multi", "protocols.update", "drugs.delete", "drugs.list")).Permissions
+            .ShouldBe(["drugs.list", "drugs.details", "drugs.delete", "protocols.list", "protocols.details", "protocols.update"]);
     }
 
     [Fact]
@@ -362,12 +362,12 @@ public class RoleTests(AppFixture app) : IntegrationTest(app)
         var admin = await Login.SharedSuperAdminAsync();
         var a = await Data.Clinic();
 
-        var updated = await admin.UpdateRoleAsync(a.Id, a.RoleId("Doctor"), "Doctor Plus", "groups.update");
+        var updated = await admin.UpdateRoleAsync(a.Id, a.RoleId("Doctor"), "Doctor Plus", "protocols.update");
 
         updated.Name.ShouldBe("Doctor Plus");
-        updated.Permissions.ShouldBe(["drugs.list", "groups.list", "groups.details", "groups.update"]);
+        updated.Permissions.ShouldBe(["drugs.list", "protocols.list", "protocols.details", "protocols.update"]);
         (await admin.RolesAsync(a.Id)).Single(r => r.Id == a.RoleId("Doctor")).Permissions
-            .ShouldBe(["drugs.list", "groups.list", "groups.details", "groups.update"]);
+            .ShouldBe(["drugs.list", "protocols.list", "protocols.details", "protocols.update"]);
         (await App.QueryDbAsync(db => db.Set<RolePermission>().CountAsync(p => p.RoleId == updated.Id))).ShouldBe(4);
     }
 
@@ -404,7 +404,7 @@ public class RoleTests(AppFixture app) : IntegrationTest(app)
         // Ported from accept-api.py "roles" (update unknownPermission, permissions missing)
         var admin = await Login.SharedSuperAdminAsync();
         var a = await Data.Clinic();
-        var role = await admin.CreateRoleAsync(a.Id, "Editors", "groups.update");
+        var role = await admin.CreateRoleAsync(a.Id, "Editors", "protocols.update");
 
         await RefusedAsync(await admin.PutAsync(AdminRoutes.Role(a.Id, role.Id), new { name = "Editors", permissions = new[] { "x.y" } }),
             HttpStatusCode.BadRequest, "unknownPermission");

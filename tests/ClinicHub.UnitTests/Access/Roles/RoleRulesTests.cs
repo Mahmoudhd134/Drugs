@@ -126,10 +126,10 @@ public class RoleRulesTests
         var kept = new RolePermission { RoleId = 5, Permission = "drugs.list" };
         var role = new Role { Id = 5, Permissions = [kept, new RolePermission { RoleId = 5, Permission = "drugs.delete" }] };
 
-        RoleRules.SetPermissions(role, ["groups.update"]).ShouldBeTrue();
+        RoleRules.SetPermissions(role, ["protocols.update"]).ShouldBeTrue();
 
         role.Permissions.Select(p => p.Permission)
-            .ShouldBe(["drugs.list", "groups.update", "groups.details", "groups.list"], ignoreOrder: true);
+            .ShouldBe(["drugs.list", "protocols.update", "protocols.details", "protocols.list"], ignoreOrder: true);
         role.Permissions.ShouldContain(kept, "the unchanged row is the same row");
     }
 
@@ -163,7 +163,7 @@ public class RoleRulesTests
     public void Set_permissions_with_nothing_empties_the_role()
     {
         var role = new Role();
-        RoleRules.SetPermissions(role, ["groups.delete"]);
+        RoleRules.SetPermissions(role, ["protocols.delete"]);
 
         RoleRules.SetPermissions(role, []).ShouldBeTrue();
         role.Permissions.ShouldBeEmpty();

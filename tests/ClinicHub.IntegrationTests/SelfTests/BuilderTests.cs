@@ -15,13 +15,13 @@ namespace ClinicHub.IntegrationTests.SelfTests;
 public class BuilderTests(AppFixture app) : IntegrationTest(app)
 {
     [Fact]
-    public async Task A_group_with_no_line_given_gets_one_new_drug_of_its_clinic()
+    public async Task A_protocol_with_no_line_given_gets_one_new_drug_of_its_clinic()
     {
         var clinic = await Data.Clinic();
 
-        var group = await Data.Protocol(clinic);
+        var protocol = await Data.Protocol(clinic);
 
-        var line = group.Items.ShouldHaveSingleItem();
+        var line = protocol.Items.ShouldHaveSingleItem();
         (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == line.Drug.Id))).ClinicId.ShouldBe(clinic.Id);
     }
 

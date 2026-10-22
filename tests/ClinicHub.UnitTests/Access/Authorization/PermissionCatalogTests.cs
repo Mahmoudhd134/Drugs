@@ -13,7 +13,7 @@ public class PermissionCatalogTests
     private static readonly string[] CatalogOrder =
     [
         "drugs.list", "drugs.details", "drugs.create", "drugs.update", "drugs.delete",
-        "groups.list", "groups.details", "groups.create", "groups.update", "groups.delete",
+        "protocols.list", "protocols.details", "protocols.create", "protocols.update", "protocols.delete",
         "prescriptions.create",
     ];
 
@@ -40,11 +40,11 @@ public class PermissionCatalogTests
     [InlineData("drugs.create", "drugs.list")]
     [InlineData("drugs.update", "drugs.details")]
     [InlineData("drugs.delete", "drugs.details")]
-    [InlineData("groups.list")]
-    [InlineData("groups.details", "groups.list")]
-    [InlineData("groups.create", "groups.list", "drugs.list")]
-    [InlineData("groups.update", "groups.details", "drugs.list")]
-    [InlineData("groups.delete", "groups.list")]
+    [InlineData("protocols.list")]
+    [InlineData("protocols.details", "protocols.list")]
+    [InlineData("protocols.create", "protocols.list", "drugs.list")]
+    [InlineData("protocols.update", "protocols.details", "drugs.list")]
+    [InlineData("protocols.delete", "protocols.list")]
     [InlineData("prescriptions.create", "drugs.list")]
     public void Requires_lists_the_direct_requirements_only(string key, params string[] requires)
     {
@@ -56,7 +56,7 @@ public class PermissionCatalogTests
     {
         var groups = PermissionCatalog.ByResource();
 
-        groups.Select(g => g.Key).ShouldBe(["drugs", "groups", "prescriptions"]);
+        groups.Select(g => g.Key).ShouldBe(["drugs", "protocols", "prescriptions"]);
         groups[0].Select(p => p.Action).ShouldBe(["list", "details", "create", "update", "delete"]);
         groups[2].Select(p => p.Action).ShouldBe(["create"]);
     }
@@ -74,9 +74,9 @@ public class PermissionCatalogTests
 
     [Theory]
     [InlineData(new[] { "drugs.update" }, new[] { "drugs.update", "drugs.details", "drugs.list" })]
-    [InlineData(new[] { "groups.update" }, new[] { "groups.update", "groups.details", "groups.list", "drugs.list" })]
-    [InlineData(new[] { "drugs.delete", "groups.create" },
-        new[] { "drugs.delete", "drugs.details", "drugs.list", "groups.create", "groups.list" })]
+    [InlineData(new[] { "protocols.update" }, new[] { "protocols.update", "protocols.details", "protocols.list", "drugs.list" })]
+    [InlineData(new[] { "drugs.delete", "protocols.create" },
+        new[] { "drugs.delete", "drugs.details", "drugs.list", "protocols.create", "protocols.list" })]
     [InlineData(new[] { "prescriptions.create" }, new[] { "prescriptions.create", "drugs.list" })]
     [InlineData(new[] { "drugs.list", "drugs.list" }, new[] { "drugs.list" })]
     [InlineData(new[] { "nope.x", "drugs.create" }, new[] { "drugs.create", "drugs.list" })]

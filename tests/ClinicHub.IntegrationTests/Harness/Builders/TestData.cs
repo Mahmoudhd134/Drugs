@@ -36,7 +36,7 @@ public sealed class TestData(AppFixture app)
 {
     // ---- Clinics (super admin use cases) ----
 
-    /// <summary>A clinic provisioned from the template (default roles, owner, the template's drugs and groups).</summary>
+    /// <summary>A clinic provisioned from the template (default roles, owner, the template's drugs and protocols).</summary>
     public ClinicBuilder Clinic() => new(app);
 
     public async Task<ClinicDetails> RenameClinicAsync(ClinicHandle clinic, string name) =>
@@ -92,7 +92,7 @@ public sealed class TestData(AppFixture app)
     public DrugBuilder Drug(ClinicHandle clinic) => Drug(clinic.Id);
 
     /// <summary>
-    /// A group (default: a unique name and one line with a new default drug of the clinic; lines added with
+    /// A protocol (default: a unique name and one line with a new default drug of the clinic; lines added with
     /// <see cref="ProtocolBuilder.With(int, Dosing)"/> replace that default).
     /// </summary>
     public ProtocolBuilder Protocol(int clinicId) => new(app, clinicId);
@@ -105,9 +105,9 @@ public sealed class TestData(AppFixture app)
     public async Task DeleteDrugAsync(int clinicId, int drugId) =>
         (await app.SendAsync(new DeleteDrugCommand(drugId), clinicId)).ShouldSucceed();
 
-    public async Task<ProtocolDto> UpdateProtocolAsync(int clinicId, int groupId, string name, params SaveProtocolItem[] items) =>
-        (await app.SendAsync(new UpdateProtocolCommand(groupId, name, items.ToList()), clinicId)).ShouldSucceed();
+    public async Task<ProtocolDto> UpdateProtocolAsync(int clinicId, int protocolId, string name, params SaveProtocolItem[] items) =>
+        (await app.SendAsync(new UpdateProtocolCommand(protocolId, name, items.ToList()), clinicId)).ShouldSucceed();
 
-    public async Task DeleteProtocolAsync(int clinicId, int groupId) =>
-        (await app.SendAsync(new DeleteProtocolCommand(groupId), clinicId)).ShouldSucceed();
+    public async Task DeleteProtocolAsync(int clinicId, int protocolId) =>
+        (await app.SendAsync(new DeleteProtocolCommand(protocolId), clinicId)).ShouldSucceed();
 }

@@ -7,7 +7,7 @@ using Shouldly;
 namespace ClinicHub.IntegrationTests.Catalog.Doses;
 
 /// <summary>
-/// The structured dosing rules as the API applies them to a drug's default dosing and a group line's override
+/// The structured dosing rules as the API applies them to a drug's default dosing and a protocol line's override
 /// (dosing § القواعد and § الحقول; dosing tech § Data model and § Backend).
 /// </summary>
 [Collection(CatalogDosingCollection.Name)]
@@ -143,15 +143,15 @@ public class DosingTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DOSE-058")]
-    public async Task Eye_ask_is_refused_on_a_drug_default_and_accepted_on_a_group_line()
+    public async Task Eye_ask_is_refused_on_a_drug_default_and_accepted_on_a_protocol_line()
     {
         var owner = await OwnerAsync();
         await ShouldBeRejectedAsync(new { eye = "ask" });
         var drug = await CreateDrugAsync(owner, "Tobradex");
 
-        var group = await CreateProtocolAsync(owner, "Post cataract", Item(drug.Id, new { eye = "ask" }));
+        var protocol = await CreateProtocolAsync(owner, "Post cataract", Item(drug.Id, new { eye = "ask" }));
 
-        group.Items.ShouldHaveSingleItem().Dosing.Eye.ShouldBe("ask");
+        protocol.Items.ShouldHaveSingleItem().Dosing.Eye.ShouldBe("ask");
         var problem = await (await PutDrugAsync(owner, drug.Id, "Tobradex", defaultDosing: new { eye = "ask" }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidDosing");
         problem.ShouldHaveError("defaultDosing", "invalidDosing");
@@ -159,15 +159,15 @@ public class DosingTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DOSE-059")]
-    public async Task An_empty_dosing_is_valid_and_saved_as_null_on_a_group_line_too()
+    public async Task An_empty_dosing_is_valid_and_saved_as_null_on_a_protocol_line_too()
     {
         var owner = await OwnerAsync();
         var drug = await CreateDrugAsync(owner, "Tobradex", defaultDosing: new { });
 
-        var group = await CreateProtocolAsync(owner, "Empty override", Item(drug.Id, new { eye = "", frequency = " " }));
+        var protocol = await CreateProtocolAsync(owner, "Empty override", Item(drug.Id, new { eye = "", frequency = " " }));
 
         drug.DefaultDosing.ShouldBeNull();
-        group.Items.ShouldHaveSingleItem().Dosing.ShouldBeNull();
+        protocol.Items.ShouldHaveSingleItem().Dosing.ShouldBeNull();
     }
 
     [Fact]

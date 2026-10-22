@@ -117,14 +117,14 @@ public static class AdminClientExtensions
         var response = await client.GetAsync("/api/v1/protocols?pageSize=100");
         await response.ShouldBeOkAsync();
         var page = await response.ReadAsync<PagedResult<ProtocolDto>>();
-        var groups = new List<ProtocolDto>();
-        foreach (var group in page.Items)
+        var protocols = new List<ProtocolDto>();
+        foreach (var protocol in page.Items)
         {
-            var one = await client.GetAsync($"/api/v1/protocols/{group.Id}");
+            var one = await client.GetAsync($"/api/v1/protocols/{protocol.Id}");
             await one.ShouldBeOkAsync();
-            groups.Add(await one.ReadAsync<ProtocolDto>());
+            protocols.Add(await one.ReadAsync<ProtocolDto>());
         }
-        return groups;
+        return protocols;
     }
 }
 
@@ -134,13 +134,13 @@ public static class PermissionKeys
     public static readonly IReadOnlyList<string> CatalogOrder =
     [
         "drugs.list", "drugs.details", "drugs.create", "drugs.update", "drugs.delete",
-        "groups.list", "groups.details", "groups.create", "groups.update", "groups.delete",
+        "protocols.list", "protocols.details", "protocols.create", "protocols.update", "protocols.delete",
         "prescriptions.create",
     ];
 
-    /// <summary>The Assistant's 9: everything but deleting drugs and groups.</summary>
+    /// <summary>The Assistant's 9: everything but deleting drugs and protocols.</summary>
     public static readonly IReadOnlyList<string> Assistant =
-        CatalogOrder.Where(k => k is not ("drugs.delete" or "groups.delete")).ToList();
+        CatalogOrder.Where(k => k is not ("drugs.delete" or "protocols.delete")).ToList();
 
     /// <summary>Keys put in catalog order (what the API answers).</summary>
     public static List<string> InCatalogOrder(params string[] keys) => CatalogOrder.Where(keys.Contains).ToList();
@@ -167,7 +167,7 @@ public static class AdminDb
 }
 
 /// <summary>
-/// The catalog's template fixture (ADM header): 2 drugs (the second with a taper default dosing) and 1 group whose
+/// The catalog's template fixture (ADM header): 2 drugs (the second with a taper default dosing) and 1 protocol whose
 /// line 2 overrides the dosing (taper 4→3→2→1, eye <c>ask</c>, the dose from the drug), built in the template through
 /// the real use cases.
 /// </summary>
@@ -189,8 +189,8 @@ public sealed record TemplateCatalog(int TemplateId, DrugDto First, DrugDto Seco
             .Described("Antibiotic eye drops").WithDosing(Dosings.Drops(weeks: 1));
         var second = await app.Data.Drug(templateId).Named(Unique.Name("Prednisolone", "بريدنيزولون"))
             .Described("Steroid eye drops").WithDosing(Dosings.Taper("both", 3, 2, 1));
-        var group = await app.Data.Protocol(templateId).Named(Unique.Name("After cataract", "بعد المياه البيضاء"))
+        var protocol = await app.Data.Protocol(templateId).Named(Unique.Name("After cataract", "بعد المياه البيضاء"))
             .With(first).With(second, TaperOverride());
-        return new TemplateCatalog(templateId, first, second, group);
+        return new TemplateCatalog(templateId, first, second, protocol);
     }
 }

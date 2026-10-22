@@ -22,8 +22,11 @@ namespace ClinicHub.IntegrationTests.Catalog.Migrations;
 public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
 {
     private const string BeforeSearchNames = "20261014214338_AddClinicDeletedAt";
-    private static readonly string[] SearchedTables = ["Drugs", "DrugGroups", "Clinics", "Staff"];
-    private static readonly string[] Tables = [.. SearchedTables, "DrugGroupItems", "Users", "Roles"];
+    // The protocol tables carry their old names before RenameGroupsToProtocols (design D10): DrugGroups, DrugGroupItems
+    private static readonly string[] SearchedTablesBefore = ["Drugs", "DrugGroups", "Clinics", "Staff"];
+    private static readonly string[] SearchedTablesAfter = ["Drugs", "Protocols", "Clinics", "Staff"];
+    private static readonly string[] TablesBefore = [.. SearchedTablesBefore, "DrugGroupItems", "Users", "Roles"];
+    private static readonly string[] TablesAfter = [.. SearchedTablesAfter, "ProtocolItems", "Users", "Roles"];
 
     [Fact]
     [Trait("Case", "DRUG-101")]
@@ -33,16 +36,16 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
         var clinic = await Data.Clinic().Named($"عيادة الأمل {n}");
         var staff = await Data.Staff(clinic).Named($"أحمد مؤمن {n}");
         var drug = await Data.Drug(clinic).Named($"أسبرين ممتد {n}");
-        var group = await Data.Protocol(clinic).Named($"مجموعة إلتهاب {n}").With(drug);
-        var before = await CountRowsAsync();
+        var protocol = await Data.Protocol(clinic).Named($"بروتوكول إلتهاب {n}").With(drug);
+        var before = (await CountRowsAsync(TablesAfter)).Values.ToList();
 
         try
         {
             // The database as it was before AddSearchNames, with its rows
             await MigrateAsync(BeforeSearchNames);
-            foreach (var table in SearchedTables)
+            foreach (var table in SearchedTablesBefore)
                 (await HasSearchNameAsync(table)).ShouldBeFalse($"{table}.SearchName after migrating down");
-            (await CountRowsAsync()).ShouldBe(before, "rows after migrating down");
+            (await CountRowsAsync(TablesBefore)).Values.ToList().ShouldBe(before, "rows after migrating down");
         }
         finally
         {
@@ -50,13 +53,13 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
             await MigrateAsync(null);
         }
 
-        foreach (var table in SearchedTables)
+        foreach (var table in SearchedTablesAfter)
             (await HasSearchNameAsync(table)).ShouldBeTrue($"{table}.SearchName after migrating up");
-        (await CountRowsAsync()).ShouldBe(before, "rows after migrating up");
+        (await CountRowsAsync(TablesAfter)).Values.ToList().ShouldBe(before, "rows after migrating up");
 
         var owner = await Login.OwnerAsync(clinic);
         (await SearchDrugNamesAsync(owner, $"اسبرين ممتد {n}")).ShouldBe([drug.Name]);
-        (await SearchProtocolNamesAsync(owner, $"مجموعه التهاب {n}")).ShouldBe([group.Name]);
+        (await SearchProtocolNamesAsync(owner, $"بروتوكول التهاب {n}")).ShouldBe([protocol.Name]);
         var admin = await Login.SuperAdminAsync();
         (await AdminSearchAsync<ClinicSummary>(admin, "/api/v1/admin/clinics", $"عياده الامل {n}"))
             .Items.Select(c => c.Id).ShouldBe([clinic.Id]);
@@ -76,11 +79,12 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
                 $"SELECT count(*)::int AS \"Value\" FROM information_schema.columns WHERE table_schema = 'public' AND table_name = {table} AND column_name = 'SearchName'")
             .SingleAsync() == 1);
 
-    private Task<Dictionary<string, int>> CountRowsAsync() =>
+    /// <summary>Row counts in the order of <paramref name="tables"/> (the same tables under their names of that version).</summary>
+    private Task<Dictionary<string, int>> CountRowsAsync(string[] tables) =>
         App.QueryDbAsync(async db =>
         {
             var counts = new Dictionary<string, int>();
-            foreach (var table in Tables)
+            foreach (var table in tables)
                 counts[table] = await CountAsync(db, table);
             return counts;
         });

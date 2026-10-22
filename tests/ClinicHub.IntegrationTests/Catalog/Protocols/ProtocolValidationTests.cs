@@ -8,8 +8,8 @@ using Shouldly;
 namespace ClinicHub.IntegrationTests.Catalog.Protocols;
 
 /// <summary>
-/// A group's rules: name, lines, limits, overrides, the effective-eye duplicate rule and the report order
-/// (drug-groups tech § API and § Backend; drug-groups § القواعد).
+/// A protocol's rules: name, lines, limits, overrides, the effective-eye duplicate rule and the report order
+/// (protocols tech § API and § Backend; protocols § القواعد).
 /// </summary>
 [Collection(CatalogProtocolsCollection.Name)]
 [Trait("Area", "catalog")]
@@ -85,20 +85,20 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-017")]
-    public async Task A_group_of_1000_lines_is_accepted()
+    public async Task A_protocol_of_1000_lines_is_accepted()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var items = await DistinctLinesAsync(clinic.Id, 1000);
 
-        var response = await PostProtocolAsync(owner, "Big group", [.. items]);
+        var response = await PostProtocolAsync(owner, "Big protocol", [.. items]);
 
         await response.ShouldBeAsync(HttpStatusCode.Created);
     }
 
     [Fact]
     [Trait("Case", "GRP-018")]
-    public async Task A_group_of_1001_lines_is_invalidRequest_without_per_item_errors()
+    public async Task A_protocol_of_1001_lines_is_invalidRequest_without_per_item_errors()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
@@ -146,7 +146,7 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
     [Fact]
     [Trait("Tier", "Smoke")]
     [Trait("Case", "GRP-022")]
-    public async Task The_same_drug_twice_for_the_same_override_eye_is_duplicateGroupItem()
+    public async Task The_same_drug_twice_for_the_same_override_eye_is_duplicateProtocolItem()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
@@ -154,9 +154,9 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
 
         var problem = await (await PostProtocolAsync(owner, "Twice",
                 Item(drug.Id, new { eye = "right" }), Item(drug.Id, new { eye = "right", frequency = "bedtime" })))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
 
-        problem.ShouldHaveError("items", "duplicateGroupItem");
+        problem.ShouldHaveError("items", "duplicateProtocolItem");
     }
 
     [Fact]
@@ -190,14 +190,14 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-025")]
-    public async Task The_same_drug_twice_without_any_eye_is_duplicateGroupItem()
+    public async Task The_same_drug_twice_without_any_eye_is_duplicateProtocolItem()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic).WithDosing(Dosings.Tablets());
 
         await (await PostProtocolAsync(owner, "Twice", Item(drug.Id), Item(drug.Id)))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
         var drug = await Data.Drug(clinic);
 
         await (await PostProtocolAsync(owner, "Ask twice", Item(drug.Id, new { eye = "ask" }), Item(drug.Id, new { eye = "ask" })))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
         var created = await CreateProtocolAsync(owner, "Ask and right",
             Item(drug.Id, new { eye = "ask" }), Item(drug.Id, new { eye = "right" }));
         created.Items.Select(i => i.Dosing.Eye).ShouldBe(["ask", "right"]);
@@ -225,7 +225,7 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
         var drug = await Data.Drug(clinic).WithDosing(new Dosing { Eye = "right" });
 
         await (await PostProtocolAsync(owner, "Effective right", Item(drug.Id), Item(drug.Id, new { eye = "right" })))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
         var drug = await Data.Drug(clinic).WithDosing(Dosings.Tablets());
 
         await (await PostProtocolAsync(owner, "None twice", Item(drug.Id), Item(drug.Id, new { eye = "none" })))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
     }
 
     [Fact]
@@ -248,13 +248,13 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic).WithDosing(new Dosing { Eye = "right" });
-        var group = await CreateProtocolAsync(owner, "Clash", Item(drug.Id), Item(drug.Id, new { eye = "left" }));
+        var protocol = await CreateProtocolAsync(owner, "Clash", Item(drug.Id), Item(drug.Id, new { eye = "left" }));
 
         await (await PutDrugAsync(owner, drug.Id, drug.Name, defaultDosing: new { eye = "left" })).ShouldBeOkAsync();
-        var response = await PutProtocolAsync(owner, group.Id, "Clash renamed", Item(drug.Id), Item(drug.Id, new { eye = "left" }));
+        var response = await PutProtocolAsync(owner, protocol.Id, "Clash renamed", Item(drug.Id), Item(drug.Id, new { eye = "left" }));
 
-        (await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem")).ShouldHaveError("items", "duplicateGroupItem");
-        var read = await GetProtocolAsync(owner, group.Id);
+        (await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem")).ShouldHaveError("items", "duplicateProtocolItem");
+        var read = await GetProtocolAsync(owner, protocol.Id);
         read.Name.ShouldBe("Clash");
         read.Items.Count.ShouldBe(2);
         read.Items[0].Dosing.ShouldBeNull();
@@ -288,24 +288,24 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-032")]
-    public async Task The_handler_reports_an_unknown_drug_then_a_duplicate_then_an_unknown_group()
+    public async Task The_handler_reports_an_unknown_drug_then_a_duplicate_then_an_unknown_protocol()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
-        var group = await Data.Protocol(clinic).With(drug);
+        var protocol = await Data.Protocol(clinic).With(drug);
 
-        // Unknown group + unknown drug: drugNotFound before the 404
+        // Unknown protocol + unknown drug: drugNotFound before the 404
         await (await PutProtocolAsync(owner, UnknownId, "Valid", Item(UnknownId)))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
         // Unknown drug + duplicate lines: the unknown drug first (create and update)
         await (await PostProtocolAsync(owner, "Both", Item(drug.Id), Item(drug.Id), Item(UnknownId)))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
-        await (await PutProtocolAsync(owner, group.Id, "Both", Item(drug.Id), Item(drug.Id), Item(UnknownId)))
+        await (await PutProtocolAsync(owner, protocol.Id, "Both", Item(drug.Id), Item(drug.Id), Item(UnknownId)))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
-        // Duplicate lines + unknown group: the duplicate before the 404
+        // Duplicate lines + unknown protocol: the duplicate before the 404
         await (await PutProtocolAsync(owner, UnknownId, "Valid", Item(drug.Id), Item(drug.Id)))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
     }
 
     [Fact]
@@ -319,7 +319,7 @@ public class ProtocolValidationTests(AppFixture app) : CatalogTest(app)
         problem.Codes.ShouldBe(["nameRequired", "drugsRequired"]);
     }
 
-    /// <summary><paramref name="count"/> lines with distinct (drug, eye) pairs: new drugs, each with the 5 group eyes.</summary>
+    /// <summary><paramref name="count"/> lines with distinct (drug, eye) pairs: new drugs, each with the 5 protocol eyes.</summary>
     private async Task<List<object>> DistinctLinesAsync(int clinicId, int count)
     {
         var lines = new List<object>();

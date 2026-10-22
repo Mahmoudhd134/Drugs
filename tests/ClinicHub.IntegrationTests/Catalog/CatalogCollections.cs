@@ -23,7 +23,7 @@ public sealed class CatalogProtocolsCollection : ICollectionFixture<AppFixture>
     public const string Name = "catalog-3";
 }
 
-/// <summary>Dosing and tapering through the drug and group APIs.</summary>
+/// <summary>Dosing and tapering through the drug and protocol APIs.</summary>
 [CollectionDefinition(Name)]
 public sealed class CatalogDosingCollection : ICollectionFixture<AppFixture>
 {
@@ -31,7 +31,8 @@ public sealed class CatalogDosingCollection : ICollectionFixture<AppFixture>
 }
 
 /// <summary>
-/// The search-name migration (DRUG-101): it migrates its database down and up again, so it has a database of its own.
+/// The migration tests (DRUG-101, RenameGroupsToProtocols: CAT-003, CAT-004, ACC-085, ACC-088): they migrate their database
+/// down and up again, so they have a database of their own.
 /// </summary>
 [CollectionDefinition(Name)]
 public sealed class CatalogMigrationCollection : ICollectionFixture<AppFixture>

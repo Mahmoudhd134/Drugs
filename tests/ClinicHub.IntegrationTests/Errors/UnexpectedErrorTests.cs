@@ -42,7 +42,7 @@ public class UnexpectedErrorTests(AppFixture app) : IntegrationTest(app)
         body.ShouldNotContain(nameof(Throwing));
         body.ShouldNotContain(" at ");
         problem.Body.ContainsKey("exception").ShouldBeFalse();
-        await (await owner.GetAsync("/api/v1/drug-groups")).ShouldBeOkAsync();
+        await (await owner.GetAsync("/api/v1/protocols")).ShouldBeOkAsync();
     }
 
     [Fact]

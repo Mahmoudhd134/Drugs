@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using ClinicHub.Application.Common.Search;
 using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -9,7 +10,7 @@ using Shouldly;
 
 namespace ClinicHub.IntegrationTests.Catalog.Protocols;
 
-/// <summary>Drug groups: create, read, replace, delete, list and search (docs/features/drug-groups).</summary>
+/// <summary>Protocols: create, read, replace, delete, list and search (docs/features/protocols).</summary>
 [Collection(CatalogProtocolsCollection.Name)]
 [Trait("Area", "catalog")]
 public class ProtocolTests(AppFixture app) : CatalogTest(app)
@@ -17,7 +18,7 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
     [Fact]
     [Trait("Tier", "Smoke")]
     [Trait("Case", "GRP-001")]
-    public async Task Creating_a_group_answers_201_with_its_lines_in_order()
+    public async Task Creating_a_protocol_answers_201_with_its_lines_in_order()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
@@ -29,17 +30,17 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
             Item(a.Id), Item(b.Id, new { frequency = "daily", frequencyValue = 6 }), Item(c.Id));
 
         await response.ShouldBeAsync(HttpStatusCode.Created);
-        var group = await response.ReadAsync<ProtocolDto>();
-        LocationPath(response).ShouldBe($"/api/v1/drug-groups/{group.Id}");
-        group.Name.ShouldBe("Post cataract");
-        group.Items.Select(i => i.Drug.Id).ShouldBe([a.Id, b.Id, c.Id]);
-        group.Items[0].Drug.Name.ShouldBe(a.Name);
-        ShouldMatch(group.Items[0].Drug.DefaultDosing, a.DefaultDosing);
-        group.Items[0].Dosing.ShouldBeNull();
-        ShouldMatch(group.Items[1].Drug.DefaultDosing, b.DefaultDosing);
-        ShouldMatch(group.Items[1].Dosing, new Dosing { Frequency = "daily", FrequencyValue = 6 });
-        group.Items[2].Drug.DefaultDosing.ShouldBeNull();
-        group.Items[2].Dosing.ShouldBeNull();
+        var protocol = await response.ReadAsync<ProtocolDto>();
+        LocationPath(response).ShouldBe($"/api/v1/protocols/{protocol.Id}");
+        protocol.Name.ShouldBe("Post cataract");
+        protocol.Items.Select(i => i.Drug.Id).ShouldBe([a.Id, b.Id, c.Id]);
+        protocol.Items[0].Drug.Name.ShouldBe(a.Name);
+        ShouldMatch(protocol.Items[0].Drug.DefaultDosing, a.DefaultDosing);
+        protocol.Items[0].Dosing.ShouldBeNull();
+        ShouldMatch(protocol.Items[1].Drug.DefaultDosing, b.DefaultDosing);
+        ShouldMatch(protocol.Items[1].Dosing, new Dosing { Frequency = "daily", FrequencyValue = 6 });
+        protocol.Items[2].Drug.DefaultDosing.ShouldBeNull();
+        protocol.Items[2].Dosing.ShouldBeNull();
         var node = (await response.ReadNodeAsync())["items"].ShouldBeOfType<JsonArray>();
         node.ShouldAllBe(item => item.AsObject().ContainsKey("drug") && item.AsObject().ContainsKey("dosing"));
         node.ShouldAllBe(item => item["drug"].AsObject().ContainsKey("defaultDosing"));
@@ -47,7 +48,7 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-002")]
-    public async Task A_group_is_read_back_with_its_lines_in_the_saved_order()
+    public async Task A_protocol_is_read_back_with_its_lines_in_the_saved_order()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
@@ -56,16 +57,16 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
             drugs.Add((await Data.Drug(clinic).Named(name)).Id);
         var created = await CreateProtocolAsync(owner, "Ordered", [.. drugs.Select(id => Item(id))]);
 
-        var group = await GetProtocolAsync(owner, created.Id);
+        var protocol = await GetProtocolAsync(owner, created.Id);
 
-        group.Name.ShouldBe("Ordered");
-        group.Items.Select(i => i.Drug.Id).ShouldBe(drugs);
+        protocol.Name.ShouldBe("Ordered");
+        protocol.Items.Select(i => i.Drug.Id).ShouldBe(drugs);
     }
 
     [Fact]
     [Trait("Tier", "Smoke")]
     [Trait("Case", "GRP-003")]
-    public async Task Updating_a_group_replaces_its_name_and_every_line()
+    public async Task Updating_a_protocol_replaces_its_name_and_every_line()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
@@ -80,33 +81,33 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
         await response.ShouldBeOkAsync();
         var answered = await response.ReadAsync<ProtocolDto>();
         answered.Name.ShouldBe("Renamed");
-        var group = await GetProtocolAsync(owner, created.Id);
-        group.Name.ShouldBe("Renamed");
-        group.Items.Select(i => i.Drug.Id).ShouldBe([c.Id, a.Id]);
-        group.Items[0].Dosing.ShouldBeNull();
-        ShouldMatch(group.Items[1].Dosing, aOverride);
+        var protocol = await GetProtocolAsync(owner, created.Id);
+        protocol.Name.ShouldBe("Renamed");
+        protocol.Items.Select(i => i.Drug.Id).ShouldBe([c.Id, a.Id]);
+        protocol.Items[0].Dosing.ShouldBeNull();
+        ShouldMatch(protocol.Items[1].Dosing, aOverride);
     }
 
     [Fact]
     [Trait("Case", "GRP-004")]
-    public async Task Deleting_a_group_keeps_its_drugs()
+    public async Task Deleting_a_protocol_keeps_its_drugs()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var a = await Data.Drug(clinic);
         var b = await Data.Drug(clinic);
-        var group = await Data.Protocol(clinic).With(a).With(b);
+        var protocol = await Data.Protocol(clinic).With(a).With(b);
 
-        await (await owner.DeleteAsync($"{ProtocolsUrl}/{group.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await owner.DeleteAsync($"{ProtocolsUrl}/{protocol.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
-        await (await owner.GetAsync($"{ProtocolsUrl}/{group.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await owner.GetAsync($"{ProtocolsUrl}/{protocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
         (await GetDrugAsync(owner, a.Id)).Id.ShouldBe(a.Id);
         (await GetDrugAsync(owner, b.Id)).Id.ShouldBe(b.Id);
     }
 
     [Fact]
     [Trait("Case", "GRP-005")]
-    public async Task An_unknown_group_is_404_notFound_for_read_update_and_delete()
+    public async Task An_unknown_protocol_is_404_notFound_for_read_update_and_delete()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
@@ -138,9 +139,9 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
         var expected = new Dosing { Frequency = "asNeeded", DurationUnit = "continuous" };
         ShouldMatch(created.Items[0].Dosing, expected);
         created.Items[1].Dosing.ShouldBeNull();
-        var group = await GetProtocolAsync(owner, created.Id);
-        ShouldMatch(group.Items[0].Dosing, expected);
-        group.Items[1].Dosing.ShouldBeNull();
+        var protocol = await GetProtocolAsync(owner, created.Id);
+        ShouldMatch(protocol.Items[0].Dosing, expected);
+        protocol.Items[1].Dosing.ShouldBeNull();
     }
 
     [Fact]
@@ -175,7 +176,7 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-009")]
-    public async Task Groups_are_listed_by_name_then_id_with_their_lines()
+    public async Task Protocols_are_listed_by_name_then_id_with_their_lines()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         var drug = await Data.Drug(clinic);
@@ -192,7 +193,7 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-010")]
-    public async Task The_group_search_is_a_case_insensitive_contains_paged_like_drugs()
+    public async Task The_protocol_search_is_a_case_insensitive_contains_paged_like_drugs()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Protocol(clinic).Named("Post Cataract");
@@ -218,16 +219,16 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
 
     [Theory]
     [Trait("Case", "GRP-096")]
-    [InlineData("التهاب", "مجموعة إلتهاب")]
-    [InlineData("مجموعه", "مجموعة إلتهاب")]
-    [InlineData("مَجْمُوعَة", "مجموعة إلتهاب")]
-    [InlineData("مجـموعة", "مجموعة إلتهاب")]
+    [InlineData("التهاب", "بروتوكول إلتهاب")]
+    [InlineData("بروتوكول", "بروتوكول إلتهاب")]
+    [InlineData("بُرُوتُوكُول", "بروتوكول إلتهاب")]
+    [InlineData("بروتـوكول", "بروتوكول إلتهاب")]
     [InlineData("عمليه المياة", "بعد عملية المياه")]
     [InlineData("الام", "علاج آلام")]
-    public async Task The_group_search_is_Arabic_normalized(string search, string found)
+    public async Task The_protocol_search_is_Arabic_normalized(string search, string found)
     {
         var (clinic, owner) = await EmptyClinicAsync();
-        await Data.Protocol(clinic).Named("مجموعة إلتهاب");
+        await Data.Protocol(clinic).Named("بروتوكول إلتهاب");
         await Data.Protocol(clinic).Named("بعد عملية المياه");
         await Data.Protocol(clinic).Named("علاج آلام");
 
@@ -236,25 +237,25 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "GRP-011")]
-    public async Task A_changed_drug_default_shows_in_the_group_with_the_override_unchanged()
+    public async Task A_changed_drug_default_shows_in_the_protocol_with_the_override_unchanged()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic).WithDosing(Dosings.Drops(timesADay: 4, weeks: 1));
-        var groupOverride = new Dosing { Frequency = "daily", FrequencyValue = 6 };
-        var group = await Data.Protocol(clinic).With(drug, groupOverride);
+        var protocolOverride = new Dosing { Frequency = "daily", FrequencyValue = 6 };
+        var protocol = await Data.Protocol(clinic).With(drug, protocolOverride);
         var newDefault = Dosings.Drops(amount: 2, timesADay: 3, weeks: 3, eye: "left");
 
         await (await PutDrugAsync(owner, drug.Id, drug.Name, defaultDosing: newDefault)).ShouldBeOkAsync();
 
-        var line = (await GetProtocolAsync(owner, group.Id)).Items.ShouldHaveSingleItem();
+        var line = (await GetProtocolAsync(owner, protocol.Id)).Items.ShouldHaveSingleItem();
         ShouldMatch(line.Drug.DefaultDosing, newDefault);
-        ShouldMatch(line.Dosing, groupOverride);
+        ShouldMatch(line.Dosing, protocolOverride);
     }
 
     [Fact]
     [Trait("Case", "GRP-065")]
-    public async Task Two_windows_saving_the_same_group_the_last_save_wins()
+    public async Task Two_windows_saving_the_same_protocol_the_last_save_wins()
     {
         var clinic = await SharedClinicAsync();
         var first = await Login.OwnerAsync(clinic);
@@ -262,17 +263,58 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
         var a = await Data.Drug(clinic);
         var b = await Data.Drug(clinic);
         var c = await Data.Drug(clinic);
-        var group = await Data.Protocol(clinic).With(a);
-        // Both windows opened the group, then each saves its own edit
-        await GetProtocolAsync(first, group.Id);
-        await GetProtocolAsync(second, group.Id);
+        var protocol = await Data.Protocol(clinic).With(a);
+        // Both windows opened the protocol, then each saves its own edit
+        await GetProtocolAsync(first, protocol.Id);
+        await GetProtocolAsync(second, protocol.Id);
 
-        await (await PutProtocolAsync(first, group.Id, "First edit", Item(a.Id), Item(b.Id))).ShouldBeOkAsync();
-        await (await PutProtocolAsync(second, group.Id, "Second edit", Item(c.Id, new { eye = "ask" }))).ShouldBeOkAsync();
+        await (await PutProtocolAsync(first, protocol.Id, "First edit", Item(a.Id), Item(b.Id))).ShouldBeOkAsync();
+        await (await PutProtocolAsync(second, protocol.Id, "Second edit", Item(c.Id, new { eye = "ask" }))).ShouldBeOkAsync();
 
-        var saved = await GetProtocolAsync(first, group.Id);
+        var saved = await GetProtocolAsync(first, protocol.Id);
         saved.Name.ShouldBe("Second edit");
         saved.Items.Select(i => i.Drug.Id).ShouldBe([c.Id]);
         saved.Items[0].Dosing.Eye.ShouldBe("ask");
+    }
+
+    // The routes before the rename (design D10): no alias kept, so they answer as any unknown /api path (ERR-015,
+    // ERR-016), also for a protocol and a drug that exist, and change nothing
+    [Theory]
+    [Trait("Case", "GRP-101")]
+    [InlineData("/api/v1/drug-groups")]
+    [InlineData("/api/v1/drug-groups/{protocol}")]
+    [InlineData("/api/v1/drugs/{drug}/groups")]
+    public async Task The_old_routes_answer_404_notFound_to_get_and_405_methodNotAllowed_to_post_put_and_delete(string template)
+    {
+        var (clinic, owner) = await EmptyClinicAsync();
+        var drug = await Data.Drug(clinic);
+        var protocol = await Data.Protocol(clinic).Named("Post cataract").With(drug);
+        var url = template.Replace("{protocol}", protocol.Id.ToString()).Replace("{drug}", drug.Id.ToString());
+        var body = ProtocolBody("Renamed through the old route", Item(drug.Id));
+
+        await (await owner.GetAsync(url)).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await owner.PostAsync(url, body)).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+        await (await owner.PutAsync(url, body)).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+        await (await owner.DeleteAsync(url)).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+
+        var list = await ListProtocolsAsync(owner);
+        list.Items.Select(g => g.Name).ShouldBe(["Post cataract"], "nothing created, renamed or deleted");
+        (await GetProtocolAsync(owner, protocol.Id)).Items.Select(i => i.Drug.Id).ShouldBe([drug.Id]);
+    }
+
+    [Fact]
+    [Trait("Case", "GRP-106")]
+    public async Task A_renamed_protocol_is_searched_by_its_new_name_only()
+    {
+        var (clinic, owner) = await EmptyClinicAsync();
+        var drug = await Data.Drug(clinic);
+        var created = await CreateProtocolAsync(owner, "علاج آلام", Item(drug.Id));
+
+        await (await PutProtocolAsync(owner, created.Id, "مُضاد حيوي", Item(drug.Id))).ShouldBeOkAsync();
+
+        var stored = await App.OutsideTheApp.ScalarAsync<string>("""SELECT "SearchName" FROM "Protocols" WHERE "Id" = @p0""", created.Id);
+        stored.ShouldBe(SearchText.Fold("مُضاد حيوي"));
+        (await SearchProtocolNamesAsync(owner, "مضاد حيوي")).ShouldBe(["مُضاد حيوي"]);
+        (await SearchProtocolNamesAsync(owner, "الام")).ShouldBeEmpty();
     }
 }

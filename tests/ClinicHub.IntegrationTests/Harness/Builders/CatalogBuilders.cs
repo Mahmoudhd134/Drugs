@@ -44,7 +44,7 @@ public sealed class DrugBuilder(AppFixture app, int clinicId)
 /// <summary><see cref="CreateProtocolCommand"/> in the clinic (or the template): lines in the order added (default: one new drug).</summary>
 public sealed class ProtocolBuilder(AppFixture app, int clinicId)
 {
-    private string name = Unique.Name("Group", "مجموعة");
+    private string name = Unique.Name("Protocol", "بروتوكول");
     private readonly List<SaveProtocolItem> items = [];
 
     public ProtocolBuilder Named(string value)
@@ -62,7 +62,7 @@ public sealed class ProtocolBuilder(AppFixture app, int clinicId)
 
     public ProtocolBuilder With(DrugDto drug, Dosing overrideDosing = null) => With(drug.Id, overrideDosing);
 
-    /// <summary>Creates the group; with no line added, one line with a new default drug of the same clinic (a group needs one).</summary>
+    /// <summary>Creates the protocol; with no line added, one line with a new default drug of the same clinic (a protocol needs one).</summary>
     public async Task<ProtocolDto> CreateAsync()
     {
         if (items.Count == 0)
@@ -100,6 +100,6 @@ public static class Dosings
         }).ToList(),
     };
 
-    /// <summary>A group-line override: only the eye, asked when the group is added.</summary>
+    /// <summary>A protocol-line override: only the eye, asked when the protocol is added.</summary>
     public static Dosing AskEye() => new() { Eye = DosingCodes.AskEye };
 }

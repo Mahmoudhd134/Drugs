@@ -183,32 +183,32 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-033")]
-    public async Task Raw_sql_cannot_link_a_group_to_another_clinics_drug()
+    public async Task Raw_sql_cannot_link_a_protocol_to_another_clinics_drug()
     {
         var a = await Data.Clinic();
         var b = await Data.Clinic();
         var aProtocol = await Data.Protocol(a);
         var bDrug = await Data.Drug(b);
 
-        var error = await InsertLineAsync(clinicId: a.Id, groupId: aProtocol.Id, drugId: bDrug.Id);
+        var error = await InsertLineAsync(clinicId: a.Id, protocolId: aProtocol.Id, drugId: bDrug.Id);
 
         error.SqlState.ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
-        error.ConstraintName.ShouldBe("FK_DrugGroupItems_Drugs_DrugId_ClinicId");
+        error.ConstraintName.ShouldBe("FK_ProtocolItems_Drugs_DrugId_ClinicId");
     }
 
     [Fact]
     [Trait("Case", "ISO-034")]
-    public async Task Raw_sql_cannot_put_a_line_into_another_clinics_group()
+    public async Task Raw_sql_cannot_put_a_line_into_another_clinics_protocol()
     {
         var a = await Data.Clinic();
         var b = await Data.Clinic();
         var aDrug = await Data.Drug(a);
         var bProtocol = await Data.Protocol(b);
 
-        var error = await InsertLineAsync(clinicId: a.Id, groupId: bProtocol.Id, drugId: aDrug.Id);
+        var error = await InsertLineAsync(clinicId: a.Id, protocolId: bProtocol.Id, drugId: aDrug.Id);
 
         error.SqlState.ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
-        error.ConstraintName.ShouldBe("FK_DrugGroupItems_DrugGroups_DrugGroupId_ClinicId");
+        error.ConstraintName.ShouldBe("FK_ProtocolItems_Protocols_ProtocolId_ClinicId");
     }
 
     [Fact]
@@ -250,10 +250,10 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         await work(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
-    private Task<PostgresException> InsertLineAsync(int clinicId, int groupId, int drugId) =>
+    private Task<PostgresException> InsertLineAsync(int clinicId, int protocolId, int drugId) =>
         Should.ThrowAsync<PostgresException>(() => App.OutsideTheApp.ExecuteAsync(
             """
             INSERT INTO "ProtocolItems" ("ClinicId", "ProtocolId", "DrugId", "Order", "CreatedAt", "UpdatedAt")
             VALUES (@p0, @p1, @p2, 99, now(), now())
-            """, clinicId, groupId, drugId));
+            """, clinicId, protocolId, drugId));
 }
