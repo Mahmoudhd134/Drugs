@@ -86,7 +86,12 @@ test.describe("A category deleted while a clinic's drug dialog is open @area:cat
             await deleteCategory(admin, gone.id);
             const reads = recordRequests(page, "GET", /^\/api\/v1\/drug-categories$/);
             await form.getByRole("button", {name: t.save}).click();
-            await expect(form.getByText(st.categoryNotFound, {exact: true})).toBeVisible();
+            // On the category field itself: its form control holds the message and is red, the category field is described by it
+            const categoryControl = form.locator(".MuiFormControl-root").filter({has: categoryField});
+            await expect(categoryControl.getByText(st.categoryNotFound, {exact: true})).toBeVisible();
+            await expect(categoryControl.locator(".MuiInputBase-root")).toHaveClass(/Mui-error/);
+            await expect(categoryField).toHaveAccessibleDescription(st.categoryNotFound);
+            await expect(form.getByText(st.categoryNotFound, {exact: true})).toHaveCount(1);
             await expect(form).toBeVisible();
             await expect.poll(() => reads.length, {message: "the categories are read again"}).toBeGreaterThan(0);
             await categoryField.click();

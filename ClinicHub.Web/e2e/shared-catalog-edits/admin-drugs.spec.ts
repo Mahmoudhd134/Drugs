@@ -8,6 +8,7 @@ import {
     type AdminDrug,
     getSharedDrug,
     IMPORTED,
+    type Paged,
     sharedDrug,
     updateSharedDrug,
     withdrawSharedDrug,
@@ -96,34 +97,65 @@ test.describe("The super admin's shared drugs @area:admin", () => {
         expect(withdraws).toHaveLength(1);
     });
 
-    test("demoted while on /admin/drugs: disabling a drug answers 403 and the app leaves the admin area @CAT-218",
+    /**
+     * Demoted while on /admin/drugs (design CAT-218; platform-admin tech "Lost platform context"): the demotion takes a
+     * restart of the API (Platform:SuperAdminPhones), which an e2e run can't do, so the API's answers after it are played
+     * back: 403 on the admin call `write`, `/me` without a context, the refresh 401.
+     */
+    const demoteOn = async (page: Page, method: string, write: RegExp) => {
+        await page.route(write, route => route.request().method() !== method ? route.fallback() : route.fulfill({
+            status: 403, contentType: "application/problem+json",
+            json: {status: 403, code: "forbidden", errors: [{code: "forbidden", description: "Forbidden"}]},
+        }));
+        await page.route(/\/api\/v1\/me$/, async route => {
+            const real = await route.fetch();
+            const body = await real.json() as { user: Record<string, unknown> };
+            await route.fulfill({response: real, json: {...body, context: null, user: {...body.user, isSuperAdmin: false}, permissions: []}});
+        });
+        await page.route(/\/api\/v1\/auth\/refresh$/, route => route.fulfill({
+            status: 401, contentType: "application/problem+json", json: {status: 401, code: "unauthorized"},
+        }));
+    };
+
+    /** Out of the admin area, on /login, told «لم تعد لديك صلاحية دخول «إدارة المنصة». سجّل الدخول من جديد للمتابعة.» */
+    const expectSignedOutOfPlatform = async (page: Page) => {
+        await expect(page).not.toHaveURL(/\/admin/);
+        await expect(page).toHaveURL(/\/login/);
+        await expectToast(page, t.clinicLostSignedOut(t.platform));
+    };
+
+    test("demoted while on /admin/drugs: disabling a drug answers 403, the app leaves the admin area for /login with «لم تعد لديك صلاحية دخول «إدارة المنصة»…» @CAT-218",
         async ({page, admin, allowApiErrors}) => {
-            // The demotion takes a restart of the API (Platform:SuperAdminPhones), which an e2e run can't do: the API's
-            // answers after it are played back here (design: 403 on /admin/*, /me without a context, the refresh 401)
             allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/admin\/drugs\/\d+\/withdraw$/},
                 {status: 401, method: "POST", path: /^\/api\/v1\/auth\/refresh$/});
             const drug = await sharedDrug(admin);
             await signInSuperAdmin(page);
             await openAdminOn(page, drug.name);
-            await page.route(/\/api\/v1\/admin\/drugs\/\d+\/withdraw$/, route => route.fulfill({
-                status: 403, contentType: "application/problem+json",
-                json: {status: 403, code: "forbidden", errors: [{code: "forbidden", description: "Forbidden"}]},
-            }));
-            await page.route(/\/api\/v1\/me$/, async route => {
-                const real = await route.fetch();
-                const body = await real.json() as { user: Record<string, unknown> };
-                await route.fulfill({response: real, json: {...body, context: null, user: {...body.user, isSuperAdmin: false}, permissions: []}});
-            });
-            await page.route(/\/api\/v1\/auth\/refresh$/, route => route.fulfill({
-                status: 401, contentType: "application/problem+json", json: {status: 401, code: "unauthorized"},
-            }));
+            await demoteOn(page, "POST", /\/api\/v1\/admin\/drugs\/\d+\/withdraw$/);
             const forbidden = page.waitForResponse(r => /\/withdraw$/.test(r.url()) && r.status() === 403);
             await adminDrugRow(page, drug.name).getByRole("button", {name: st.withdraw}).click();
             await confirmButton(page.getByRole("dialog", {name: st.withdrawTitle(drug.name)})).click();
             await forbidden;
-            await expect(page).not.toHaveURL(/\/admin/);
-            await expect(page).toHaveURL(/\/login/);
+            await expectSignedOutOfPlatform(page);
             expect((await getSharedDrug(admin, drug)).withdrawn).toBe(false);
+        });
+
+    test("demoted while the shared drug dialog is open: saving answers 403, the app leaves the admin area for /login with the same message @CAT-218",
+        async ({page, admin, allowApiErrors}) => {
+            allowApiErrors({status: 403, method: "PUT", path: /^\/api\/v1\/admin\/drugs\/\d+$/},
+                {status: 401, method: "POST", path: /^\/api\/v1\/auth\/refresh$/});
+            const drug = await sharedDrug(admin);
+            await signInSuperAdmin(page);
+            await openAdminOn(page, drug.name);
+            await adminDrugRow(page, drug.name).getByRole("button", {name: /^تعديل/}).click();
+            const form = page.getByRole("dialog", {name: st.adminEdit});
+            await form.getByRole("textbox", {name: "الوصف"}).fill("وصف لن يُحفظ");
+            await demoteOn(page, "PUT", /\/api\/v1\/admin\/drugs\/\d+$/);
+            const forbidden = page.waitForResponse(r => r.request().method() === "PUT" && /\/admin\/drugs\/\d+$/.test(r.url()) && r.status() === 403);
+            await form.getByRole("button", {name: t.save}).click();
+            await forbidden;
+            await expectSignedOutOfPlatform(page);
+            expect((await getSharedDrug(admin, drug)).description).toBe(drug.description);
         });
 
     test("renamed by the super admin while used in A's protocol: A's editor and card show the new name at their next load @CAT-175",
@@ -141,11 +173,21 @@ test.describe("The super admin's shared drugs @area:admin", () => {
             await expect(protocolCard(page, protocol.name)).toContainText(renamed);
         });
 
-    test("a test-made shared drug with an imported drug's kind of fields (a pack-size name, 397-character ingredients), saved unchanged in the dialog: 200, nothing changes @CAT-187",
+    test("a test-made shared drug with an imported drug's exact fields (its pack-size name, its 397-character ingredients, its category), saved unchanged in the dialog: 200, nothing changes @CAT-187",
         async ({page, admin}) => {
-            const ingredients = Array.from({length: 40}, (_, i) => `INGREDIENT${String(i).padStart(2, "0")}`).join(" + ").slice(0, 397).trim();
+            // The imported drug, read only (by exact name, design D12); the test's own copy carries its exact texts
+            const found = await admin.ok<Paged<AdminDrug>>("GET",
+                `/api/v1/admin/drugs?status=all&search=${encodeURIComponent(IMPORTED.longestIngredients)}`);
+            const source = found.items.find(d => d.name === IMPORTED.longestIngredients)!;
+            expect(source, IMPORTED.longestIngredients).toBeTruthy();
+            const ingredients = source.activeIngredients!;
             expect(ingredients).toHaveLength(397);
-            const drug = await sharedDrug(admin, {name: `E2E PACK ${unique()} 500 MG 20 F.C.TABS.`, activeIngredients: ingredients});
+            // Its pack-size name, made unique (D12): the imported name with the test's mark in front
+            const drug = await sharedDrug(admin, {
+                name: `E2E ${unique()} ${source.name}`, activeIngredients: ingredients,
+                categoryId: source.category.id, subCategoryId: source.subCategory?.id ?? null,
+            });
+            expect(drug.activeIngredients).toBe(ingredients);
             await signInSuperAdmin(page);
             await openAdminOn(page, drug.name);
             const puts = recordRequests(page, "PUT", /^\/api\/v1\/admin\/drugs\/\d+$/);
@@ -194,9 +236,15 @@ test.describe("Shared drugs reach every clinic's prescription @area:prescription
             await expectToast(page, rt.copied);
             const copied = await readClipboard(page);
             expect(copied.text).toBe(`${IMPORTED.carboplatin}\n\n${tagged}`);
-            expect(copied.html).toContain("CARBOPLATIN &quot;EBEWE&quot; 150 MG VIAL");
+            // Decision D25: `<`, `>` and `&` escaped (no markup injected); a `"` may stay literal in a text node
             expect(copied.html).toContain(tagged.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
             expect(copied.html).not.toContain("<b>");
+            // Read back as HTML, both names are the same text, and no element came from a name
+            const parsed = await page.evaluate(html => {
+                const body = new DOMParser().parseFromString(html, "text/html").body;
+                return {strong: [...body.querySelectorAll("strong")].map(e => e.textContent), bold: body.querySelectorAll("b").length};
+            }, copied.html ?? "");
+            expect(parsed).toEqual({strong: [IMPORTED.carboplatin, tagged], bold: 0});
         });
 
     test("a shared drug with a description and no edit: the copied text is its full name and, under it, its description @RX-107",

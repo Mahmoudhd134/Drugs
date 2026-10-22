@@ -35,6 +35,8 @@ export const IMPORTED = {
     xalatan: "XALATAN 50MCG/ML EYE DROPS 2.5 ML",
     nailner: "NAILNER NAIL FUNGUS PEN 4 ML",
     carboplatin: `CARBOPLATIN "EBEWE" 150 MG VIAL`,
+    /** The imported drug with the longest active ingredients (397 characters, design D11; CAT-187) */
+    longestIngredients: "FOR YOUR BABIES 75GM CREAM",
 } as const;
 
 /** «العيون» / "Eye" and «المياه الزرقاء» / "Glaucoma": the default category of the test data (D12), by English name. */

@@ -94,9 +94,13 @@ describe("admin drugs: disabling on «الكل» and «مفعّل» @area:admin"
         await user.click(within(last).getByRole("button", {name: "تعطيل الدواء"}));
         await user.click(confirmButton(await screen.findByRole("dialog")));
         await waitFor(() => expect(screen.queryByText("DRUG 101")).not.toBeInTheDocument());
-        await waitFor(() => expect(lastList(recorded).get("page")).toBe(String(lastPage - 1)));
+        // The page shown is the one before (its rows may come from the refreshed cache, without a new request)
         await waitFor(() => expect(screen.getAllByRole("row").slice(1)).toHaveLength(size));
         expect(screen.getByText(`${(lastPage - 2) * size + 1}–${(lastPage - 1) * size} من 100`)).toBeInTheDocument();
+        const pad = (n: number) => String(n).padStart(3, "0");
+        const rows = screen.getAllByRole("row");
+        expect(rows[1]).toHaveTextContent(`DRUG ${pad((lastPage - 2) * size + 1)}`);
+        expect(rows[rows.length - 1]).toHaveTextContent(`DRUG ${pad((lastPage - 1) * size)}`);
     });
 });
 

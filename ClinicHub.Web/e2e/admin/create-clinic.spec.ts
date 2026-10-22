@@ -1,6 +1,8 @@
 import {expect, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {localPhone, unique, uniquePhone} from "../support/phones.ts";
 import {runState} from "../support/run.ts";
+import {ApiSession} from "../support/api.ts";
+import {UX_TEXTS} from "../support/texts-ux.ts";
 import {expectContextLabel, expectToast, navTo, recordRequests} from "../support/ui.ts";
 
 test.describe("Platform admin: creating a clinic @area:admin", () => {
@@ -45,9 +47,26 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             const owner = await newBrowser();
             await signIn(owner.page, ownerPhone);
             await expectContextLabel(owner.page, "عيادة النور");
-            await navTo(owner.page, t, t.navDrugs);
-            await expect(owner.page.getByText("إجمالي الأدوية: 2", {exact: true})).toBeVisible();
-            for (const drug of template.drugs) await expect(owner.page.getByRole("cell", {name: drug})).toBeVisible();
+            // The template's 2 drugs are the clinic's own; the total also counts the shared catalog (M1.7b contract § 4.4),
+            // so it is compared with the API's answer of this run
+            const ownerApi = await ApiSession.login(runState().baseURL, ownerPhone);
+            try {
+                const own = await ownerApi.ok<{ totalCount: number; items: { name: string }[] }>("GET", "/api/v1/drugs?source=own&pageSize=50");
+                expect(own.totalCount).toBe(2);
+                expect(own.items.map(d => d.name).sort()).toEqual([...template.drugs].sort());
+                const all = await ownerApi.ok<{ totalCount: number }>("GET", "/api/v1/drugs");
+                await navTo(owner.page, t, t.navDrugs);
+                await expect(owner.page.getByText(UX_TEXTS.ar.drugsSubtitle(all.totalCount), {exact: true})).toBeVisible();
+            } finally {
+                await ownerApi.dispose();
+            }
+            for (const drug of template.drugs) {
+                const answered = owner.page.waitForResponse(r => new URL(r.url()).pathname === "/api/v1/drugs"
+                    && new URL(r.url()).searchParams.get("search") === drug);
+                await owner.page.getByPlaceholder(t.searchDrugs).fill(drug);
+                await answered;
+                await expect(owner.page.locator("tbody tr").filter({has: owner.page.getByText(drug, {exact: true})})).toBeVisible();
+            }
             await navTo(owner.page, t, t.navProtocols);
             await expect(owner.page.getByText("إجمالي البروتوكولات: 1", {exact: true})).toBeVisible();
             await expect(owner.page.getByText(template.protocol.name, {exact: true})).toBeVisible();

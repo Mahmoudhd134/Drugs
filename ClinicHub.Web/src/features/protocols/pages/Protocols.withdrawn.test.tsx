@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
-import {screen} from "@testing-library/react";
-import {aDrug, aProtocol, anItem, aSharedDrug, protocolsHandlers, renderWithProviders, server} from "../../../test";
+import {screen, waitFor, within} from "@testing-library/react";
+import {aDrug, aProtocol, anItem, aSharedDrug, protocolsHandlers, renderWithProviders, server, setViewportWidth} from "../../../test";
 import type {Protocol} from "../types.ts";
 import {ProtocolsPage} from "./ProtocolsPage.tsx";
 import {ProtocolPicker} from "../components/ProtocolPicker.tsx";
@@ -46,6 +46,24 @@ describe("protocol cards with a disabled drug @area:catalog", () => {
         expect(option).toHaveTextContent("الأدوية: 3");
         // Inside the option (a control): no Tab stop of its own, its tooltip on hover (contract D17)
         await expectWithdrawnTooltip(withdrawnMark(option, WITHDRAWN.ar.count(1)), "ar", true);
+    });
+
+    // T3 W4 (design M1.7 D6 "on tap … closes on a tap elsewhere"; decision D17 "its tooltip opens on hover and tap"): on a
+    // phone, a tap on the chip inside the prescription's protocol option shows its tooltip and does not add the protocol;
+    // a tap elsewhere on the option still adds it
+    test("on a 375 px phone a tap on the «معطّل من الإدارة: 1» chip shows its tooltip and does not add the protocol @CAT-167", async () => {
+        setViewportWidth(375);
+        server.use(...protocolsHandlers([threeLines()]));
+        const onSelect = vi.fn();
+        const {user} = await renderWithProviders(<ProtocolPicker onSelect={onSelect}/>, {lang: "ar"});
+        const option = await cardOf("Post cataract");
+        const chip = withdrawnMark(option, WITHDRAWN.ar.count(1));
+        await user.pointer([{keys: "[TouchA]", target: chip}]);
+        await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent(WITHDRAWN.ar.tooltip));
+        expect(onSelect).not.toHaveBeenCalled();
+
+        await user.pointer([{keys: "[TouchA]", target: within(option).getByText("Post cataract", {exact: true})}]);
+        await waitFor(() => expect(onSelect).toHaveBeenCalledTimes(1));
     });
 
     test("in English: \"Drugs: 3\" and \"Disabled by admin: 1\" with the English tooltip @CAT-157", async () => {
