@@ -7,8 +7,10 @@ using Npgsql;
 namespace ClinicHub.IntegrationTests.Harness.Databases;
 
 /// <summary>
-/// The databases of one test process (design D3): one template <c>drags_it_&lt;run&gt;_tpl</c>, migrated and seeded once
-/// by booting the app on it, and one copy per collection (<see cref="CreateCopyAsync"/>). The run id comes from
+/// The databases of one test process (design D3, M1.7 D12): one template <c>drags_it_&lt;run&gt;_tpl</c>, migrated and
+/// seeded once by booting the app on it, copied then to the bare template <c>drags_it_&lt;run&gt;_tpl_bare</c> (no
+/// catalog: the migration collection), then loaded with the shared catalog (<see cref="CatalogLoader"/>) and its
+/// <see cref="Baseline"/> recorded; and one copy per collection (<see cref="CreateCopyAsync"/>). The run id comes from
 /// <c>CLINICHUB_TEST_RUN</c> (set by <c>test.ps1</c>), else a generated one, so parallel worktrees never clash.
 /// <para>
 /// Liveness: the process holds a session advisory lock named after its run id (on the <c>postgres</c> database) for its
@@ -54,10 +56,7 @@ public static class TestRun
     /// </summary>
     public static string BareTemplateName => $"{DatabaseGuard.Prefix}{Id}_tpl_bare";
 
-    /// <summary>
-    /// The loaded template's baseline, recorded once per run after the load (design M1.7 D12). M1.7b contract stub
-    /// (track <c>harness</c>): set by <c>StartAsync</c>.
-    /// </summary>
+    /// <summary>The loaded template's baseline, recorded once per run right after the load (design M1.7 D12).</summary>
     public static CatalogBaseline Baseline { get; private set; }
 
     /// <summary>What the run did with databases (created, dropped, stale ones found): for the self-tests and debugging.</summary>
@@ -127,6 +126,7 @@ public static class TestRun
             Warn($"stale database cleanup skipped: {e.Message}");
         }
 
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         await CreateDatabaseAsync(TemplateName, template: null);
         // Booting the app migrates the database and runs the startup seeder (template clinic, test super admin),
         // exactly as on a real start
@@ -136,7 +136,21 @@ public static class TestRun
         }
         // A template must have no open connection when it is copied
         NpgsqlConnection.ClearPool(new NpgsqlConnection(templateConnection));
-        Log.Enqueue($"template {TemplateName} ready");
+        Log.Enqueue($"template {TemplateName} migrated and seeded ({watch.ElapsedMilliseconds} ms)");
+
+        // Design M1.7 D12: the bare template (no catalog, for the migration collection) is taken before the load
+        watch.Restart();
+        await CreateDatabaseAsync(BareTemplateName, TemplateName);
+        Log.Enqueue($"bare template {BareTemplateName} copied ({watch.ElapsedMilliseconds} ms)");
+
+        watch.Restart();
+        await CatalogLoader.LoadAsync(templateConnection);
+        Log.Enqueue($"catalog loaded into {TemplateName} ({watch.ElapsedMilliseconds} ms)");
+
+        watch.Restart();
+        Baseline = await CatalogBaseline.ReadAsync(templateConnection);
+        NpgsqlConnection.ClearPool(new NpgsqlConnection(templateConnection));
+        Log.Enqueue($"baseline {Baseline} ({watch.ElapsedMilliseconds} ms)");
     }
 
     /// <summary>
@@ -190,18 +204,32 @@ public static class TestRun
 
     /// <summary>
     /// A new copy of the template for one collection: <c>drags_it_&lt;run&gt;_&lt;n&gt;</c>, of the loaded template, or of
-    /// the bare one when <paramref name="bare"/> (the migration collection). M1.7b: <paramref name="bare"/> is a contract
-    /// stub (track <c>harness</c>: <c>StartAsync</c> creates <see cref="BareTemplateName"/>, loads the catalog into
-    /// <see cref="TemplateName"/> and records <see cref="Baseline"/>).
+    /// the bare one when <paramref name="bare"/> (the migration collection).
     /// </summary>
     public static async Task<string> CreateCopyAsync(bool bare = false)
     {
-        if (bare)
-            throw new NotImplementedException($"M1.7b contract stub: track harness ({BareTemplateName}, {Baseline})");
         await EnsureStartedAsync();
         var name = $"{DatabaseGuard.Prefix}{Id}_{Interlocked.Increment(ref copies)}";
-        await CreateDatabaseAsync(name, TemplateName);
+        await CreateDatabaseAsync(name, bare ? BareTemplateName : TemplateName);
         return name;
+    }
+
+    /// <summary>
+    /// Drops one of the run's copies and creates it again, same name, from its template (design M1.7 D12: after a
+    /// baseline violation, so the next classes of the collection run on a clean catalog). The collection's app keeps
+    /// running: its pooled connections are cleared first.
+    /// </summary>
+    public static async Task RecreateCopyAsync(string database, bool bare = false)
+    {
+        DatabaseGuard.EnsureName(database);
+        await EnsureStartedAsync();
+        NpgsqlConnection.ClearPool(new NpgsqlConnection(ConnectionString(database)));
+        await using (var connection = new NpgsqlConnection(AdminConnectionString))
+        {
+            await connection.OpenAsync();
+            await DropAsync(connection, database);
+        }
+        await CreateDatabaseAsync(database, bare ? BareTemplateName : TemplateName);
     }
 
     /// <summary>Drops one database of this run (a collection's copy, at its end).</summary>

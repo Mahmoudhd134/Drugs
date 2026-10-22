@@ -12,6 +12,9 @@ using ClinicHub.Application.Features.Catalog.Drugs.Commands.DeleteDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
 using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Platform.SharedDrugs;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.RestoreSharedDrug;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.UpdateSharedDrug;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.WithdrawSharedDrug;
 using ClinicHub.Application.Features.Platform.Clinics;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.ActivateClinic;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.DeleteClinic;
@@ -120,11 +123,19 @@ public sealed class TestData(AppFixture app)
 
     /// <summary>
     /// An imported shared drug looked up by its exact name (e.g. "ALEMOX 1 GM 12 F.C.TABS."); fails unless exactly one
-    /// shared drug has it. Read only: never change it (the baseline check fails the run).
-    /// M1.7b contract stub (track <c>harness</c>).
+    /// shared drug has it. Read only: never change it (the baseline check fails the run). Read from the database (no
+    /// clinic needed), mapped as the clinic API maps it (<see cref="DrugMappings.ToDto"/>).
     /// </summary>
-    public Task<DrugDto> Shared(string exactName) =>
-        throw new NotImplementedException($"M1.7b contract stub: track harness ({exactName})");
+    public async Task<DrugDto> Shared(string exactName)
+    {
+        var found = await app.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().AsNoTracking().WithCategories()
+            .Where(d => d.ClinicId == null && d.Name == exactName)
+            .ToListAsync());
+        if (found.Count != 1)
+            throw new InvalidOperationException(
+                $"Data.Shared(\"{exactName}\"): {found.Count} shared drugs have this exact name (expected one imported drug).");
+        return found[0].ToDto();
+    }
 
     /// <summary>A test-owned shared drug (create, rename, withdraw, restore it freely).</summary>
     public SharedDrugBuilder SharedDrug() => new(app);
@@ -137,16 +148,17 @@ public sealed class TestData(AppFixture app)
 
     /// <summary>
     /// Admin actions on a test-owned shared drug (<c>UpdateSharedDrugCommand</c>, <c>WithdrawSharedDrugCommand</c>,
-    /// <c>RestoreSharedDrugCommand</c>). M1.7b contract stubs (track <c>harness</c>).
+    /// <c>RestoreSharedDrugCommand</c>), as the super admin (no clinic). Never on an imported drug.
     /// </summary>
-    public Task<AdminDrugDto> UpdateSharedDrugAsync(int drugId, string name,
+    public async Task<AdminDrugDto> UpdateSharedDrugAsync(int drugId, string name,
         string activeIngredients = null, string description = null, int categoryId = CategoryIds.Eye,
         int? subCategoryId = SubCategoryIds.Glaucoma) =>
-        throw new NotImplementedException($"M1.7b contract stub: track harness ({drugId}, {name}, {activeIngredients}, {description}, {categoryId}, {subCategoryId})");
+        (await app.SendAsync(new UpdateSharedDrugCommand(drugId, name, activeIngredients, description, categoryId, subCategoryId)))
+            .ShouldSucceed();
 
-    public Task WithdrawSharedDrugAsync(int drugId) =>
-        throw new NotImplementedException($"M1.7b contract stub: track harness ({drugId})");
+    public async Task WithdrawSharedDrugAsync(int drugId) =>
+        (await app.SendAsync(new WithdrawSharedDrugCommand(drugId))).ShouldSucceed();
 
-    public Task RestoreSharedDrugAsync(int drugId) =>
-        throw new NotImplementedException($"M1.7b contract stub: track harness ({drugId})");
+    public async Task RestoreSharedDrugAsync(int drugId) =>
+        (await app.SendAsync(new RestoreSharedDrugCommand(drugId))).ShouldSucceed();
 }

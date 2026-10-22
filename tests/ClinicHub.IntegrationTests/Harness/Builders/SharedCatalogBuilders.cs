@@ -1,6 +1,12 @@
 using System.Runtime.CompilerServices;
 using ClinicHub.Application.Features.Catalog.Categories;
+using ClinicHub.Application.Features.Platform.DrugCategories.Commands.CreateCategory;
+using ClinicHub.Application.Features.Platform.DrugCategories.Commands.CreateSubCategory;
 using ClinicHub.Application.Features.Platform.SharedDrugs;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.CreateSharedDrug;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.WithdrawSharedDrug;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Queries.GetSharedDrug;
+using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 
 namespace ClinicHub.IntegrationTests.Harness.Builders;
@@ -9,7 +15,6 @@ namespace ClinicHub.IntegrationTests.Harness.Builders;
 /// <c>CreateSharedDrugCommand</c> as the super admin (no clinic; the handler opens <c>UseSharedCatalog()</c>): a
 /// test-owned shared drug (design M1.7 D12: tests that write the shared catalog use their own rows, never imported
 /// ones). Default: a unique name, no ingredients, no description, «العيون › المياه الزرقاء», active.
-/// M1.7b contract stub (track <c>harness</c>).
 /// </summary>
 public sealed class SharedDrugBuilder(AppFixture app)
 {
@@ -35,16 +40,21 @@ public sealed class SharedDrugBuilder(AppFixture app)
     /// <summary>Withdrawn right after it is created (<c>WithdrawSharedDrugCommand</c>).</summary>
     public SharedDrugBuilder Withdrawn() { withdrawn = true; return this; }
 
-    public Task<AdminDrugDto> CreateAsync() =>
-        throw new NotImplementedException(
-            $"M1.7b contract stub: track harness ({app.GetType().Name}, {name}, {activeIngredients}, {description}, {categoryId}, {subCategoryId}, {withdrawn})");
+    public async Task<AdminDrugDto> CreateAsync()
+    {
+        var drug = (await app.SendAsync(new CreateSharedDrugCommand(name, activeIngredients, description, categoryId, subCategoryId)))
+            .ShouldSucceed();
+        if (!withdrawn)
+            return drug;
+        (await app.SendAsync(new WithdrawSharedDrugCommand(drug.Id))).ShouldSucceed();
+        return (await app.SendAsync(new GetSharedDrugQuery(drug.Id))).ShouldSucceed();
+    }
 
     public TaskAwaiter<AdminDrugDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }
 
 /// <summary>
 /// <c>CreateCategoryCommand</c> as the super admin: a test-owned category (default: unique English and Arabic names).
-/// M1.7b contract stub (track <c>harness</c>).
 /// </summary>
 public sealed class CategoryBuilder(AppFixture app)
 {
@@ -53,8 +63,8 @@ public sealed class CategoryBuilder(AppFixture app)
 
     public CategoryBuilder Named(string english, string arabic) { nameEn = english; nameAr = arabic; return this; }
 
-    public Task<CategoryDto> CreateAsync() =>
-        throw new NotImplementedException($"M1.7b contract stub: track harness ({app.GetType().Name}, {nameEn}, {nameAr})");
+    public async Task<CategoryDto> CreateAsync() =>
+        (await app.SendAsync(new CreateCategoryCommand(nameEn, nameAr))).ShouldSucceed();
 
     public TaskAwaiter<CategoryDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }
@@ -62,7 +72,6 @@ public sealed class CategoryBuilder(AppFixture app)
 /// <summary>
 /// <c>CreateSubCategoryCommand</c> as the super admin: a test-owned subcategory of <paramref name="categoryId"/> (an
 /// imported category may hold it: creating a subcategory never touches the category row, D5).
-/// M1.7b contract stub (track <c>harness</c>).
 /// </summary>
 public sealed class SubCategoryBuilder(AppFixture app, int categoryId)
 {
@@ -71,9 +80,8 @@ public sealed class SubCategoryBuilder(AppFixture app, int categoryId)
 
     public SubCategoryBuilder Named(string english, string arabic) { nameEn = english; nameAr = arabic; return this; }
 
-    public Task<SubCategoryDto> CreateAsync() =>
-        throw new NotImplementedException(
-            $"M1.7b contract stub: track harness ({app.GetType().Name}, {categoryId}, {nameEn}, {nameAr})");
+    public async Task<SubCategoryDto> CreateAsync() =>
+        (await app.SendAsync(new CreateSubCategoryCommand(categoryId, nameEn, nameAr))).ShouldSucceed();
 
     public TaskAwaiter<SubCategoryDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }
