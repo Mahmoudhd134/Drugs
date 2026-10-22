@@ -1,6 +1,6 @@
 import {expect, type Locator, type Page, type Response} from "@playwright/test";
 import type {ApiSession} from "./api.ts";
-import type {ApiDrug, Paged} from "./shared.ts";
+import type {ApiDrug, CategoryRow, Paged} from "./shared.ts";
 import type {Lang} from "./texts.ts";
 import type {TreeTexts} from "./texts-rx.ts";
 
@@ -18,6 +18,30 @@ export type TreeAnswer = { categories: TreeCategory[] };
 export type TreeSource = "all" | "shared" | "own";
 
 const TREE_PATH = "/api/v1/drugs/tree";
+
+/** Drugs per page of a subcategory (contract § 2.2 `TREE_PAGE_SIZE`). */
+export const TREE_PAGE_SIZE = 30;
+
+/** `GET /drug-categories` as the clinic's API answers it (ids of the categories and subcategories, by English name). */
+export const drugCategories = (api: ApiSession) => api.ok<CategoryRow[]>("GET", "/api/v1/drug-categories");
+
+/** The category (and optionally its subcategory) with these English names in `GET /drug-categories`. */
+export const categoryIds = async (api: ApiSession, categoryEn: string, subCategoryEn?: string) => {
+    const category = (await drugCategories(api)).find(c => c.nameEn === categoryEn);
+    if (!category) throw new Error(`No category "${categoryEn}" (load_catalog.py not run?)`);
+    const sub = subCategoryEn === undefined ? null : category.subCategories.find(s => s.nameEn === subCategoryEn);
+    if (subCategoryEn !== undefined && !sub) throw new Error(`"${categoryEn}" has no subcategory "${subCategoryEn}"`);
+    return {category, categoryId: category.id, subCategoryId: sub?.id ?? null};
+};
+
+/** Is this a `GET /drugs` page request of the bucket (categoryId, subCategoryId id or "none")? Its page number, else null. */
+export const bucketPage = (url: string, categoryId: number, subCategoryId: number | null) => {
+    const parsed = new URL(url);
+    if (parsed.pathname !== "/api/v1/drugs") return null;
+    const params = parsed.searchParams;
+    if (params.get("categoryId") !== String(categoryId) || params.get("subCategoryId") !== String(subCategoryId ?? "none")) return null;
+    return Number(params.get("page") ?? "1");
+};
 
 /** `GET /drugs/tree?search=&source=` as the clinic's API answers it (source "all" left out, as the SPA sends it). */
 export const treeOf = (api: ApiSession, search = "", source: TreeSource = "all") => {
@@ -264,37 +288,66 @@ export class DrugTreeUi {
         await expect(this.loading.filter({visible: true}), "the tree finished loading").toHaveCount(0, {timeout: 20_000});
     }
 
-    /** The rows the tree shows for an answer: its categories' names and counts (any order), or the empty-state message. */
-    async expectShows(answer: TreeAnswer, source: TreeSource = "all") {
+    /** The source the toggle shows. */
+    async shownSource(): Promise<TreeSource> {
+        for (const source of ["all", "shared", "own"] as const) {
+            if (await this.sourceButton(source).getAttribute("aria-pressed") === "true") return source;
+        }
+        throw new Error("no source pressed in the tree's toggle");
+    }
+
+    /** "ok" when the tree shows this answer (its categories' names and counts, any order, or the empty-state message). */
+    private async showing(answer: TreeAnswer, source: TreeSource): Promise<string> {
+        const shown = (await this.labels(this.rows(1))).sort();
         if (!answer.categories.length) {
             const search = (await this.searchBox.inputValue()).trim();
-            await expect(this.scope.getByText(source === "own" && !search ? this.tt.noOwnDrugs : this.tt.noResults, {exact: true})).toBeVisible();
-            await expect(this.rows(1)).toHaveCount(0);
-            return;
+            const message = source === "own" && !search ? this.tt.noOwnDrugs : this.tt.noResults;
+            const visible = await this.scope.getByText(message, {exact: true}).isVisible();
+            return !shown.length && visible ? "ok" : `expected «${message}», shown ${JSON.stringify(shown)}`;
         }
         const expected = answer.categories.map(c => this.tt.node(categoryName(c, this.tt.lang), c.count)).sort();
-        await expect.poll(async () => (await this.labels(this.rows(1))).sort(), {message: "the tree shows the answer's categories"}).toEqual(expected);
+        return JSON.stringify(shown) === JSON.stringify(expected) ? "ok" : `expected ${JSON.stringify(expected)}, shown ${JSON.stringify(shown)}`;
+    }
+
+    /** The tree shows this answer (e.g. the API's for the same search and source). */
+    async expectShows(answer: TreeAnswer, source?: TreeSource) {
+        const shownSource = source ?? await this.shownSource();
+        await expect.poll(() => this.showing(answer, shownSource), {message: "the tree shows the answer's categories"}).toBe("ok");
+    }
+
+    /** Waits until the tree shows the page's latest answer for (search, source); returns it. */
+    private async expectLatest(search: string, source: TreeSource): Promise<TreeAnswer | null> {
+        const key = treeKey(search, source);
+        let latest: TreeAnswer | null = null;
+        await expect.poll(async () => {
+            latest = await (this.answers.get(key) ?? Promise.resolve(null));
+            return latest ? this.showing(latest, source) : `no answer yet for "${search}" (${source})`;
+        }, {message: "the tree shows its answer", timeout: 20_000}).toBe("ok");
+        return latest;
     }
 
     /**
-     * Types a term in the tree's search and waits until the tree shows its answer (debounced; trimmed). Returns the tree
-     * the page received for it (null when the term was the search already and its answer came before this helper).
+     * Types a term in the tree's search and waits until the tree shows its answer (debounced; trimmed; for the source the
+     * toggle shows). Returns the tree the page received for it (null when the term was the search already and its
+     * answer came before any tree helper of the page).
      */
-    async search(term: string, source: TreeSource = "all"): Promise<TreeAnswer | null> {
+    async search(term: string): Promise<TreeAnswer | null> {
         const trimmed = term.trim();
+        const source = await this.shownSource();
         const key = treeKey(trimmed, source);
         if ((await this.searchBox.inputValue()).trim() !== trimmed) {
             const answered = this.nextAnswer(key);
             await this.searchBox.fill(term);
             await answered;
+        } else if (!this.answers.has(key)) {
+            await this.settle();
+            return null;
         }
         await this.settle();
-        const answer = await (this.answers.get(key) ?? Promise.resolve(null));
-        if (answer) await this.expectShows(answer, source);
-        return answer;
+        return this.expectLatest(trimmed, source);
     }
 
-    /** Sets the source toggle and waits for its tree. */
+    /** Sets the source toggle and waits until the tree shows its answer. */
     async setSource(source: TreeSource) {
         const search = (await this.searchBox.inputValue()).trim();
         const answered = this.nextAnswer(treeKey(search, source));
@@ -302,9 +355,7 @@ export class DrugTreeUi {
         await expect(this.sourceButton(source)).toHaveAttribute("aria-pressed", "true");
         await answered;
         await this.settle();
-        const answer = await (this.answers.get(treeKey(search, source)) ?? Promise.resolve(null));
-        if (answer) await this.expectShows(answer, source);
-        return answer;
+        return this.expectLatest(search, source);
     }
 
     /** Looks a drug up through the API like the page (its own token): its category and subcategory names. */

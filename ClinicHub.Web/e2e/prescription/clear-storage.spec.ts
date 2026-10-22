@@ -130,6 +130,9 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
         await settled(page);
         await rx.expectLines([[a.name, dropDailySentence(4, 1, "right")]]);
         await rx.openDrugsTab();
+        // Gone from the tree: its name finds nothing
+        await rx.tree.search(a.name);
+        await expect(rx.catalog.getByText(rt.tree.noResults, {exact: true})).toBeVisible();
         await expect(rx.option(a.name)).toHaveCount(0);
         await markClipboard(page);
         await page.getByRole("button", {name: rt.quickCopy, exact: true}).click();
@@ -137,7 +140,7 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
         expect((await readClipboard(page)).text).toBe(`${a.name}\n${dropDailySentence(4, 1, "right")}`);
     });
 
-    test("a protocol and a drug changed elsewhere while the page is open: the pickers add the old version until reloaded, not on focus @RX-102",
+    test("a protocol and a drug changed elsewhere while the page is open: the protocol picker and the drug tree add the old version until they load again (a reload), not on focus @RX-102",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -149,22 +152,27 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
             await signIn(page, clinic.owner.phone);
             const rx = new RxPage(page, rt);
             await expect(rx.option(protocol.name)).toBeVisible();
+            // The tree shows B's row (its subcategory loaded) before the change
+            await rx.openDrugsTab();
+            await rx.tree.show(b.name);
+            await rx.openProtocolsTab();
 
             // Another window changes them: the protocol's line, the drug's default
             const newProtocolName = rxName("Renamed");
             await rxUpdateProtocol(data, clinic, protocol, [{drug: a, dosing: {frequency: "daily", frequencyValue: 6}}], newProtocolName);
             await rxUpdateDrug(data, clinic, b, {dosing: dropDaily(5, 1)});
-            // The pickers' data is now stale (older than 30 s): a picker that reloaded on focus would load the new versions
+            // The lists' data is now stale (older than 30 s): a list that reloaded on focus would load the new versions
             await page.clock.fastForward("00:31");
-            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|protocols)$/);
+            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|drugs\/tree|protocols)$/);
             await focusBack(page);
             await page.waitForTimeout(1000);
             expect(reloads, "no reload on focus").toHaveLength(0);
 
             await rx.addProtocol(protocol.name);
             await rx.expectLines([[a.name, dropDailySentence(3, 1, "right")]]);
+            // The tree kept its search and its open subcategory: B's row as loaded before, its old default
             await rx.openDrugsTab();
-            await rx.addDrug(b.name);
+            await rx.tree.select(b.name);
             await rx.expectLines([[a.name, dropDailySentence(3, 1, "right")], [b.name, dropDailySentence(2, 1)]]);
 
             await page.getByRole("button", {name: rt.clearAll}).click();
