@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14: 1,208 now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -30,7 +30,7 @@ case and its source disagree, the source wins and the case is fixed.
 - Fixtures: integration tests run in the `Testing` environment with the intended OTP limits (5 attempts, 60 s, 5 per
   hour) and a frozen test clock ([D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout)); test data is built
   through the real use cases. Example names below: clinics A, B, C; drugs "Tobradex", "Vigamox", "Pred Forte" and
-  «قطرة مرطبة»; groups "Post cataract" (G).
+  «قطرة مرطبة»; protocols "Post cataract" (P).
 - Dosing sentences are the exact output of `dosingToText` (`rxTextAr.ts`). Arabic plural classes: one = 1, two = 2,
   few = n % 100 in 3–10, many = n % 100 in 11–99, other = everything else (100, 101, 102, fractions).
 
@@ -55,7 +55,7 @@ case and its source disagree, the source wins and the case is fixed.
 Product decisions not settled by the docs or the code are asked to the user and marked in the cases they touch
 (`(Qn)`); once answered, the docs, the code (if needed) and the cases are updated and the marker removed. None is open:
 M1.6.1's Q1–Q6 were answered on 2026-10-15 (kept: Undo after «مسح الكل» restores the cleared list, stale pickers until
-they reload, landlines accepted as phones, «، » between group names; changed: a dosing with only an eye shows the
+they reload, landlines accepted as phones, «، » between protocol names; changed: a dosing with only an eye shows the
 description (RX-010), Arabic-normalized search (DRUG-088 to DRUG-102, GRP-096, ADM-287 to ADM-291)).
 
 ## Summary
@@ -66,17 +66,18 @@ Cases per area and priority, and per level (a case with two levels counts once i
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | [AUTH](#auth--login-otp-sessions-contexts) | 60 | 86 | 57 | 203 | 5 | 116 | 55 | 48 | 1 |
 | [ISO](#iso--clinic-isolation) | 20 | 17 | 6 | 43 | 0 | 39 | 1 | 4 | 0 |
-| [ACC](#acc--permissions-and-access) | 33 | 26 | 24 | 83 | 5 | 55 | 13 | 10 | 1 |
+| [ACC](#acc--permissions-and-access) | 35 | 29 | 24 | 88 | 5 | 59 | 14 | 10 | 1 |
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 142 | 92 | 292 | 3 | 165 | 79 | 48 | 0 |
 | [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 24 | 15 | 0 |
-| [GRP](#grp--drug-groups) | 32 | 43 | 24 | 99 | 0 | 34 | 41 | 24 | 0 |
+| [GRP](#grp--protocols) | 33 | 47 | 26 | 106 | 2 | 36 | 43 | 26 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 24 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 17 | 21 | 2 |
-| **All** | **353** | **519** | **322** | **1194** | **194** | **532** | **298** | **235** | **7** |
+| [CAT](#cat--shared-catalog-and-categories) | 1 | 1 | 0 | 2 | 0 | 2 | 0 | 0 | 0 |
+| **All** | **357** | **527** | **324** | **1208** | **196** | **540** | **301** | **237** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -230,7 +231,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-116 | Given memberships in a suspended clinic, a deleted clinic and as deactivated staff, when `GET /auth/contexts`, then none of them is listed | P0 | api | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
 | AUTH-117 | Given no token, when `GET /auth/contexts`, then 401 | P1 | api | [auth tech § API](../features/auth/tech.md#api) |
 | AUTH-118 | Given the picker, then the platform admin is first, then the clinics and the template in the API's order, and the current one is marked «الحالي» | P1 | ui+e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
-| AUTH-119 | Given the picker, then the template shows as «العيادة النموذجية» with «الأدوية والمجموعات الافتراضية للعيادات الجديدة» and the platform as «إدارة المنصة» with «العيادات وإعدادات المنصة كلها» | P2 | ui | [auth § المستخدمون](../features/auth/business.md#المستخدمون) |
+| AUTH-119 | Given the picker, then the template shows as «العيادة النموذجية» with «الأدوية والبروتوكولات الافتراضية للعيادات الجديدة» and the platform as «إدارة المنصة» with «العيادات وإعدادات المنصة كلها» | P2 | ui | [auth § المستخدمون](../features/auth/business.md#المستخدمون) |
 | AUTH-120 | Given the picker, then its title is «اختر العيادة» and subtitle «اختر المكان الذي تريد العمل فيه الآن.» | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-121 | Given the picker, when a clinic is picked, then `POST /auth/context` is sent and that clinic's `/` opens with its name in the app bar | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
 | AUTH-122 | Given a super admin on the picker, when «إدارة المنصة» is picked, then `/admin` opens | P1 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
@@ -294,7 +295,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-165 | Given a refresh answers 409, then the SPA retries it once | P2 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-166 | Given an auth call stalls, then it times out after 15 s and later auth calls still run | P2 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-167 | Given a deployment over HTTPS (not localhost), when a logged-in user reloads, then they stay logged in; over plain http they must log in again | P1 | manual | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
-| AUTH-168 | Given an anonymous user, when any app route (`/`, `/drugs`, `/groups/1`, `/admin`, `/select-clinic`) opens, then `/login` | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
+| AUTH-168 | Given an anonymous user, when any app route (`/`, `/drugs`, `/protocols/1`, `/admin`, `/select-clinic`) opens, then `/login` | P0 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
 | AUTH-169 | Given an anonymous user opened `/drugs`, when the login lands in a clinic, then `/drugs` opens (with its query string; the home `/` never opens in between) | P1 | ui+e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-170 | Given an anonymous user opened `/drugs`, when the login lands on the picker (several contexts), or opened `/admin…`, then the remembered page is not reopened (the context's home instead) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-171 | Given a clinic context, when `/admin` (or `/admin/clinics/new`, `/admin/clinics/{id}`) opens, then `/` and no admin page or admin request shows; given the platform context, when `/drugs` opens, then `/admin`; given no context, when `/` opens, then `/select-clinic` | P0 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
@@ -317,7 +318,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-178 | Given the account menu, then it shows the staff name and phone, «تبديل العيادة» only when there are several contexts, and «تسجيل الخروج» | P1 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-179 | Given a clinic page with state (e.g. a search typed), when the context switches, then the page re-mounts (state reset) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-180 | Given a super admin in the template clinic, then the banner «أنت تعدّل العيادة النموذجية. التغييرات تُنسخ إلى العيادات التي تُنشأ لاحقًا، وليس إلى العيادات الحالية.» (en "You are editing the template clinic. Changes are copied to clinics created later, not to existing ones.") shows with «العودة إلى إدارة المنصة», which switches to the platform and opens `/admin` | P1 | e2e | [auth § الرسائل](../features/auth/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| AUTH-181 | Given a super admin in the template clinic, when they add and edit a drug and a group, then it works as in any clinic | P1 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
+| AUTH-181 | Given a super admin in the template clinic, when they add and edit a drug and a protocol, then it works as in any clinic | P1 | e2e | [auth § السيناريوهات](../features/auth/business.md#سيناريوهات-الاستخدام) |
 
 ### Losing the context mid-session
 
@@ -346,7 +347,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 | AUTH-197 | Given two tabs in clinic A, when tab 1 switches to B, then tab 2's next refresh moves it to B (context is per session) and it never shows A's data under B's name | P1 | e2e | [auth tech § Edge cases](../features/auth/tech.md#edge-cases--limitations) |
 | AUTH-198 | Given two tabs refreshing at the same moment (localhost, Web Locks), then neither is logged out and both keep working | P2 | e2e | [auth tech § Edge cases](../features/auth/tech.md#edge-cases--limitations) |
 | AUTH-199 | Given tab 1 left on the picker by user U1, when tab 2 logs out and logs in as user U2 and tab 1 then picks a clinic, then tab 1 shows «سجّل مستخدم آخر الدخول من تبويب آخر، وهذا التبويب يستخدم حسابه الآن.» (en "Another user signed in from another tab. This tab now uses that account."), opens U2's home (U2's clinic, `/admin` or the picker), sends the switch only once and shows no error toast | P1 | e2e | [auth § الرسائل](../features/auth/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| AUTH-200 | Given the same stale tab, when «العودة إلى إدارة المنصة» or «تعديل الأدوية والمجموعات الافتراضية» is used, then the same toast and U2's home: the button itself neither opens `/admin` / `/drugs` nor shows an error | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| AUTH-200 | Given the same stale tab, when «العودة إلى إدارة المنصة» or «تعديل العيادة النموذجية» is used, then the same toast and U2's home: the button itself neither opens `/admin` / `/drugs` nor shows an error | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-201 | Given another user signed in from another tab, then tab 1 never shows U1's data or `/me` (name, permissions) once it follows U2 (the query cache is cleared on a change of user) | P1 | ui+e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-202 | Given tab 2 logged out and back in as the **same** user, when tab 1 picks a clinic, then the switch is retried after the refresh and succeeds (no other-user toast) | P2 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | AUTH-203 | Given `switchSessionContext` gets 401 and the refresh returns a token of another `sub`, then it rejects with `OtherUserSignedInError`, calls the other-user handler once and doesn't post the switch again | P2 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
@@ -355,7 +356,7 @@ Sources: [auth business](../features/auth/business.md), [auth tech](../features/
 
 Sources: [clinic-scoping business](../features/clinic-scoping/business.md), [clinic-scoping tech](../features/clinic-scoping/tech.md),
 [tech overview § Conventions](../tech/overview.md#conventions), [auth business § القواعد](../features/auth/business.md#القواعد-التشغيلية).
-Setup for the API cases: clinics A and B, each with its own drugs and groups; the caller is staff of A with every
+Setup for the API cases: clinics A and B, each with its own drugs and protocols; the caller is staff of A with every
 permission (Owner) unless stated.
 
 ### Catalog routes across clinics (API)
@@ -366,20 +367,20 @@ permission (Owner) unless stated.
 | ISO-002 | Given a drug name that exists only in B, when A searches for it, then no results | P0 | api | [clinic-scoping § السيناريوهات](../features/clinic-scoping/business.md#سيناريوهات-الاستخدام) |
 | ISO-003 | Given B's drug id, when A calls `GET /drugs/{id}`, then 404 `notFound` | P0 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
 | ISO-004 | Given B's drug id, when A calls `PUT /drugs/{id}` with a valid body, then 404 `notFound` and B's drug is unchanged | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-005 | Given B's drug id, when A calls `DELETE /drugs/{id}`, then 404 and B's drug and B's group lines using it are intact | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-006 | Given B's drug id, when A calls `GET /drugs/{id}/groups`, then 200 `[]` | P1 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-007 | Given an A token, when `GET /drug-groups`, then only A's groups, and their items name only A's drugs | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-008 | Given B's group id, when A calls `GET /drug-groups/{id}`, then 404 `notFound` | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-009 | Given B's group id, when A calls `PUT /drug-groups/{id}` with A's drugs, then 404 and B's group is unchanged | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-010 | Given B's group id, when A calls `PUT /drug-groups/{id}` with a B drug in `items`, then 400 `drugNotFound` (checked before the 404) and nothing changes | P2 | api | [drug-groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| ISO-011 | Given B's group id, when A calls `DELETE /drug-groups/{id}`, then 404 and B's group is intact | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
-| ISO-012 | Given A creates a group whose `items` hold a B drug id, then 400 `drugNotFound` and no group is created | P0 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
-| ISO-013 | Given A's own group, when A saves it with a B drug added, then 400 `drugNotFound` and the group is unchanged | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-005 | Given B's drug id, when A calls `DELETE /drugs/{id}`, then 404 and B's drug and B's protocol lines using it are intact | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-006 | Given B's drug id, when A calls `GET /drugs/{id}/protocols`, then 200 `[]` | P1 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-007 | Given an A token, when `GET /protocols`, then only A's protocols, and their items name only A's drugs | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-008 | Given B's protocol id, when A calls `GET /protocols/{id}`, then 404 `notFound` | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-009 | Given B's protocol id, when A calls `PUT /protocols/{id}` with A's drugs, then 404 and B's protocol is unchanged | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-010 | Given B's protocol id, when A calls `PUT /protocols/{id}` with a B drug in `items`, then 400 `drugNotFound` (checked before the 404) and nothing changes | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| ISO-011 | Given B's protocol id, when A calls `DELETE /protocols/{id}`, then 404 and B's protocol is intact | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-012 | Given A creates a protocol whose `items` hold a B drug id, then 400 `drugNotFound` and no protocol is created | P0 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
+| ISO-013 | Given A's own protocol, when A saves it with a B drug added, then 400 `drugNotFound` and the protocol is unchanged | P0 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
 | ISO-014 | Given a B drug id and an id that never existed, when A asks for each, then both answers are identical (404 `notFound`, same shape): another clinic's row is indistinguishable from a missing one | P1 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
 | ISO-015 | Given A creates a drug, then it is stored with A's `ClinicId` and B can't see it | P0 | api | [clinic-scoping § السيناريوهات](../features/clinic-scoping/business.md#سيناريوهات-الاستخدام) |
-| ISO-016 | Given A creates a group, then the group and each of its lines are stored with A's `ClinicId` | P1 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
-| ISO-017 | Given the template's drug and group ids, when A asks for them (GET/PUT/DELETE), then 404, and A's list doesn't contain the template rows (A's copies have their own ids) | P0 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
-| ISO-018 | Given A has a group, when A calls `GET /drugs/{id}/groups` for one of its drugs, then only A's group names are listed | P2 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
+| ISO-016 | Given A creates a protocol, then the protocol and each of its lines are stored with A's `ClinicId` | P1 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
+| ISO-017 | Given the template's drug and protocol ids, when A asks for them (GET/PUT/DELETE), then 404, and A's list doesn't contain the template rows (A's copies have their own ids) | P0 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
+| ISO-018 | Given A has a protocol, when A calls `GET /drugs/{id}/protocols` for one of its drugs, then only A's protocol names are listed | P2 | api | [clinic-scoping tech § API](../features/clinic-scoping/tech.md#api) |
 
 ### The clinic comes from the token only
 
@@ -396,8 +397,8 @@ permission (Owner) unless stated.
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ISO-025 | Given the super admin in the template, when they list drugs and groups, then only the template's rows | P1 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
-| ISO-026 | Given clinic A created from the template, when the super admin edits or deletes a template drug or group, then A's copy is unchanged | P0 | api | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
+| ISO-025 | Given the super admin in the template, when they list drugs and protocols, then only the template's rows | P1 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
+| ISO-026 | Given clinic A created from the template, when the super admin edits or deletes a template drug or protocol, then A's copy is unchanged | P0 | api | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
 | ISO-027 | Given clinic A created from the template, when A edits or deletes its copy, then the template is unchanged | P0 | api | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
 | ISO-028 | Given the template was edited, when a new clinic is created afterwards, then it gets the edited version | P1 | api | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
 | ISO-029 | Given staff of any clinic, then the template never appears in their contexts, picker or lists | P0 | api+e2e | [clinic-scoping § القواعد](../features/clinic-scoping/business.md#القواعد-التشغيلية) |
@@ -409,8 +410,8 @@ permission (Owner) unless stated.
 | ISO-030 | Given no clinic in the request context, when clinic-owned rows are queried, then none are returned (the filter fails closed) | P1 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
 | ISO-031 | Given no clinic in the request context, when a clinic-owned row is saved, then `InvalidOperationException` and nothing is written | P1 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
 | ISO-032 | Given clinic A in context, when a row with `ClinicId = B` is added, or a row loaded from B (ignoring the filter) is modified or deleted, then the save throws | P1 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
-| ISO-033 | Given raw SQL, when a group item links A's group to B's drug, then the insert fails on `FK_DrugGroupItems_Drugs_DrugId_ClinicId` | P1 | api | [clinic-scoping tech § Data model](../features/clinic-scoping/tech.md#data-model) |
-| ISO-034 | Given raw SQL, when a group item with A's `ClinicId` points to B's group, then the insert fails on `FK_DrugGroupItems_DrugGroups_DrugGroupId_ClinicId` | P1 | api | [clinic-scoping tech § Data model](../features/clinic-scoping/tech.md#data-model) |
+| ISO-033 | Given raw SQL, when a protocol item links A's protocol to B's drug, then the insert fails on `FK_ProtocolItems_Drugs_DrugId_ClinicId` | P1 | api | [clinic-scoping tech § Data model](../features/clinic-scoping/tech.md#data-model) |
+| ISO-034 | Given raw SQL, when a protocol item with A's `ClinicId` points to B's protocol, then the insert fails on `FK_ProtocolItems_Protocols_ProtocolId_ClinicId` | P1 | api | [clinic-scoping tech § Data model](../features/clinic-scoping/tech.md#data-model) |
 | ISO-035 | Given raw SQL, when a staff role links A's staff to B's role, then the insert fails (composite FK `(RoleId, ClinicId)` → `Roles`) | P1 | api | [access tech § Data model](../features/access/tech.md#data-model) |
 | ISO-036 | Given a template already exists, when a second clinic with `IsTemplate = true` is inserted, then the partial unique index rejects it | P2 | api | [clinic-scoping tech § Data model](../features/clinic-scoping/tech.md#data-model) |
 
@@ -418,18 +419,18 @@ permission (Owner) unless stated.
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ISO-037 | Given a new drug, group or line, then `CreatedAt = UpdatedAt` = now (UTC) | P2 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
+| ISO-037 | Given a new drug, protocol or line, then `CreatedAt = UpdatedAt` = now (UTC) | P2 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
 | ISO-038 | Given a drug edit, then only `UpdatedAt` moves (`CreatedAt` kept), also for a dosing-only change | P2 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
-| ISO-039 | Given a group save that changes only its lines, then the group's `UpdatedAt` moves | P2 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
+| ISO-039 | Given a protocol save that changes only its lines, then the protocol's `UpdatedAt` moves | P2 | api | [clinic-scoping tech § Backend](../features/clinic-scoping/tech.md#backend) |
 
 ### In the browser
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ISO-040 | Given a user on A's drugs page, when they switch to B, then only B's drugs and groups show, with no moment of A's data (cache cleared, in-flight queries cancelled) | P0 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
+| ISO-040 | Given a user on A's drugs page, when they switch to B, then only B's drugs and protocols show, with no moment of A's data (cache cleared, in-flight queries cancelled) | P0 | e2e | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | ISO-041 | Given a slow A query in flight, when the context switches to B, then its answer never renders in B | P1 | ui | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | ISO-042 | Given a prescription line added in A, when the user switches to B, then B's prescription is its own (empty at first); back in A, the line is still there (`prescription.lines.<clinicId>`) | P0 | e2e | [auth § القواعد](../features/auth/business.md#القواعد-التشغيلية) |
-| ISO-043 | Given A's user opens the URL of B's group (`/groups/{B id}`), then «هذا العنصر لم يعد موجودًا.» (en "This item no longer exists.") | P1 | e2e | [clinic-scoping § الرسائل](../features/clinic-scoping/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| ISO-043 | Given A's user opens the URL of B's protocol (`/protocols/{B id}`), then «هذا العنصر لم يعد موجودًا.» (en "This item no longer exists.") | P1 | e2e | [clinic-scoping § الرسائل](../features/clinic-scoping/business.md#الرسائل-التي-تظهر-للمستخدم) |
 
 ## ACC — Permissions and access
 
@@ -440,11 +441,11 @@ Sources: [access business](../features/access/business.md), [access tech](../fea
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ACC-001 | Given a clinic token, when `GET /permissions`, then 200 with 11 entries `{ key, module, resource, action, requires[] }` in order `drugs.list, drugs.details, drugs.create, drugs.update, drugs.delete, groups.list, groups.details, groups.create, groups.update, groups.delete, prescriptions.create` | P1 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-002 | Given `GET /permissions`, then `module` is `catalog` for the 10 drug/group keys and `prescription` for `prescriptions.create` | P2 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-003 | Given `GET /permissions`, then `requires` holds the direct requirements only (not transitive), as in the business table: `drugs.details`, `drugs.create` → `drugs.list`; `drugs.update`, `drugs.delete` → `drugs.details`; `groups.details`, `groups.delete` → `groups.list`; `groups.create` → `groups.list` + `drugs.list`; `groups.update` → `groups.details` + `drugs.list`; `prescriptions.create` → `drugs.list` | P1 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-001 | Given a clinic token, when `GET /permissions`, then 200 with 11 entries `{ key, module, resource, action, requires[] }` in order `drugs.list, drugs.details, drugs.create, drugs.update, drugs.delete, protocols.list, protocols.details, protocols.create, protocols.update, protocols.delete, prescriptions.create` | P1 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-002 | Given `GET /permissions`, then `module` is `catalog` for the 10 drug/protocol keys and `prescription` for `prescriptions.create` | P2 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-003 | Given `GET /permissions`, then `requires` holds the direct requirements only (not transitive), as in the business table: `drugs.details`, `drugs.create` → `drugs.list`; `drugs.update`, `drugs.delete` → `drugs.details`; `protocols.details`, `protocols.delete` → `protocols.list`; `protocols.create` → `protocols.list` + `drugs.list`; `protocols.update` → `protocols.details` + `drugs.list`; `prescriptions.create` → `drugs.list` | P1 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-004 | Given a platform or no-context token, when `GET /permissions`, then 200; without a token, 401 | P1 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-005 | Given a permission set `{drugs.update}`, when expanded (`PermissionSet.Of`), then it holds `drugs.update`, `drugs.details`, `drugs.list` (transitive); `{groups.update}` → + `groups.details`, `groups.list`, `drugs.list` | P1 | unit | [access tech § Backend](../features/access/tech.md#backend) |
+| ACC-005 | Given a permission set `{drugs.update}`, when expanded (`PermissionSet.Of`), then it holds `drugs.update`, `drugs.details`, `drugs.list` (transitive); `{protocols.update}` → + `protocols.details`, `protocols.list`, `drugs.list` | P1 | unit | [access tech § Backend](../features/access/tech.md#backend) |
 | ACC-006 | Given `PermissionSet`, then `Has`, `HasAll`, `HasAny`, `IsAll` and `ToList()` (catalog order) answer correctly, incl. the Owner's "all" (a role set holding every key is not `IsAll`; `HasAll()` of no key is true, `HasAny()` of no key false) | P2 | unit | [access tech § Backend](../features/access/tech.md#backend) |
 | ACC-007 | Given a bad declaration (key not `resource.action`, duplicate key, unknown requirement, resource class without a module, key prefix ≠ class), when the catalog is built, then it throws (the app refuses to start) | P2 | unit | [access tech § Backend](../features/access/tech.md#backend) |
 | ACC-008 | Given the SPA's `permissions.ts`, then it holds exactly the backend's 11 keys | P1 | unit | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
@@ -455,9 +456,9 @@ Sources: [access business](../features/access/business.md), [access tech](../fea
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | ACC-010 | Given an Owner, when `GET /me`, then all 11 keys and the context's `roles` = `["Owner"]`; every catalog call succeeds | P0 | api | [access § المستخدمون](../features/access/business.md#المستخدمون) |
-| ACC-011 | Given a Doctor, when they delete a drug and a group, then 204 each; `/me` lists 11 keys | P0 | api | [access § الأدوار الافتراضية](../features/access/business.md#الأدوار-الافتراضية-في-كل-عيادة) |
-| ACC-012 | Given an Assistant, when `DELETE /drugs/{id}` or `DELETE /drug-groups/{id}`, then 403 `forbidden` and the row still exists; create and update succeed | P0 | api | [access § الأدوار الافتراضية](../features/access/business.md#الأدوار-الافتراضية-في-كل-عيادة) |
-| ACC-013 | Given a read-only role (`drugs.list`, `drugs.details`, `groups.list`, `groups.details`), when it calls the GETs, then 200; every POST/PUT/DELETE on drugs and groups → 403 `forbidden`; `/me` = 4 keys | P1 | api | [access tech § Dev seed](../features/access/tech.md#dev-seed) |
+| ACC-011 | Given a Doctor, when they delete a drug and a protocol, then 204 each; `/me` lists 11 keys | P0 | api | [access § الأدوار الافتراضية](../features/access/business.md#الأدوار-الافتراضية-في-كل-عيادة) |
+| ACC-012 | Given an Assistant, when `DELETE /drugs/{id}` or `DELETE /protocols/{id}`, then 403 `forbidden` and the row still exists; create and update succeed | P0 | api | [access § الأدوار الافتراضية](../features/access/business.md#الأدوار-الافتراضية-في-كل-عيادة) |
+| ACC-013 | Given a read-only role (`drugs.list`, `drugs.details`, `protocols.list`, `protocols.details`), when it calls the GETs, then 200; every POST/PUT/DELETE on drugs and protocols → 403 `forbidden`; `/me` = 4 keys | P1 | api | [access tech § Dev seed](../features/access/tech.md#dev-seed) |
 | ACC-014 | Given the super admin in the template, when `GET /me`, then 11 keys and `staff: null`; creating and deleting a drug succeed | P0 | api | [access § المستخدمون](../features/access/business.md#المستخدمون) |
 | ACC-015 | Given a super admin who is also staff of a regular clinic with only the Assistant role, when they work in that clinic, then they have the Assistant's 9 keys (not all) | P1 | api | [access tech § Backend](../features/access/tech.md#backend) |
 | ACC-016 | Given a staff member with two roles, then `/me` and the API allow the union of both roles' permissions | P0 | api | [access § المستخدمون](../features/access/business.md#المستخدمون) |
@@ -476,15 +477,15 @@ requirements → 403 `forbidden`.
 |---|---|---|---|---|
 | ACC-022 | `GET /drugs` needs `drugs.list` | P0 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-023 | `GET /drugs/{id}` needs `drugs.details` | P0 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-024 | `GET /drugs/{id}/groups` needs `drugs.details` | P0 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-024 | `GET /drugs/{id}/protocols` needs `drugs.details` | P0 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-025 | `POST /drugs` needs `drugs.create` (without it: 403 and no drug created) | P0 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-026 | `PUT /drugs/{id}` needs `drugs.update` (without it: 403 and the drug unchanged) | P0 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-027 | `DELETE /drugs/{id}` needs `drugs.delete` (without it: 403 and the drug kept) | P0 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-028 | `GET /drug-groups` needs `groups.list` | P0 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-029 | `GET /drug-groups/{id}` needs `groups.details` | P0 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-030 | `POST /drug-groups` needs `groups.create` (without it: 403, nothing created) | P0 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-031 | `PUT /drug-groups/{id}` needs `groups.update` (without it: 403, unchanged) | P0 | api | [access tech § API](../features/access/tech.md#api) |
-| ACC-032 | `DELETE /drug-groups/{id}` needs `groups.delete` (without it: 403, kept) | P0 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-028 | `GET /protocols` needs `protocols.list` | P0 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-029 | `GET /protocols/{id}` needs `protocols.details` | P0 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-030 | `POST /protocols` needs `protocols.create` (without it: 403, nothing created) | P0 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-031 | `PUT /protocols/{id}` needs `protocols.update` (without it: 403, unchanged) | P0 | api | [access tech § API](../features/access/tech.md#api) |
+| ACC-032 | `DELETE /protocols/{id}` needs `protocols.delete` (without it: 403, kept) | P0 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-033 | Given a forbidden request with an invalid body (e.g. Assistant `DELETE`, Viewer `POST /drugs` with an empty name), then 403 `forbidden` (permission checked before model binding and validation, so even a body that is not JSON gets 403) | P2 | api | [access tech § Backend](../features/access/tech.md#backend) |
 
 ### Clinic access checks and 403 codes
@@ -524,19 +525,19 @@ requirements → 403 `forbidden`.
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ACC-057 | Given Owner, Doctor or Assistant, then the sidebar shows Prescription, Groups and Drugs; given the read-only role, only Groups and Drugs | P0 | e2e | [access § السيناريوهات](../features/access/business.md#سيناريوهات-الاستخدام) |
-| ACC-058 | Given a role without `prescriptions.create`, when `/` opens, then the first allowed page opens (read-only role → `/groups`) | P0 | e2e | [access § السيناريوهات](../features/access/business.md#سيناريوهات-الاستخدام) |
+| ACC-057 | Given Owner, Doctor or Assistant, then the sidebar shows Prescription, Protocols and Drugs; given the read-only role, only Protocols and Drugs | P0 | e2e | [access § السيناريوهات](../features/access/business.md#سيناريوهات-الاستخدام) |
+| ACC-058 | Given a role without `prescriptions.create`, when `/` opens, then the first allowed page opens (read-only role → `/protocols`) | P0 | e2e | [access § السيناريوهات](../features/access/business.md#سيناريوهات-الاستخدام) |
 | ACC-059 | Given a role that can open no page, when `/` opens, then the no-permission page shows without its home link (no loop) | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
-| ACC-060 | Given a URL the user may not open (read-only role → `/groups/new`), then «لا توجد صلاحية» + «ليست لديك صلاحية لفتح هذه الصفحة. اطلبها من مالك العيادة إن احتجت إليها.» + «الذهاب إلى صفحة البداية» (en "No permission" + "You don't have permission to open this page. Ask the clinic owner if you need it." + "Go to the start page") | P0 | e2e | [access § الرسائل](../features/access/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| ACC-060 | Given a URL the user may not open (read-only role → `/protocols/new`), then «لا توجد صلاحية» + «ليست لديك صلاحية لفتح هذه الصفحة. اطلبها من مالك العيادة إن احتجت إليها.» + «الذهاب إلى صفحة البداية» (en "No permission" + "You don't have permission to open this page. Ask the clinic owner if you need it." + "Go to the start page") | P0 | e2e | [access § الرسائل](../features/access/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | ACC-061 | Given the read-only role on Drugs, then no «إضافة دواء», no Actions column, and a row opens the read-only drug details dialog (also with Enter/Space) | P0 | e2e | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-062 | Given an Assistant on Drugs, then Add and the edit icon show, the delete icon does not, and a row opens the editor | P0 | e2e | [access § السيناريوهات](../features/access/business.md#سيناريوهات-الاستخدام) |
 | ACC-063 | Given a role with `drugs.list` only, then drug rows don't open and aren't focusable, and the Actions column is hidden | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
-| ACC-064 | Given Groups without `groups.create` / `groups.update` / `groups.delete`, then «مجموعة جديدة», the edit link and the delete icon are hidden each, and the actions bar is hidden when neither edit nor delete applies | P1 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
-| ACC-065 | Given Groups without `groups.details`, then a card doesn't open the group | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
-| ACC-066 | Given an Assistant in the group editor, then Delete is shown disabled, and hovering or tapping it shows «ليست لديك صلاحية» (en "You don't have permission") | P1 | ui+e2e | [access § الرسائل](../features/access/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| ACC-067 | Given the group editor, when Save, Cancel or Back is used, then `/groups` opens | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
-| ACC-068 | Given the prescription page, then the Groups tab shows only with `groups.list` and the Drugs tab only with `drugs.list`, and the visible one has the focus | P1 | ui | [access § الصلاحيات](../features/access/business.md#الصلاحيات) |
-| ACC-069 | Given a catalog panel with neither tab allowed (component test), then «ليست لديك صلاحية للبحث في الأدوية أو المجموعات.» | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
+| ACC-064 | Given Protocols without `protocols.create` / `protocols.update` / `protocols.delete`, then «بروتوكول جديد», the edit link and the delete icon are hidden each, and the actions bar is hidden when neither edit nor delete applies | P1 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
+| ACC-065 | Given Protocols without `protocols.details`, then a card doesn't open the protocol | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
+| ACC-066 | Given an Assistant in the protocol editor, then Delete is shown disabled, and hovering or tapping it shows «ليست لديك صلاحية» (en "You don't have permission") | P1 | ui+e2e | [access § الرسائل](../features/access/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| ACC-067 | Given the protocol editor, when Save, Cancel or Back is used, then `/protocols` opens | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
+| ACC-068 | Given the prescription page, then the Protocols tab shows only with `protocols.list` and the Drugs tab only with `drugs.list`, and the visible one has the focus | P1 | ui | [access § الصلاحيات](../features/access/business.md#الصلاحيات) |
+| ACC-069 | Given a catalog panel with neither tab allowed (component test), then «ليست لديك صلاحية للبحث في الأدوية أو البروتوكولات.» | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-070 | Given `PermissionButton` / `PermissionIconButton` / `PermissionMenuItem` / `PermissionFab` / `withPermission` / `<Can>`, then denied → hidden by default, `whenDenied="disable"` → disabled with the tooltip on a wrapping span; `anyOf` / `allOf` rules hold | P1 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-071 | Given `/me` is loading, when a gated route opens, then a spinner until it answers | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
 | ACC-072 | Given `/me` fails (network or 5xx), when a gated route opens, then the load error with «إعادة المحاولة» (showing progress) shows, not the no-permission page; Retry recovers | P1 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
@@ -546,7 +547,7 @@ requirements → 403 `forbidden`.
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ACC-074 | Given an Assistant on the Groups page, when `groups.list` is removed from their role and the next groups request runs, then one toast «غير مسموح لك بهذا الإجراء.» (en "You are not allowed to do this."), `/me` reloads, Groups leaves the sidebar and the no-permission page shows | P0 | e2e | [access § القواعد](../features/access/business.md#القواعد-التشغيلية) |
+| ACC-074 | Given an Assistant on the Protocols page, when `protocols.list` is removed from their role and the next protocols request runs, then one toast «غير مسموح لك بهذا الإجراء.» (en "You are not allowed to do this."), `/me` reloads, Protocols leaves the sidebar and the no-permission page shows | P0 | e2e | [access § القواعد](../features/access/business.md#القواعد-التشغيلية) |
 | ACC-075 | Given an Assistant editing a drug, when `drugs.update` is removed and they save, then «غير مسموح لك بهذا الإجراء.» shows, nothing is saved, `/me` reloads and the edit controls disappear | P1 | e2e | [access § القواعد](../features/access/business.md#القواعد-التشغيلية) |
 | ACC-076 | Given a permission was given or taken while the user was in another program, when the app's tab gets the focus back, then `/me` reloads and the UI updates without any action | P1 | e2e | [access § القواعد](../features/access/business.md#القواعد-التشغيلية) |
 | ACC-077 | Given several queries answer 403 `forbidden` at once, then one toast only (one toast id) | P2 | ui | [access tech § Frontend](../features/access/tech.md#frontend-srcfeaturesaccess) |
@@ -561,6 +562,16 @@ requirements → 403 `forbidden`.
 | ACC-081 | Given a no-context token, when `GET /me`, then `context: null`, `permissions: []` | P2 | api | [access tech § API](../features/access/tech.md#api) |
 | ACC-082 | Given no token, when `GET /me`, then 401 | P1 | api | [auth tech § API](../features/auth/tech.md#api) |
 | ACC-083 | Given a staff member with several roles, then `Context.roles` lists Owner first, then the others by name; in the template, `[]` | P2 | api | [access tech § API](../features/access/tech.md#api) |
+
+### Rename groups → protocols (M1.7a)
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| ACC-084 | Given the permission catalog after M1.7a, then `protocols.list/details/create/update/delete` exist with the same requirements as the old `groups.*`, and no `groups.*` key remains | P0 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| ACC-085 | Given a role holding `groups.update` before the migration, then after it the role holds `protocols.update` (+ its requirements), and on a freshly started app (as after a deploy) its staff keep the same rights at their next request, without logging in again | P0 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| ACC-086 | Given the role editor, then the resource reads «البروتوكولات» / "Protocols" in the module «الأدوية والبروتوكولات» / "Drugs and protocols", and its permissions «عرض قائمة البروتوكولات والبحث فيها», «فتح بروتوكول», «إضافة بروتوكولات», «تعديل البروتوكولات», «حذف البروتوكولات» (en "See the protocol list and search it", "Open a protocol", "Add protocols", "Edit protocols", "Delete protocols") | P1 | ui | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| ACC-088 | Given `RenameGroupsToProtocols`, then only keys **starting** with `groups.` change, the rows of every clinic (deleted ones and the template included) move, and no role ends up with a duplicate key | P1 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| ACC-089 | Given `DefaultRoles` and the dev seed after M1.7a, then no `groups.*` key anywhere, and the Viewer keeps exactly `drugs.list`, `drugs.details`, `protocols.list`, `protocols.details` | P1 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 
 ## ERR — Error contract (ProblemDetails)
 
@@ -603,8 +614,8 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 | ERR-015 | Given `GET /api/v1/unknown`, then 404 `notFound` ProblemDetails (never the SPA's `index.html`) | P0 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-016 | Given a non-GET method on an unknown `/api` route (e.g. `POST /api/v1/unknown`), then 405 `methodNotAllowed` (documented quirk) | P2 | api | [architecture § Carry-over](../design/architecture.md#carry-over-to-m15) |
 | ERR-017 | Given a wrong method on a known route (e.g. `PATCH /api/v1/drugs/1`, `DELETE /api/v1/permissions`), then 405 `methodNotAllowed` ProblemDetails | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
-| ERR-018 | Given an id that is not a whole number in any `{id:int}` route (`/api/v1/drugs/abc`, `/api/v1/drug-groups/abc`, `/api/v1/drugs/abc/groups`, the admin clinic/role/staff routes), then the methods that route has (`GET`, `PUT`, `DELETE` on `/drugs/abc`; `POST` on `/admin/clinics/abc/suspend`) and `GET` always → 404 `notFound`, the other methods (`POST`, `PATCH` on `/drugs/abc`; `PUT` on `/admin/clinics/abc/suspend`) → 405 `methodNotAllowed` ProblemDetails | P2 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
-| ERR-019 | Given a client route (e.g. `/drugs`, `/groups/5`) requested from the server, then 200 `index.html` (deep links and reloads work) | P1 | api+e2e | [tech overview § Runtime](../tech/overview.md#runtime-architecture) |
+| ERR-018 | Given an id that is not a whole number in any `{id:int}` route (`/api/v1/drugs/abc`, `/api/v1/protocols/abc`, `/api/v1/drugs/abc/protocols`, the admin clinic/role/staff routes), then the methods that route has (`GET`, `PUT`, `DELETE` on `/drugs/abc`; `POST` on `/admin/clinics/abc/suspend`) and `GET` always → 404 `notFound`, the other methods (`POST`, `PATCH` on `/drugs/abc`; `PUT` on `/admin/clinics/abc/suspend`) → 405 `methodNotAllowed` ProblemDetails | P2 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
+| ERR-019 | Given a client route (e.g. `/drugs`, `/protocols/5`) requested from the server, then 200 `index.html` (deep links and reloads work) | P1 | api+e2e | [tech overview § Runtime](../tech/overview.md#runtime-architecture) |
 
 ### Unexpected errors
 
@@ -612,7 +623,7 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 |---|---|---|---|---|
 | ERR-020 | Given an unhandled exception outside Development, then 500 `unexpected` ProblemDetails with no exception message or stack | P1 | api | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-021 | Given an unhandled exception in Development, then 500 with `detail` = the message and `exception` = the full text | P2 | api | [architecture § 6](../design/architecture.md#6-errors-problemdetails) |
-| ERR-022 | Given a 500 on an action (e.g. saving a drug or group), then the toast «حدث خطأ ما. حاول مرة أخرى.» (en "Something went wrong. Please try again.") | P1 | ui | [tech overview § Conventions](../tech/overview.md#conventions) |
+| ERR-022 | Given a 500 on an action (e.g. saving a drug or protocol), then the toast «حدث خطأ ما. حاول مرة أخرى.» (en "Something went wrong. Please try again.") | P1 | ui | [tech overview § Conventions](../tech/overview.md#conventions) |
 
 ### Reading errors in the SPA
 
@@ -626,7 +637,7 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 | ERR-028 | Given an error with `clinicNames` ["A", "B"], then `getErrorMessage` uses `errors.<code>_named` with `count` 2 and the names quoted (`common.quotedName`) and joined by `Intl.ListFormat` in the UI language («A» و«B» / “A” and “B”); without `clinicNames`, `errors.<code>` («هذه العيادة موقوفة.» / "This clinic is disabled.", «تم إيقاف حسابك. تواصل مع مالك العيادة.») | P1 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | ERR-029 | Given a ProblemDetails body, then `toApiError` reads `clinicNames` (non-string entries dropped; missing → `[]`) | P2 | unit | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
 | ERR-030 | Given every API error code other than the transport codes and `noContexts`, then `en.ts` and `ar.ts` both have `errors.<code>` | P1 | unit | [tech overview § Conventions](../tech/overview.md#conventions) |
-| ERR-031 | Given the API is unreachable, when an action is done (e.g. saving a drug or group), then the toast «تعذّر الاتصال بالخادم. تحقّق من الاتصال.» (en "Can't reach the server. Check your connection.") and the form keeps the typed data | P1 | ui+e2e | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
+| ERR-031 | Given the API is unreachable, when an action is done (e.g. saving a drug or protocol), then the toast «تعذّر الاتصال بالخادم. تحقّق من الاتصال.» (en "Can't reach the server. Check your connection.") and the form keeps the typed data | P1 | ui+e2e | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 | ERR-032 | Given a query fails with a network error or 5xx, then it is retried once; with a 4xx, it is not retried | P1 | ui | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 
 ## ADM — Platform admin
@@ -637,7 +648,7 @@ Sources: [platform admin business][adm-b-screens] (screens, [rules][adm-b-rules]
 [M1.5 design][adm-d-api] (D1, D4, D5, D7, [errors][adm-d-err]), [access business][adm-a-rules] ([messages][adm-a-msg]),
 [business overview][adm-o-rules].
 
-Fixtures used below: the template (T) with 2 drugs and 1 group whose line 2 overrides the dosing (taper, eye `ask`);
+Fixtures used below: the template (T) with 2 drugs and 1 protocol whose line 2 overrides the dosing (taper, eye `ask`);
 clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a custom read-only role), the super admin (SA).
 "Every admin route" = `GET/POST /admin/clinics`, `GET/PUT/DELETE /admin/clinics/{id}`, `POST …/{id}/suspend|activate`,
 `GET/POST …/{id}/roles`, `PUT/DELETE …/roles/{roleId}`, `GET/POST …/{id}/staff`, `PUT/DELETE …/staff/{staffId}`.
@@ -655,7 +666,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-007 | Given O's token for clinic A, when calling `/admin/clinics/{A}/roles` and `/staff` (own clinic, GET/POST/PUT/DELETE), then 403 `forbidden` (clinics can't manage their own roles/staff) | P0 | api | [business: users][adm-b-users] |
 | ADM-008 | Given a staff token, when calling `/admin/clinics/{unknownId}/roles`, then 403 `forbidden` (the policy runs before the clinic filter; no 404 leaks existence) | P1 | api | [tech roles/staff][adm-t-rs] |
 | ADM-009 | Given SA's platform token, when calling `GET /admin/clinics`, then 200 | P0 | api | [tech API][adm-t-api] |
-| ADM-010 | Given SA in the platform context, then the app bar shows "Platform admin" and the sidebar shows "Clinics" and "Edit default catalog" («العيادات»، «تعديل الأدوية والمجموعات الافتراضية») | P1 | e2e | [business: screens][adm-b-screens] |
+| ADM-010 | Given SA in the platform context, then the app bar shows "Platform admin" and the sidebar shows "Clinics" and "Edit template clinic" («العيادات»، «تعديل العيادة النموذجية») | P1 | e2e | [business: screens][adm-b-screens] |
 | ADM-011 | Given SA in the platform context, when opening `/platform`, then `/admin`; when opening `/admin/anything`, then `/admin` | P2 | ui | [tech frontend][adm-t-fe] |
 
 ### Demoted super admin
@@ -694,7 +705,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | ADM-031 | Given clinics exist, then each row shows the name (a link), the status chip "Active"/"Disabled" («نشطة»/«موقوفة»), active staff and the created date (UI language, Latin digits) | P1 | ui | [business: screens][adm-b-screens] |
-| ADM-032 | Given no clinic at all, then «لا توجد عيادات بعد — أنشئ أول عيادة. يستطيع مالكها الدخول فورًا ويجد فيها الأدوية والمجموعات الافتراضية.» / "No clinics yet" + "Create the first clinic. …" | P1 | ui | [business: messages][adm-b-msg] |
+| ADM-032 | Given no clinic at all, then «لا توجد عيادات بعد — أنشئ أول عيادة. يستطيع مالكها الدخول فورًا ويجد فيها الأدوية والبروتوكولات الافتراضية.» / "No clinics yet" + "Create the first clinic. …" | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-033 | Given a search with no match, then «لا توجد عيادات مطابقة للبحث أو الفلتر.» / "No clinics match your search or filter." | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-034 | Given the list is filtered, then the subtitle counts the filtered rows with plural forms: en "0 clinics", "1 clinic", "28 clinics"; ar «0 عيادة», «عيادة واحدة», «عيادتان», «3 عيادات», «11 عيادة» | P2 | ui | [business: screens][adm-b-screens] |
 | ADM-035 | Given typing "clin" fast in the search, then one request after typing pauses (300 ms) and a progress bar shows while waiting and loading | P2 | ui | [tech frontend][adm-t-fe] |
@@ -727,7 +738,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-056 | Given the owner phone typed in Arabic-Indic digits «٠١٠٠٠٠٠٠٠٥٠» (create clinic) or a new staff phone the same way (add staff), then 201 and the phone is `+201000000050` | P1 | api | [tech API][adm-t-api] |
 | ADM-057 | Given the body has no `owner`, then 400 `invalidRequest` field `owner` | P1 | api | [tech API][adm-t-api] |
 | ADM-058 | Given blank name + phone `123` + blank owner name, then 400 with all three errors in order `name`, `owner.phone`, `owner.fullName`, and `code` = `nameRequired` | P2 | api | [tech API][adm-t-api] |
-| ADM-059 | Given any validation failure, then no clinic, user, role, staff, drug or group row is added | P0 | api | [business: rules][adm-b-rules] |
+| ADM-059 | Given any validation failure, then no clinic, user, role, staff, drug or protocol row is added | P0 | api | [business: rules][adm-b-rules] |
 | ADM-060 | Given the create form submitted empty, then «الاسم مطلوب.» under the clinic name, «رقم الموبايل مطلوب.» under the phone, «الاسم مطلوب.» under the owner name, the focus on the clinic name, no request sent | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-061 | Given only the clinic name filled, when submitting, then the focus moves to the phone (first invalid input) | P2 | ui | [business: screens][adm-b-screens] |
 | ADM-062 | Given the API answers `invalidPhone` (`owner.phone`), then the message is under the phone and the phone has the focus (once inputs are enabled again) | P1 | ui | [tech frontend][adm-t-fe] |
@@ -741,17 +752,17 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | ADM-066 | Given `{name:"  Smoke clinic  ", owner:{phone:"01000000009", fullName:" Smoke Owner "}}`, then 201, `Location: /api/v1/admin/clinics/{id}`, name `Smoke clinic`, status `active`, `staffCount` 1, owners `[{fullName:"Smoke Owner", phone:"+201000000009"}]` | P0 | api | [tech API][adm-t-api] |
-| ADM-067 | Given a new clinic, then its roles are Owner (`isOwner`, all 11 permissions), Doctor (all 11) and Assistant (9: all but `drugs.delete`, `groups.delete`), with `staffCount` 1/0/0 | P0 | api | [business: scenarios][adm-b-scen] |
+| ADM-067 | Given a new clinic, then its roles are Owner (`isOwner`, all 11 permissions), Doctor (all 11) and Assistant (9: all but `drugs.delete`, `protocols.delete`), with `staffCount` 1/0/0 | P0 | api | [business: scenarios][adm-b-scen] |
 | ADM-068 | Given a new phone, then one new user is created and the owner is an active staff row with only the Owner role | P0 | api | [design D5][adm-d-d5] |
 | ADM-069 | Given a new clinic, when its owner logs in with a correct code, then they enter it directly (only context) with all 11 permissions | P0 | api | [business: screens][adm-b-screens] |
-| ADM-070 | Given T has 2 drugs and 1 group, then the new clinic has 2 drugs with the same names, descriptions and default dosings (incl. taper steps) and 1 group with its items in the same order | P0 | api | [business: scenarios][adm-b-scen] |
-| ADM-071 | Given T's group line 2 overrides the dosing (taper 4→3→2→1, eye `ask`, dose from the drug), then the copied line has the same override | P0 | api | [tech provisioning][adm-t-prov] |
-| ADM-072 | Given the new clinic's copied group, then each item points to the new clinic's own drug copy (not to T's drug ids) and T's rows are unchanged | P0 | api | [tech provisioning][adm-t-prov] |
+| ADM-070 | Given T has 2 drugs and 1 protocol, then the new clinic has 2 drugs with the same names, descriptions and default dosings (incl. taper steps) and 1 protocol with its items in the same order | P0 | api | [business: scenarios][adm-b-scen] |
+| ADM-071 | Given T's protocol line 2 overrides the dosing (taper 4→3→2→1, eye `ask`, dose from the drug), then the copied line has the same override | P0 | api | [tech provisioning][adm-t-prov] |
+| ADM-072 | Given the new clinic's copied protocol, then each item points to the new clinic's own drug copy (not to T's drug ids) and T's rows are unchanged | P0 | api | [tech provisioning][adm-t-prov] |
 | ADM-073 | Given a clinic was created, when a T drug is renamed (template context), then the clinic's copy is unchanged | P0 | api | [business: rules][adm-b-rules] |
-| ADM-074 | Given a clinic was created, when its owner edits or deletes a copied drug or group, then T and every other clinic are unchanged | P0 | api | [business: rules][adm-b-rules] |
+| ADM-074 | Given a clinic was created, when its owner edits or deletes a copied drug or protocol, then T and every other clinic are unchanged | P0 | api | [business: rules][adm-b-rules] |
 | ADM-075 | Given T was edited (a drug added) before a create, then the new clinic gets T as it is at that moment (the added drug included) | P1 | api | [tech provisioning][adm-t-prov] |
-| ADM-076 | Given an empty T, then the create answers 201 with roles and owner, and the clinic has no drugs and no groups | P2 | api | [tech provisioning][adm-t-prov] |
-| ADM-077 | Given any seeder fails (roles, owner or catalog copy; e.g. the catalog copy's insert fails), then 500 and nothing is left: no clinic, no new user, no roles, staff, drugs or groups | P0 | api | [business: rules][adm-b-rules] |
+| ADM-076 | Given an empty T, then the create answers 201 with roles and owner, and the clinic has no drugs and no protocols | P2 | api | [tech provisioning][adm-t-prov] |
+| ADM-077 | Given any seeder fails (roles, owner or catalog copy; e.g. the catalog copy's insert fails), then 500 and nothing is left: no clinic, no new user, no roles, staff, drugs or protocols | P0 | api | [business: rules][adm-b-rules] |
 | ADM-078 | Given the phone of S (staff of clinic A as "Dev Assistant"), when creating clinic N with owner name "Sara", then 201, no new user row, the owner is S's user; S's name in A stays "Dev Assistant" | P0 | api | [business: rules][adm-b-rules] |
 | ADM-079 | Given S became owner of N while logged in to A, when S's session refreshes or they open "Switch clinic", then N is listed and S enters it as Owner | P1 | api+e2e | [business: scenarios][adm-b-scen] |
 | ADM-080 | Given SA's own phone as the new owner, then 201, SA becomes Owner staff there and still has the platform context | P2 | api | [tech edge cases][adm-t-edge] |
@@ -762,8 +773,8 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-085 | Given a valid create form, when double-clicking "Create clinic" («إنشاء العيادة»), then exactly one `POST` is sent and one clinic exists | P0 | e2e | [business: screens][adm-b-screens] |
 | ADM-086 | Given a valid create form, when submitting, then the button shows "Creating…" and the inputs are disabled until the answer | P2 | ui | [tech frontend][adm-t-fe] |
 | ADM-087 | Given a successful create, then the new clinic's page opens with the toast «تم إنشاء «اسم العيادة»» / "Clinic “…” created", and browser Back does not return to the filled form | P1 | e2e | [business: messages][adm-b-msg] |
-| ADM-088 | Given SA creates «عيادة النور» in the Arabic UI with a new owner phone, when that owner logs in, then they land in the clinic and see T's 2 drugs and the group with its 2 lines (design done-when) | P0 | e2e | [design goal][adm-d-goal] |
-| ADM-089 | Given the create page, then the owner hint reads «يدخل المالك برقم الموبايل هذا. إن كان للرقم حساب من قبل يُستخدم نفس الحساب.» and the template note «تبدأ العيادة بالأدوار الافتراضية (المالك، Doctor، Assistant) ونسخة من الأدوية والمجموعات الافتراضية.» (en "The clinic starts with the default roles (Owner, Doctor, Assistant) and a copy of the default drugs and groups.") | P1 | ui | [business: scenarios][adm-b-scen] |
+| ADM-088 | Given SA creates «عيادة النور» in the Arabic UI with a new owner phone, when that owner logs in, then they land in the clinic and see T's 2 drugs and the protocol with its 2 lines (design done-when) | P0 | e2e | [design goal][adm-d-goal] |
+| ADM-089 | Given the create page, then the owner hint reads «يدخل المالك برقم الموبايل هذا. إن كان للرقم حساب من قبل يُستخدم نفس الحساب.» and the template note «تبدأ العيادة بالأدوار الافتراضية (المالك، Doctor، Assistant) ونسخة من الأدوية والبروتوكولات الافتراضية.» (en "The clinic starts with the default roles (Owner, Doctor, Assistant) and a copy of the default drugs and protocols.") | P1 | ui | [business: scenarios][adm-b-scen] |
 
 ### Clinic page and Overview
 
@@ -803,7 +814,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-111 | Given A active, when `POST …/{A}/suspend`, then 204 and A's status is `suspended` in the details and the list (and under `status=suspended`) | P0 | api | [tech API][adm-t-api] |
 | ADM-112 | Given A suspended, when suspend again, then 204 and nothing changes (idempotent) | P1 | api | [business: rules][adm-b-rules] |
 | ADM-113 | Given A suspended, when `activate` twice, then 204, 204 and A is `active` | P1 | api | [business: rules][adm-b-rules] |
-| ADM-114 | Given A suspended then activated, then all its drugs, groups, roles and staff are unchanged (data kept) | P0 | api | [business: rules][adm-b-rules] |
+| ADM-114 | Given A suspended then activated, then all its drugs, protocols, roles and staff are unchanged (data kept) | P0 | api | [business: rules][adm-b-rules] |
 | ADM-115 | Given A suspended, then its roles and staff can still be listed, created, edited and removed (200/201/204) | P1 | api | [business: rules][adm-b-rules] |
 | ADM-116 | Given A suspended, then its `staffCount` and owners in the details stay the same | P2 | api | [tech API][adm-t-api] |
 | ADM-117 | Given A active, when clicking Disable («إيقاف»), then a confirm «إيقاف «A»؟» with «يفقد موظفوها الدخول بمجرد قيامهم بأي إجراء تالٍ، حتى من يعمل داخلها الآن. لا يُحذف شيء، ويمكنك تفعيلها من جديد في أي وقت.» opens with the focus on Cancel | P1 | ui | [business: messages][adm-b-msg] |
@@ -820,7 +831,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-123 | Given A, when `DELETE /admin/clinics/{A}`, then 204, A is gone from the list (every filter and search) and `GET …/{A}` → 404 `notFound` | P0 | api | [business: rules][adm-b-rules] |
 | ADM-124 | Given A deleted, when `DELETE` again, then 404 `notFound` | P1 | api | [business: rules][adm-b-rules] |
 | ADM-125 | Given A deleted, then every other admin route on A (PUT, suspend, activate, roles and staff GET/POST/PUT/DELETE) → 404 `notFound` | P0 | api | [tech API][adm-t-api] |
-| ADM-126 | Given A deleted at a fixed time, then all its rows (drugs, groups, roles, staff) still exist, `DeletedAt` = that time and `Status` is unchanged (a suspended A stays `suspended`) | P0 | api | [design D4][adm-d-d4] |
+| ADM-126 | Given A deleted at a fixed time, then all its rows (drugs, protocols, roles, staff) still exist, `DeletedAt` = that time and `Status` is unchanged (a suspended A stays `suspended`) | P0 | api | [design D4][adm-d-d4] |
 | ADM-127 | Given A deleted, then A leaves `/auth/contexts` of its staff, and `POST /auth/context` into A → 403 `noAccess` (also when A was suspended: never `clinicSuspended`) | P0 | api | [business: rules][adm-b-rules] |
 | ADM-128 | Given O is owner of A and B, when A is deleted, then O's user and B are untouched and O still works in B | P0 | api | [business: rules][adm-b-rules] |
 | ADM-129 | Given the Delete button, then the dialog shows «حذف هذه العيادة؟», the explanation, «للتأكيد، اكتب اسم العيادة:» with the name once in bold without quotes, and under the input «اكتب الاسم تمامًا كما يظهر» | P1 | ui | [business: messages][adm-b-msg] |
@@ -841,7 +852,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-139 | Given T's id, when calling its roles and staff routes (GET/POST/PUT/DELETE), then 404 `notFound` | P0 | api | [business: rules][adm-b-rules] |
 | ADM-140 | Given an unknown, deleted or template clinic id with a malformed JSON body on `POST …/roles`, then 404 `notFound` (not 400: the clinic is checked first) | P2 | api | [tech roles/staff][adm-t-rs] |
 | ADM-141 | Given `/admin/clinics/{T}` in the browser, then "Clinic not found" | P1 | e2e | [business: screens][adm-b-screens] |
-| ADM-142 | Given SA on `/admin`, when clicking "Edit default catalog" (also double-click), then one context switch, the template's drugs page opens with the template banner (AUTH-180's text, ar and en) | P1 | e2e | [business: screens][adm-b-screens] |
+| ADM-142 | Given SA on `/admin`, when clicking "Edit template clinic" (also double-click), then one context switch, the template's drugs page opens with the template banner (AUTH-180's text, ar and en) | P1 | e2e | [business: screens][adm-b-screens] |
 
 ### Roles: API
 
@@ -852,8 +863,8 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-145 | Given a role held by 1 active and 2 inactive staff, then its `staffCount` is 3 | P1 | api | [business: roles][adm-b-roles] |
 | ADM-146 | Given a role row with a key no longer in the catalog (set in the database), then the list leaves it out of `permissions` | P2 | api | [tech roles/staff][adm-t-rs] |
 | ADM-147 | Given `{name:"  Editors  ", permissions:["drugs.update"]}`, when `POST …/roles`, then 201, `Location: …/clinics/{A}/roles`, name `Editors`, `permissions` `[drugs.list, drugs.details, drugs.update]` | P0 | api | [business: roles][adm-b-roles] |
-| ADM-148 | Given `["groups.update"]`, then the saved role has `groups.list`, `groups.details`, `groups.update`, `drugs.list` | P1 | api | [business: screens][adm-b-screens] |
-| ADM-149 | Given `["prescriptions.create"]` → `drugs.list` added; `["groups.create"]` → `groups.list` and `drugs.list` added; `["drugs.delete"]` → `drugs.details`, `drugs.list` added | P1 | api | [access: permissions][adm-a-perms] |
+| ADM-148 | Given `["protocols.update"]`, then the saved role has `protocols.list`, `protocols.details`, `protocols.update`, `drugs.list` | P1 | api | [business: screens][adm-b-screens] |
+| ADM-149 | Given `["prescriptions.create"]` → `drugs.list` added; `["protocols.create"]` → `protocols.list` and `drugs.list` added; `["drugs.delete"]` → `drugs.details`, `drugs.list` added | P1 | api | [access: permissions][adm-a-perms] |
 | ADM-150 | Given `permissions: []`, then 201, a role that grants nothing | P1 | api | [business: roles][adm-b-roles] |
 | ADM-151 | Given a staff member holding only a role with no permissions, when they log in, then `/me` permissions `[]` and `GET /drugs` → 403 `forbidden` | P1 | api | [business: roles][adm-b-roles] |
 | ADM-152 | Given the body has no `permissions`, then 400 `invalidRequest` (create and update; a role is never emptied by mistake) | P1 | api | [tech roles/staff][adm-t-rs] |
@@ -866,7 +877,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-159 | Given "Editors" exists, when creating `" Editors"`, `EDITORS` or `"editors "`, then 409 `roleNameTaken` «يوجد دور آخر في هذه العيادة بنفس الاسم.» | P1 | api | [business: roles][adm-b-roles] |
 | ADM-160 | Given the Owner role, when creating `owner` or `OWNER`, then 409 `roleNameTaken` | P1 | api | [business: roles][adm-b-roles] |
 | ADM-161 | Given "Editors" exists in clinic B only, when creating "Editors" in A, then 201 (unique per clinic) | P1 | api | [business: roles][adm-b-roles] |
-| ADM-162 | Given the role Doctor, when `PUT` with name `Doctor Plus` and `["groups.update"]`, then 200 with the new name and exactly the closed set (old keys removed) | P0 | api | [business: scenarios][adm-b-scen] |
+| ADM-162 | Given the role Doctor, when `PUT` with name `Doctor Plus` and `["protocols.update"]`, then 200 with the new name and exactly the closed set (old keys removed) | P0 | api | [business: scenarios][adm-b-scen] |
 | ADM-163 | Given the role Doctor, when renamed to `doctor` (its own name, other case), then 200 | P1 | api | [tech roles/staff][adm-t-rs] |
 | ADM-164 | Given Doctor and Editors, when renaming Doctor to `editors`, then 409 `roleNameTaken` and Doctor unchanged | P1 | api | [business: roles][adm-b-roles] |
 | ADM-165 | Given the Owner role, when `PUT` (any valid body), then 409 `roleLocked`; a `PUT` with a blank name → 400 `nameRequired` first | P0 | api | [business: roles][adm-b-roles] |
@@ -883,18 +894,18 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | ADM-173 | Given the Roles tab, then the Owner role is first, shown «المالك» (en "Owner") with the chip «مقفل» / "Locked", no edit or delete button, and the line «كل الصلاحيات دائمًا. لا يمكن تعديل هذا الدور أو حذفه.» | P1 | ui | [business: roles][adm-b-roles] |
-| ADM-174 | Given Doctor (11), Assistant (9), a 6-key role and an empty role, then the summaries «كل الصلاحيات» / "All permissions", «9 صلاحيات: الأدوية، المجموعات، الروشتة», «6 صلاحيات: الأدوية، المجموعات», «بلا صلاحيات» / "No permissions"; also «صلاحية واحدة: …», «صلاحيتان: …», «11 صلاحية: …» | P1 | ui | [business: screens][adm-b-screens] |
+| ADM-174 | Given Doctor (11), Assistant (9), a 6-key role and an empty role, then the summaries «كل الصلاحيات» / "All permissions", «9 صلاحيات: الأدوية، البروتوكولات، الروشتة», «6 صلاحيات: الأدوية، البروتوكولات», «بلا صلاحيات» / "No permissions"; also «صلاحية واحدة: …», «صلاحيتان: …», «11 صلاحية: …» | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-175 | Given each role, then the staff column shows every holder, active or not | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-176 | Given a role held by 3 staff, then its Delete is disabled (still focusable) and its tooltip «ممنوح لـ 3 موظفين. أزِل هذا الدور من موظفيه أولًا.» / "Held by 3 staff members. Take it away from them first." (on hover, or at once on a phone tap); held by 1 → «ممنوح لموظف واحد. …» | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-177 | Given an unused role, when Delete, then the confirm «حذف الدور «X»؟ لا يمكن التراجع عن ذلك. لا يمكن حذف دور ممنوح لموظفين: أزِل هذا الدور من موظفيه أولًا.» opens with the focus on Cancel | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-178 | Given the delete confirm, when confirming (double click), then one `DELETE`, the toast «تم حذف الدور «X»» and the row is gone | P1 | e2e | [business: messages][adm-b-msg] |
-| ADM-179 | Given "New role", then the dialog shows the name (max 100), the sections «الأدوية والمجموعات» (Drugs, Groups) and «الروشتة», 11 checkboxes with their translated labels, and «المختار: 0 من 11.» | P1 | ui | [business: screens][adm-b-screens] |
-| ADM-180 | Given the picker, when ticking «تعديل المجموعات» / "Edit groups", then «فتح مجموعة», «عرض قائمة المجموعات والبحث فيها», «عرض قائمة الأدوية والبحث فيها» are ticked and locked, each with the ticked permissions that directly require it: «فتح مجموعة» and «عرض قائمة الأدوية والبحث فيها» show «مطلوبة لـ: تعديل المجموعات», «عرض قائمة المجموعات والبحث فيها» shows «مطلوبة لـ: فتح مجموعة»; the count is 4 of 11 | P0 | ui | [business: screens][adm-b-screens], [tech roles/staff screens][adm-t-rsui] |
+| ADM-179 | Given "New role", then the dialog shows the name (max 100), the sections «الأدوية والبروتوكولات» (Drugs, Protocols) and «الروشتة», 11 checkboxes with their translated labels, and «المختار: 0 من 11.» | P1 | ui | [business: screens][adm-b-screens] |
+| ADM-180 | Given the picker, when ticking «تعديل البروتوكولات» / "Edit protocols", then «فتح بروتوكول», «عرض قائمة البروتوكولات والبحث فيها», «عرض قائمة الأدوية والبحث فيها» are ticked and locked, each with the ticked permissions that directly require it: «فتح بروتوكول» and «عرض قائمة الأدوية والبحث فيها» show «مطلوبة لـ: تعديل البروتوكولات», «عرض قائمة البروتوكولات والبحث فيها» shows «مطلوبة لـ: فتح بروتوكول»; the count is 4 of 11 | P0 | ui | [business: screens][adm-b-screens], [tech roles/staff screens][adm-t-rsui] |
 | ADM-181 | Given a locked (required) box, when clicking it or pressing Space on it, then it stays ticked | P1 | ui | [business: screens][adm-b-screens] |
-| ADM-182 | Given «تعديل المجموعات» ticked (its 3 requirements locked), when it is unticked, then the 3 requirements stay ticked: «فتح مجموعة» and «عرض قائمة الأدوية والبحث فيها» unlocked, «عرض قائمة المجموعات والبحث فيها» still locked by «فتح مجموعة» (its direct requirer, still ticked); the count reads 3 of 11 | P1 | ui | [business: screens][adm-b-screens] |
+| ADM-182 | Given «تعديل البروتوكولات» ticked (its 3 requirements locked), when it is unticked, then the 3 requirements stay ticked: «فتح بروتوكول» and «عرض قائمة الأدوية والبحث فيها» unlocked, «عرض قائمة البروتوكولات والبحث فيها» still locked by «فتح بروتوكول» (its direct requirer, still ticked); the count reads 3 of 11 | P1 | ui | [business: screens][adm-b-screens] |
 | ADM-183 | Given "Edit drugs" and "Delete drugs" ticked, then "Open a drug" shows "Needed by: Edit drugs, Delete drugs"; unticking both unlocks it | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
 | ADM-184 | Given the requirement rules, then `withRequirements`/`toggle`/`requiredBy` give the same closure as the server's `WithRequirements` for every catalog key | P1 | unit | [tech roles/staff screens][adm-t-rsui] |
-| ADM-185 | Given a new role named "Editors" with Edit groups, when Save is double-clicked, then one `POST`, the toast «تم إنشاء الدور «Editors»» and the row after Owner in name order | P0 | e2e | [business: messages][adm-b-msg] |
+| ADM-185 | Given a new role named "Editors" with Edit protocols, when Save is double-clicked, then one `POST`, the toast «تم إنشاء الدور «Editors»» and the row after Owner in name order | P0 | e2e | [business: messages][adm-b-msg] |
 | ADM-186 | Given a blank name, when saving, then «الاسم مطلوب.» on the name and no request | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-187 | Given the API answers `roleNameTaken` (e.g. " doctor "), then «يوجد دور آخر في هذه العيادة بنفس الاسم.» on the name input with the focus there | P1 | ui | [business: messages][adm-b-msg] |
 | ADM-188 | Given the API answers `unknownPermission` or `roleLocked`, then a toast with the message and the dialog stays open | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
@@ -1153,7 +1164,7 @@ Sources: [drugs business](../features/drugs/business.md), [drugs tech](../featur
 | DRUG-055 | Given a clinic with no drugs, when the page opens, then the empty state «لا توجد أدوية بعد» / «أضف أول دواء لتبدأ في كتابة الروشتات.» with an «إضافة دواء» button is shown | P1 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-056 | Given a drug with a default dosing and a 4-line description, when listed, then the row shows the name, the Arabic dosing sentence and the description cut to 2 lines | P1 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-057 | Given the drug list request fails, when the page loads, then «تعذّر تحميل البيانات.» with «إعادة المحاولة» is shown, and Retry reloads | P1 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
-| DRUG-058 | Given the drug picker (groups editor or prescription), when scrolling to the end of 30 results, then «تحميل المزيد» loads the next 30, and «النتائج: N» shows the total | P1 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| DRUG-058 | Given the drug picker (protocol editor or prescription), when scrolling to the end of 30 results, then «تحميل المزيد» loads the next 30, and «النتائج: N» shows the total | P1 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-059 | Given the drug picker, then each drug shows its name, default dosing sentence and description, and drugs already chosen show the «مُضاف» chip | P1 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-103 | Given a drug whose default dosing is only «اليمنى» and a description, then the drugs table and the drug picker show «في العين اليمنى» and the description (there the description always shows) | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-060 | Given the drug picker with a search typed, when a drug is selected, then the search box is cleared | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
@@ -1173,166 +1184,178 @@ Sources: [drugs business](../features/drugs/business.md), [drugs tech](../featur
 | DRUG-104 | Given the drug dialog closing (saved, or cancelled with text typed), when it is opened again during the closing animation (e.g. a second Enter on «إضافة دواء», where the focus went back), then it starts from the given drug: empty for a new drug, not the text of the closing form | P2 | ui+e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-069 | Given the drug dialog with only empty dosing fields, when saving, then the request sends `defaultDosing: null` | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-070 | Given the drug dialog while a save is in progress, then Save shows «جارٍ الحفظ…» and Save/Cancel are disabled | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
-| DRUG-071 | Given a drug in two groups, when its name or default dosing is edited, then both groups' editors and pickers show the new name/sentence without a reload (the groups were refreshed) | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
+| DRUG-071 | Given a drug in two protocols, when its name or default dosing is edited, then both protocols' editors and pickers show the new name/sentence without a reload (the protocols were refreshed) | P0 | e2e | [drugs § تعديل دواء](../features/drugs/business.md#تعديل-دواء) |
 | DRUG-072 | Given a user with `drugs.details` but not `drugs.update`, when clicking a row, then «تفاصيل الدواء» opens read-only (name, dosing sentence, description, «إغلاق» only) | P1 | e2e | [drugs § المستخدمون](../features/drugs/business.md#المستخدمون) |
 | DRUG-073 | Given a drug deleted in another window, when this window saves an edit of it, then the toast «هذا العنصر لم يعد موجودًا.» appears (404 `notFound`) | P1 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 
-### Delete with the groups warning
+### Delete with the protocols warning
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| DRUG-074 | Given a drug used in groups "Post cataract" and «التهاب الملتحمة», when GET `/drugs/{id}/groups`, then 200 with both names, distinct, ordered by name | P1 | api | [drugs tech § Backend](../features/drugs/tech.md#backend-clinichubapplicationfeaturescatalogdrugs) |
-| DRUG-075 | Given a drug used twice in one group (right and left eye lines), when GET `/drugs/{id}/groups`, then that group's name appears once | P2 | api | [drugs tech § Backend](../features/drugs/tech.md#backend-clinichubapplicationfeaturescatalogdrugs) |
-| DRUG-076 | Given an unknown drug id, when GET `/drugs/{id}/groups`, then 200 `[]` | P2 | api | [drugs tech § API](../features/drugs/tech.md#api-clinichubapifeaturesdrugsdrugscontrollercs-route-apiv1drugs) |
-| DRUG-077 | Given a drug used in groups, when DELETE `/drugs/{id}`, then 204, the drug is gone and every group line of it is removed (the groups stay) | P0 | api | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
+| DRUG-074 | Given a drug used in protocols "Post cataract" and «التهاب الملتحمة», when GET `/drugs/{id}/protocols`, then 200 with both names, distinct, ordered by name | P1 | api | [drugs tech § Backend](../features/drugs/tech.md#backend-clinichubapplicationfeaturescatalogdrugs) |
+| DRUG-075 | Given a drug used twice in one protocol (right and left eye lines), when GET `/drugs/{id}/protocols`, then that protocol's name appears once | P2 | api | [drugs tech § Backend](../features/drugs/tech.md#backend-clinichubapplicationfeaturescatalogdrugs) |
+| DRUG-076 | Given an unknown drug id, when GET `/drugs/{id}/protocols`, then 200 `[]` | P2 | api | [drugs tech § API](../features/drugs/tech.md#api-clinichubapifeaturesdrugsdrugscontrollercs-route-apiv1drugs) |
+| DRUG-077 | Given a drug used in protocols, when DELETE `/drugs/{id}`, then 204, the drug is gone and every protocol line of it is removed (the protocols stay) | P0 | api | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
 | DRUG-078 | Given an unknown (or already deleted) drug id, when DELETE `/drugs/{id}`, then 404 `notFound` | P1 | api | [drugs tech § API](../features/drugs/tech.md#api-clinichubapifeaturesdrugsdrugscontrollercs-route-apiv1drugs) |
-| DRUG-079 | Given a drug used in two groups, when clicking delete, then the confirmation «حذف الدواء؟» says «سيتم حذف «Tobradex» وإزالته من كل المجموعات. لا يمكن التراجع عن ذلك.» and on the next line «يُستخدم في هذه المجموعات: A، B» | P0 | e2e | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
-| DRUG-080 | Given a drug used in no group, when clicking delete, then the confirmation shows only the first sentence (no groups line) | P1 | ui | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
-| DRUG-081 | Given the English UI and a drug used in two groups, then the groups line reads "It is used in these groups: A، B": the names are joined with the Arabic comma «، » in both languages (by choice) | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
-| DRUG-082 | Given the group-names lookup fails (network/500), when clicking delete, then the confirmation still opens without the groups line | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| DRUG-079 | Given a drug used in two protocols, when clicking delete, then the confirmation «حذف الدواء؟» says «سيتم حذف «Tobradex» وإزالته من كل البروتوكولات. لا يمكن التراجع عن ذلك.» and on the next line «يُستخدم في هذه البروتوكولات: A، B» | P0 | e2e | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
+| DRUG-080 | Given a drug used in no protocol, when clicking delete, then the confirmation shows only the first sentence (no protocols line) | P1 | ui | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
+| DRUG-081 | Given the English UI and a drug used in two protocols, then the protocols line reads "It is used in these protocols: A، B": the names are joined with the Arabic comma «، » in both languages (by choice) | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| DRUG-082 | Given the protocol-names lookup fails (network/500), when clicking delete, then the confirmation still opens without the protocols line | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 | DRUG-083 | Given the delete confirmation, when choosing «إلغاء», then nothing is deleted | P0 | e2e | [drugs § حذف دواء](../features/drugs/business.md#حذف-دواء) |
 | DRUG-084 | Given the delete confirmation, when confirming «حذف», then the toast «تم حذف الدواء» (English "Drug deleted") appears and the row disappears | P0 | e2e | [drugs § الرسائل](../features/drugs/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | DRUG-085 | Given the only row of the last page (page > 1), when it is deleted, then the table steps back one page | P2 | ui | [drugs tech § Edge](../features/drugs/tech.md#edge-cases--limitations) |
-| DRUG-086 | Given a group whose only drug is deleted, then the group's card shows «الأدوية: 0»; when the group is opened, it shows «لا توجد أدوية في هذه المجموعة» and saving it says «أضف دواءً واحدًا على الأقل.» (en "Add at least one drug.") until a drug is added | P1 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
+| DRUG-086 | Given a protocol whose only drug is deleted, then the protocol's card shows «الأدوية: 0»; when the protocol is opened, it shows «لا توجد أدوية في هذا البروتوكول» and saving it says «أضف دواءً واحدًا على الأقل.» (en "Add at least one drug.") until a drug is added | P1 | e2e | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
 | DRUG-087 | Given a drug already deleted in another window, when it is deleted here, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
 
-## GRP — Drug groups
+## GRP — Protocols
 
-Sources: [groups business](../features/drug-groups/business.md), [groups tech](../features/drug-groups/tech.md)
+Sources: [protocols business](../features/protocols/business.md), [protocols tech](../features/protocols/tech.md)
 
 ### Create, update, delete (API)
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-001 | Given 3 drugs, when POST `/drug-groups` `{name:"Post cataract", items:[{drugId:A,dosing:null},{drugId:B,dosing:{frequency:"daily",frequencyValue:6}},{drugId:C,dosing:null}]}`, then 201 + `Location`, items in that order with each `drug` (incl. `defaultDosing`) and `dosing` | P0 | api | [groups tech § API](../features/drug-groups/tech.md#api-clinichubapifeaturesdruggroupsdruggroupscontrollercs-route-apiv1drug-groups) |
-| GRP-002 | Given a group, when GET `/drug-groups/{id}`, then its items come back in the saved order | P0 | api | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-003 | Given a group of A, B, C, when PUT with items C, A (new order, B removed, new override on A) and a new name, then 200 and GET returns exactly C, A with the new override and name (all lines replaced) | P0 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-004 | Given a group, when DELETE `/drug-groups/{id}`, then 204, the group is gone and its drugs still exist | P0 | api | [groups § تعديل أو حذف](../features/drug-groups/business.md#تعديل-أو-حذف-مجموعة) |
-| GRP-005 | Given an unknown group id, when GET, PUT (valid body) or DELETE, then 404 `notFound` | P1 | api | [groups tech § API](../features/drug-groups/tech.md#api-clinichubapifeaturesdruggroupsdruggroupscontrollercs-route-apiv1drug-groups) |
-| GRP-006 | Given an override with fields that don't apply, when saved, then the stored override is normalized; an empty override `{}` is stored as `null` | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-007 | Given items with `null` entries between valid ones, when POST, then the nulls are dropped and the order of the others is kept | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-008 | Given name "  Post cataract  ", when saved, then the stored name is trimmed | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-009 | Given groups "Zeta", «التهاب», "alpha" and another "alpha", when GET `/drug-groups`, then they are ordered by name then id (the default `en_US.utf8` collation: case-insensitive first, Latin before Arabic: "alpha", a second "alpha" (higher id), "Zeta", «التهاب»), each with its items | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups), [tech overview § Known limitations](../tech/overview.md#known-limitations--tech-debt) |
-| GRP-010 | Given groups, when GET `/drug-groups?search=cat` (or Arabic part of a name), then only names containing it are returned (case-insensitive, Arabic-normalized: GRP-096), paged like drugs (`pageSize` clamped 1–100) | P1 | api | [groups tech § API](../features/drug-groups/tech.md#api-clinichubapifeaturesdruggroupsdruggroupscontrollercs-route-apiv1drug-groups) |
-| GRP-096 | Given «مجموعة إلتهاب», «بعد عملية المياه» and «علاج آلام», when `search=التهاب`, `مجموعه`, `عمليه المياة` and `الام`, then each is found (alef forms, ة ↔ ه in both directions; diacritics and tatweel ignored as for drugs) | P1 | api | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-011 | Given a drug in a group, when the drug's default dosing is changed, then GET of the group returns the new `drug.defaultDosing` and the unchanged override | P0 | api | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
+| GRP-001 | Given 3 drugs, when POST `/protocols` `{name:"Post cataract", items:[{drugId:A,dosing:null},{drugId:B,dosing:{frequency:"daily",frequencyValue:6}},{drugId:C,dosing:null}]}`, then 201 + `Location`, items in that order with each `drug` (incl. `defaultDosing`) and `dosing` | P0 | api | [protocols tech § API](../features/protocols/tech.md#api-clinichubapifeaturesprotocolsprotocolscontrollercs-route-apiv1protocols) |
+| GRP-002 | Given a protocol, when GET `/protocols/{id}`, then its items come back in the saved order | P0 | api | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-003 | Given a protocol of A, B, C, when PUT with items C, A (new order, B removed, new override on A) and a new name, then 200 and GET returns exactly C, A with the new override and name (all lines replaced) | P0 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-004 | Given a protocol, when DELETE `/protocols/{id}`, then 204, the protocol is gone and its drugs still exist | P0 | api | [protocols § تعديل أو حذف](../features/protocols/business.md#تعديل-أو-حذف-بروتوكول) |
+| GRP-005 | Given an unknown protocol id, when GET, PUT (valid body) or DELETE, then 404 `notFound` | P1 | api | [protocols tech § API](../features/protocols/tech.md#api-clinichubapifeaturesprotocolsprotocolscontrollercs-route-apiv1protocols) |
+| GRP-006 | Given an override with fields that don't apply, when saved, then the stored override is normalized; an empty override `{}` is stored as `null` | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-007 | Given items with `null` entries between valid ones, when POST, then the nulls are dropped and the order of the others is kept | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-008 | Given name "  Post cataract  ", when saved, then the stored name is trimmed | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-009 | Given protocols "Zeta", «التهاب», "alpha" and another "alpha", when GET `/protocols`, then they are ordered by name then id (the default `en_US.utf8` collation: case-insensitive first, Latin before Arabic: "alpha", a second "alpha" (higher id), "Zeta", «التهاب»), each with its items | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols), [tech overview § Known limitations](../tech/overview.md#known-limitations--tech-debt) |
+| GRP-010 | Given protocols, when GET `/protocols?search=cat` (or Arabic part of a name), then only names containing it are returned (case-insensitive, Arabic-normalized: GRP-096), paged like drugs (`pageSize` clamped 1–100) | P1 | api | [protocols tech § API](../features/protocols/tech.md#api-clinichubapifeaturesprotocolsprotocolscontrollercs-route-apiv1protocols) |
+| GRP-096 | Given «بروتوكول إلتهاب», «بعد عملية المياه» and «علاج آلام», when `search=التهاب`, `بروتوكول`, `عمليه المياة` and `الام`, then each is found (alef forms, ة ↔ ه in both directions; diacritics and tatweel ignored as for drugs) | P1 | api | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-011 | Given a drug in a protocol, when the drug's default dosing is changed, then GET of the protocol returns the new `drug.defaultDosing` and the unchanged override | P0 | api | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
 
 ### Validation (API)
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-012 | Given an empty name, when POST `/drug-groups`, then 400 `nameRequired` | P0 | api | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-013 | Given a 256-character name, when POST, then 201; with 257 characters, then 400 `nameTooLong` | P1 | api | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-014 | Given a name with a line break or a bidi override, when POST, then 400 `nameInvalid` | P2 | api | [groups tech § API](../features/drug-groups/tech.md#api-clinichubapifeaturesdruggroupsdruggroupscontrollercs-route-apiv1drug-groups) |
-| GRP-015 | Given `items: []`, when POST, then 400 `drugsRequired` (field `items`) | P0 | api | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-016 | Given `items` missing (null) or `[null, null]`, when POST, then 400 `drugsRequired` | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-017 | Given 1000 items (distinct drug+eye), when POST, then 201 | P1 | api | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-018 | Given 1001 items, when POST, then 400 `invalidRequest` (field `items`) and no per-item errors are listed | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-019 | Given the editor saving more than 1000 lines, then the toast «حدث خطأ ما. حاول مرة أخرى.» (the API's `invalidRequest` has no message of its own) | P2 | ui | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-020 | Given item 2 with an invalid override (e.g. `daily` without a number), when POST, then 400 `invalidDosing` with field `items[1].dosing` | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-021 | Given an override with eye `ask`, when POST `/drug-groups`, then 201 and the line keeps `eye:"ask"` | P0 | api | [groups tech § Data model](../features/drug-groups/tech.md#data-model) |
-| GRP-022 | Given the same drug twice with the same override eye "right", when POST, then 400 `duplicateGroupItem` (field `items`) | P0 | api | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-023 | Given duplicate lines and an empty name, when POST, then 400 with only `nameRequired` (`duplicateGroupItem` is checked by the handler, after validation) | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-024 | Given the same drug twice with override eyes "right" and "left", when POST, then 201 with both lines | P0 | api | [groups § نفس الدواء للعينين](../features/drug-groups/business.md#نفس-الدواء-للعينين-بجرعتين-مختلفتين) |
-| GRP-025 | Given the same drug twice, both without override and its default without an eye, when POST, then 400 `duplicateGroupItem` | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-026 | Given the same drug twice, both with eye `ask`, when POST, then 400 `duplicateGroupItem`; with `ask` and "right", then 201 (`ask` is its own value) | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-027 | Given a drug whose default eye is "right", when POST a group with that drug once without override and once with override eye "right", then 400 `duplicateGroupItem` (effective eye) | P0 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-028 | Given a drug without a default eye, when POST it once without override and once with override eye "none", then 400 `duplicateGroupItem` (no eye = "none") | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-029 | Given a group with line A (no override, drug default right) and line B (override left), when the drug's default eye becomes "left" (200) and the group is PUT unchanged (e.g. renamed), then 400 `duplicateGroupItem`; `GET` still shows both lines (effective eye left) | P0 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-030 | Given an unknown drug id in items, when POST (otherwise valid), then 400 `drugNotFound` | P1 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-031 | Given an unknown drug id and an empty name, when POST, then 400 `nameRequired` only (`drugNotFound` is checked after validation) | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-032 | Given an unknown group id and an unknown drug id in a valid body, when PUT, then 400 `drugNotFound` (before the 404); an unknown drug is reported before a duplicate line, and a duplicate before an unknown group's 404 | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-033 | Given an empty name, no items, when POST, then `errors` = [`nameRequired`, `drugsRequired`] in that order | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-034 | Given an API answer `drugNotFound` while saving a group (a drug deleted in another window), then the toast reads «أحد الأدوية لم يعد موجودًا.» (en "One of the drugs no longer exists.") and the editor keeps the changes | P1 | e2e | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
-| GRP-035 | Given an API answer `duplicateGroupItem` (e.g. a stale editor), then the toast «يوجد دواء مكرر في المجموعة لنفس العين.» (en "A drug is in the group twice for the same eye.") | P1 | ui | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-012 | Given an empty name, when POST `/protocols`, then 400 `nameRequired` | P0 | api | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-013 | Given a 256-character name, when POST, then 201; with 257 characters, then 400 `nameTooLong` | P1 | api | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-014 | Given a name with a line break or a bidi override, when POST, then 400 `nameInvalid` | P2 | api | [protocols tech § API](../features/protocols/tech.md#api-clinichubapifeaturesprotocolsprotocolscontrollercs-route-apiv1protocols) |
+| GRP-015 | Given `items: []`, when POST, then 400 `drugsRequired` (field `items`) | P0 | api | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-016 | Given `items` missing (null) or `[null, null]`, when POST, then 400 `drugsRequired` | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-017 | Given 1000 items (distinct drug+eye), when POST, then 201 | P1 | api | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-018 | Given 1001 items, when POST, then 400 `invalidRequest` (field `items`) and no per-item errors are listed | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-019 | Given the editor saving more than 1000 lines, then the toast «حدث خطأ ما. حاول مرة أخرى.» (the API's `invalidRequest` has no message of its own) | P2 | ui | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-020 | Given item 2 with an invalid override (e.g. `daily` without a number), when POST, then 400 `invalidDosing` with field `items[1].dosing` | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-021 | Given an override with eye `ask`, when POST `/protocols`, then 201 and the line keeps `eye:"ask"` | P0 | api | [protocols tech § Data model](../features/protocols/tech.md#data-model) |
+| GRP-022 | Given the same drug twice with the same override eye "right", when POST, then 400 `duplicateProtocolItem` (field `items`) | P0 | api | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-023 | Given duplicate lines and an empty name, when POST, then 400 with only `nameRequired` (`duplicateProtocolItem` is checked by the handler, after validation) | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-024 | Given the same drug twice with override eyes "right" and "left", when POST, then 201 with both lines | P0 | api | [protocols § نفس الدواء للعينين](../features/protocols/business.md#نفس-الدواء-للعينين-بجرعتين-مختلفتين) |
+| GRP-025 | Given the same drug twice, both without override and its default without an eye, when POST, then 400 `duplicateProtocolItem` | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-026 | Given the same drug twice, both with eye `ask`, when POST, then 400 `duplicateProtocolItem`; with `ask` and "right", then 201 (`ask` is its own value) | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-027 | Given a drug whose default eye is "right", when POST a protocol with that drug once without override and once with override eye "right", then 400 `duplicateProtocolItem` (effective eye) | P0 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-028 | Given a drug without a default eye, when POST it once without override and once with override eye "none", then 400 `duplicateProtocolItem` (no eye = "none") | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-029 | Given a protocol with line A (no override, drug default right) and line B (override left), when the drug's default eye becomes "left" (200) and the protocol is PUT unchanged (e.g. renamed), then 400 `duplicateProtocolItem`; `GET` still shows both lines (effective eye left) | P0 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-030 | Given an unknown drug id in items, when POST (otherwise valid), then 400 `drugNotFound` | P1 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-031 | Given an unknown drug id and an empty name, when POST, then 400 `nameRequired` only (`drugNotFound` is checked after validation) | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-032 | Given an unknown protocol id and an unknown drug id in a valid body, when PUT, then 400 `drugNotFound` (before the 404); an unknown drug is reported before a duplicate line, and a duplicate before an unknown protocol's 404 | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-033 | Given an empty name, no items, when POST, then `errors` = [`nameRequired`, `drugsRequired`] in that order | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-034 | Given an API answer `drugNotFound` while saving a protocol (a drug deleted in another window), then the toast reads «أحد الأدوية لم يعد موجودًا.» (en "One of the drugs no longer exists.") and the editor keeps the changes | P1 | e2e | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
+| GRP-035 | Given an API answer `duplicateProtocolItem` (e.g. a stale editor), then the toast «يوجد دواء مكرر في البروتوكول لنفس العين.» (en "A drug is in the protocol twice for the same eye.") | P1 | ui | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
 
 ### List page and picker (UI)
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-036 | Given groups, when opening «المجموعات», then cards show the name, «الأدوية: N» and the first 4 drug names; a group with 6 drugs also shows «+2 أخرى» | P1 | e2e | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-037 | Given more than 12 groups, when opening the list, then 12 cards per page with page buttons | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-038 | Given the list, when searching part of a name, then only matching groups show and the page resets to 1; no match shows «لا توجد مجموعات مطابقة للبحث.» | P1 | e2e | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-039 | Given a clinic without groups, when opening the list, then «لا توجد مجموعات بعد» / «المجموعات تتيح لك إضافة عدة أدوية إلى الروشتة بضغطة واحدة.» with «مجموعة جديدة» | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-040 | Given the list, then the subtitle reads «إجمالي المجموعات: N» | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-041 | Given a group card, when clicking it, then its editor opens at `/groups/{id}` | P0 | e2e | [groups § تعديل أو حذف](../features/drug-groups/business.md#تعديل-أو-حذف-مجموعة) |
-| GRP-042 | Given a group card's delete button, when confirming «حذف المجموعة؟» («سيتم حذف «X». الأدوية نفسها لن تُحذف.»), then «تم حذف المجموعة» and the card disappears; the drugs remain on the drugs page | P0 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-043 | Given the delete confirmation of a group, when choosing «إلغاء», then the group is kept | P1 | e2e | [groups § تعديل أو حذف](../features/drug-groups/business.md#تعديل-أو-حذف-مجموعة) |
-| GRP-044 | Given the prescription's group picker, then each group shows its name, «الأدوية: N» and its drug names joined with " · " | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-045 | Given a clinic without groups, when the prescription's group picker shows no search, then it says «لا توجد مجموعات في هذه العيادة بعد.»; with a search and no match, «لا توجد مجموعات مطابقة للبحث.» | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-097 | Given the prescription's Groups tab (Arabic and English UI, 1280 and 375 px), when typing «عمليه», then «بعد عملية المياه» is listed (the picker uses the same search) | P0 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
+| GRP-036 | Given protocols, when opening «البروتوكولات», then cards show the name, «الأدوية: N» and the first 4 drug names; a protocol with 6 drugs also shows «+2 أخرى» | P1 | e2e | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-037 | Given more than 12 protocols, when opening the list, then 12 cards per page with page buttons | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-038 | Given the list, when searching part of a name, then only matching protocols show and the page resets to 1; no match shows «لا توجد بروتوكولات مطابقة للبحث.» | P1 | e2e | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-039 | Given a clinic without protocols, when opening the list, then «لا توجد بروتوكولات بعد» / «البروتوكولات تتيح لك إضافة عدة أدوية إلى الروشتة بضغطة واحدة.» with «بروتوكول جديد» | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-040 | Given the list, then the subtitle reads «إجمالي البروتوكولات: N» | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-041 | Given a protocol card, when clicking it, then its editor opens at `/protocols/{id}` | P0 | e2e | [protocols § تعديل أو حذف](../features/protocols/business.md#تعديل-أو-حذف-بروتوكول) |
+| GRP-042 | Given a protocol card's delete button, when confirming «حذف البروتوكول؟» («سيتم حذف «X». الأدوية نفسها لن تُحذف.»), then «تم حذف البروتوكول» and the card disappears; the drugs remain on the drugs page | P0 | e2e | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-043 | Given the delete confirmation of a protocol, when choosing «إلغاء», then the protocol is kept | P1 | e2e | [protocols § تعديل أو حذف](../features/protocols/business.md#تعديل-أو-حذف-بروتوكول) |
+| GRP-044 | Given the prescription's protocol picker, then each protocol shows its name, «الأدوية: N» and its drug names joined with " · " | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-045 | Given a clinic without protocols, when the prescription's protocol picker shows no search, then it says «لا توجد بروتوكولات في هذه العيادة بعد.»; with a search and no match, «لا توجد بروتوكولات مطابقة للبحث.» | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-097 | Given the prescription's Protocols tab (Arabic and English UI, 1280 and 375 px), when typing «عمليه», then «بعد عملية المياه» is listed (the picker uses the same search) | P0 | e2e | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
 
 ### Editor (UI)
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-046 | Given «مجموعة جديدة», when typing a name, clicking 3 drugs in «إضافة أدوية» and saving, then «تم إنشاء المجموعة» (English "Group created") and the list shows it with «الأدوية: 3» | P0 | e2e | [groups § إنشاء مجموعة](../features/drug-groups/business.md#إنشاء-مجموعة) |
-| GRP-047 | Given the new-group editor, when it opens, then the title is «مجموعة جديدة», the name field has the focus and «لا توجد أدوية في هذه المجموعة» is shown | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-048 | Given an existing group, when changing it and saving, then «تم تحديث المجموعة» (English "Group updated") and the editor goes back to the list | P0 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-049 | Given the editor with an empty or spaces-only name, when saving, then the name field shows «الاسم مطلوب.» and no request is sent | P0 | ui | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-050 | Given the editor with a name and no drugs, when saving, then the error toast «أضف دواءً واحدًا على الأقل.» appears and no request is sent | P0 | ui | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-051 | Given the drug picker in the editor, when a drug is clicked, then it is appended to «أدوية هذه المجموعة» with no override (its default dosing sentence shown) and the picker marks it «مُضاف» | P0 | ui | [groups § إنشاء مجموعة](../features/drug-groups/business.md#إنشاء-مجموعة) |
-| GRP-052 | Given the picker focused in the editor, when using ↓/↑ and Enter, then the highlighted drug is added | P1 | e2e | [groups § إنشاء مجموعة](../features/drug-groups/business.md#إنشاء-مجموعة) |
-| GRP-053 | Given a drug already in the group for its (effective) eye, when it is clicked again in the picker, then the toast ««Tobradex» موجود بالفعل في هذه المجموعة لنفس العين» appears and no line is added | P0 | ui | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-054 | Given the editor's drug picker, when a drug is double-clicked, then one line is added and no «… موجود بالفعل في هذه المجموعة لنفس العين» toast follows | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
-| GRP-055 | Given a line of drug A overridden to the left eye while A's default eye is right, when A is clicked again in the picker, then a second line (right, no override) is added | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-056 | Given 3 lines, when dragging the third to the top by its handle and saving, then reopening shows the new order | P0 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-057 | Given a line, when clicking ✕, then it is removed from the list (saved only with Save) | P1 | ui | [groups § إنشاء مجموعة](../features/drug-groups/business.md#إنشاء-مجموعة) |
-| GRP-058 | Given lines, then each is numbered 1..N and shows the drug name and its **effective** sentence (drug default + override); when the effective dosing has no dose, frequency, duration or tapering (empty, only an eye, or only «تُحدد عند الإضافة»), the drug's description followed by the eye part if any | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-098 | Given a line whose drug's default dosing is only «اليمنى» (no override), then it shows the description then «في العين اليمنى»; a line whose override is only «تُحدد عند الإضافة» shows the description and the chip «العين تُحدد عند إضافة المجموعة» | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-059 | Given an existing group, when the editor opens, then the title is «تعديل المجموعة» and the name and lines are pre-filled | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-060 | Given `/groups/abc` or `/groups/1.5`, when opened, then the app redirects to `/groups` | P2 | ui | [overview § App shell](../tech/overview.md#app-shell) |
-| GRP-061 | Given `/groups/{id}` of a deleted or unknown group, when opened, then an error «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» is shown instead of the form | P1 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
-| GRP-099 | Given a group opened earlier (cached) whose drug was renamed or got a new default dosing since, when its editor opens again, then the loading spinner shows until the group is fetched again and the form shows the fresh name and sentence, never the cached ones; a failed fetch shows the error with «إعادة المحاولة» instead of the cached form; a refetch while the editor is open keeps the form and its changes | P0 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-062 | Given the editor's Delete button, when confirmed, then «تم حذف المجموعة» and the app goes back to the list | P1 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-063 | Given a group deleted in another window, when this editor saves, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
-| GRP-064 | Given a user with `groups.details` but not `groups.update`, when opening a group, then the title is «المجموعة», the name is read-only and there is no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle | P1 | e2e | [groups § المستخدمون](../features/drug-groups/business.md#المستخدمون) |
-| GRP-065 | Given two windows editing the same group, when both save, then the last save wins (all lines replaced) and no error is shown | P2 | api | [groups tech § Backend](../features/drug-groups/tech.md#backend-clinichubapplicationfeaturescatalogdruggroups) |
+| GRP-046 | Given «بروتوكول جديد», when typing a name, clicking 3 drugs in «إضافة أدوية» and saving, then «تم إنشاء البروتوكول» (English "Protocol created") and the list shows it with «الأدوية: 3» | P0 | e2e | [protocols § إنشاء بروتوكول](../features/protocols/business.md#إنشاء-بروتوكول) |
+| GRP-047 | Given the new-protocol editor, when it opens, then the title is «بروتوكول جديد», the name field has the focus and «لا توجد أدوية في هذا البروتوكول» is shown | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-048 | Given an existing protocol, when changing it and saving, then «تم تحديث البروتوكول» (English "Protocol updated") and the editor goes back to the list | P0 | e2e | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-049 | Given the editor with an empty or spaces-only name, when saving, then the name field shows «الاسم مطلوب.» and no request is sent | P0 | ui | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-050 | Given the editor with a name and no drugs, when saving, then the error toast «أضف دواءً واحدًا على الأقل.» appears and no request is sent | P0 | ui | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-051 | Given the drug picker in the editor, when a drug is clicked, then it is appended to «أدوية هذا البروتوكول» with no override (its default dosing sentence shown) and the picker marks it «مُضاف» | P0 | ui | [protocols § إنشاء بروتوكول](../features/protocols/business.md#إنشاء-بروتوكول) |
+| GRP-052 | Given the picker focused in the editor, when using ↓/↑ and Enter, then the highlighted drug is added | P1 | e2e | [protocols § إنشاء بروتوكول](../features/protocols/business.md#إنشاء-بروتوكول) |
+| GRP-053 | Given a drug already in the protocol for its (effective) eye, when it is clicked again in the picker, then the toast ««Tobradex» موجود بالفعل في هذا البروتوكول لنفس العين» appears and no line is added | P0 | ui | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-054 | Given the editor's drug picker, when a drug is double-clicked, then one line is added and no «… موجود بالفعل في هذا البروتوكول لنفس العين» toast follows | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| GRP-055 | Given a line of drug A overridden to the left eye while A's default eye is right, when A is clicked again in the picker, then a second line (right, no override) is added | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-056 | Given 3 lines, when dragging the third to the top by its handle and saving, then reopening shows the new order | P0 | e2e | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-057 | Given a line, when clicking ✕, then it is removed from the list (saved only with Save) | P1 | ui | [protocols § إنشاء بروتوكول](../features/protocols/business.md#إنشاء-بروتوكول) |
+| GRP-058 | Given lines, then each is numbered 1..N and shows the drug name and its **effective** sentence (drug default + override); when the effective dosing has no dose, frequency, duration or tapering (empty, only an eye, or only «تُحدد عند الإضافة»), the drug's description followed by the eye part if any | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-098 | Given a line whose drug's default dosing is only «اليمنى» (no override), then it shows the description then «في العين اليمنى»; a line whose override is only «تُحدد عند الإضافة» shows the description and the chip «العين تُحدد عند إضافة البروتوكول» | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-059 | Given an existing protocol, when the editor opens, then the title is «تعديل البروتوكول» and the name and lines are pre-filled | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-060 | Given `/protocols/abc` or `/protocols/1.5`, when opened, then the app redirects to `/protocols` | P2 | ui | [overview § App shell](../tech/overview.md#app-shell) |
+| GRP-061 | Given `/protocols/{id}` of a deleted or unknown protocol, when opened, then an error «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» is shown instead of the form | P1 | e2e | [overview § Errors](../tech/overview.md#errors-problemdetails) |
+| GRP-099 | Given a protocol opened earlier (cached) whose drug was renamed or got a new default dosing since, when its editor opens again, then the loading spinner shows until the protocol is fetched again and the form shows the fresh name and sentence, never the cached ones; a failed fetch shows the error with «إعادة المحاولة» instead of the cached form; a refetch while the editor is open keeps the form and its changes | P0 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-062 | Given the editor's Delete button, when confirmed, then «تم حذف البروتوكول» and the app goes back to the list | P1 | e2e | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-063 | Given a protocol deleted in another window, when this editor saves, then the toast «هذا العنصر لم يعد موجودًا.» appears | P2 | ui | [overview § Errors](../tech/overview.md#errors-problemdetails) |
+| GRP-064 | Given a user with `protocols.details` but not `protocols.update`, when opening a protocol, then the title is «البروتوكول», the name is read-only and there is no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle | P1 | e2e | [protocols § المستخدمون](../features/protocols/business.md#المستخدمون) |
+| GRP-065 | Given two windows editing the same protocol, when both save, then the last save wins (all lines replaced) and no error is shown | P2 | api | [protocols tech § Backend](../features/protocols/tech.md#backend-clinichubapplicationfeaturescatalogprotocols) |
 
 ### Overrides and inheritance
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-066 | Given a line, when clicking ✎, then «الجرعة في هذه المجموعة» opens with the drug name, the hint «الحقول الفارغة تأخذ الجرعة الافتراضية للدواء.» and an ⓘ «افتراضي الدواء» explanation | P1 | ui | [groups § جرعة خاصة](../features/drug-groups/business.md#جرعة-خاصة-بالمجموعة) |
-| GRP-067 | Given the override dialog with no override, then each empty select shows «افتراضي الدواء» (English "Drug default"), the dose field's placeholder says so, and the preview shows the drug's default sentence | P1 | ui | [groups § جرعة خاصة](../features/drug-groups/business.md#جرعة-خاصة-بالمجموعة) |
-| GRP-068 | Given a drug default «نقطة واحدة 4 مرات يوميًا لمدة أسبوعين», when only the times are overridden to 6, then the preview reads «نقطة واحدة 6 مرات يوميًا لمدة أسبوعين» | P0 | ui | [groups § جرعة خاصة](../features/drug-groups/business.md#جرعة-خاصة-بالمجموعة) |
-| GRP-069 | Given a saved override on a line, then the line shows the chip «جرعة خاصة بالمجموعة» with the tooltip «لهذا الدواء جرعة خاصة في هذه المجموعة بدل جرعته الافتراضية.» | P1 | ui | [groups § جرعة خاصة](../features/drug-groups/business.md#جرعة-خاصة-بالمجموعة) |
-| GRP-070 | Given a line with an override, when clicking «استخدام جرعة الدواء الافتراضية» and saving the dialog, then the override is cleared, the chip disappears and the line shows the drug default | P1 | ui | [groups § جرعة خاصة](../features/drug-groups/business.md#جرعة-خاصة-بالمجموعة) |
-| GRP-071 | Given the override dialog with no override, then «استخدام جرعة الدواء الافتراضية» is disabled | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-072 | Given a group whose line overrides only the frequency, when the drug's default duration is changed on the drugs page, then the group line shows the group's frequency with the drug's new duration | P0 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-073 | Given a line without override, when the drug's default dosing changes, then the line follows it completely (no chip) | P0 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-074 | Given an override with only a dose amount (no unit), when saving the dialog, then the unit field turns red and the dialog stays open (dose amount + unit are one part) | P2 | ui | [groups tech § Edge](../features/drug-groups/tech.md#edge-cases--limitations) |
-| GRP-075 | Given an override dialog with an invalid value (e.g. times 25), when saving, then the field turns red and the dialog stays open | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-076 | Given the override dialog, when choosing an eye already used by another line of the same drug, then the toast ««X» موجود بالفعل في هذه المجموعة لنفس العين» appears and the dialog stays open | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
+| GRP-066 | Given a line, when clicking ✎, then «الجرعة في هذا البروتوكول» opens with the drug name, the hint «الحقول الفارغة تأخذ الجرعة الافتراضية للدواء.» and an ⓘ «افتراضي الدواء» explanation | P1 | ui | [protocols § جرعة خاصة](../features/protocols/business.md#جرعة-خاصة-بالبروتوكول) |
+| GRP-067 | Given the override dialog with no override, then each empty select shows «افتراضي الدواء» (English "Drug default"), the dose field's placeholder says so, and the preview shows the drug's default sentence | P1 | ui | [protocols § جرعة خاصة](../features/protocols/business.md#جرعة-خاصة-بالبروتوكول) |
+| GRP-068 | Given a drug default «نقطة واحدة 4 مرات يوميًا لمدة أسبوعين», when only the times are overridden to 6, then the preview reads «نقطة واحدة 6 مرات يوميًا لمدة أسبوعين» | P0 | ui | [protocols § جرعة خاصة](../features/protocols/business.md#جرعة-خاصة-بالبروتوكول) |
+| GRP-069 | Given a saved override on a line, then the line shows the chip «جرعة خاصة بالبروتوكول» with the tooltip «لهذا الدواء جرعة خاصة في هذا البروتوكول بدل جرعته الافتراضية.» | P1 | ui | [protocols § جرعة خاصة](../features/protocols/business.md#جرعة-خاصة-بالبروتوكول) |
+| GRP-070 | Given a line with an override, when clicking «استخدام جرعة الدواء الافتراضية» and saving the dialog, then the override is cleared, the chip disappears and the line shows the drug default | P1 | ui | [protocols § جرعة خاصة](../features/protocols/business.md#جرعة-خاصة-بالبروتوكول) |
+| GRP-071 | Given the override dialog with no override, then «استخدام جرعة الدواء الافتراضية» is disabled | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-072 | Given a protocol whose line overrides only the frequency, when the drug's default duration is changed on the drugs page, then the protocol line shows the protocol's frequency with the drug's new duration | P0 | e2e | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-073 | Given a line without override, when the drug's default dosing changes, then the line follows it completely (no chip) | P0 | e2e | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-074 | Given an override with only a dose amount (no unit), when saving the dialog, then the unit field turns red and the dialog stays open (dose amount + unit are one part) | P2 | ui | [protocols tech § Edge](../features/protocols/tech.md#edge-cases--limitations) |
+| GRP-075 | Given an override dialog with an invalid value (e.g. times 25), when saving, then the field turns red and the dialog stays open | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-076 | Given the override dialog, when choosing an eye already used by another line of the same drug, then the toast ««X» موجود بالفعل في هذا البروتوكول لنفس العين» appears and the dialog stays open | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
 
 ### "Ask when adding" eye and other eye
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-077 | Given the override dialog, then the eye choices include «تُحدد عند الإضافة» (with the tooltip «العين غير محددة في المجموعة: …») besides اليمنى / اليسرى / العينين / بدون عين | P0 | ui | [groups § تُحدد عند الإضافة](../features/drug-groups/business.md#تُحدد-عند-الإضافة-العين) |
-| GRP-078 | Given the eye «تُحدد عند الإضافة» chosen, then the preview shows the sentence without an eye and under it «العين تُحدد عند إضافة المجموعة» | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-079 | Given a line with eye ask, then it shows the chip «العين تُحدد عند إضافة المجموعة» with the «askEyeInfo» tooltip | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-080 | Given the drug dialog (default dosing) or the prescription line dialog, then «تُحدد عند الإضافة» is not offered | P1 | ui | [groups tech § Data model](../features/drug-groups/tech.md#data-model) |
-| GRP-081 | Given a line whose effective eye is right (or left) and no line of the same drug for the other eye, then ⊕ «إضافة للعين الأخرى» is shown; clicking it inserts a line for the other eye right after it with the same dosing | P0 | ui | [groups § نفس الدواء للعينين](../features/drug-groups/business.md#نفس-الدواء-للعينين-بجرعتين-مختلفتين) |
-| GRP-082 | Given lines of a drug for both right and left, or a line whose effective eye is both / none / ask / not set, then ⊕ is not shown | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-083 | Given right and left lines of the same drug with different doses, when saved and reopened, then both lines keep their own dosing | P0 | e2e | [groups § نفس الدواء للعينين](../features/drug-groups/business.md#نفس-الدواء-للعينين-بجرعتين-مختلفتين) |
-| GRP-084 | Given a saved group whose two lines of a drug now have the same effective eye (the drug's default eye changed), when the editor opens, then both lines get the chip «نفس الدواء والعين في سطر آخر» (en "Same drug and eye as another line") and the alert «يوجد دواء مكرر في المجموعة لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.» (en "A drug is in the group twice for the same eye (marked below). Remove a line or change its eye, then save.") shows above the lines | P0 | e2e | [groups § القواعد](../features/drug-groups/business.md#القواعد-التشغيلية) |
-| GRP-085 | Given clashing lines in the editor, when saving, then the same text shows as an error toast and no request is sent; after one line is removed or its eye changed, the chips and the alert go and the save succeeds | P0 | ui | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-086 | Given a user without `groups.update` opening a group with clashing lines, then the chips show but not the alert | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
+| GRP-077 | Given the override dialog, then the eye choices include «تُحدد عند الإضافة» (with the tooltip «العين غير محددة في البروتوكول: …») besides اليمنى / اليسرى / العينين / بدون عين | P0 | ui | [protocols § تُحدد عند الإضافة](../features/protocols/business.md#تُحدد-عند-الإضافة-العين) |
+| GRP-078 | Given the eye «تُحدد عند الإضافة» chosen, then the preview shows the sentence without an eye and under it «العين تُحدد عند إضافة البروتوكول» | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-079 | Given a line with eye ask, then it shows the chip «العين تُحدد عند إضافة البروتوكول» with the «askEyeInfo» tooltip | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-080 | Given the drug dialog (default dosing) or the prescription line dialog, then «تُحدد عند الإضافة» is not offered | P1 | ui | [protocols tech § Data model](../features/protocols/tech.md#data-model) |
+| GRP-081 | Given a line whose effective eye is right (or left) and no line of the same drug for the other eye, then ⊕ «إضافة للعين الأخرى» is shown; clicking it inserts a line for the other eye right after it with the same dosing | P0 | ui | [protocols § نفس الدواء للعينين](../features/protocols/business.md#نفس-الدواء-للعينين-بجرعتين-مختلفتين) |
+| GRP-082 | Given lines of a drug for both right and left, or a line whose effective eye is both / none / ask / not set, then ⊕ is not shown | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-083 | Given right and left lines of the same drug with different doses, when saved and reopened, then both lines keep their own dosing | P0 | e2e | [protocols § نفس الدواء للعينين](../features/protocols/business.md#نفس-الدواء-للعينين-بجرعتين-مختلفتين) |
+| GRP-084 | Given a saved protocol whose two lines of a drug now have the same effective eye (the drug's default eye changed), when the editor opens, then both lines get the chip «نفس الدواء والعين في سطر آخر» (en "Same drug and eye as another line") and the alert «يوجد دواء مكرر في البروتوكول لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.» (en "A drug is in the protocol twice for the same eye (marked below). Remove a line or change its eye, then save.") shows above the lines | P0 | e2e | [protocols § القواعد](../features/protocols/business.md#القواعد-التشغيلية) |
+| GRP-085 | Given clashing lines in the editor, when saving, then the same text shows as an error toast and no request is sent; after one line is removed or its eye changed, the chips and the alert go and the save succeeds | P0 | ui | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-086 | Given a user without `protocols.update` opening a protocol with clashing lines, then the chips show but not the alert | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
 
 ### Unsaved-changes guard
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-087 | Given an editor with unsaved changes, when clicking «إلغاء» or «رجوع», then «تجاهل التغييرات؟» / «ستفقد التغييرات غير المحفوظة على هذه المجموعة.» (en "Discard changes?" / "Your unsaved changes to this group will be lost.") asks, with «تجاهل» and «إلغاء» | P0 | e2e | [groups § الرسائل](../features/drug-groups/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| GRP-088 | Given the discard question, when choosing «إلغاء», then the editor stays with the changes | P1 | e2e | [groups § تعديل أو حذف](../features/drug-groups/business.md#تعديل-أو-حذف-مجموعة) |
-| GRP-089 | Given the discard question, when choosing «تجاهل», then the app goes back to the list and the group is unchanged | P1 | e2e | [groups § تعديل أو حذف](../features/drug-groups/business.md#تعديل-أو-حذف-مجموعة) |
-| GRP-090 | Given an editor without changes, when clicking «رجوع», then it leaves without asking | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-091 | Given a change undone by hand (line dragged away and back, override set then reset, name edited back or only trailing spaces added), when clicking «رجوع», then it leaves without asking | P2 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-092 | Given each kind of change alone (name, add line, remove line, reorder, override), when clicking «رجوع», then the question appears | P1 | ui | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-093 | Given unsaved changes, when closing or reloading the tab, then the browser's "leave page?" prompt appears; without changes it does not | P1 | e2e | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
-| GRP-094 | Given unsaved changes, when navigating with the sidebar, then the changes are discarded without asking (documented limitation) | P2 | e2e | [groups § ما لا تدعمه](../features/drug-groups/business.md#ما-لا-تدعمه-الميزة-حاليًا) |
-| GRP-095 | Given a successful save, when the editor navigates away, then no discard question appears | P1 | e2e | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
+| GRP-087 | Given an editor with unsaved changes, when clicking «إلغاء» or «رجوع», then «تجاهل التغييرات؟» / «ستفقد التغييرات غير المحفوظة على هذا البروتوكول.» (en "Discard changes?" / "Your unsaved changes to this protocol will be lost.") asks, with «تجاهل» and «إلغاء» | P0 | e2e | [protocols § الرسائل](../features/protocols/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| GRP-088 | Given the discard question, when choosing «إلغاء», then the editor stays with the changes | P1 | e2e | [protocols § تعديل أو حذف](../features/protocols/business.md#تعديل-أو-حذف-بروتوكول) |
+| GRP-089 | Given the discard question, when choosing «تجاهل», then the app goes back to the list and the protocol is unchanged | P1 | e2e | [protocols § تعديل أو حذف](../features/protocols/business.md#تعديل-أو-حذف-بروتوكول) |
+| GRP-090 | Given an editor without changes, when clicking «رجوع», then it leaves without asking | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-091 | Given a change undone by hand (line dragged away and back, override set then reset, name edited back or only trailing spaces added), when clicking «رجوع», then it leaves without asking | P2 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-092 | Given each kind of change alone (name, add line, remove line, reorder, override), when clicking «رجوع», then the question appears | P1 | ui | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-093 | Given unsaved changes, when closing or reloading the tab, then the browser's "leave page?" prompt appears; without changes it does not | P1 | e2e | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+| GRP-094 | Given unsaved changes, when navigating with the sidebar, then the changes are discarded without asking (documented limitation) | P2 | e2e | [protocols § ما لا تدعمه](../features/protocols/business.md#ما-لا-تدعمه-الميزة-حاليًا) |
+| GRP-095 | Given a successful save, when the editor navigates away, then no discard question appears | P1 | e2e | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
+
+### Rename to protocols (M1.7a)
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| GRP-100 | Given an old bookmark `/groups`, `/groups/new`, `/groups/{id}` or `/groups?search=x&page=2`, then it redirects to the matching `/protocols…` with the same id and query | P1 | e2e | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| GRP-101 | Given the API's old routes `/api/v1/drug-groups…`, then 404 `notFound` for GET and 405 `methodNotAllowed` for POST, PUT and DELETE (no alias kept) | P2 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| GRP-102 | Given every screen in Arabic (sidebar, page titles, buttons, toasts, empty states, dialogs, prescription tabs, delete warnings), then no «مجموعة» / «المجموعات» remains; in English no "group" (all locale strings searched for leftovers) | P0 | unit+e2e | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| GRP-103 | Given Arabic grammar with the masculine «بروتوكول», then «تم إنشاء البروتوكول», «تم تحديث البروتوكول», «تم حذف البروتوكول», «بروتوكول جديد», «حذف البروتوكول؟» | P1 | ui | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| GRP-104 | Given `document.title`, every `aria-label`, tooltip and error text, then no "group" / «مجموعة» (GRP-102 covers the visible text) | P1 | unit | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| GRP-105 | Given a tab opened before the upgrade (old bundle) calling `/api/v1/drug-groups`, then the SPA's existing 404/405 handling applies (its usual error message, no blank page) | P2 | ui | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| GRP-106 | Given a protocol created as «علاج آلام» and renamed to «مُضاد حيوي», then its stored `SearchName` is `SearchText.Fold` of the new name, `search=مضاد حيوي` finds it and `search=الام` no longer does | P1 | api | [design D7](../design/m1.7-shared-catalog.md#d7-search-and-the-tree) |
 
 ## DOSE — Structured dosing
 
@@ -1412,7 +1435,7 @@ through xUnit (`DosingRules`) and Vitest (`normalizeDosing`/`dosingErrors`).
 | DOSE-055 | Given days / weeks / months with 0 / 1 / 365 / 366, then invalid / valid / valid / invalid; without a number, invalid (`durationValue`) | P0 | unit+api | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية) |
 | DOSE-056 | Given an unknown code (unit "spoon", frequency "weekly", duration "years", eye "top"), then API `invalidDosing` | P1 | api | [dosing tech § Data model](../features/dosing/tech.md#data-model) |
 | DOSE-057 | Given a code in another case ("Drop", "Daily"), then API `invalidDosing` (codes are exact) | P2 | api | [dosing tech § Data model](../features/dosing/tech.md#data-model) |
-| DOSE-058 | Given eye `ask` on a drug's default dosing, then 400 `invalidDosing`; on a group line, accepted | P0 | api | [dosing tech § Backend](../features/dosing/tech.md#backend) |
+| DOSE-058 | Given eye `ask` on a drug's default dosing, then 400 `invalidDosing`; on a protocol line, accepted | P0 | api | [dosing tech § Backend](../features/dosing/tech.md#backend) |
 | DOSE-059 | Given an empty dosing, then valid (no errors) and normalized to null (API) / `isDosingEmpty` true (client) | P1 | unit+api | [dosing tech § Backend](../features/dosing/tech.md#backend) |
 | DOSE-060 | Given an invalid dosing reaching the API (e.g. through a stale form), when saving, then the toast reads «بعض بيانات الجرعة ناقصة أو غير صحيحة.» (English "Some dosing values are missing or invalid.") | P1 | api+ui | [dosing § الرسائل](../features/dosing/business.md#الرسائل-التي-تظهر-للمستخدم) |
 
@@ -1430,7 +1453,7 @@ through xUnit (`DosingRules`) and Vitest (`normalizeDosing`/`dosingErrors`).
 | DOSE-068 | Given `eyeKey` of a dosing without an eye, then "none"; `otherEye` right↔left, and null for both/none/ask | P1 | unit | [dosing tech § Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
 | DOSE-088 | Given `hasDosingInstructions`, then false for null, `{}` and a dosing with only an eye (right, left, both, none or ask); true as soon as a dose unit, a frequency, a duration or taper steps is set | P1 | unit | [dosing tech § Edge](../features/dosing/tech.md#edge-cases--limitations) |
 
-### Merge (drug default → group override)
+### Merge (drug default → protocol override)
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
@@ -1483,16 +1506,16 @@ Sources: [tapering business](../features/tapering/business.md), [tapering tech](
 | TAPER-013 | Given the last step continuous or until next visit, then valid | P0 | unit+api | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-014 | Given a non-last step continuous or until next visit, then invalid (`invalidDosing`; client field `taperSteps.<i>.durationUnit`) | P0 | unit+api | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-015 | Given a step dose 0 / -1 / 1000.5, then invalid; 0.5 / 1000, then valid | P1 | unit+api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
-| TAPER-016 | Given a group override with steps that have step doses but no unit (the unit comes from the drug), when saved, then accepted (the API accepts them on a drug default too, where they never show in the sentence) | P1 | api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
+| TAPER-016 | Given a protocol override with steps that have step doses but no unit (the unit comes from the drug), when saved, then accepted (the API accepts them on a drug default too, where they never show in the sentence) | P1 | api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
 | TAPER-017 | Given a step 1 dose 2 and a dosing dose 1, when normalized, then the dosing dose is 2 and step 1's dose is cleared | P1 | unit+api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
 | TAPER-018 | Given a later step whose dose equals the dosing dose, when normalized, then that step dose is cleared | P1 | unit+api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
 | TAPER-019 | Given step values that don't apply (every-hours with a duration value on continuous), when normalized, then they are dropped | P2 | unit | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
-| TAPER-020 | Given a group override with steps over a drug default with a plain frequency, then the merged dosing uses the override steps (base frequency/duration dropped) | P0 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
-| TAPER-021 | Given a drug default with steps and a group override with only a frequency (or only a duration), then the merged dosing has no steps and uses the override's frequency (or duration) | P1 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
+| TAPER-020 | Given a protocol override with steps over a drug default with a plain frequency, then the merged dosing uses the override steps (base frequency/duration dropped) | P0 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
+| TAPER-021 | Given a drug default with steps and a protocol override with only a frequency (or only a duration), then the merged dosing has no steps and uses the override's frequency (or duration) | P1 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-022 | Given a drug default with steps and an override with only a dose or an eye, then the merged dosing keeps the drug's steps | P1 | unit | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-023 | Given a saved taper, when the drug is saved again without steps, then the taper is removed | P1 | api | [tapering tech § API](../features/tapering/tech.md#api) |
 | TAPER-024 | Given a prescription line stored before tapering existed (no `taperSteps`), when the page loads, then it shows as before | P2 | unit | [tapering tech § Edge](../features/tapering/tech.md#edge-cases--limitations) |
-| TAPER-080 | Given a taper whose step 1 has a dose but the dosing has no unit (e.g. `taperSteps: [{doseAmount: 2, daily 4, 1 week}, {daily 3, 1 week}]`, no `doseUnit`), when saved as a drug default or as a group line override, then 400 `invalidDosing` (step 1's dose becomes the dosing's dose, which needs its unit); the TypeScript rules refuse it too (parity fixture) | P1 | unit+api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
+| TAPER-080 | Given a taper whose step 1 has a dose but the dosing has no unit (e.g. `taperSteps: [{doseAmount: 2, daily 4, 1 week}, {daily 3, 1 week}]`, no `doseUnit`), when saved as a drug default or as a protocol line override, then 400 `invalidDosing` (step 1's dose becomes the dosing's dose, which needs its unit); the TypeScript rules refuse it too (parity fixture) | P1 | unit+api | [tapering tech § Backend](../features/tapering/tech.md#backend-clinichubdomaincatalogdosingrulescs) |
 
 ### Sentence
 
@@ -1551,7 +1574,7 @@ Sources: [tapering business](../features/tapering/business.md), [tapering tech](
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| TAPER-063 | Given any dosing dialog (drug, group line, prescription line), then the «تقليل تدريجي» switch with an ⓘ («تقليل الجرعة على مراحل، …») is shown | P1 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
+| TAPER-063 | Given any dosing dialog (drug, protocol line, prescription line), then the «تقليل تدريجي» switch with an ⓘ («تقليل الجرعة على مراحل، …») is shown | P1 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-064 | Given daily 4 for 1 week, when switching tapering on, then two step rows appear (4 then 3 times a day, 1 week each) instead of the frequency/period rows | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-065 | Given a schedule, when switching tapering off, then step 1 becomes the normal frequency and period | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-066 | Given 9 steps, when clicking «إضافة مرحلة», then 10 steps and the button becomes disabled with the tooltip «أقصى عدد للمراحل: 10» (on hover, or at once on a phone tap) | P1 | ui | [tapering § الرسائل](../features/tapering/business.md#الرسائل-التي-تظهر-للمستخدم) |
@@ -1564,8 +1587,8 @@ Sources: [tapering business](../features/tapering/business.md), [tapering tech](
 | TAPER-073 | Given no unit above, then the step dose fields are disabled with the tooltip «اختر الوحدة بالأعلى لتحديد جرعة خاصة لكل مرحلة.» (on hover, or at once on a phone tap) | P1 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-074 | Given a unit above, then step 2+ dose fields are enabled, their placeholder is the dose above (or 1), and the tooltip reads «جرعة هذه المرحلة بنفس الوحدة المختارة بالأعلى. …» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | TAPER-075 | Given a step dose typed (step 2 = 1 drop), then the preview shows the step dose in the sentence | P0 | ui | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
-| TAPER-076 | Given a group line whose drug default is a taper and no override schedule, then the dialog shows «الجرعة الافتراضية للدواء فيها تقليل تدريجي. فعّل هذا الخيار لتغييره في هذه المجموعة.» and the preview shows the drug's steps | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
-| TAPER-077 | Given that group line, when switching tapering on, then the drug's steps are copied into the override for editing | P0 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
+| TAPER-076 | Given a protocol line whose drug default is a taper and no override schedule, then the dialog shows «الجرعة الافتراضية للدواء فيها تقليل تدريجي. فعّل هذا الخيار لتغييره في هذا البروتوكول.» and the preview shows the drug's steps | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
+| TAPER-077 | Given that protocol line, when switching tapering on, then the drug's steps are copied into the override for editing | P0 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 | TAPER-078 | Given a drug saved with a taper, when its dialog is reopened, then the switch is on and the steps are shown as saved | P0 | e2e | [tapering § سيناريوهات](../features/tapering/business.md#سيناريوهات-الاستخدام) |
 | TAPER-079 | Given a drug with a taper default, when added to a prescription, then the line shows the full taper sentence and «تعديل الجرعة» opens with the steps | P0 | e2e | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
 
@@ -1579,9 +1602,9 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | RX-001 | Given a user with `prescriptions.create`, when logging in to a clinic, then the prescription page (`/`) opens first with «إضافة إلى الروشتة» and «الأدوية المختارة» | P0 | e2e | [rx § المستخدمون](../features/prescription/business.md#المستخدمون) |
-| RX-002 | Given the page, then the «المجموعات» tab is selected by default and its search box has the focus | P1 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
-| RX-003 | Given a search typed in the Groups tab, when switching to Drugs and back, then each tab still shows its own search | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-004 | Given an empty prescription, then «لم يتم اختيار شيء بعد» / «ابحث عن مجموعة أو دواء واضغط عليه لإضافته هنا.», the count chip 0, and «مسح الكل», «نسخ», «تعديل ونسخ» disabled | P1 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-002 | Given the page, then the «البروتوكولات» tab is selected by default and its search box has the focus | P1 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
+| RX-003 | Given a search typed in the Protocols tab, when switching to Drugs and back, then each tab still shows its own search | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-004 | Given an empty prescription, then «لم يتم اختيار شيء بعد» / «ابحث عن بروتوكول أو دواء واضغط عليه لإضافته هنا.», the count chip 0, and «مسح الكل», «نسخ», «تعديل ونسخ» disabled | P1 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-005 | Given the Drugs tab, when clicking a drug, then a line is appended with the drug's default dosing sentence, the count chip increases and the picker marks the drug «مُضاف» | P0 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
 | RX-006 | Given the Drugs tab focused, when using ↓/↑ and Enter, then the highlighted drug is added | P1 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
 | RX-007 | Given a drug already in the list for its default eye, when it is added again, then the toast ««Tobradex» موجود بالفعل في القائمة» (English "“Tobradex” is already in the list") appears and no line is added | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
@@ -1594,27 +1617,27 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 | RX-013 | Given a drug highlighted with ↓/↑, when Enter is pressed, then it is added (keyboard selection still works); Enter again → «… موجود بالفعل في القائمة» and no second line | P1 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-014 | Given two `addDrugs` calls for the same drug before a re-render, then one line (the checks read the latest lines) | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
 
-### Adding a group
+### Adding a protocol
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| RX-015 | Given a group of 3 drugs and an empty prescription, when clicking it, then its 3 lines are appended in the group's order with each line's merged dosing (drug default + override) | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-016 | Given lines already present, when a group with new drugs is added, then its lines are appended after them | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-017 | Given a group added, then one toast lists «تمت الإضافة من «Post cataract»: 3» (English "Added from “Post cataract”: 3") | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| RX-018 | Given a group with no "ask" lines, when it is added, then no eye question appears | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-019 | Given a group with "ask" lines, when it is added, then «أي عين؟» asks once with «بعض أدوية «Post cataract» تُعطى للعين التي تختارها الآن.» and buttons «اليمنى» / «اليسرى» / «العينين» and «إلغاء» | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| RX-020 | Given 3 "ask" lines and 1 "right" line, when choosing «اليسرى», then the 3 ask lines get the left eye and the right line stays right (asked only once) | P0 | unit+e2e | [groups § تُحدد عند الإضافة](../features/drug-groups/business.md#تُحدد-عند-الإضافة-العين) |
+| RX-015 | Given a protocol of 3 drugs and an empty prescription, when clicking it, then its 3 lines are appended in the protocol's order with each line's merged dosing (drug default + override) | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-016 | Given lines already present, when a protocol with new drugs is added, then its lines are appended after them | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-017 | Given a protocol added, then one toast lists «تمت الإضافة من «Post cataract»: 3» (English "Added from “Post cataract”: 3") | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| RX-018 | Given a protocol with no "ask" lines, when it is added, then no eye question appears | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-019 | Given a protocol with "ask" lines, when it is added, then «أي عين؟» asks once with «بعض أدوية «Post cataract» تُعطى للعين التي تختارها الآن.» and buttons «اليمنى» / «اليسرى» / «العينين» and «إلغاء» | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| RX-020 | Given 3 "ask" lines and 1 "right" line, when choosing «اليسرى», then the 3 ask lines get the left eye and the right line stays right (asked only once) | P0 | unit+e2e | [protocols § تُحدد عند الإضافة](../features/protocols/business.md#تُحدد-عند-الإضافة-العين) |
 | RX-021 | Given the eye question, when choosing «العينين», then the ask lines read «في العينين» | P1 | unit | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-022 | Given the eye question, when choosing «إلغاء» or pressing Esc, then nothing of the group is added and no toast appears; a click outside the dialog does nothing (it stays open) | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-023 | Given the same group added twice with different chosen eyes (right, then left), then separate lines exist for each eye | P1 | unit | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
-| RX-024 | Given a line of drug A for the right eye with the same dosing as the group's A line, when the group is added, then A is skipped without a question and the toast adds «موجود مسبقًا في القائمة: 1» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-025 | Given an existing line whose dosing equals the group's only after normalization (e.g. a leftover value of a non-numeric frequency), then it counts as identical | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-026 | Given an identical taper schedule already in the list, when the group is added again, then it is skipped (no conflict) | P1 | unit | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
-| RX-027 | Given a group added twice in a row unchanged, then the second time the toast reads «تمت الإضافة من «X»: 0» and «موجود مسبقًا في القائمة: N» in the neutral (not success) style | P1 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| RX-028 | Given a group double-clicked, then its flow runs once (one eye question or none, one toast) and no drug appears twice for one eye; a click on a group while its dialogs are open does nothing | P1 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-029 | Given a saved group whose two lines give the same drug for the same eye after merging (the drug's default eye changed), when added, then the first line in group order is added and the toast adds «مكرر في المجموعة ولم يُضف: 1» (en "Duplicated in the group, not added: 1") | P0 | unit+e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-030 | Given a group with drug A on «تُحدد عند الإضافة» and A on the right eye with different dosings, when added choosing «اليمنى», then «جرعتان لنفس العين» asks ««A» موجود في المجموعة مرتين للعين التي اخترتها، بجرعتين مختلفتين. أي جرعة تُضاف؟» with the two sentences under «الجرعة الأولى في المجموعة» / «الجرعة الثانية في المجموعة» and the buttons «استخدام الأولى» / «استخدام الثانية» (en "Two dosings for the same eye", "First in the group" / "Second in the group", "Use the first" / "Use the second") | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| RX-031 | Given that dialog, when «استخدام الأولى» (or «استخدام الثانية») is chosen, then one line of A for the right eye with the first (or second) line's dosing, in the first line's place; the toast counts it as added, not as «مكرر في المجموعة» | P0 | unit+e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-022 | Given the eye question, when choosing «إلغاء» or pressing Esc, then nothing of the protocol is added and no toast appears; a click outside the dialog does nothing (it stays open) | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-023 | Given the same protocol added twice with different chosen eyes (right, then left), then separate lines exist for each eye | P1 | unit | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
+| RX-024 | Given a line of drug A for the right eye with the same dosing as the protocol's A line, when the protocol is added, then A is skipped without a question and the toast adds «موجود مسبقًا في القائمة: 1» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-025 | Given an existing line whose dosing equals the protocol's only after normalization (e.g. a leftover value of a non-numeric frequency), then it counts as identical | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-026 | Given an identical taper schedule already in the list, when the protocol is added again, then it is skipped (no conflict) | P1 | unit | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
+| RX-027 | Given a protocol added twice in a row unchanged, then the second time the toast reads «تمت الإضافة من «X»: 0» and «موجود مسبقًا في القائمة: N» in the neutral (not success) style | P1 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| RX-028 | Given a protocol double-clicked, then its flow runs once (one eye question or none, one toast) and no drug appears twice for one eye; a click on a protocol while its dialogs are open does nothing | P1 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-029 | Given a saved protocol whose two lines give the same drug for the same eye after merging (the drug's default eye changed), when added, then the first line in protocol order is added and the toast adds «مكرر في البروتوكول ولم يُضف: 1» (en "Duplicated in the protocol, not added: 1") | P0 | unit+e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-030 | Given a protocol with drug A on «تُحدد عند الإضافة» and A on the right eye with different dosings, when added choosing «اليمنى», then «جرعتان لنفس العين» asks ««A» موجود في البروتوكول مرتين للعين التي اخترتها، بجرعتين مختلفتين. أي جرعة تُضاف؟» with the two sentences under «الجرعة الأولى في البروتوكول» / «الجرعة الثانية في البروتوكول» and the buttons «استخدام الأولى» / «استخدام الثانية» (en "Two dosings for the same eye", "First in the protocol" / "Second in the protocol", "Use the first" / "Use the second") | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| RX-031 | Given that dialog, when «استخدام الأولى» (or «استخدام الثانية») is chosen, then one line of A for the right eye with the first (or second) line's dosing, in the first line's place; the toast counts it as added, not as «مكرر في البروتوكول» | P0 | unit+e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-032 | Given that dialog, when Esc is pressed, then it counts as «استخدام الأولى»; a click outside does nothing | P1 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-033 | Given the «تُحدد عند الإضافة» line and the right line with the same dosing, when «اليمنى» is chosen, then one line is added without a question | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-034 | Given the «تُحدد عند الإضافة» line and the right line, when «اليسرى» is chosen, then two lines (the «تُحدد عند الإضافة» line for the left eye, and the right line) and no question | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
@@ -1626,23 +1649,23 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| RX-038 | Given a line of drug A (right) with a different dosing than the group's A (right), when the group is added, then «موجود بالفعل في الروشتة» asks with ««A» موجود بالفعل في القائمة بجرعة مختلفة.» and both sentences under «الحالي» and «من المجموعة» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-038 | Given a line of drug A (right) with a different dosing than the protocol's A (right), when the protocol is added, then «موجود بالفعل في الروشتة» asks with ««A» موجود بالفعل في القائمة بجرعة مختلفة.» and both sentences under «الحالي» and «من البروتوكول» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-039 | Given a conflict where one side has no dosing, then that box shows «لا توجد جرعة محددة» | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-040 | Given a conflict with different taper schedules, then both full schedule sentences are shown | P1 | ui | [tapering § القواعد](../features/tapering/business.md#القواعد-التشغيلية) |
-| RX-041 | Given a conflict, when choosing «استخدام جرعة المجموعة», then the existing line gets the group's dosing in the same position and keeps its note; the toast adds «تم الاستبدال بجرعة المجموعة: 1» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-041 | Given a conflict, when choosing «استخدام جرعة البروتوكول», then the existing line gets the protocol's dosing in the same position and keeps its note; the toast adds «تم الاستبدال بجرعة البروتوكول: 1» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-042 | Given a conflict, when choosing «الإبقاء على الحالي», then the line is unchanged and the toast adds «تم الإبقاء على الجرعة الحالية: 1» | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-043 | Given a conflict dialog, when pressing Esc, then it counts as «الإبقاء على الحالي»; a click outside does nothing (the dialog stays) | P1 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-044 | Given 3 conflicts, then they are asked one by one in group order; the first shows the checkbox «تطبيق على باقي التعارضات: 2», the second «… : 1», the last none | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-045 | Given 3 conflicts, when the first answer is «استخدام جرعة المجموعة» with the checkbox ticked, then no more questions and all 3 are replaced («تم الاستبدال بجرعة المجموعة: 3») | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-044 | Given 3 conflicts, then they are asked one by one in protocol order; the first shows the checkbox «تطبيق على باقي التعارضات: 2», the second «… : 1», the last none | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
+| RX-045 | Given 3 conflicts, when the first answer is «استخدام جرعة البروتوكول» with the checkbox ticked, then no more questions and all 3 are replaced («تم الاستبدال بجرعة البروتوكول: 3») | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-046 | Given 3 conflicts, when the first answer is «الإبقاء على الحالي» with the checkbox ticked, then all 3 are kept without more questions | P1 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-047 | Given the checkbox ticked on one conflict but not applied (answered on a later conflict), then each new conflict dialog starts unticked | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-048 | Given a single conflict, then no «تطبيق على باقي التعارضات» checkbox is shown | P1 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-049 | Given a group of 4 lines: 1 new, 1 replaced, 1 kept, 1 identical, then one toast with 4 lines in this order: «تمت الإضافة من «G»: 1», «تم الاستبدال بجرعة المجموعة: 1», «تم الإبقاء على الجرعة الحالية: 1», «موجود مسبقًا في القائمة: 1» | P0 | unit+e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
+| RX-049 | Given a protocol of 4 lines: 1 new, 1 replaced, 1 kept, 1 identical, then one toast with 4 lines in this order: «تمت الإضافة من «P»: 1», «تم الاستبدال بجرعة البروتوكول: 1», «تم الإبقاء على الجرعة الحالية: 1», «موجود مسبقًا في القائمة: 1» | P0 | unit+e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | RX-050 | Given nothing replaced, kept or identical, then the toast holds only the «تمت الإضافة» line | P1 | unit | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
-| RX-051 | Given a group whose lines are all gone (its drugs deleted), when it is added, then nothing is added and the toast «تمت الإضافة من «G»: 0» shows in the neutral style | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-051 | Given a protocol whose lines are all gone (its drugs deleted), when it is added, then nothing is added and the toast «تمت الإضافة من «P»: 0» shows in the neutral style | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-052 | Given conflicts and new lines, then the new lines are appended only after all conflicts are answered | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-105 | Given a conflict in which one dosing has nothing to write (only «بدون عين»), then its box shows «لا توجد جرعة محددة» / "No dosing set" | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| RX-106 | Given a line added alone with no dosing and a group whose line for the same drug has only «بدون عين», when the group is added, then no conflict is asked and the line is counted as unchanged (an unset eye equals «بدون عين»: both write no eye) | P1 | unit+ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| RX-106 | Given a line added alone with no dosing and a protocol whose line for the same drug has only «بدون عين», when the protocol is added, then no conflict is asked and the line is counted as unchanged (an unset eye equals «بدون عين»: both write no eye) | P1 | unit+ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
 
 ### Editing lines
 
@@ -1650,7 +1673,7 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 |---|---|---|---|---|
 | RX-053 | Given a line, when clicking ✎ or the line text, then «تعديل الجرعة» opens with the drug name, the line's dosing and its note (empty for a new line) | P0 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
 | RX-054 | Given the line dialog, when changing the times to 6 and typing a note «رج الزجاجة قبل الاستعمال», then after saving the line shows the new sentence and the note (italic) under it | P0 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
-| RX-055 | Given a line edited in the prescription, then the drug's default dosing (drugs page/API) and its groups are unchanged | P0 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
+| RX-055 | Given a line edited in the prescription, then the drug's default dosing (drugs page/API) and its protocols are unchanged | P0 | e2e | [rx § تكوين روشتة](../features/prescription/business.md#تكوين-روشتة) |
 | RX-056 | Given a note "  text  ", when saved, then it is stored trimmed; a note of only spaces is removed | P2 | unit | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-057 | Given the line dialog with invalid dosing, when saving, then the invalid fields turn red and the dialog stays open | P1 | ui | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | RX-058 | Given lines of drug A for right and left, when the left line's eye is changed to right, then ««A» موجود بالفعل في القائمة لنفس العين» (English "… is already in the list for that eye") appears and the dialog stays open, nothing changed | P0 | e2e | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
@@ -1708,7 +1731,7 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 | RX-099 | Given a drug added to the prescription, when its name or default dosing is edited on the drugs page, then the existing line keeps the old name and sentence (snapshot) | P0 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
 | RX-100 | Given a drug in the prescription that is then deleted, then its line stays until removed, and copying still includes it | P1 | e2e | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
 | RX-101 | Given a line removed and the edited drug added again, then the new line has the new name and dosing | P1 | e2e | [rx § القواعد](../features/prescription/business.md#القواعد-التشغيلية) |
-| RX-102 | Given the prescription page open, when a group or drug is changed or deleted in another window or on another computer, then the pickers keep the old version until they load again (the search changes, or the page is opened again once the data is older than 30 s, or the browser page is reloaded; no reload on focus), and adding it meanwhile uses the old lines and dosings (accepted) | P1 | e2e | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
+| RX-102 | Given the prescription page open, when a protocol or drug is changed or deleted in another window or on another computer, then the pickers keep the old version until they load again (the search changes, or the page is opened again once the data is older than 30 s, or the browser page is reloaded; no reload on focus), and adding it meanwhile uses the old lines and dosings (accepted) | P1 | e2e | [rx tech § Edge](../features/prescription/tech.md#edge-cases--limitations) |
 
 ## I18N — Languages and direction
 
@@ -1723,16 +1746,16 @@ Sources: [business overview § اللغات](../business/overview.md#اللغا�
 | I18N-003 | Given a language chosen, then `<html lang>` and `<html dir>` are `ar`/`rtl` or `en`/`ltr` | P0 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-004 | Given the login page (before login), then the language menu works and the choice is kept after login | P1 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
 | I18N-005 | Given the Arabic UI, then the layout is mirrored: sidebar on the right (drawer opens from the right on a phone), text right-aligned, back arrows pointing right, number avatars and action buttons on the mirrored sides | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
-| I18N-006 | Given each page and dialog of these areas (prescription, groups list/editor, drugs, dosing/taper dialogs, conflict and eye dialogs, Edit & copy), then it renders without overlap or cut text in both languages | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
+| I18N-006 | Given each page and dialog of these areas (prescription, protocols list/editor, drugs, dosing/taper dialogs, conflict and eye dialogs, Edit & copy), then it renders without overlap or cut text in both languages | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-007 | Given spacing written with logical properties, then paddings/margins in RTL are mirrored, never zero (no `ms`/`me` shorthands used) | P2 | ui | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
-| I18N-008 | Given drug and group names/descriptions in Arabic and English, when switching the UI language, then they show exactly as typed in both (not translated) | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
-| I18N-009 | Given the English UI, then dosing sentences (drugs table, pickers, group lines, prescription lines, previews, conflict boxes) and copied text are Arabic | P0 | e2e | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية) |
+| I18N-008 | Given drug and protocol names/descriptions in Arabic and English, when switching the UI language, then they show exactly as typed in both (not translated) | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
+| I18N-009 | Given the English UI, then dosing sentences (drugs table, pickers, protocol lines, prescription lines, previews, conflict boxes) and copied text are Arabic | P0 | e2e | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية) |
 | I18N-010 | Given the English UI, then the Arabic sentence under a drug name is aligned under the name (left side) yet reads right-to-left; in the Arabic UI it is right-aligned | P1 | e2e | [dosing tech § Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
 | I18N-011 | Given both locale files, then every key of `en.ts` exists in `ar.ts` and vice versa (type check + test), and `rxText` is identical in both | P0 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-012 | Given each plural key family (`rxText.*`, `dosing.taper.total*`, others), then it has all six suffixes `_zero/_one/_two/_few/_many/_other` in both files | P1 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-013 | Given every message quoted in the business docs' message tables (every feature), then the Arabic text equals the `ar.ts` value | P0 | unit | [M1.6 § D2](../design/m1.6-test-foundation.md#d2-test-catalog) |
 | I18N-014 | Given numbers in the UI (counts «الأدوية: 12», pagination «1–20 من 10002», step numbers, totals, sentences), then all use Western digits in both languages | P0 | e2e | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية) |
-| I18N-015 | Given a Latin name (drug, group, clinic, role or staff member) in an Arabic message (e.g. «Tobradex» موجود بالفعل في القائمة) or an Arabic name in an English message, then the quotes stay around the name and the rest of the sentence stays in order (bidi isolates U+2068/U+2069) | P0 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
+| I18N-015 | Given a Latin name (drug, protocol, clinic, role or staff member) in an Arabic message (e.g. «Tobradex» موجود بالفعل في القائمة) or an Arabic name in an English message, then the quotes stay around the name and the rest of the sentence stays in order (bidi isolates U+2068/U+2069) | P0 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-016 | Given names that start or end with digits or punctuation ("500 Vit C.", «قطرة 2%»), when shown in messages and confirmations in either UI direction, then they display correctly in their place | P2 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-017 | Given every message with an interpolated name in both locale files, then the name is wrapped in U+2068…U+2069 | P1 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-018 | Given the name, description, note and custom-frequency inputs, when typing Arabic in the English UI (or English in the Arabic UI), then the text aligns by its own direction (`dir="auto"`) | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
@@ -1740,7 +1763,7 @@ Sources: [business overview § اللغات](../business/overview.md#اللغا�
 | I18N-020 | Given dosing option labels, then they are translated with the UI (Drop / نقطة …) while the generated sentence stays Arabic | P1 | ui | [dosing tech § i18n](../features/dosing/tech.md#i18n) |
 | I18N-021 | Given no stored language, when the app opens for the first time, then the UI follows the browser's language when it is Arabic (any `ar-*`) or English, else English | P2 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-022 | Given a stored unsupported value (`language = "fr"`), when the app opens, then the browser's language is used when supported, else English, without errors | P2 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
-| I18N-023 | Given the Arabic UI, when a list of names is joined in a sentence (groups using a drug), then the Arabic comma «، » separates them | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
+| I18N-023 | Given the Arabic UI, when a list of names is joined in a sentence (protocols using a drug), then the Arabic comma «، » separates them | P2 | ui | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
 
 ## UX — Cross-cutting UI
 
@@ -1751,17 +1774,17 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| UX-001 | Given a 375 px wide phone, when visiting the prescription, drugs, groups list and group editor pages (Arabic and English), then there is no horizontal page scroll | P0 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
-| UX-002 | Given 375 px, when opening the drug dialog, group line dialog and prescription line dialog, then they are full-screen, only the content scrolls, and Save/Cancel stay visible | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-001 | Given a 375 px wide phone, when visiting the prescription, drugs, protocols list and protocol editor pages (Arabic and English), then there is no horizontal page scroll | P0 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
+| UX-002 | Given 375 px, when opening the drug dialog, protocol line dialog and prescription line dialog, then they are full-screen, only the content scrolls, and Save/Cancel stay visible | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-003 | Given 375 px and a taper of 10 steps, then each step wraps onto 2–3 lines with a divider between steps, step 1's dose field is hidden, and nothing overflows | P1 | e2e | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | UX-004 | Given 375 px, then the prescription columns stack (catalog above, selected lines below) and «نسخ» / «تعديل ونسخ» are full-width stacked buttons | P1 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| UX-005 | Given 375 px, then the conflict dialog shows «الحالي» and «من المجموعة» stacked, and the eye dialog's three buttons fit | P1 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| UX-006 | Given 375 px, then the group-line chips («جرعة خاصة بالمجموعة», «العين تُحدد عند إضافة المجموعة») wrap instead of being cut | P2 | e2e | [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
+| UX-005 | Given 375 px, then the conflict dialog shows «الحالي» and «من البروتوكول» stacked, and the eye dialog's three buttons fit | P1 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| UX-006 | Given 375 px, then the protocol-line chips («جرعة خاصة بالبروتوكول», «العين تُحدد عند إضافة البروتوكول») wrap instead of being cut | P2 | e2e | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
 | UX-007 | Given 375 px, then the drugs table pagination hides the rows-per-page choice and fits | P2 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-008 | Given 375 px, then the menu button (tooltip «فتح القائمة») opens the navigation drawer, and choosing an entry closes it | P1 | e2e | [tech overview § App shell](../tech/overview.md#app-shell) |
-| UX-009 | Given a very long unbroken drug or group name (256 characters), then lists (incl. the groups list's cards: the group name and its drug names), lines, dialogs and confirmations wrap it without widening the page, never cut it | P1 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon), [groups tech § Frontend](../features/drug-groups/tech.md#frontend-srcfeaturesdruggroups) |
+| UX-009 | Given a very long unbroken drug or protocol name (256 characters), then lists (incl. the protocols list's cards: the protocol name and its drug names), lines, dialogs and confirmations wrap it without widening the page, never cut it | P1 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon), [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
 | UX-010 | Given the Edit & copy editor on a phone, then it is full-screen and the editor height fits the screen | P2 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
-| UX-011 | Given a real phone (touch), when adding a group, editing a line, dragging to reorder and copying, then everything works by touch | P1 | manual | [M1.6 § D7](../design/m1.6-test-foundation.md#d7-what-stays-manual) |
+| UX-011 | Given a real phone (touch), when adding a protocol, editing a line, dragging to reorder and copying, then everything works by touch | P1 | manual | [M1.6 § D7](../design/m1.6-test-foundation.md#d7-what-stays-manual) |
 
 ### Tooltips and ⓘ
 
@@ -1776,12 +1799,12 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| UX-016 | Given a delete confirmation (drug, group) or the discard question, when it opens, then the focus is on «إلغاء» and pressing Enter does not delete | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-016 | Given a delete confirmation (drug, protocol) or the discard question, when it opens, then the focus is on «إلغاء» and pressing Enter does not delete | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-017 | Given any confirmation, when pressing Esc, then it closes as cancel | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
-| UX-018 | Given a search list (drug or group picker), when pressing ↓ past the last result or ↑ before the first, then the highlight stays on the edge; the highlighted row scrolls into view | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-018 | Given a search list (drug or protocol picker), when pressing ↓ past the last result or ↑ before the first, then the highlight stays on the edge; the highlighted row scrolls into view | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-019 | Given a search list with text typed, when pressing Esc, then the search is cleared; when the search changes, the highlight returns to the first result | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-020 | Given the drugs table, when tabbing to a row and pressing Enter or Space, then the drug opens (edit, or details for a viewer) | P1 | e2e | [drugs tech § Frontend](../features/drugs/tech.md#frontend-srcfeaturesdrugs) |
-| UX-021 | Given a sortable list (group lines, prescription lines), when focusing a drag handle and using Space + arrow keys, then the line moves | P1 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-021 | Given a sortable list (protocol lines, prescription lines), when focusing a drag handle and using Space + arrow keys, then the line moves | P1 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-022 | Given the drug dialog, when pressing Enter in the name field, then the form is submitted (same rules as Save) | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-023 | Given any dialog of these areas, when pressing Esc, then it closes without saving | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 
@@ -1790,9 +1813,9 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | UX-024 | Given the new-drug dialog, when double-clicking Save (or pressing Enter twice fast), then exactly one drug is created | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
-| UX-025 | Given a new group, when double-clicking Save, then exactly one group is created | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-025 | Given a new protocol, when double-clicking Save, then exactly one protocol is created | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-026 | Given `useSingleFlight`, when `once(action)` is called while the previous call runs, then the second call is ignored and resolves to undefined; after the first finishes (or throws), a new call runs | P1 | unit | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
-| UX-027 | Given a search list (drug or group picker), when an item is double-clicked, then it is selected once (the second click of a burst, `event.detail > 1`, is ignored); keyboard Enter (`detail` 0) still selects | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
+| UX-027 | Given a search list (drug or protocol picker), when an item is double-clicked, then it is selected once (the second click of a burst, `event.detail > 1`, is ignored); keyboard Enter (`detail` 0) still selects | P1 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-028 | Given a delete confirmation, when double-clicking «حذف», then one DELETE request is sent and no error toast appears | P2 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-040 | Given a create/edit dialog saving through `useDialogSave` in a `FormDialog` (drug, role, staff, Rename clinic), when its save is in flight, then Esc and a click outside don't close it (the typed values kept); when the save succeeds (also a 404 that closes it), then the form stays locked until the dialog has closed (Save disabled; a second click, Enter or submit sends nothing); when it fails (invalid input or an API error), then it unlocks at once (Esc closes it again) and saving again sends the request | P1 | unit+ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-041 | Given a dialog whose form is keyed by `useOpeningKey`, when it is opened again (also right after closing, during the closing animation), then a new form mounts (from the given entity, or empty); while it stays open the form is kept | P2 | unit | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
@@ -1817,3 +1840,14 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 |---|---|---|---|---|
 | UX-038 | Given a toast showing (e.g. «تم حذف الدواء» after a delete), when clicking its × icon button (tooltip and accessible name «إغلاق» / "Close"), then that toast closes at once, before its own time, and other toasts stay and still close by themselves in their time (also after a tap on a touch phone) | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |
 | UX-039 | Given a toast on a touch phone (375 px), when swiping it sideways, then it closes | P2 | e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § App shell](../tech/overview.md#app-shell) |
+
+## CAT — Shared catalog and categories
+
+Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../design/m1.7-shared-catalog.business.md). The area of the shared catalog (M1.7); M1.7a adds its migration cases only, M1.7b and M1.7c the rest. Migration cases run in the migration collection (their own database, migrated down and up again).
+
+### Migrations
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| CAT-003 | Given a database with own drugs, protocols and roles holding `groups.*` before `RenameGroupsToProtocols`, when applied, then every protocol, line, order and override is kept, the constraints carry the new names (`FK_ProtocolItems_Protocols_ProtocolId_ClinicId`), and every role holds the same rights as `protocols.*` | P0 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
+| CAT-004 | Given `RenameGroupsToProtocols`, when migrated down and up again, then the data and the permission keys round-trip | P1 | api | [design § 5](../design/m1.7-shared-catalog.md#5-data-model-after-m17) |
