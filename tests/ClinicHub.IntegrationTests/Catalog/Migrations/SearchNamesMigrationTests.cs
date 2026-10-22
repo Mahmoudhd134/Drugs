@@ -33,7 +33,7 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
         var clinic = await Data.Clinic().Named($"عيادة الأمل {n}");
         var staff = await Data.Staff(clinic).Named($"أحمد مؤمن {n}");
         var drug = await Data.Drug(clinic).Named($"أسبرين ممتد {n}");
-        var group = await Data.Group(clinic).Named($"مجموعة إلتهاب {n}").With(drug);
+        var group = await Data.Protocol(clinic).Named($"مجموعة إلتهاب {n}").With(drug);
         var before = await CountRowsAsync();
 
         try
@@ -56,7 +56,7 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
 
         var owner = await Login.OwnerAsync(clinic);
         (await SearchDrugNamesAsync(owner, $"اسبرين ممتد {n}")).ShouldBe([drug.Name]);
-        (await SearchGroupNamesAsync(owner, $"مجموعه التهاب {n}")).ShouldBe([group.Name]);
+        (await SearchProtocolNamesAsync(owner, $"مجموعه التهاب {n}")).ShouldBe([group.Name]);
         var admin = await Login.SuperAdminAsync();
         (await AdminSearchAsync<ClinicSummary>(admin, "/api/v1/admin/clinics", $"عياده الامل {n}"))
             .Items.Select(c => c.Id).ShouldBe([clinic.Id]);

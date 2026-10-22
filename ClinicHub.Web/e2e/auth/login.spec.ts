@@ -67,7 +67,7 @@ test.describe("Login page @area:auth", () => {
             await expect(page.getByRole("banner")).toContainText(clinic.name);
             await healthy();
             // The clinic's name stays in the app bar on the clinic's other pages
-            for (const [entry, path] of [[t.navDrugs, /\/drugs$/], [t.navGroups, /\/groups$/]] as const) {
+            for (const [entry, path] of [[t.navDrugs, /\/drugs$/], [t.navProtocols, /\/groups$/]] as const) {
                 await navTo(page, t, entry);
                 await expect(page).toHaveURL(path);
                 await expectContextLabel(page, clinic.name);

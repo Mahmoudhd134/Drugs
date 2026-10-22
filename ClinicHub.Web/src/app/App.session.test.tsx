@@ -4,7 +4,7 @@ import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
     aDrug,
-    aGroup,
+    aProtocol,
     anAccessToken,
     aPage,
     api,
@@ -63,7 +63,7 @@ describe("staying logged in @area:auth", () => {
             http.get(api("/drugs"), ({request}) =>
                 (isFresh(request) ? HttpResponse.json(aPage([aDrug({name: "Tobradex"})])) : problem(401, "unauthorized"))),
             http.get(api("/drug-groups"), ({request}) =>
-                (isFresh(request) ? HttpResponse.json(aPage([aGroup({name: "Post cataract"})])) : problem(401, "unauthorized"))),
+                (isFresh(request) ? HttpResponse.json(aPage([aProtocol({name: "Post cataract"})])) : problem(401, "unauthorized"))),
         );
         const requests = recordRequests();
         await startApp({route: "/"});

@@ -59,10 +59,10 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
 
         (await doctor.MeAsync()).Permissions.ShouldBe(AllKeys);
         await (await doctor.DeleteAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeAsync(HttpStatusCode.NoContent);
-        await (await doctor.DeleteAsync($"/api/v1/drug-groups/{target.GroupId}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await doctor.DeleteAsync($"/api/v1/drug-groups/{target.ProtocolId}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
         await (await doctor.GetAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        await (await doctor.GetAsync($"/api/v1/drug-groups/{target.GroupId}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await doctor.GetAsync($"/api/v1/drug-groups/{target.ProtocolId}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
     }
 
     [Fact]
@@ -75,14 +75,14 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         var assistant = await Login.WithRoleAsync(clinic, "Assistant");
 
         await (await assistant.DeleteAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
-        await (await assistant.DeleteAsync($"/api/v1/drug-groups/{target.GroupId}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
+        await (await assistant.DeleteAsync($"/api/v1/drug-groups/{target.ProtocolId}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
 
         await (await assistant.GetAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeOkAsync();
-        await (await assistant.GetAsync($"/api/v1/drug-groups/{target.GroupId}")).ShouldBeOkAsync();
+        await (await assistant.GetAsync($"/api/v1/drug-groups/{target.ProtocolId}")).ShouldBeOkAsync();
         await (await assistant.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
         await (await assistant.PutAsync($"/api/v1/drugs/{target.DrugId}", new { name = "Tobradex " + Guid.NewGuid() })).ShouldBeOkAsync();
-        await (await assistant.PostAsync("/api/v1/drug-groups", CatalogRoutes.GroupBody(target.GroupDrugId))).ShouldBeAsync(HttpStatusCode.Created);
-        await (await assistant.PutAsync($"/api/v1/drug-groups/{target.GroupId}", CatalogRoutes.GroupBody(target.GroupDrugId))).ShouldBeOkAsync();
+        await (await assistant.PostAsync("/api/v1/drug-groups", CatalogRoutes.ProtocolBody(target.ProtocolDrugId))).ShouldBeAsync(HttpStatusCode.Created);
+        await (await assistant.PutAsync($"/api/v1/drug-groups/{target.ProtocolId}", CatalogRoutes.ProtocolBody(target.ProtocolDrugId))).ShouldBeOkAsync();
         (await assistant.MeAsync()).Permissions.ShouldBe(AssistantKeys);
     }
 
@@ -93,7 +93,7 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         var clinic = await Data.Clinic();
         var target = await CatalogRoutes.TargetAsync(Data, clinic);
         var viewer = await Login.WithPermissionsAsync(clinic,
-            Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Groups.List, Permissions.Groups.Details);
+            Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Protocols.List, Permissions.Protocols.Details);
 
         foreach (var endpoint in new[] { "GET /drugs", "GET /drugs/{id}", "GET /drugs/{id}/groups", "GET /drug-groups", "GET /drug-groups/{id}" })
             await (await CatalogRoutes.CallAsync(viewer, endpoint, target)).ShouldBeOkAsync();
@@ -102,7 +102,7 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
 
         (await viewer.MeAsync()).Permissions.ShouldBe(["drugs.list", "drugs.details", "groups.list", "groups.details"]);
         await (await viewer.GetAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeOkAsync();
-        await (await viewer.GetAsync($"/api/v1/drug-groups/{target.GroupId}")).ShouldBeOkAsync();
+        await (await viewer.GetAsync($"/api/v1/drug-groups/{target.ProtocolId}")).ShouldBeOkAsync();
     }
 
     [Fact]
@@ -141,12 +141,12 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         var clinic = await Data.Clinic();
         var target = await CatalogRoutes.TargetAsync(Data, clinic);
         var creator = await Data.Role(clinic).WithPermissions(Permissions.Drugs.Create);
-        var groupRemover = await Data.Role(clinic).WithPermissions(Permissions.Groups.Delete);
+        var groupRemover = await Data.Role(clinic).WithPermissions(Permissions.Protocols.Delete);
         var user = await Login.StaffAsync(await Data.Staff(clinic).WithRoles(creator.Id, groupRemover.Id));
 
         (await user.MeAsync()).Permissions.ShouldBe(["drugs.list", "drugs.create", "groups.list", "groups.delete"]);
         await (await user.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
-        await (await user.DeleteAsync($"/api/v1/drug-groups/{target.GroupId}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await user.DeleteAsync($"/api/v1/drug-groups/{target.ProtocolId}")).ShouldBeAsync(HttpStatusCode.NoContent);
         await (await user.DeleteAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
 

@@ -5,13 +5,13 @@ import {unique} from "../support/phones.ts";
 import {
     choose,
     createDrug,
-    createGroup,
+    createProtocol,
     deleteDrug,
     dialog,
     DOSINGS,
     drugRow,
     fillNumber,
-    groupCard,
+    protocolCard,
     option,
     search,
     sentenceIn,
@@ -139,8 +139,8 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             await expect(sentenceIn(drugRow(page, drug.name))).toHaveText(SENTENCES.dropRight4x7d);
 
             // The group editor's picker
-            await navTo(page, t, t.navGroups);
-            await page.getByRole("link", {name: t.newGroup}).click();
+            await navTo(page, t, t.navProtocols);
+            await page.getByRole("link", {name: t.newProtocol}).click();
             await search(page, page.getByPlaceholder(t.searchDrugs), drug.name);
             await expect(sentenceIn(option(page, drug.name))).toHaveText(SENTENCES.dropRight4x7d);
 
@@ -162,8 +162,8 @@ test.describe("Drugs: delete @area:catalog", () => {
             const drug = await createDrug(data, clinic, `Tobradex ${u}`);
             const other = await createDrug(data, clinic, `Other ${u}`);
             // Created B first: the names are listed by name, not by creation
-            await createGroup(data, clinic, `B group ${u}`, [{drug}, {drug: other}]);
-            await createGroup(data, clinic, `A group ${u}`, [{drug}]);
+            await createProtocol(data, clinic, `B group ${u}`, [{drug}, {drug: other}]);
+            await createProtocol(data, clinic, `A group ${u}`, [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             const askDelete = async () => {
@@ -174,7 +174,7 @@ test.describe("Drugs: delete @area:catalog", () => {
             };
             let confirm = await askDelete();
             await expect(confirm.locator(".MuiDialogContentText-root"))
-                .toHaveText(`${ct.drugDeleteMessage(drug.name)}\n${ct.drugUsedInGroups([`A group ${u}`, `B group ${u}`])}`);
+                .toHaveText(`${ct.drugDeleteMessage(drug.name)}\n${ct.drugUsedInProtocols([`A group ${u}`, `B group ${u}`])}`);
             await healthy();
 
             // «إلغاء»: nothing is deleted (still listed after a reload)
@@ -198,25 +198,25 @@ test.describe("Drugs: delete @area:catalog", () => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Only ${u}`);
             const replacement = await createDrug(data, clinic, `Replacement ${u}`);
-            const group = await createGroup(data, clinic, `Emptied ${u}`, [{drug}]);
+            const protocol = await createProtocol(data, clinic, `Emptied ${u}`, [{drug}]);
             await deleteDrug(data, clinic, drug);
             await signIn(page, clinic.owner.phone, "asIs", "/groups");
 
-            const card = groupCard(page, group.name);
+            const card = protocolCard(page, protocol.name);
             await expect(card.getByText(ct.drugCount(0), {exact: true})).toBeVisible();
-            await card.getByText(group.name, {exact: true}).click();
-            await expect(page).toHaveURL(new RegExp(`/groups/${group.id}$`));
-            await expect(page.getByText(ct.noDrugsInGroup, {exact: true})).toBeVisible();
+            await card.getByText(protocol.name, {exact: true}).click();
+            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+            await expect(page.getByText(ct.noDrugsInProtocol, {exact: true})).toBeVisible();
             const save = page.getByRole("button", {name: t.save, exact: true});
             await save.click();
             await expectToast(page, ct.drugsRequired);
-            await expect(page).toHaveURL(new RegExp(`/groups/${group.id}$`));
+            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
 
             await page.getByPlaceholder(t.searchDrugs).fill(replacement.name);
             await option(page, replacement.name).click();
             await save.click();
-            await expectToast(page, t.groupUpdated);
-            await expect(groupCard(page, group.name).getByText(ct.drugCount(1), {exact: true})).toBeVisible();
+            await expectToast(page, t.protocolUpdated);
+            await expect(protocolCard(page, protocol.name).getByText(ct.drugCount(1), {exact: true})).toBeVisible();
         });
 });
 

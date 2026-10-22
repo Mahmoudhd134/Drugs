@@ -12,7 +12,7 @@ import {renderAdmin} from "./admin.tsx";
 export const ROLE_KEYS = {
     assistant: ["drugs.list", "drugs.details", "drugs.create", "drugs.update", "groups.list", "groups.details", "groups.create",
         "groups.update", "prescriptions.create"],
-    groupEditors: ["drugs.list", "drugs.details", "drugs.delete", "groups.list", "groups.details", "groups.update"],
+    protocolEditors: ["drugs.list", "drugs.details", "drugs.delete", "groups.list", "groups.details", "groups.update"],
 };
 
 /** A clinic's default roles (Owner, Assistant held by one, Doctor unused). */

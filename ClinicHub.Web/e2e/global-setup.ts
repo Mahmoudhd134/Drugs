@@ -185,9 +185,9 @@ const seedTemplate = async (baseURL: string, phone: string): Promise<TemplateCat
         });
         const antibiotic = await drug("Moxifloxacin 0.5%", "Antibiotic eye drops", 1);
         const steroid = await drug("Prednisolone acetate 1%", "Steroid eye drops", 4);
-        const group = "After cataract surgery";
-        await admin.ok("POST", "/api/v1/drug-groups", {
-            name: group,
+        const protocol = "After cataract surgery";
+        await admin.ok("POST", "/api/v1/protocols", {
+            name: protocol,
             items: [
                 {drugId: antibiotic.id, dosing: null},
                 {
@@ -199,7 +199,7 @@ const seedTemplate = async (baseURL: string, phone: string): Promise<TemplateCat
                 },
             ],
         });
-        return {drugs: ["Moxifloxacin 0.5%", "Prednisolone acetate 1%"], group: {name: group, lines: 2}};
+        return {drugs: ["Moxifloxacin 0.5%", "Prednisolone acetate 1%"], protocol: {name: protocol, lines: 2}};
     } finally {
         await admin.dispose();
     }

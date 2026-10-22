@@ -4,9 +4,9 @@ using ClinicHub.Application.Features.Access.Roles.Commands.UpdateRole;
 using ClinicHub.Application.Features.Access.StaffMembers;
 using ClinicHub.Application.Features.Access.StaffMembers.Commands.RemoveStaff;
 using ClinicHub.Application.Features.Access.StaffMembers.Commands.UpdateStaff;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
-using ClinicHub.Application.Features.Catalog.DrugGroups.Commands.DeleteDrugGroup;
-using ClinicHub.Application.Features.Catalog.DrugGroups.Commands.UpdateDrugGroup;
+using ClinicHub.Application.Features.Catalog.Protocols;
+using ClinicHub.Application.Features.Catalog.Protocols.Commands.DeleteProtocol;
+using ClinicHub.Application.Features.Catalog.Protocols.Commands.UpdateProtocol;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.DeleteDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
@@ -93,11 +93,11 @@ public sealed class TestData(AppFixture app)
 
     /// <summary>
     /// A group (default: a unique name and one line with a new default drug of the clinic; lines added with
-    /// <see cref="GroupBuilder.With(int, Dosing)"/> replace that default).
+    /// <see cref="ProtocolBuilder.With(int, Dosing)"/> replace that default).
     /// </summary>
-    public GroupBuilder Group(int clinicId) => new(app, clinicId);
+    public ProtocolBuilder Protocol(int clinicId) => new(app, clinicId);
 
-    public GroupBuilder Group(ClinicHandle clinic) => Group(clinic.Id);
+    public ProtocolBuilder Protocol(ClinicHandle clinic) => Protocol(clinic.Id);
 
     public async Task<DrugDto> UpdateDrugAsync(int clinicId, int drugId, string name, string description = null, Dosing dosing = null) =>
         (await app.SendAsync(new UpdateDrugCommand(drugId, name, description, dosing), clinicId)).ShouldSucceed();
@@ -105,9 +105,9 @@ public sealed class TestData(AppFixture app)
     public async Task DeleteDrugAsync(int clinicId, int drugId) =>
         (await app.SendAsync(new DeleteDrugCommand(drugId), clinicId)).ShouldSucceed();
 
-    public async Task<DrugGroupDto> UpdateGroupAsync(int clinicId, int groupId, string name, params SaveDrugGroupItem[] items) =>
-        (await app.SendAsync(new UpdateDrugGroupCommand(groupId, name, items.ToList()), clinicId)).ShouldSucceed();
+    public async Task<ProtocolDto> UpdateProtocolAsync(int clinicId, int groupId, string name, params SaveProtocolItem[] items) =>
+        (await app.SendAsync(new UpdateProtocolCommand(groupId, name, items.ToList()), clinicId)).ShouldSucceed();
 
-    public async Task DeleteGroupAsync(int clinicId, int groupId) =>
-        (await app.SendAsync(new DeleteDrugGroupCommand(groupId), clinicId)).ShouldSucceed();
+    public async Task DeleteProtocolAsync(int clinicId, int groupId) =>
+        (await app.SendAsync(new DeleteProtocolCommand(groupId), clinicId)).ShouldSucceed();
 }

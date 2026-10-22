@@ -126,7 +126,7 @@ describe("drugs page: the edit dialog @area:catalog", () => {
 });
 
 describe("drugs page: delete with the groups warning @area:catalog", () => {
-    const groupsOf = (names: string[] | "fail" | "network") => http.get(api("/drugs/:id/groups"), () =>
+    const protocolsOf = (names: string[] | "fail" | "network") => http.get(api("/drugs/:id/groups"), () =>
         names === "fail" ? problem(500, "unexpected") : names === "network" ? networkError() : HttpResponse.json(names));
 
     const clickDelete = async (user: UserEvent, name: string, lang: "ar" | "en" = "ar") => {
@@ -136,7 +136,7 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
     };
 
     test("a drug in no group: only the first sentence, no groups line @DRUG-080", async () => {
-        server.use(groupsOf([]));
+        server.use(protocolsOf([]));
         const page = await openPage([aDrug({name: "Tobradex"})]);
         const dialog = await clickDelete(page.user, "Tobradex");
         expect(within(dialog).getByRole("heading", {name: "حذف الدواء؟"})).toBeInTheDocument();
@@ -145,14 +145,14 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
     });
 
     test("in English, a drug in no group: \"“Tobradex” will be deleted…\" only @DRUG-080", async () => {
-        server.use(groupsOf([]));
+        server.use(protocolsOf([]));
         const page = await openPage([aDrug({name: "Tobradex"})], "en");
         await clickDelete(page.user, "Tobradex", "en");
         expect(confirmText()).toBe(`“${isolate("Tobradex")}” will be deleted and removed from every group. This can't be undone.`);
     });
 
     test("English UI, two groups: \"It is used in these groups: A، B\" (the Arabic comma in both languages) @DRUG-081", async () => {
-        server.use(groupsOf(["Post cataract", "التهاب الملتحمة"]));
+        server.use(protocolsOf(["Post cataract", "التهاب الملتحمة"]));
         const page = await openPage([aDrug({name: "Tobradex"})], "en");
         await clickDelete(page.user, "Tobradex", "en");
         expect(confirmText()).toBe([
@@ -163,7 +163,7 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
 
     test("the group names lookup fails (500 or network): the confirmation still opens, without the groups line @DRUG-082", async () => {
         for (const failure of ["fail", "network"] as const) {
-            server.use(groupsOf(failure));
+            server.use(protocolsOf(failure));
             const page = await openPage([aDrug({name: "Tobradex"})]);
                 const dialog = await clickDelete(page.user, "Tobradex");
             expect(confirmText()).toBe(`سيتم حذف «${isolate("Tobradex")}» وإزالته من كل المجموعات. لا يمكن التراجع عن ذلك.`);
@@ -176,7 +176,7 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
         ["ar", "هذا العنصر لم يعد موجودًا."],
         ["en", "This item no longer exists."],
     ] as const)("already deleted in another window (%s): the toast %s @DRUG-087", async (lang, message) => {
-        server.use(groupsOf([]), http.delete(api("/drugs/:id"), () => problem(404, "notFound")));
+        server.use(protocolsOf([]), http.delete(api("/drugs/:id"), () => problem(404, "notFound")));
         const page = await openPage([aDrug({name: "Tobradex"})], lang);
         const dialog = await clickDelete(page.user, "Tobradex", lang);
         await page.user.click(within(dialog).getByRole("button", {name: lang === "ar" ? "حذف" : "Delete"}));
@@ -188,7 +188,7 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
     test("deleting the only row of the last page steps back one page @DRUG-085", async () => {
         const drugs = manyDrugs(21);
         server.use(
-            groupsOf([]),
+            protocolsOf([]),
             http.delete(api("/drugs/:id"), ({params}) => {
                 drugs.splice(drugs.findIndex(d => d.id === Number(params.id)), 1);
                 return new HttpResponse(null, {status: 204});

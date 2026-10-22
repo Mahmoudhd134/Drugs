@@ -13,8 +13,8 @@ import {toast} from "./ui.ts";
 
 export type Dosing = Record<string, unknown>;
 export type RxDrug = { id: number; name: string; description: string | null; defaultDosing: Dosing | null };
-export type RxGroup = { id: number; name: string };
-export type GroupLine = { drug: RxDrug; dosing?: Dosing | null };
+export type RxProtocol = { id: number; name: string };
+export type ProtocolLine = { drug: RxDrug; dosing?: Dosing | null };
 
 /** 1 or 2 drops, N times a day for W weeks, an optional eye (sentence: texts-rx.ts `dropDailySentence`). */
 export const dropDaily = (times: number, weeks: number, eye?: "right" | "left" | "both" | "none", drops: 1 | 2 = 1): Dosing => ({
@@ -67,20 +67,20 @@ export const rxGetDrug = async (data: Data, clinic: ClinicHandle, drug: RxDrug) 
     return api.ok<RxDrug>("GET", `/api/v1/drugs/${drug.id}`);
 };
 
-/** A group of the clinic (POST /drug-groups): its lines in order, each with an optional override. */
-export const rxGroup = async (data: Data, clinic: ClinicHandle, lines: GroupLine[], name = rxName("Group")): Promise<RxGroup> => {
+/** A protocol of the clinic (POST /protocols): its lines in order, each with an optional override. */
+export const rxProtocol = async (data: Data, clinic: ClinicHandle, lines: ProtocolLine[], name = rxName("Group")): Promise<RxProtocol> => {
     const api = await owner(data, clinic);
-    return api.ok<RxGroup>("POST", "/api/v1/drug-groups", {name, items: lines.map(l => ({drugId: l.drug.id, dosing: l.dosing ?? null}))});
+    return api.ok<RxProtocol>("POST", "/api/v1/protocols", {name, items: lines.map(l => ({drugId: l.drug.id, dosing: l.dosing ?? null}))});
 };
 
-export const rxUpdateGroup = async (data: Data, clinic: ClinicHandle, group: RxGroup, lines: GroupLine[], name = group.name) => {
+export const rxUpdateProtocol = async (data: Data, clinic: ClinicHandle, protocol: RxProtocol, lines: ProtocolLine[], name = protocol.name) => {
     const api = await owner(data, clinic);
-    return api.ok<RxGroup>("PUT", `/api/v1/drug-groups/${group.id}`, {name, items: lines.map(l => ({drugId: l.drug.id, dosing: l.dosing ?? null}))});
+    return api.ok<RxProtocol>("PUT", `/api/v1/protocols/${protocol.id}`, {name, items: lines.map(l => ({drugId: l.drug.id, dosing: l.dosing ?? null}))});
 };
 
-export const rxGetGroup = async (data: Data, clinic: ClinicHandle, group: RxGroup) => {
+export const rxGetProtocol = async (data: Data, clinic: ClinicHandle, protocol: RxProtocol) => {
     const api = await owner(data, clinic);
-    return api.ok<{ id: number; name: string; items: { drug: RxDrug; dosing: Dosing | null }[] }>("GET", `/api/v1/drug-groups/${group.id}`);
+    return api.ok<{ id: number; name: string; items: { drug: RxDrug; dosing: Dosing | null }[] }>("GET", `/api/v1/protocols/${protocol.id}`);
 };
 
 /** The prescription page's parts, in the project's language. */
@@ -127,9 +127,9 @@ export class RxPage {
         await expect(this.page.getByRole("tab", {name: this.rt.tabDrugs})).toHaveAttribute("aria-selected", "true");
     }
 
-    async openGroupsTab() {
-        await this.page.getByRole("tab", {name: this.rt.tabGroups}).click();
-        await expect(this.page.getByRole("tab", {name: this.rt.tabGroups})).toHaveAttribute("aria-selected", "true");
+    async openProtocolsTab() {
+        await this.page.getByRole("tab", {name: this.rt.tabProtocols}).click();
+        await expect(this.page.getByRole("tab", {name: this.rt.tabProtocols})).toHaveAttribute("aria-selected", "true");
     }
 
     /** A result of the shown picker (the other tab's picker is hidden and out of the accessibility tree). */
@@ -142,7 +142,7 @@ export class RxPage {
         await option.click();
     }
 
-    async addGroup(name: string) {
+    async addProtocol(name: string) {
         await this.option(name).click();
     }
 
@@ -154,7 +154,7 @@ export class RxPage {
             await this.addDrug(drug.name);
             await expect(this.lines).toHaveCount(before + 1);
         }
-        await this.openGroupsTab();
+        await this.openProtocolsTab();
     }
 
     /** Opens a line's «تعديل الجرعة» dialog (✎). */
@@ -175,7 +175,7 @@ export class RxPage {
 
     /** A tab's search box. */
     search(tab: "groups" | "drugs"): Locator {
-        return this.catalog.getByPlaceholder(tab === "groups" ? this.rt.searchGroups : this.rt.searchDrugs);
+        return this.catalog.getByPlaceholder(tab === "groups" ? this.rt.searchProtocols : this.rt.searchDrugs);
     }
 
     /**
@@ -209,7 +209,7 @@ export class RxPage {
 }
 
 /** The one toast of an added group: its lines in order (catalog RX-049), and whether it is the success style. */
-export const expectGroupToast = async (page: Page, lines: string[], style: "success" | "neutral") => {
+export const expectProtocolToast = async (page: Page, lines: string[], style: "success" | "neutral") => {
     const shown = toast(page, lines[0]);
     await expect(shown).toHaveText(lines.join("\n"), {timeout: 20_000});
     await expect(shown).toHaveCount(1);

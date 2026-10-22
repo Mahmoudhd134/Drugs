@@ -33,7 +33,7 @@ public static class CommonErrors
     public static readonly Error Unexpected =
         new("unexpected", "An unexpected error occurred.", ErrorType.Failure);
 
-    // Shared validation rules (names of drugs, groups, clinics and staff, later roles; free text such as a drug's
+    // Shared validation rules (names of drugs, protocols, clinics and staff, later roles; free text such as a drug's
     // description)
     public static readonly Error NameRequired =
         new("nameRequired", "The name is required.", ErrorType.Validation);

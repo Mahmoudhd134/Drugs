@@ -209,7 +209,7 @@ public class DosingValidityTests
         DosingCodes.Frequencies.ShouldBe(["daily", "everyHours", "bedtime", "asNeeded", "custom"]);
         DosingCodes.DurationUnits.ShouldBe(["days", "weeks", "months", "continuous", "untilNextVisit"]);
         DosingCodes.Eyes.ShouldBe(["right", "left", "both", "none"]);
-        DosingCodes.GroupEyes.ShouldBe(["right", "left", "both", "none", "ask"]);
+        DosingCodes.ProtocolEyes.ShouldBe(["right", "left", "both", "none", "ask"]);
     }
 
     [Fact]

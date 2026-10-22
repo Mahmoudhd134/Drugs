@@ -10,7 +10,7 @@ import {
     api,
     contextOfRequest,
     contextsHandler,
-    drugGroupsHandlers,
+    protocolsHandlers,
     expectPath,
     isolate,
     meByContext,
@@ -167,7 +167,7 @@ describe("a stale tab after another sign-in @area:auth", () => {
         // U2 lands in a clinic with the same id as U1's template: only the change of user tells the cached /me apart
         const u2 = sessionIn(template, [template], 2);
         // U2's home is the prescription page, whose group picker loads the groups
-        server.use(...drugGroupsHandlers([]));
+        server.use(...protocolsHandlers([]));
         const app = await staleTemplateTab(u2);
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));
         expect(within(await screen.findByRole("menu")).getByText("U1 name")).toBeInTheDocument();

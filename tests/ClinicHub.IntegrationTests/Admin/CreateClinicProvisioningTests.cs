@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using ClinicHub.Application.Features.Access.StaffMembers;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Platform.Clinics;
@@ -56,7 +56,7 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
 
     private static string DrugContent(DrugDto drug) => Json(new { drug.Name, drug.Description, drug.DefaultDosing });
 
-    private static string GroupContent(DrugGroupDto group) =>
+    private static string ProtocolContent(ProtocolDto group) =>
         Json(new { group.Name, Items = group.Items.Select(i => new { Drug = i.Drug.Name, i.Dosing }) });
 
     [Fact]
@@ -122,7 +122,7 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var after = await App.RowCountsAsync();
         (after.Clinics - before.Clinics, after.Users - before.Users, after.Staff - before.Staff, after.Roles - before.Roles,
             after.RolePermissions - before.RolePermissions, after.StaffRoles - before.StaffRoles, after.Drugs - before.Drugs,
-            after.Groups - before.Groups, after.GroupItems - before.GroupItems).ShouldBe((1, 1, 1, 3, 11 + 9, 1, 2, 1, 2));
+            after.Protocols - before.Protocols, after.ProtocolItems - before.ProtocolItems).ShouldBe((1, 1, 1, 3, 11 + 9, 1, 2, 1, 2));
         (await App.QueryDbAsync(db => db.Set<RolePermission>().CountAsync(p =>
             db.Roles.IgnoreQueryFilters().Any(r => r.Id == p.RoleId && r.ClinicId == clinic.Id && r.IsOwner)))).ShouldBe(0);
     }
@@ -157,13 +157,13 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var owner = await Login.AsAsync(phone);
 
         var drugs = (await owner.DrugsAsync()).Items;
-        var groups = await owner.GroupsAsync();
+        var groups = await owner.ProtocolsAsync();
 
         drugs.Select(DrugContent).ShouldBe((await inTemplate.DrugsAsync()).Items.Select(DrugContent), ignoreOrder: true);
         drugs.Select(DrugContent).ShouldBe([DrugContent(template.First), DrugContent(template.Second)], ignoreOrder: true);
         drugs.Single(d => d.Name == template.Second.Name).DefaultDosing.TaperSteps.Count.ShouldBe(3);
         var group = groups.ShouldHaveSingleItem();
-        GroupContent(group).ShouldBe(GroupContent(template.Group));
+        ProtocolContent(group).ShouldBe(ProtocolContent(template.Protocol));
         group.Items.Select(i => i.Drug.Name).ShouldBe([template.First.Name, template.Second.Name]);
         group.Items[0].Dosing.ShouldBeNull();
         var line2 = group.Items[1].Dosing;
@@ -171,7 +171,7 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         line2.Eye.ShouldBe("ask");
         line2.DoseAmount.ShouldBeNull("the dose comes from the drug");
         line2.TaperSteps.Select(s => s.FrequencyValue).ShouldBe([4, 3, 2, 1]);
-        Json(line2).ShouldBe(Json(template.Group.Items[1].Dosing));
+        Json(line2).ShouldBe(Json(template.Protocol.Items[1].Dosing));
     }
 
     [Fact]
@@ -182,19 +182,19 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var admin = await Login.SharedSuperAdminAsync();
         var inTemplate = await InTemplateAsync();
         var templateDrugsBefore = (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var templateGroupsBefore = (await inTemplate.GroupsAsync()).Select(g => Json(g)).ToList();
+        var templateProtocolsBefore = (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var phone = Unique.Phone();
         await admin.CreateClinicAsync(phone);
         var owner = await Login.AsAsync(phone);
 
         var ownDrugIds = (await owner.DrugsAsync()).Items.Select(d => d.Id).ToList();
-        var group = (await owner.GroupsAsync()).Single();
+        var group = (await owner.ProtocolsAsync()).Single();
 
-        group.Id.ShouldNotBe(template.Group.Id);
+        group.Id.ShouldNotBe(template.Protocol.Id);
         group.Items.ShouldAllBe(i => ownDrugIds.Contains(i.Drug.Id));
         group.Items.ShouldAllBe(i => i.Drug.Id != template.First.Id && i.Drug.Id != template.Second.Id);
         (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugsBefore);
-        (await inTemplate.GroupsAsync()).Select(g => Json(g)).ShouldBe(templateGroupsBefore);
+        (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(templateProtocolsBefore);
     }
 
     [Fact]
@@ -211,11 +211,11 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var ownerA = await Login.AsAsync(phoneA);
         var ownerB = await Login.AsAsync(phoneB);
         var templateDrugs = (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var templateGroups = (await inTemplate.GroupsAsync()).Select(g => Json(g)).ToList();
+        var templateProtocols = (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var otherDrugs = (await ownerB.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var otherGroups = (await ownerB.GroupsAsync()).Select(g => Json(g)).ToList();
+        var otherProtocols = (await ownerB.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var drugs = (await ownerA.DrugsAsync()).Items;
-        var group = (await ownerA.GroupsAsync()).Single();
+        var group = (await ownerA.ProtocolsAsync()).Single();
 
         await (await ownerA.PutAsync($"/api/v1/drugs/{drugs[0].Id}", new
         {
@@ -229,9 +229,9 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         await (await ownerA.DeleteAsync($"/api/v1/drugs/{drugs[1].Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
         (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugs);
-        (await inTemplate.GroupsAsync()).Select(g => Json(g)).ShouldBe(templateGroups);
+        (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(templateProtocols);
         (await ownerB.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(otherDrugs);
-        (await ownerB.GroupsAsync()).Select(g => Json(g)).ShouldBe(otherGroups);
+        (await ownerB.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(otherProtocols);
     }
 
     [Fact]
@@ -427,14 +427,14 @@ public class CreateClinicFromAnEmptyTemplateTests(AppFixture app) : IntegrationT
         (await admin.RolesAsync(clinic.Id)).Select(r => r.Name).ShouldBe(["Owner", "Assistant", "Doctor"]);
         var owner = await Login.AsAsync(phone);
         (await owner.DrugsAsync()).TotalCount.ShouldBe(0);
-        (await owner.GroupsAsync()).ShouldBeEmpty();
+        (await owner.ProtocolsAsync()).ShouldBeEmpty();
     }
 }
 
 /// <summary>A template with drugs but no group (the class starts on a fresh template: no drugs, no groups).</summary>
 [Collection(AdminCollection3.Name)]
 [Trait("Area", "admin")]
-public class CreateClinicFromATemplateWithoutGroupsTests(AppFixture app) : IntegrationTest(app)
+public class CreateClinicFromATemplateWithoutProtocolsTests(AppFixture app) : IntegrationTest(app)
 {
     private static string DrugContent(DrugDto drug) =>
         JsonSerializer.Serialize(new { drug.Name, drug.Description, drug.DefaultDosing }, Harness.Assertions.Json.Options);
@@ -446,14 +446,14 @@ public class CreateClinicFromATemplateWithoutGroupsTests(AppFixture app) : Integ
         var admin = await Login.SuperAdminAsync();
         var templateId = await App.TemplateClinicIdAsync();
         var drug = await Data.Drug(templateId).Named(Unique.Name("Only drug", "دواء وحيد")).WithDosing(Dosings.Drops());
-        (await App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters().CountAsync(g => g.ClinicId == templateId))).ShouldBe(0);
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(g => g.ClinicId == templateId))).ShouldBe(0);
         var phone = Unique.Phone();
 
         await admin.CreateClinicAsync(phone);
 
         var owner = await Login.AsAsync(phone);
         DrugContent((await owner.DrugsAsync()).Items.ShouldHaveSingleItem()).ShouldBe(DrugContent(drug));
-        (await owner.GroupsAsync()).ShouldBeEmpty();
+        (await owner.ProtocolsAsync()).ShouldBeEmpty();
     }
 }
 

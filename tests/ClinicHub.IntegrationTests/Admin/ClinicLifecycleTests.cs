@@ -246,7 +246,7 @@ public class SuspendAndActivateTests(AppFixture app) : IntegrationTest(app)
         await Data.Drug(a).WithDosing(Dosings.Tablets());
         var owner = await Login.OwnerAsync(a);
         var drugs = (await owner.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var groups = (await owner.GroupsAsync()).Select(g => Json(g)).ToList();
+        var groups = (await owner.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var roles = await admin.RolesAsync(a.Id);
         var staff = await admin.StaffAsync(a.Id);
 
@@ -256,7 +256,7 @@ public class SuspendAndActivateTests(AppFixture app) : IntegrationTest(app)
         (await admin.RolesAsync(a.Id)).ShouldBeEquivalentTo(roles);
         (await admin.StaffAsync(a.Id)).ShouldBeEquivalentTo(staff);
         (await owner.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(drugs);
-        (await owner.GroupsAsync()).Select(g => Json(g)).ShouldBe(groups);
+        (await owner.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(groups);
     }
 
     private static string Json(object value) => System.Text.Json.JsonSerializer.Serialize(value, Harness.Assertions.Json.Options);
@@ -373,14 +373,14 @@ public class DeleteClinicTests(AppFixture app) : IntegrationTest(app)
         row.Status.ShouldBe(suspendedFirst ? "suspended" : "active");
         (await RowsOfAsync(a.Id)).ShouldBe(counts);
         counts.Drugs.ShouldBe(2);
-        counts.Groups.ShouldBe(1);
+        counts.Protocols.ShouldBe(1);
         counts.Roles.ShouldBe(3);
         counts.Staff.ShouldBe(2);
     }
 
-    private Task<(int Drugs, int Groups, int Roles, int Staff)> RowsOfAsync(int clinicId) => App.QueryDbAsync(async db => (
+    private Task<(int Drugs, int Protocols, int Roles, int Staff)> RowsOfAsync(int clinicId) => App.QueryDbAsync(async db => (
         await db.Drugs.IgnoreQueryFilters().CountAsync(x => x.ClinicId == clinicId),
-        await db.DrugGroups.IgnoreQueryFilters().CountAsync(x => x.ClinicId == clinicId),
+        await db.Protocols.IgnoreQueryFilters().CountAsync(x => x.ClinicId == clinicId),
         await db.Roles.IgnoreQueryFilters().CountAsync(x => x.ClinicId == clinicId),
         await db.Staff.IgnoreQueryFilters().CountAsync(x => x.ClinicId == clinicId)));
 

@@ -16,9 +16,9 @@ public sealed class CatalogListCollection : ICollectionFixture<AppFixture>
     public const string Name = "catalog-2";
 }
 
-/// <summary>Drug groups.</summary>
+/// <summary>Protocols.</summary>
 [CollectionDefinition(Name)]
-public sealed class CatalogGroupsCollection : ICollectionFixture<AppFixture>
+public sealed class CatalogProtocolsCollection : ICollectionFixture<AppFixture>
 {
     public const string Name = "catalog-3";
 }

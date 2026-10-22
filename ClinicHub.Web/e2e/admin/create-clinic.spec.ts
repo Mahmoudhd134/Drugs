@@ -48,9 +48,9 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             await navTo(owner.page, t, t.navDrugs);
             await expect(owner.page.getByText("إجمالي الأدوية: 2", {exact: true})).toBeVisible();
             for (const drug of template.drugs) await expect(owner.page.getByRole("cell", {name: drug})).toBeVisible();
-            await navTo(owner.page, t, t.navGroups);
+            await navTo(owner.page, t, t.navProtocols);
             await expect(owner.page.getByText("إجمالي المجموعات: 1", {exact: true})).toBeVisible();
-            await expect(owner.page.getByText(template.group.name, {exact: true})).toBeVisible();
-            await expect(owner.page.getByText(`الأدوية: ${template.group.lines}`, {exact: true})).toBeVisible();
+            await expect(owner.page.getByText(template.protocol.name, {exact: true})).toBeVisible();
+            await expect(owner.page.getByText(`الأدوية: ${template.protocol.lines}`, {exact: true})).toBeVisible();
         });
 });

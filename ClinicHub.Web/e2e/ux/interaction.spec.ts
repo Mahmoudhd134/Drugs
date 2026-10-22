@@ -8,7 +8,7 @@ import {RX_TEXTS} from "../support/texts-rx.ts";
 import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
-    addGroupToRx,
+    addProtocolToRx,
     countNamed,
     dialog,
     drugRow,
@@ -16,8 +16,8 @@ import {
     expectNoDialog,
     expectNotCut,
     fitsTheScreen,
-    groupCard,
-    groupWith,
+    protocolCard,
+    protocolWith,
     linesPanel,
     noHorizontalScroll,
     open,
@@ -81,7 +81,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
-            const group = await groupWith(data, clinic, `G ${unique()}`, [{drug}]);
+            const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug}]);
             const deletes = recordRequests(page, "DELETE", /\/api\/v1\//);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
@@ -91,29 +91,29 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expect(drugRow(page, drug.name)).toBeVisible();
 
             await open(page, "/groups");
-            await groupCard(page, group.name).getByRole("button", {name: t.delete}).click();
-            await expect(dialog(page).getByText(u.deleteGroupTitle)).toBeVisible();
+            await protocolCard(page, protocol.name).getByRole("button", {name: t.delete}).click();
+            await expect(dialog(page).getByText(u.deleteProtocolTitle)).toBeVisible();
             await enterCancels(page, t.cancel, "delete group (list)");
-            await expect(groupCard(page, group.name)).toBeVisible();
+            await expect(protocolCard(page, protocol.name)).toBeVisible();
 
-            await open(page, `/groups/${group.id}`);
+            await open(page, `/groups/${protocol.id}`);
             await page.getByRole("button", {name: t.delete, exact: true}).click();
-            await expect(dialog(page).getByText(u.deleteGroupTitle)).toBeVisible();
+            await expect(dialog(page).getByText(u.deleteProtocolTitle)).toBeVisible();
             await enterCancels(page, t.cancel, "delete group (editor)");
-            await expect(page).toHaveURL(new RegExp(`/groups/${group.id}$`));
+            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
 
-            const name = page.getByRole("textbox", {name: t.groupName});
-            await name.fill(`${group.name} changed`);
+            const name = page.getByRole("textbox", {name: t.protocolName});
+            await name.fill(`${protocol.name} changed`);
             await page.getByRole("button", {name: t.back}).click();
             await expect(dialog(page).getByText(u.discardTitle)).toBeVisible();
             await enterCancels(page, t.cancel, "discard");
-            await expect(page).toHaveURL(new RegExp(`/groups/${group.id}$`));
-            await expect(name, "the changes are kept").toHaveValue(`${group.name} changed`);
-            await name.fill(group.name);
+            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+            await expect(name, "the changes are kept").toHaveValue(`${protocol.name} changed`);
+            await name.fill(protocol.name);
 
             expect(deletes.map(r => r.url()), "no DELETE sent").toEqual([]);
             expect(await countNamed(data, clinic, "drugs", drug.name)).toBe(1);
-            expect(await countNamed(data, clinic, "drug-groups", group.name)).toBe(1);
+            expect(await countNamed(data, clinic, "protocols", protocol.name)).toBe(1);
         });
 
     test("the drugs table: Tab to a row, then Enter or Space opens the drug (edit for an owner, details for a viewer) @UX-020",
@@ -154,7 +154,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
                 await drugWith(data, clinic, {name: `Bravo ${unique()}`}),
                 await drugWith(data, clinic, {name: `Charlie ${unique()}`}),
             ];
-            const group = await groupWith(data, clinic, `G ${unique()}`, [{drug: a}, {drug: b}, {drug: c}]);
+            const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug: a}, {drug: b}, {drug: c}]);
             await signIn(page, clinic.owner.phone);
             for (const drug of [a, b, c]) {
                 await addDrugToRx(page, t, drug.name);
@@ -170,14 +170,14 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expect(shownName(page, c.name)).toBeVisible();
             expect(await orderOnScreen(sortablePanel(page, u), names)).toEqual([b.name, a.name, c.name]);
 
-            await open(page, `/groups/${group.id}`);
+            await open(page, `/groups/${protocol.id}`);
             expect(await orderOnScreen(sortablePanel(page, u), names)).toEqual(names);
             await moveDownWithKeyboard(page, handles.nth(1));
             await expect.poll(() => orderOnScreen(sortablePanel(page, u), names), {message: "group: the second line moved down"}).toEqual([a.name, c.name, b.name]);
             await page.getByRole("button", {name: t.save, exact: true}).click();
-            await expectToast(page, t.groupUpdated);
+            await expectToast(page, t.protocolUpdated);
             const api = await data.ownerApi(clinic);
-            const saved = await api.ok<{ items: { drug: { name: string } }[] }>("GET", `/api/v1/drug-groups/${group.id}`);
+            const saved = await api.ok<{ items: { drug: { name: string } }[] }>("GET", `/api/v1/drug-groups/${protocol.id}`);
             expect(saved.items.map(i => i.drug.name), "saved in the new order").toEqual([a.name, c.name, b.name]);
         });
 
@@ -279,15 +279,15 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         await signIn(page, clinic.owner.phone, "asIs", "/groups/new");
 
         const name = `Double ${unique()}`;
-        await page.getByRole("textbox", {name: t.groupName}).fill(name);
+        await page.getByRole("textbox", {name: t.protocolName}).fill(name);
         await pick(page, t.searchDrugs, drug.name);
         await expect(shownName(page, drug.name)).toBeVisible();
         await page.getByRole("button", {name: t.save, exact: true}).dblclick();
-        await expectToast(page, t.groupCreated);
+        await expectToast(page, t.protocolCreated);
         await expect(page).toHaveURL(/\/groups$/);
-        await expect(groupCard(page, name)).toHaveCount(1);
+        await expect(protocolCard(page, name)).toHaveCount(1);
         expect(posts.length, "one POST").toBe(1);
-        expect(await countNamed(data, clinic, "drug-groups", name)).toBe(1);
+        expect(await countNamed(data, clinic, "protocols", name)).toBe(1);
     });
 
     test("ⓘ explains on hover and on keyboard focus (desktop), on a tap that keeps it about 5 s (phone) @UX-013",
@@ -331,7 +331,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const name = `L${unique()}`.padEnd(256, "W");
             expect(name).toHaveLength(256);
             const drug = await drugWith(data, clinic, {name, description: "D".repeat(300), defaultDosing: DOSINGS.oneDropFour.dosing});
-            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
+            const protocol = await protocolWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
@@ -354,14 +354,14 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await expectNoDialog(page);
 
             await open(page, "/groups");
-            await expect(groupCard(page, group.name)).toBeVisible();
+            await expect(protocolCard(page, protocol.name)).toBeVisible();
             await noHorizontalScroll(page, "groups list");
-            await groupCard(page, group.name).getByRole("button", {name: t.delete}).click();
+            await protocolCard(page, protocol.name).getByRole("button", {name: t.delete}).click();
             await expect(dialog(page)).toBeVisible();
-            await fits("delete-group confirmation", dialog(page).locator("p").filter({hasText: group.name}));
+            await fits("delete-group confirmation", dialog(page).locator("p").filter({hasText: protocol.name}));
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
-            await open(page, `/groups/${group.id}`);
+            await open(page, `/groups/${protocol.id}`);
             await fits("group editor line", sortablePanel(page, u).getByText(name, {exact: true}));
 
             await open(page, "/");
@@ -380,8 +380,8 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const clinic = await data.clinic();
             const name = `L${unique()}`.padEnd(256, "W");
             const drug = await drugWith(data, clinic, {name, defaultDosing: DOSINGS.oneDropFour.dosing});
-            const group = await groupWith(data, clinic, `G ${unique()}`, [{drug}]);
-            await signIn(page, clinic.owner.phone, "asIs", `/groups/${group.id}`);
+            const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug}]);
+            await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
             const problems: string[] = [];
             const check = async (what: string) => {
                 await expect(dialog(page)).toBeVisible();
@@ -405,18 +405,18 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const clinic = await data.clinic();
             const drugName = `L${unique()}`.padEnd(256, "W");
             const drug = await drugWith(data, clinic, {name: drugName});
-            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
+            const protocol = await protocolWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
             // A usual name (31 characters): already wider than a 1280 px screen's card title
-            const usual = await groupWith(data, clinic, `بعد عملية المياه البيضاء ${uniqueDigits()}`, [{drug}]);
+            const usual = await protocolWith(data, clinic, `بعد عملية المياه البيضاء ${uniqueDigits()}`, [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/groups");
-            const card = groupCard(page, group.name);
+            const card = protocolCard(page, protocol.name);
             await expect(card).toBeVisible();
             await noHorizontalScroll(page, "groups list");
             const problems: string[] = [];
             const shown = [
-                ["long group name", card.getByText(group.name, {exact: true})],
+                ["long group name", card.getByText(protocol.name, {exact: true})],
                 ["long drug name", card.getByText(drugName, {exact: true})],
-                ["usual group name", groupCard(page, usual.name).getByText(usual.name, {exact: true})],
+                ["usual group name", protocolCard(page, usual.name).getByText(usual.name, {exact: true})],
             ] as const;
             for (const [what, element] of shown) {
                 await expectNotCut(element, `groups list card: ${what}`).catch((e: Error) => problems.push(`${what}: ${e.message.slice(0, 200)}`));
@@ -431,11 +431,11 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
-            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
+            const protocol = await protocolWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
             await signIn(page, clinic.owner.phone);
             await rxTab(page, t, "groups");
-            await searchBox(page, t.searchGroups).fill(group.name);
-            const shown = page.getByRole("option").filter({visible: true}).getByText(group.name, {exact: true});
+            await searchBox(page, t.searchProtocols).fill(protocol.name);
+            const shown = page.getByRole("option").filter({visible: true}).getByText(protocol.name, {exact: true});
             await expect(shown).toBeVisible();
             await noHorizontalScroll(page, "group picker");
             await expectNotCut(shown, "group picker");
@@ -450,7 +450,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const asks = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: dropDaily(2, 1)});
             // The drug's line already there (right eye, 4 times) clashes with the group's (6 times); the group's other
             // line asks the eye
-            const group = await groupWith(data, clinic, `G${unique()}`.padEnd(256, "M"),
+            const protocol = await protocolWith(data, clinic, `G${unique()}`.padEnd(256, "M"),
                 [{drug, dosing: {frequency: "daily", frequencyValue: 6}}, {drug: asks, dosing: {eye: "ask"}}]);
             await signIn(page, clinic.owner.phone);
             await addDrugToRx(page, t, drug.name);
@@ -462,8 +462,8 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
                 await expectNotCut(shown, what);
             };
 
-            await addGroupToRx(page, t, group.name);
-            await fits("choose-eye dialog", dialog(page).getByText(rt.chooseEyeMessage(group.name), {exact: true}));
+            await addProtocolToRx(page, t, protocol.name);
+            await fits("choose-eye dialog", dialog(page).getByText(rt.chooseEyeMessage(protocol.name), {exact: true}));
             await dialog(page).getByRole("button", {name: rt.eyeLeft, exact: true}).click();
             await fits("conflict dialog", dialog(page).getByText(rt.conflictMessage(drug.name), {exact: true}));
             await dialog(page).getByRole("button", {name: rt.keepCurrent, exact: true}).click();

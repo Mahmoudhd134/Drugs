@@ -42,7 +42,7 @@ export type RunState = {
 
 export type TemplateCatalog = {
     drugs: string[];
-    group: { name: string; lines: number };
+    protocol: { name: string; lines: number };
 };
 
 const STATE_ENV = "CLINICHUB_E2E_STATE";

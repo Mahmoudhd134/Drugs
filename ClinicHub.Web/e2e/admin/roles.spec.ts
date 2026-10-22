@@ -47,7 +47,7 @@ test.describe("Platform admin: a clinic's roles @area:admin", () => {
 
     test("edit a role: its title, name and ticked keys; Save → «تم حفظ الدور «X»» @ADM-189", async ({page, t, data}) => {
         const clinic = await data.clinic();
-        const role = await data.role(clinic, ["groups.list"], `Readers ${unique()}`);
+        const role = await data.role(clinic, ["protocols.list"], `Readers ${unique()}`);
         await signInSuperAdmin(page, `/admin/clinics/${clinic.id}/roles`);
         await page.getByRole("button", {name: t.roleEditNamed(role.name)}).click();
 

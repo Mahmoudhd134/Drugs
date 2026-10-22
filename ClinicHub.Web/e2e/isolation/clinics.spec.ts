@@ -8,9 +8,9 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
         const drugA = await data.drug(a, `Drug A ${u}`);
-        const groupA = await data.group(a, [drugA], `Group A ${u}`);
+        const protocolA = await data.protocol(a, [drugA], `Group A ${u}`);
         const drugB = await data.drug(b, `Drug B ${u}`);
-        const groupB = await data.group(b, [drugB], `Group B ${u}`);
+        const protocolB = await data.protocol(b, [drugB], `Group B ${u}`);
         const staff = await data.staff(a);
         await data.staff(b, {phone: staff.phone});
         await signIn(page, staff.phone, {clinicId: a.id}, "/drugs");
@@ -18,20 +18,20 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         await openSwitchClinic(page, t);
 
         // From here (the picker), A's drug or group anywhere on screen is a leak
-        await page.evaluate(([drug, group]) => {
+        await page.evaluate(([drug, protocol]) => {
             const flags = window as unknown as { leaked?: string };
             new MutationObserver(() => {
                 const text = document.body.innerText;
-                if (text.includes(drug) || text.includes(group)) flags.leaked = text.includes(drug) ? drug : group;
+                if (text.includes(drug) || text.includes(protocol)) flags.leaked = text.includes(drug) ? drug : protocol;
             }).observe(document, {subtree: true, childList: true, characterData: true});
-        }, [drugA.name, groupA.name]);
+        }, [drugA.name, protocolA.name]);
         await pickerEntry(page, b.name).click();
         await expectContextLabel(page, b.name);
 
         await navTo(page, t, t.navDrugs);
         await expect(page.getByRole("cell", {name: drugB.name})).toBeVisible();
-        await navTo(page, t, t.navGroups);
-        await expect(page.getByText(groupB.name, {exact: true})).toBeVisible();
+        await navTo(page, t, t.navProtocols);
+        await expect(page.getByText(protocolB.name, {exact: true})).toBeVisible();
         expect(await page.evaluate(() => (window as unknown as { leaked?: string }).leaked ?? null)).toBeNull();
     });
 
@@ -48,7 +48,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         await page.getByRole("tab", {name: t.rxTabDrugs}).click();
         await page.getByRole("option", {name: new RegExp(drugA.name)}).click();
         await expect(page.getByText(t.rxEmpty)).toHaveCount(0);
-        await page.getByRole("tab", {name: t.rxTabGroups}).click();
+        await page.getByRole("tab", {name: t.rxTabProtocols}).click();
         await expect(page.getByText(drugA.name).filter({visible: true}).first()).toBeVisible();
 
         await openSwitchClinic(page, t);
@@ -60,7 +60,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         await openSwitchClinic(page, t);
         await pickerEntry(page, a.name).click();
         await expectContextLabel(page, a.name);
-        await page.getByRole("tab", {name: t.rxTabGroups}).click();
+        await page.getByRole("tab", {name: t.rxTabProtocols}).click();
         await expect(page.getByText(t.rxEmpty)).toHaveCount(0);
         await expect(page.getByText(drugA.name).filter({visible: true}).first()).toBeVisible();
         const stored = await page.evaluate(id => localStorage.getItem(`prescription.lines.${id}`), a.id);
@@ -72,11 +72,11 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
         const a = await data.clinic();
         const b = await data.clinic();
-        const groupB = await data.group(b, [await data.drug(b)]);
-        await signIn(page, a.owner.phone, "asIs", `/groups/${groupB.id}`);
+        const protocolB = await data.protocol(b, [await data.drug(b)]);
+        await signIn(page, a.owner.phone, "asIs", `/groups/${protocolB.id}`);
 
         await expect(page.getByText(t.notFound, {exact: true}).first()).toBeVisible();
-        await expect(page.getByText(groupB.name)).toHaveCount(0);
+        await expect(page.getByText(protocolB.name)).toHaveCount(0);
         await expectContextLabel(page, a.name);
         await healthy();
     });
@@ -91,11 +91,11 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             expect(await response.text(), path).toContain('<div id="root">');
         }
         const clinic = await data.clinic();
-        const group = await data.group(clinic, [await data.drug(clinic)]);
-        await signIn(page, clinic.owner.phone, "asIs", `/groups/${group.id}`);
+        const protocol = await data.protocol(clinic, [await data.drug(clinic)]);
+        await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
         await page.reload();
-        await expect(page).toHaveURL(new RegExp(`/groups/${group.id}$`));
-        await expect(page.getByRole("textbox").first()).toHaveValue(group.name);
+        await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+        await expect(page.getByRole("textbox").first()).toHaveValue(protocol.name);
     });
 
     test("the API unreachable while saving a drug or a group: «تعذّر الاتصال بالخادم» and the form keeps what was typed @ERR-031",
@@ -121,14 +121,14 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             await expect(toast(page, t.network)).toHaveCount(0);
             await dialog.getByRole("button", {name: t.cancel}).click();
 
-            const group = `Group ${unique()}`;
+            const protocol = `Group ${unique()}`;
             await page.goto("/groups/new");
-            await page.getByRole("textbox", {name: t.groupName}).fill(group);
+            await page.getByRole("textbox", {name: t.protocolName}).fill(protocol);
             await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
             await page.getByRole("option", {name: new RegExp(drug.name)}).click();
             await page.getByRole("button", {name: t.save, exact: true}).click();
             await expectToast(page, t.network);
-            await expect(page.getByRole("textbox", {name: t.groupName})).toHaveValue(group);
+            await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(protocol);
             await expect(page).toHaveURL(/\/groups\/new$/);
         });
 });

@@ -10,7 +10,7 @@ test.describe("The template clinic's catalog @area:auth", () => {
     test("a super admin adds and edits a drug and a group in the template, as in any clinic @AUTH-181", async ({page, t}) => {
         const u = unique();
         const drug = `Template drug ${u}`;
-        const group = `Template group ${u}`;
+        const protocol = `Template group ${u}`;
         await signIn(page, superAdminPhone(), "template", "/drugs");
         await expectContextLabel(page, t.template);
 
@@ -28,21 +28,21 @@ test.describe("The template clinic's catalog @area:auth", () => {
         await expect(page.getByRole("cell", {name: `${drug} edited`, exact: true})).toBeVisible();
 
         // Add a group with it, then edit the group
-        await navTo(page, t, t.navGroups);
-        await page.getByRole("link", {name: t.newGroup}).click();
-        await page.getByRole("textbox", {name: t.groupName}).fill(group);
+        await navTo(page, t, t.navProtocols);
+        await page.getByRole("link", {name: t.newProtocol}).click();
+        await page.getByRole("textbox", {name: t.protocolName}).fill(protocol);
         await page.getByPlaceholder(t.searchDrugs).fill(`${drug} edited`);
         await page.getByRole("option", {name: new RegExp(`${drug} edited`)}).click();
         await page.getByRole("button", {name: t.save, exact: true}).click();
-        await expectToast(page, t.groupCreated);
+        await expectToast(page, t.protocolCreated);
         await expect(page).toHaveURL(/\/groups$/);
 
-        await page.getByText(group, {exact: true}).click();
-        await expect(page.getByRole("heading", {level: 1, name: t.editGroup})).toBeVisible();
-        await page.getByRole("textbox", {name: t.groupName}).fill(`${group} edited`);
+        await page.getByText(protocol, {exact: true}).click();
+        await expect(page.getByRole("heading", {level: 1, name: t.editProtocol})).toBeVisible();
+        await page.getByRole("textbox", {name: t.protocolName}).fill(`${protocol} edited`);
         await page.getByRole("button", {name: t.save, exact: true}).click();
-        await expectToast(page, t.groupUpdated);
-        await expect(page.getByText(`${group} edited`, {exact: true})).toBeVisible();
+        await expectToast(page, t.protocolUpdated);
+        await expect(page.getByText(`${protocol} edited`, {exact: true})).toBeVisible();
         await expectContextLabel(page, t.template);
     });
 });

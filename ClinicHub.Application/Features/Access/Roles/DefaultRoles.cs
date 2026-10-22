@@ -18,7 +18,7 @@ public static class DefaultRoles
     /// </summary>
     public static readonly IReadOnlyList<string> OwnerLabels = [Owner, "المالك"];
 
-    private static readonly string[] AssistantDenied = [Permissions.Drugs.Delete, Permissions.Groups.Delete];
+    private static readonly string[] AssistantDenied = [Permissions.Drugs.Delete, Permissions.Protocols.Delete];
 
     /// <summary>Name → permissions; null = the Owner role (every permission, no rows).</summary>
     public static readonly IReadOnlyList<(string Name, IReadOnlyList<string> Permissions)> Templates =

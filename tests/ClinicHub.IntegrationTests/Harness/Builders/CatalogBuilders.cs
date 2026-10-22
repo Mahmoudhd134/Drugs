@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
-using ClinicHub.Application.Features.Catalog.DrugGroups.Commands.CreateDrugGroup;
+using ClinicHub.Application.Features.Catalog.Protocols;
+using ClinicHub.Application.Features.Catalog.Protocols.Commands.CreateProtocol;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.CreateDrug;
 using ClinicHub.Domain.Catalog;
@@ -41,36 +41,36 @@ public sealed class DrugBuilder(AppFixture app, int clinicId)
     public TaskAwaiter<DrugDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }
 
-/// <summary><see cref="CreateDrugGroupCommand"/> in the clinic (or the template): lines in the order added (default: one new drug).</summary>
-public sealed class GroupBuilder(AppFixture app, int clinicId)
+/// <summary><see cref="CreateProtocolCommand"/> in the clinic (or the template): lines in the order added (default: one new drug).</summary>
+public sealed class ProtocolBuilder(AppFixture app, int clinicId)
 {
     private string name = Unique.Name("Group", "مجموعة");
-    private readonly List<SaveDrugGroupItem> items = [];
+    private readonly List<SaveProtocolItem> items = [];
 
-    public GroupBuilder Named(string value)
+    public ProtocolBuilder Named(string value)
     {
         name = value;
         return this;
     }
 
     /// <summary>A line: the drug with an optional override (null = the drug's default; eye may be <c>ask</c>).</summary>
-    public GroupBuilder With(int drugId, Dosing overrideDosing = null)
+    public ProtocolBuilder With(int drugId, Dosing overrideDosing = null)
     {
-        items.Add(new SaveDrugGroupItem(drugId, overrideDosing));
+        items.Add(new SaveProtocolItem(drugId, overrideDosing));
         return this;
     }
 
-    public GroupBuilder With(DrugDto drug, Dosing overrideDosing = null) => With(drug.Id, overrideDosing);
+    public ProtocolBuilder With(DrugDto drug, Dosing overrideDosing = null) => With(drug.Id, overrideDosing);
 
     /// <summary>Creates the group; with no line added, one line with a new default drug of the same clinic (a group needs one).</summary>
-    public async Task<DrugGroupDto> CreateAsync()
+    public async Task<ProtocolDto> CreateAsync()
     {
         if (items.Count == 0)
-            items.Add(new SaveDrugGroupItem((await new DrugBuilder(app, clinicId).CreateAsync()).Id, null));
-        return (await app.SendAsync(new CreateDrugGroupCommand(name, items), clinicId)).ShouldSucceed();
+            items.Add(new SaveProtocolItem((await new DrugBuilder(app, clinicId).CreateAsync()).Id, null));
+        return (await app.SendAsync(new CreateProtocolCommand(name, items), clinicId)).ShouldSucceed();
     }
 
-    public TaskAwaiter<DrugGroupDto> GetAwaiter() => CreateAsync().GetAwaiter();
+    public TaskAwaiter<ProtocolDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }
 
 /// <summary>Common valid dosings (codes: <see cref="DosingCodes"/>).</summary>

@@ -2,8 +2,8 @@ import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
 import {
     aDrug,
-    aGroup,
-    drugGroupsHandlers,
+    aProtocol,
+    protocolsHandlers,
     drugsHandlers,
     recordRequests,
     renderWithProviders,
@@ -17,12 +17,12 @@ import {CatalogPanel} from "./CatalogPanel.tsx";
 
 
 const openPanel = (permissions: Permission[]) =>
-    renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectGroup={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "ar", user: {permissions}});
+    renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectProtocol={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "ar", user: {permissions}});
 
 describe("catalog panel by permission @area:access", () => {
     test("with both: the Groups and Drugs tabs, Groups first with the focus @ACC-068 @smoke", async () => {
-        server.use(...drugGroupsHandlers([aGroup({name: "Post cataract"})]), ...drugsHandlers([aDrug({name: "Tobradex"})]));
-        await openPanel(["groups.list", "drugs.list", "prescriptions.create"]);
+        server.use(...protocolsHandlers([aProtocol({name: "Post cataract"})]), ...drugsHandlers([aDrug({name: "Tobradex"})]));
+        await openPanel(["protocols.list", "drugs.list", "prescriptions.create"]);
         expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["المجموعات", "الأدوية"]);
         expect(screen.getByRole("tab", {name: "المجموعات"})).toHaveAttribute("aria-selected", "true");
         expect(screen.getByRole("searchbox", {name: "ابحث عن مجموعة بالاسم…"})).toHaveFocus();
@@ -40,9 +40,9 @@ describe("catalog panel by permission @area:access", () => {
     });
 
     test("with groups.list only: only the Groups tab, with the focus, and drugs are never loaded @ACC-068", async () => {
-        server.use(...drugGroupsHandlers([aGroup({name: "Post cataract"})]));
+        server.use(...protocolsHandlers([aProtocol({name: "Post cataract"})]));
         const requests = recordRequests();
-        await openPanel(["groups.list"]);
+        await openPanel(["protocols.list"]);
         expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["المجموعات"]);
         expect(screen.getByRole("searchbox", {name: "ابحث عن مجموعة بالاسم…"})).toHaveFocus();
         expect(await screen.findByText("Post cataract")).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("catalog panel by permission @area:access", () => {
     });
 
     test("with neither, in English: \"You don't have permission to search drugs or groups.\" @ACC-069", async () => {
-        await renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectGroup={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "en", user: {permissions: []}});
+        await renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectProtocol={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "en", user: {permissions: []}});
         expect(screen.getByText("You don't have permission to search drugs or groups.")).toBeInTheDocument();
     });
 });

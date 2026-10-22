@@ -6,15 +6,15 @@ import {DOSINGS, TEN_STEP_TAPER} from "../support/texts-ux.ts";
 import {expectToast, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
-    addGroupToRx,
+    addProtocolToRx,
     animationsDone,
     chooseLanguage,
     dialog,
     drugRow,
     drugWith,
     expectNoDialog,
-    groupCard,
-    groupWith,
+    protocolCard,
+    protocolWith,
     open,
     pageChecks,
     rxTab,
@@ -107,7 +107,7 @@ test.describe("Content in both languages @area:i18n", () => {
     test("drug and group names and descriptions show exactly as typed (Arabic and English) in both UI languages @I18N-008",
         async ({page, data, lang}) => {
             const tour = await tourClinic(data);
-            const latinGroup = await groupWith(data, tour.clinic, `Post cataract ${unique()}`, [{drug: tour.arabic}]);
+            const latinProtocol = await protocolWith(data, tour.clinic, `Post cataract ${unique()}`, [{drug: tour.arabic}]);
             await signIn(page, tour.clinic.owner.phone);
 
             for (const ui of [lang, lang === "ar" ? "en" : "ar"] as Lang[]) {
@@ -120,12 +120,12 @@ test.describe("Content in both languages @area:i18n", () => {
                         await expectShown(drugRow(page, drug.name), drug.description!, "drugs table");
                     }
                     await open(page, "/groups");
-                    await expectShown(groupCard(page, tour.group.name), tour.group.name, "group card");
-                    await expectShown(groupCard(page, tour.group.name), tour.latin.name, "group card drug");
-                    await expectShown(groupCard(page, latinGroup.name), latinGroup.name, "group card");
-                    await expectShown(groupCard(page, latinGroup.name), tour.arabic.name, "group card drug");
-                    await open(page, `/groups/${tour.group.id}`);
-                    await expect(page.getByRole("textbox", {name: t.groupName})).toHaveValue(tour.group.name);
+                    await expectShown(protocolCard(page, tour.protocol.name), tour.protocol.name, "group card");
+                    await expectShown(protocolCard(page, tour.protocol.name), tour.latin.name, "group card drug");
+                    await expectShown(protocolCard(page, latinProtocol.name), latinProtocol.name, "group card");
+                    await expectShown(protocolCard(page, latinProtocol.name), tour.arabic.name, "group card drug");
+                    await open(page, `/groups/${tour.protocol.id}`);
+                    await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(tour.protocol.name);
                     await expectShown(page, tour.latin.name, "group line");
                     await expectShown(page, tour.arabic.name, "group line");
                     await open(page, "/");
@@ -135,8 +135,8 @@ test.describe("Content in both languages @area:i18n", () => {
                     await expectShown(option, tour.arabic.name, "drug picker");
                     await expectShown(option, tour.arabic.description!, "drug picker");
                     await rxTab(page, t, "groups");
-                    await searchBox(page, t.searchGroups).fill(latinGroup.name);
-                    await expectShown(page.getByRole("option").filter({visible: true}), latinGroup.name, "group picker");
+                    await searchBox(page, t.searchProtocols).fill(latinProtocol.name);
+                    await expectShown(page.getByRole("option").filter({visible: true}), latinProtocol.name, "group picker");
                 });
             }
         });
@@ -157,7 +157,7 @@ test.describe("Content in both languages @area:i18n", () => {
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
-            await open(page, `/groups/${tour.group.id}`);
+            await open(page, `/groups/${tour.protocol.id}`);
             await expectShown(page, DOSINGS.sixTimesOverride.text, "group line with an override");
             await page.getByRole("button", {name: u.editLine}).first().click();
             await expectShown(dialog(page), DOSINGS.sixTimesOverride.text, "group line dialog preview");
@@ -171,12 +171,12 @@ test.describe("Content in both languages @area:i18n", () => {
             await searchBox(page, t.searchDrugs).fill("");
             await addDrugToRx(page, t, tour.latin.name);
             await expectShown(page.locator("main"), DOSINGS.oneDropFour.text, "prescription line");
-            await addGroupToRx(page, t, tour.group.name);
+            await addProtocolToRx(page, t, tour.protocol.name);
             await dialog(page).getByRole("button", {name: u.eyeLeft, exact: true}).click();
             await expect(dialog(page).getByText(u.conflictTitle)).toBeVisible();
             await expectShown(dialog(page), DOSINGS.oneDropFour.text, "conflict: current");
             await expectShown(dialog(page), DOSINGS.sixTimesOverride.text, "conflict: from the group");
-            await dialog(page).getByRole("button", {name: u.useGroup}).click();
+            await dialog(page).getByRole("button", {name: u.useProtocol}).click();
             await expectNoDialog(page);
             await expectShown(page.locator("main"), DOSINGS.sixTimesOverride.text, "prescription line replaced");
             await expectShown(page.locator("main"), DOSINGS.twoDropsLeft.text, "prescription line (ask eye: left chosen)");
@@ -205,10 +205,10 @@ test.describe("Content in both languages @area:i18n", () => {
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: DOSINGS.twoDropsLeft.dosing});
             const taper = await drugWith(data, clinic, {name: `Pred Forte ${unique()}`, defaultDosing: TEN_STEP_TAPER});
-            const group = await groupWith(data, clinic, `G ${uniqueDigits()}`, [{drug}, {drug: taper}]);
+            const protocol = await protocolWith(data, clinic, `G ${uniqueDigits()}`, [{drug}, {drug: taper}]);
             const api = await data.ownerApi(clinic);
             const total = (await api.ok<{ totalCount: number }>("GET", "/api/v1/drugs?pageSize=20")).totalCount;
-            const groups = (await api.ok<{ totalCount: number }>("GET", "/api/v1/drug-groups?pageSize=20")).totalCount;
+            const protocols = (await api.ok<{ totalCount: number }>("GET", "/api/v1/drug-groups?pageSize=20")).totalCount;
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             await expect(page.getByText(u.drugsSubtitle(total), {exact: true})).toBeVisible();
@@ -225,15 +225,15 @@ test.describe("Content in both languages @area:i18n", () => {
             await expectNoDialog(page);
 
             await open(page, "/groups");
-            await expect(page.getByText(u.groupsSubtitle(groups), {exact: true})).toBeVisible();
-            await expect(groupCard(page, group.name).getByText(u.groupDrugCount(2), {exact: true})).toBeVisible();
+            await expect(page.getByText(u.protocolsSubtitle(protocols), {exact: true})).toBeVisible();
+            await expect(protocolCard(page, protocol.name).getByText(u.protocolDrugCount(2), {exact: true})).toBeVisible();
             await expectWesternDigits(page, "groups");
 
             await open(page, "/");
             await rxTab(page, t, "drugs");
             await expect(page.getByText(u.results(total), {exact: true}).filter({visible: true})).toBeVisible();
-            await addGroupToRx(page, t, group.name);
-            await expectToast(page, u.groupAdded(group.name, 2));
+            await addProtocolToRx(page, t, protocol.name);
+            await expectToast(page, u.protocolAdded(protocol.name, 2));
             const lines = page.locator("main .MuiAvatar-root").filter({visible: true});
             await expect(lines.filter({hasText: /^1$/})).toHaveCount(1);
             await expect(lines.filter({hasText: /^2$/})).toHaveCount(1);
@@ -306,9 +306,9 @@ test.describe("Content in both languages @area:i18n", () => {
             await expectNoDialog(page);
 
             await open(page, "/groups/new");
-            const groupName = page.getByRole("textbox", {name: t.groupName});
-            await followsText(groupName, "group name");
-            await groupName.fill("");
+            const protocolName = page.getByRole("textbox", {name: t.protocolName});
+            await followsText(protocolName, "group name");
+            await protocolName.fill("");
 
             await open(page, "/");
             await addDrugToRx(page, t, drug.name);

@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type {Page} from "@playwright/test";
 import {expect, settled, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
-import {createDrug, createGroup} from "../support/catalog.ts";
+import {createDrug, createProtocol} from "../support/catalog.ts";
 
 /**
  * The lists' "loading" bars must have an accessible name like every control (design M1.6 D3: axe serious/critical
@@ -14,7 +14,7 @@ import {createDrug, createGroup} from "../support/catalog.ts";
 const holdSearches = async (page: Page) => {
     let release = () => {};
     const gate = new Promise<void>(resolve => { release = resolve; });
-    await page.route(url => /\/api\/v1\/(drugs|drug-groups)$/.test(url.pathname) && !!url.searchParams.get("search"),
+    await page.route(url => /\/api\/v1\/(drugs|drug-protocols)$/.test(url.pathname) && !!url.searchParams.get("search"),
         async route => {
             await gate;
             await route.continue();
@@ -45,13 +45,13 @@ test.describe("Loading bars of the lists @area:ux", () => {
         async ({page, t, data}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Bar ${unique()}`);
-            await createGroup(data, clinic, `Bar group ${unique()}`, [{drug}]);
+            await createProtocol(data, clinic, `Bar group ${unique()}`, [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
             expect.soft(await scanWhileSearching(page, t.searchDrugs, "bar"), "drugs page").toEqual([]);
 
             await page.goto("/groups");
             await settled(page);
-            expect.soft(await scanWhileSearching(page, t.searchGroups, "bar"), "groups page").toEqual([]);
+            expect.soft(await scanWhileSearching(page, t.searchProtocols, "bar"), "groups page").toEqual([]);
 
             // SearchableList: the group editor's drug picker (the prescription's pickers are the same component)
             await page.goto("/groups/new");

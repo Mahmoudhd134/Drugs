@@ -18,7 +18,7 @@ public sealed record DosingCase(
     bool ApiOnly)
 {
     public const string DrugDefault = "drugDefault";
-    public const string GroupLine = "groupLine";
+    public const string ProtocolLine = "groupLine";
 
     public override string ToString() => Name;
 }

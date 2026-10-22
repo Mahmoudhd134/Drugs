@@ -13,7 +13,7 @@ public class DrugConfiguration : IEntityTypeConfiguration<Drug>
         builder.Property(x => x.Name).HasMaxLength(FieldLimits.NameMaxLength).IsRequired();
         builder.HasIndex(x => new { x.ClinicId, x.Name });
         builder.HasSearchName(nameof(Drug.Name));
-        // Target of the group items' (DrugId, ClinicId) FK
+        // Target of the protocol items' (DrugId, ClinicId) FK
         builder.HasAlternateKey(x => new { x.Id, x.ClinicId });
         builder.OwnsOne(x => x.DefaultDosing, DosingConfiguration.Configure);
     }

@@ -19,7 +19,7 @@ public class BuilderTests(AppFixture app) : IntegrationTest(app)
     {
         var clinic = await Data.Clinic();
 
-        var group = await Data.Group(clinic);
+        var group = await Data.Protocol(clinic);
 
         var line = group.Items.ShouldHaveSingleItem();
         (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == line.Drug.Id))).ClinicId.ShouldBe(clinic.Id);

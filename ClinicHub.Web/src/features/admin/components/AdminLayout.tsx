@@ -27,7 +27,7 @@ export const AdminLayout = () => {
     );
 };
 
-/** Switches to the template clinic (its drugs and groups are copied into new clinics) and opens its drugs. */
+/** Switches to the template clinic (its drugs and protocols are copied into new clinics) and opens its drugs. */
 const EditTemplateButton = () => {
     const {t} = useTranslation();
     const navigate = useNavigate();

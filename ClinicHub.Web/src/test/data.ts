@@ -4,7 +4,7 @@ import type {Permission} from "../features/access/permissions.ts";
 import type {ClinicDetails, ClinicSummary} from "../features/admin/types.ts";
 import type {AuthResult, ClinicContext, Context, Me, PlatformContext} from "../features/auth/types.ts";
 import type {Dosing} from "../features/dosing/types.ts";
-import type {DrugGroup, DrugGroupItem} from "../features/drugGroups/types.ts";
+import type {Protocol, ProtocolItem} from "../features/protocols/types.ts";
 import type {Drug} from "../features/drugs/types.ts";
 import type {PrescriptionLine} from "../features/prescription/types.ts";
 import type {Role} from "../features/roles/types.ts";
@@ -28,11 +28,11 @@ export const aDrug = (fields: Partial<Drug> = {}): Drug => ({
     ...fields,
 });
 
-/** A group line: the drug and its override (`dosing`, null = the drug's default). */
-export const anItem = (drug: Drug, dosing: Dosing | null = null): DrugGroupItem => ({drug, dosing});
+/** A protocol line: the drug and its override (`dosing`, null = the drug's default). */
+export const anItem = (drug: Drug, dosing: Dosing | null = null): ProtocolItem => ({drug, dosing});
 
-/** A drug group with its lines in order (`GET /drug-groups`). */
-export const aGroup = (fields: Partial<DrugGroup> = {}): DrugGroup => ({
+/** A protocol with its lines in order (`GET /protocols`). */
+export const aProtocol = (fields: Partial<Protocol> = {}): Protocol => ({
     id: nextId(),
     name: "Post cataract",
     items: [],
@@ -66,18 +66,18 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     {key: "drugs.create", module: "catalog", resource: "drugs", action: "create", requires: ["drugs.list"]},
     {key: "drugs.update", module: "catalog", resource: "drugs", action: "update", requires: ["drugs.details"]},
     {key: "drugs.delete", module: "catalog", resource: "drugs", action: "delete", requires: ["drugs.details"]},
-    {key: "groups.list", module: "catalog", resource: "groups", action: "list", requires: []},
-    {key: "groups.details", module: "catalog", resource: "groups", action: "details", requires: ["groups.list"]},
-    {key: "groups.create", module: "catalog", resource: "groups", action: "create", requires: ["groups.list", "drugs.list"]},
-    {key: "groups.update", module: "catalog", resource: "groups", action: "update", requires: ["groups.details", "drugs.list"]},
-    {key: "groups.delete", module: "catalog", resource: "groups", action: "delete", requires: ["groups.list"]},
+    {key: "protocols.list", module: "catalog", resource: "protocols", action: "list", requires: []},
+    {key: "protocols.details", module: "catalog", resource: "protocols", action: "details", requires: ["protocols.list"]},
+    {key: "protocols.create", module: "catalog", resource: "protocols", action: "create", requires: ["protocols.list", "drugs.list"]},
+    {key: "protocols.update", module: "catalog", resource: "protocols", action: "update", requires: ["protocols.details", "drugs.list"]},
+    {key: "protocols.delete", module: "catalog", resource: "protocols", action: "delete", requires: ["protocols.list"]},
     {key: "prescriptions.create", module: "prescription", resource: "prescriptions", action: "create", requires: ["drugs.list"]},
 ];
 
 /**
  * `keys` with their requirements, transitively, in catalog order: the expanded set `/me` returns (access tech:
- * `PermissionSet.Of` adds the requirements; roles are stored closed). A role can't hold `groups.create` without
- * `groups.list` and `drugs.list`, so neither can a test user.
+ * `PermissionSet.Of` adds the requirements; roles are stored closed). A role can't hold `protocols.create` without
+ * `protocols.list` and `drugs.list`, so neither can a test user.
  */
 export const withRequirements = (keys: readonly string[]): Permission[] => {
     const held = new Set<string>();

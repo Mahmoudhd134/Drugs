@@ -6,17 +6,17 @@ import {expectContextLabel, expectToast, focusBack, navTo, recordRequests, sideb
 /** The Assistant default role (docs/features/access/business.md: everything except deleting drugs and groups). */
 const ASSISTANT: PermissionKey[] = [
     "drugs.list", "drugs.details", "drugs.create", "drugs.update",
-    "groups.list", "groups.details", "groups.create", "groups.update", "prescriptions.create",
+    "protocols.list", "protocols.details", "protocols.create", "protocols.update", "prescriptions.create",
 ];
 
 /** A clinic with a drug and a group, and a staff member with `role` (a default role's name, or a custom role's keys). */
 const setUp = async (data: Data, role: string | readonly PermissionKey[]) => {
     const clinic = await data.clinic();
     const drug = await data.drug(clinic);
-    const group = await data.group(clinic, [drug]);
+    const protocol = await data.protocol(clinic, [drug]);
     const roleId = typeof role === "string" ? data.roleId(clinic, role) : (await data.role(clinic, role)).id;
     const staff = await data.staff(clinic, {roles: [roleId]});
-    return {clinic, drug, group, staff, roleId};
+    return {clinic, drug, protocol, staff, roleId};
 };
 
 const forbiddenAnswers = (page: Page) => {
@@ -34,7 +34,7 @@ test.describe("Permissions in the UI @area:access", () => {
             const phone = role === "Owner" ? clinic.owner.phone : (await data.staff(clinic, {roles: [role]})).phone;
             await signIn(page, phone);
             await expectContextLabel(page, clinic.name);
-            expect(await sidebarEntries(page, t)).toEqual([t.navPrescription, t.navGroups, t.navDrugs]);
+            expect(await sidebarEntries(page, t)).toEqual([t.navPrescription, t.navProtocols, t.navDrugs]);
         });
     }
 
@@ -44,8 +44,8 @@ test.describe("Permissions in the UI @area:access", () => {
             await signIn(page, staff.phone);
             await expectContextLabel(page, clinic.name);
             await expect(page).toHaveURL(/\/groups$/);
-            await expect(page.getByRole("heading", {level: 1, name: t.groupsTitle})).toBeVisible();
-            expect(await sidebarEntries(page, t)).toEqual([t.navGroups, t.navDrugs]);
+            await expect(page.getByRole("heading", {level: 1, name: t.protocolsTitle})).toBeVisible();
+            expect(await sidebarEntries(page, t)).toEqual([t.navProtocols, t.navDrugs]);
             await healthy();
         });
 
@@ -107,9 +107,9 @@ test.describe("Permissions in the UI @area:access", () => {
     test("an Assistant in the group editor: Delete is shown disabled, and hovering it says «ليست لديك صلاحية» @ACC-066",
         async ({page, t, data, isMobile}) => {
             test.skip(isMobile, "no hover on a touch phone: the tap is the next test");
-            const {group, staff} = await setUp(data, "Assistant");
-            await signIn(page, staff.phone, "asIs", `/groups/${group.id}`);
-            await expect(page.getByRole("heading", {level: 1, name: t.editGroup})).toBeVisible();
+            const {protocol, staff} = await setUp(data, "Assistant");
+            await signIn(page, staff.phone, "asIs", `/groups/${protocol.id}`);
+            await expect(page.getByRole("heading", {level: 1, name: t.editProtocol})).toBeVisible();
             const remove = page.getByRole("button", {name: t.delete});
             await expect(remove).toBeDisabled();
 
@@ -121,8 +121,8 @@ test.describe("Permissions in the UI @area:access", () => {
     test("an Assistant on a phone taps the disabled Delete of the group editor: «ليست لديك صلاحية» shows @ACC-066",
         async ({page, t, data, isMobile}) => {
             test.skip(!isMobile, "touch only");
-            const {group, staff} = await setUp(data, "Assistant");
-            await signIn(page, staff.phone, "asIs", `/groups/${group.id}`);
+            const {protocol, staff} = await setUp(data, "Assistant");
+            await signIn(page, staff.phone, "asIs", `/groups/${protocol.id}`);
             const remove = page.getByRole("button", {name: t.delete});
             await expect(remove).toBeDisabled();
 
@@ -132,14 +132,14 @@ test.describe("Permissions in the UI @area:access", () => {
 
     for (const role of ["Owner", "Doctor", "Assistant", "read-only"] as const) {
         test(`${role}: every page they can open loads without a 403 @ACC-073`, async ({page, t, data}) => {
-            const {clinic, drug, group, staff} = await setUp(data, role === "read-only" ? READ_ONLY : role === "Owner" ? "Doctor" : role);
+            const {clinic, drug, protocol, staff} = await setUp(data, role === "read-only" ? READ_ONLY : role === "Owner" ? "Doctor" : role);
             const phone = role === "Owner" ? clinic.owner.phone : staff.phone;
             const refused = forbiddenAnswers(page);
             await signIn(page, phone);
             await expectContextLabel(page, clinic.name);
 
-            const pages = role === "read-only" ? ["/groups", `/groups/${group.id}`, "/drugs"]
-                : ["/", "/groups", "/groups/new", `/groups/${group.id}`, "/drugs"];
+            const pages = role === "read-only" ? ["/groups", `/groups/${protocol.id}`, "/drugs"]
+                : ["/", "/groups", "/groups/new", `/groups/${protocol.id}`, "/drugs"];
             for (const path of pages) {
                 await page.goto(path);
                 await expectContextLabel(page, clinic.name);
@@ -168,11 +168,11 @@ test.describe("Permissions changed while working @area:access", () => {
             allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drug-groups$/});
             const {clinic, staff, roleId} = await setUp(data, "Assistant");
             await signIn(page, staff.phone, "asIs", "/groups");
-            await expect(page.getByRole("heading", {level: 1, name: t.groupsTitle})).toBeVisible();
+            await expect(page.getByRole("heading", {level: 1, name: t.protocolsTitle})).toBeVisible();
 
-            await narrowAssistant(data, clinic, roleId, ["groups.list", "groups.details", "groups.create", "groups.update"]);
+            await narrowAssistant(data, clinic, roleId, ["protocols.list", "protocols.details", "protocols.create", "protocols.update"]);
             const me = recordRequests(page, "GET", /\/api\/v1\/me$/);
-            await page.getByPlaceholder(t.searchGroups).fill("x");
+            await page.getByPlaceholder(t.searchProtocols).fill("x");
 
             await expectToast(page, t.forbidden);
             await expect(toasts(page)).toHaveCount(1);
@@ -215,13 +215,13 @@ test.describe("Permissions changed while working @area:access", () => {
             await signIn(page, staff.phone, "asIs", "/drugs");
             await expect(page.getByRole("button", {name: t.addDrug})).toBeVisible();
 
-            await narrowAssistant(data, clinic, roleId, ["drugs.create", "groups.create"]);
+            await narrowAssistant(data, clinic, roleId, ["drugs.create", "protocols.create"]);
             const me = recordRequests(page, "GET", /\/api\/v1\/me$/);
             await focusBack(page);
 
             await expect(page.getByRole("button", {name: t.addDrug})).toHaveCount(0);
             expect(me.length).toBeGreaterThanOrEqual(1);
-            await navTo(page, t, t.navGroups);
-            await expect(page.getByRole("link", {name: t.newGroup})).toHaveCount(0);
+            await navTo(page, t, t.navProtocols);
+            await expect(page.getByRole("link", {name: t.newProtocol})).toHaveCount(0);
         });
 });

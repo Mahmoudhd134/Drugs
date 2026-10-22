@@ -1,6 +1,6 @@
 # ClinicHub.Web
 
-The ClinicHub SPA (React + TypeScript + MUI, English and Arabic RTL): drug catalog, drug groups and the prescription
+The ClinicHub SPA (React + TypeScript + MUI, English and Arabic RTL): drug catalog, protocols and the prescription
 builder. The API (`ClinicHub.Api`) serves the built app; architecture and conventions: [docs/tech/overview.md](../docs/tech/overview.md).
 
 - `npm ci`, then `npm run dev`: Vite at http://localhost:5173, `/api` proxied to the API at http://localhost:5000.

@@ -1,5 +1,5 @@
 import {expect, signIn, test} from "../support/fixtures.ts";
-import {RxPage, dragLine, dropDaily, expectInOrder, rxDrug, rxGetDrug, rxGetGroup, rxGroup, rxName} from "../support/rx.ts";
+import {RxPage, dragLine, dropDaily, expectInOrder, rxDrug, rxGetDrug, rxGetProtocol, rxProtocol, rxName} from "../support/rx.ts";
 import {dropDailySentence, RX_TEXTS} from "../support/texts-rx.ts";
 import {toast} from "../support/ui.ts";
 
@@ -79,12 +79,12 @@ test.describe("Prescription: editing, other eye and order of the lines @area:pre
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
             const a = await rxDrug(data, clinic, {name: rxName("Alpha"), dosing: dropDaily(4, 1, "right")});
-            const group = await rxGroup(data, clinic, [{drug: a, dosing: {frequency: "daily", frequencyValue: 3}}]);
+            const protocol = await rxProtocol(data, clinic, [{drug: a, dosing: {frequency: "daily", frequencyValue: 3}}]);
             const drugBefore = await rxGetDrug(data, clinic, a);
-            const groupBefore = await rxGetGroup(data, clinic, group);
+            const protocolBefore = await rxGetProtocol(data, clinic, protocol);
             await signIn(page, clinic.owner.phone);
             const rx = new RxPage(page, rt);
-            await rx.addGroup(group.name);
+            await rx.addProtocol(protocol.name);
             await rx.expectLines([[a.name, dropDailySentence(3, 1, "right")]]);
 
             const dialog = await rx.editLine(rx.line(0));
@@ -95,7 +95,7 @@ test.describe("Prescription: editing, other eye and order of the lines @area:pre
             await rx.expectLines([[a.name, dropDailySentence(6, 1, "left"), NOTE]]);
 
             expect(await rxGetDrug(data, clinic, a)).toEqual(drugBefore);
-            expect(await rxGetGroup(data, clinic, group)).toEqual(groupBefore);
+            expect(await rxGetProtocol(data, clinic, protocol)).toEqual(protocolBefore);
             // and as the clinic sees it: a new add still gives the drug's own default
             await rx.addAlone([a]);
             await rx.expectLines([[a.name, dropDailySentence(6, 1, "left"), NOTE], [a.name, dropDailySentence(4, 1, "right")]]);

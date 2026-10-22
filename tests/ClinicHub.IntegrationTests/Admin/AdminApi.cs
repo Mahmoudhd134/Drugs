@@ -2,7 +2,7 @@ using System.Net;
 using ClinicHub.Application.Common.Paging;
 using ClinicHub.Application.Features.Access.Roles;
 using ClinicHub.Application.Features.Access.StaffMembers;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Platform.Clinics;
 using ClinicHub.Domain.Access;
@@ -112,17 +112,17 @@ public static class AdminClientExtensions
         return await response.ReadAsync<PagedResult<DrugDto>>();
     }
 
-    public static async Task<List<DrugGroupDto>> GroupsAsync(this ApiClient client)
+    public static async Task<List<ProtocolDto>> ProtocolsAsync(this ApiClient client)
     {
-        var response = await client.GetAsync("/api/v1/drug-groups?pageSize=100");
+        var response = await client.GetAsync("/api/v1/protocols?pageSize=100");
         await response.ShouldBeOkAsync();
-        var page = await response.ReadAsync<PagedResult<DrugGroupDto>>();
-        var groups = new List<DrugGroupDto>();
+        var page = await response.ReadAsync<PagedResult<ProtocolDto>>();
+        var groups = new List<ProtocolDto>();
         foreach (var group in page.Items)
         {
-            var one = await client.GetAsync($"/api/v1/drug-groups/{group.Id}");
+            var one = await client.GetAsync($"/api/v1/protocols/{group.Id}");
             await one.ShouldBeOkAsync();
-            groups.Add(await one.ReadAsync<DrugGroupDto>());
+            groups.Add(await one.ReadAsync<ProtocolDto>());
         }
         return groups;
     }
@@ -148,7 +148,7 @@ public static class PermissionKeys
 
 /// <summary>Row counts of every table a create clinic writes ("nothing written" / "nothing is left").</summary>
 public sealed record RowCounts(int Clinics, int Users, int Staff, int Roles, int RolePermissions, int StaffRoles,
-    int Drugs, int Groups, int GroupItems);
+    int Drugs, int Protocols, int ProtocolItems);
 
 public static class AdminDb
 {
@@ -160,8 +160,8 @@ public static class AdminDb
         await db.Set<RolePermission>().CountAsync(),
         await db.StaffRoles.IgnoreQueryFilters().CountAsync(),
         await db.Drugs.IgnoreQueryFilters().CountAsync(),
-        await db.DrugGroups.IgnoreQueryFilters().CountAsync(),
-        await db.DrugGroupItems.IgnoreQueryFilters().CountAsync()));
+        await db.Protocols.IgnoreQueryFilters().CountAsync(),
+        await db.ProtocolItems.IgnoreQueryFilters().CountAsync()));
 
     public static Task<int> UserCountAsync(this AppFixture app) => app.QueryDbAsync(db => db.Users.CountAsync());
 }
@@ -171,7 +171,7 @@ public static class AdminDb
 /// line 2 overrides the dosing (taper 4→3→2→1, eye <c>ask</c>, the dose from the drug), built in the template through
 /// the real use cases.
 /// </summary>
-public sealed record TemplateCatalog(int TemplateId, DrugDto First, DrugDto Second, DrugGroupDto Group)
+public sealed record TemplateCatalog(int TemplateId, DrugDto First, DrugDto Second, ProtocolDto Protocol)
 {
     public static Dosing TaperOverride() => new()
     {
@@ -189,7 +189,7 @@ public sealed record TemplateCatalog(int TemplateId, DrugDto First, DrugDto Seco
             .Described("Antibiotic eye drops").WithDosing(Dosings.Drops(weeks: 1));
         var second = await app.Data.Drug(templateId).Named(Unique.Name("Prednisolone", "بريدنيزولون"))
             .Described("Steroid eye drops").WithDosing(Dosings.Taper("both", 3, 2, 1));
-        var group = await app.Data.Group(templateId).Named(Unique.Name("After cataract", "بعد المياه البيضاء"))
+        var group = await app.Data.Protocol(templateId).Named(Unique.Name("After cataract", "بعد المياه البيضاء"))
             .With(first).With(second, TaperOverride());
         return new TemplateCatalog(templateId, first, second, group);
     }

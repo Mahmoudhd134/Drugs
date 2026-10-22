@@ -55,7 +55,7 @@ const load = (clinicId: number): PrescriptionLine[] => {
  * The lines of the clinic's current prescription. Survives page reloads (localStorage, one key per
  * clinic). Each drug appears at most once per eye. The page is re-mounted when the clinic changes.
  * The checks read the latest lines (a ref updated with every change), not the last render's: two adds in a row
- * (a fast double click, or a group added after its dialogs were answered) never add the same drug+eye twice.
+ * (a fast double click, or a protocol added after its dialogs were answered) never add the same drug+eye twice.
  */
 export const usePrescriptionLines = (clinicId: number) => {
     const [lines, setLinesState] = useState<PrescriptionLine[]>(() => load(clinicId));

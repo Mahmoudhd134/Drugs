@@ -1,6 +1,6 @@
 using System.Net;
 using ClinicHub.Application.Features.Access.Roles;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -232,7 +232,7 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
         var created = await owner.PostAsync("/api/v1/drug-groups", new { name = "Exactly 1000", items = items.Take(1000) });
         await created.ShouldBeAsync(HttpStatusCode.Created);
-        var group = await created.ReadAsync<DrugGroupDto>();
+        var group = await created.ReadAsync<ProtocolDto>();
         group.Items.Count.ShouldBe(1000);
         await (await owner.PutAsync($"/api/v1/drug-groups/{group.Id}", new { name = "Exactly 1000", items }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
@@ -287,7 +287,7 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
         var (clinic, owner) = await ClinicFromTemplateAsync();
         var assistant = await Login.WithRoleAsync(clinic, DefaultRoles.Assistant);
         var drug = (await owner.DrugsAsync()).Items[0];
-        var group = (await owner.GroupsAsync())[0];
+        var group = (await owner.ProtocolsAsync())[0];
 
         var permissions = (await assistant.MeAsync()).Permissions;
         permissions.ShouldNotContain("drugs.delete");

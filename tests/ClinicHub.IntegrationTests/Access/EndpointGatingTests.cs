@@ -23,11 +23,11 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
         [Permissions.Drugs.Create] = [Permissions.Drugs.List],
         [Permissions.Drugs.Update] = [Permissions.Drugs.Details, Permissions.Drugs.List],
         [Permissions.Drugs.Delete] = [Permissions.Drugs.Details, Permissions.Drugs.List],
-        [Permissions.Groups.List] = [],
-        [Permissions.Groups.Details] = [Permissions.Groups.List],
-        [Permissions.Groups.Create] = [Permissions.Groups.List, Permissions.Drugs.List],
-        [Permissions.Groups.Update] = [Permissions.Groups.Details, Permissions.Groups.List, Permissions.Drugs.List],
-        [Permissions.Groups.Delete] = [Permissions.Groups.List],
+        [Permissions.Protocols.List] = [],
+        [Permissions.Protocols.Details] = [Permissions.Protocols.List],
+        [Permissions.Protocols.Create] = [Permissions.Protocols.List, Permissions.Drugs.List],
+        [Permissions.Protocols.Update] = [Permissions.Protocols.Details, Permissions.Protocols.List, Permissions.Drugs.List],
+        [Permissions.Protocols.Delete] = [Permissions.Protocols.List],
     };
 
     [Fact]
@@ -82,7 +82,7 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
         var clinic = await Data.Clinic();
         var assistant = await Login.WithRoleAsync(clinic, "Assistant");
         var viewer = await Login.WithPermissionsAsync(clinic,
-            Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Groups.List, Permissions.Groups.Details);
+            Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Protocols.List, Permissions.Protocols.Details);
 
         await (await assistant.DeleteAsync("/api/v1/drugs/2147483000")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
         await (await assistant.DeleteAsync("/api/v1/drug-groups/2147483000")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
@@ -120,9 +120,9 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
     {
         var drugs = await db.Drugs.IgnoreQueryFilters().Where(d => d.ClinicId == clinicId)
             .OrderBy(d => d.Id).Select(d => d.Id + ":" + d.Name).ToListAsync();
-        var groups = await db.DrugGroups.IgnoreQueryFilters().Where(g => g.ClinicId == clinicId)
+        var groups = await db.Protocols.IgnoreQueryFilters().Where(g => g.ClinicId == clinicId)
             .OrderBy(g => g.Id).Select(g => g.Id + ":" + g.Name).ToListAsync();
-        var lines = await db.DrugGroupItems.IgnoreQueryFilters().Where(i => i.DrugGroupId == target.GroupId)
+        var lines = await db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == target.ProtocolId)
             .OrderBy(i => i.Id).Select(i => i.Id + ":" + i.DrugId).ToListAsync();
         return string.Join("|", drugs) + "#" + string.Join("|", groups) + "#" + string.Join("|", lines);
     });

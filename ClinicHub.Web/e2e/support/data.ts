@@ -13,7 +13,7 @@ export type StaffMember = {
     roles: { id: number; name: string; isOwner: boolean }[];
 };
 export type Drug = { id: number; name: string };
-export type Group = { id: number; name: string };
+export type Protocol = { id: number; name: string };
 
 /** A clinic made for a test: its owner and roles (the default ones: Owner, Doctor, Assistant). */
 export type ClinicHandle = {
@@ -28,13 +28,13 @@ export type StaffHandle = { id: number; phone: string; fullName: string; clinic:
 /** Every permission key (docs/features/access/business.md "الصلاحيات"; the API's catalog). */
 export const PERMISSION_KEYS = [
     "drugs.list", "drugs.details", "drugs.create", "drugs.update", "drugs.delete",
-    "groups.list", "groups.details", "groups.create", "groups.update", "groups.delete",
+    "protocols.list", "protocols.details", "protocols.create", "protocols.update", "protocols.delete",
     "prescriptions.create",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
 /** The read-only role of the dev seed's "Viewer" (docs/features/access/tech.md "Dev seed"). */
-export const READ_ONLY: PermissionKey[] = ["drugs.list", "drugs.details", "groups.list", "groups.details"];
+export const READ_ONLY: PermissionKey[] = ["drugs.list", "drugs.details", "protocols.list", "protocols.details"];
 
 /**
  * Test data through the API, as the docs prescribe: the super admin (platform) creates clinics, staff and roles; an
@@ -158,9 +158,9 @@ export class Data {
         return api.ok<Drug>("POST", "/api/v1/drugs", {name, description: null, defaultDosing});
     }
 
-    async group(clinic: ClinicHandle, drugs: Drug[], name = `Group ${unique()}`): Promise<Group> {
+    async protocol(clinic: ClinicHandle, drugs: Drug[], name = `Group ${unique()}`): Promise<Protocol> {
         const api = await this.ownerApi(clinic);
-        return api.ok<Group>("POST", "/api/v1/drug-groups", {name, items: drugs.map(d => ({drugId: d.id, dosing: null}))});
+        return api.ok<Protocol>("POST", "/api/v1/protocols", {name, items: drugs.map(d => ({drugId: d.id, dosing: null}))});
     }
 
     async dispose() {

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
-using ClinicHub.Application.Features.Catalog.DrugGroups.Commands.CreateDrugGroup;
+using ClinicHub.Application.Features.Catalog.Protocols;
+using ClinicHub.Application.Features.Catalog.Protocols.Commands.CreateProtocol;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.CreateDrug;
 using ClinicHub.UnitTests.TestSupport;
 using Shouldly;
@@ -22,7 +22,7 @@ public partial class DosingFixtureTests
     {
         var row = DosingFixture.Find(name);
         var input = DosingFixture.ToDosing(row.Input);
-        var groupLine = row.Owner == DosingCase.GroupLine;
+        var groupLine = row.Owner == DosingCase.ProtocolLine;
 
         var normalized = DosingRules.Normalize(input);
         DosingRules.IsValid(normalized, allowAskEye: groupLine).ShouldBe(row.Valid, "DosingRules.IsValid(Normalize(input))");
@@ -32,8 +32,8 @@ public partial class DosingFixtureTests
                 "Normalize(input), set fields only");
 
         var answer = groupLine
-            ? ApiValidation.Run(new CreateDrugGroupCommandValidator(),
-                new CreateDrugGroupCommand("G", [new SaveDrugGroupItem(1, input)]))
+            ? ApiValidation.Run(new CreateProtocolCommandValidator(),
+                new CreateProtocolCommand("G", [new SaveProtocolItem(1, input)]))
             : ApiValidation.Run(new CreateDrugCommandValidator(), new CreateDrugCommand("Tobradex", null, input));
         List<ApiFieldError> expectedErrors = row.Valid ? [] : row.Errors.Select(e => new ApiFieldError(e.Code, e.Field)).ToList();
         answer.Errors.ShouldBe(expectedErrors, "the API's errors for this dosing");
@@ -54,7 +54,7 @@ public partial class DosingFixtureTests
                 () => row.Name.ShouldNotBeNullOrWhiteSpace(),
                 () => row.Ids.ShouldNotBeEmpty(row.Name),
                 () => row.Ids.ShouldAllBe(id => CaseId().IsMatch(id), row.Name),
-                () => row.Owner.ShouldBeOneOf(DosingCase.DrugDefault, DosingCase.GroupLine),
+                () => row.Owner.ShouldBeOneOf(DosingCase.DrugDefault, DosingCase.ProtocolLine),
                 () => row.Input.ShouldNotBeNull(row.Name),
                 () => row.HasNormalized.ShouldBe(row.Valid, $"{row.Name}: `normalized` only on valid rows"),
                 () => (row.Errors is { Count: > 0 }).ShouldBe(!row.Valid, $"{row.Name}: `errors` only on invalid rows"));
@@ -77,7 +77,7 @@ public partial class DosingFixtureTests
 
         var covered = DosingFixture.Cases.SelectMany(r => r.Ids).ToHashSet();
         expected.Where(id => !covered.Contains(id)).ShouldBeEmpty();
-        DosingFixture.Cases.Count(r => r.Owner == DosingCase.GroupLine).ShouldBeGreaterThan(0);
+        DosingFixture.Cases.Count(r => r.Owner == DosingCase.ProtocolLine).ShouldBeGreaterThan(0);
         DosingFixture.Cases.Count(r => r.Valid).ShouldBeGreaterThan(0);
         DosingFixture.Cases.Count(r => !r.Valid).ShouldBeGreaterThan(0);
     }

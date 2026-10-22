@@ -6,7 +6,7 @@ import viteConfig from './vite.config.ts'
 const pureLogicTests = [
     'src/features/dosing/{types,dosingText,taper}.test.ts',
     'src/features/prescription/{prescriptionText,usePrescriptionLines}.test.ts',
-    'src/features/drugGroups/editorItem.test.ts',
+    'src/features/protocols/editorItem.test.ts',
     'src/features/roles/permissionChoice.test.ts',
     'src/api/{errors,dataScope}.test.ts',
     'src/app/chunkReload.test.tsx',

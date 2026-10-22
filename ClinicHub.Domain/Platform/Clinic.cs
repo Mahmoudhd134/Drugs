@@ -9,7 +9,7 @@ public class Clinic : IHasTimestamps
     public string Name { get; set; }
     /// <summary>One of <see cref="ClinicStatus"/>.</summary>
     public string Status { get; set; } = ClinicStatus.Active;
-    /// <summary>The hidden clinic holding the default drugs/groups copied to new clinics (only one).</summary>
+    /// <summary>The hidden clinic holding the default drugs/protocols copied to new clinics (only one).</summary>
     public bool IsTemplate { get; set; }
     /// <summary>
     /// Set = soft deleted: hidden everywhere and nobody can enter it; its rows are kept. <see cref="Status"/>

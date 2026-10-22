@@ -52,7 +52,7 @@ describe("roles list @area:admin", () => {
             anOwnerRole(),
             aRole({name: "Doctor", permissions: [...ALL_PERMISSIONS]}),
             aRole({name: "Assistant", permissions: [...ROLE_KEYS.assistant]}),
-            aRole({name: "Group editors", permissions: [...ROLE_KEYS.groupEditors]}),
+            aRole({name: "Group editors", permissions: [...ROLE_KEYS.protocolEditors]}),
             aRole({name: "Nothing", permissions: []}),
             aRole({name: "One", permissions: ["drugs.list"]}),
             aRole({name: "Two", permissions: ["drugs.list", "groups.list"]}),

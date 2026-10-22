@@ -18,8 +18,8 @@ export type Dosing = {
     taperSteps?: TaperStep[] | null;
 };
 export type CatalogDrug = { id: number; name: string; description: string | null; defaultDosing: Dosing | null };
-export type GroupLine = { drug: { id: number }; dosing?: Dosing | null };
-export type CatalogGroup = { id: number; name: string; items: { drug: CatalogDrug; dosing: Dosing | null }[] };
+export type ProtocolLine = { drug: { id: number }; dosing?: Dosing | null };
+export type CatalogProtocol = { id: number; name: string; items: { drug: CatalogDrug; dosing: Dosing | null }[] };
 
 /** Dosings used by the specs (their sentences are in `SENTENCES`). */
 export const DOSINGS = {
@@ -65,20 +65,20 @@ export const deleteDrug = async (data: Data, clinic: ClinicHandle, drug: { id: n
     await api.ok("DELETE", `/api/v1/drugs/${drug.id}`);
 };
 
-export const createGroup = async (data: Data, clinic: ClinicHandle, name: string, lines: GroupLine[]) => {
+export const createProtocol = async (data: Data, clinic: ClinicHandle, name: string, lines: ProtocolLine[]) => {
     const api = await data.ownerApi(clinic);
-    return api.ok<CatalogGroup>("POST", "/api/v1/drug-groups",
+    return api.ok<CatalogProtocol>("POST", "/api/v1/protocols",
         {name, items: lines.map(l => ({drugId: l.drug.id, dosing: l.dosing ?? null}))});
 };
 
-export const getGroup = async (data: Data, clinic: ClinicHandle, id: number) => {
+export const getProtocol = async (data: Data, clinic: ClinicHandle, id: number) => {
     const api = await data.ownerApi(clinic);
-    return api.ok<CatalogGroup>("GET", `/api/v1/drug-groups/${id}`);
+    return api.ok<CatalogProtocol>("GET", `/api/v1/protocols/${id}`);
 };
 
-export const deleteGroup = async (data: Data, clinic: ClinicHandle, group: { id: number }) => {
+export const deleteProtocol = async (data: Data, clinic: ClinicHandle, protocol: { id: number }) => {
     const api = await data.ownerApi(clinic);
-    await api.ok("DELETE", `/api/v1/drug-groups/${group.id}`);
+    await api.ok("DELETE", `/api/v1/protocols/${protocol.id}`);
 };
 
 // ---- UI ----
@@ -93,10 +93,10 @@ export const drugRows = (page: Page) => page.locator("tbody tr");
 export const sentenceIn = (scope: Locator) => scope.locator("[lang=ar]");
 
 /** A group's card on the groups page. */
-export const groupCard = (page: Page, name: string) =>
+export const protocolCard = (page: Page, name: string) =>
     page.locator(".MuiCard-root").filter({has: page.getByText(name, {exact: true})});
 
-export const groupCards = (page: Page) => page.locator(".MuiCard-root");
+export const protocolCards = (page: Page) => page.locator(".MuiCard-root");
 
 /** The group editor's lines (editable: each has a drag handle), in order. */
 export const editorLines = (page: Page, ct: CatalogTexts) =>
@@ -127,7 +127,7 @@ export const dialog = (page: Page, title: string) => page.getByRole("dialog", {n
  * must not be cached yet (or the cache must have been invalidated), else no request is sent.
  */
 export const search = async (page: Page, field: Locator, term: string) => {
-    const answered = page.waitForResponse(r => /\/api\/v1\/(drugs|drug-groups)$/.test(new URL(r.url()).pathname)
+    const answered = page.waitForResponse(r => /\/api\/v1\/(drugs|protocols)$/.test(new URL(r.url()).pathname)
         && new URL(r.url()).searchParams.get("search") === term.trim());
     await field.fill(term);
     await answered;

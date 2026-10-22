@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, aLine, fillIn, findToast, hoverTooltip, toastTexts} from "../../../test";
+import {aDrug, aProtocol, aLine, fillIn, findToast, hoverTooltip, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
 import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
 
@@ -12,7 +12,7 @@ const isBefore = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Nod
 
 describe("the prescription page @area:prescription", () => {
     test("a search in Groups, then Drugs and back: each tab keeps its own search @RX-003", async () => {
-        const {user} = await openPrescription({groups: [aGroup()], drugs: [aDrug()]});
+        const {user} = await openPrescription({protocols: [aProtocol()], drugs: [aDrug()]});
         await fillIn(user, screen.getByRole("searchbox"), "post");
         await user.click(screen.getByRole("tab", {name: "الأدوية"}));
         expect(screen.getByRole("searchbox")).toHaveValue("");

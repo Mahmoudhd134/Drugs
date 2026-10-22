@@ -3,8 +3,8 @@ import {describe, expect, test, vi} from "vitest";
 import {screen, within} from "@testing-library/react";
 import {aDrug, aLine, renderWithProviders} from "../../../test";
 import {DrugFormDialog} from "../../drugs/components/DrugFormDialog.tsx";
-import {GroupItemDialog} from "../../drugGroups/components/GroupItemDialog.tsx";
-import {newItemKey} from "../../drugGroups/editorItem.ts";
+import {ProtocolItemDialog} from "../../protocols/components/ProtocolItemDialog.tsx";
+import {newItemKey} from "../../protocols/editorItem.ts";
 import {LineEditDialog} from "../../prescription/components/LineEditDialog.tsx";
 
 // The three dosing dialogs (drug default, group line, prescription line): docs/features/tapering/business.md
@@ -14,7 +14,7 @@ import {LineEditDialog} from "../../prescription/components/LineEditDialog.tsx";
 const drug = () => aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}});
 const dialogs: [string, () => ReactElement][] = [
     ["drug", () => <DrugFormDialog open drug={drug()} onClose={vi.fn()}/>],
-    ["group line", () => <GroupItemDialog item={{key: newItemKey(), drug: drug(), dosing: {}}} onClose={vi.fn()} onSave={vi.fn(() => true)}/>],
+    ["group line", () => <ProtocolItemDialog item={{key: newItemKey(), drug: drug(), dosing: {}}} onClose={vi.fn()} onSave={vi.fn(() => true)}/>],
     ["prescription line", () => <LineEditDialog line={aLine(drug())} onClose={vi.fn()} onSave={vi.fn(() => true)}/>],
 ];
 

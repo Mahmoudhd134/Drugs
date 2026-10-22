@@ -3,7 +3,7 @@ using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Infrastructure.Database;
 using ClinicHub.Application.Features.Access.StaffMembers;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.IntegrationTests.Access;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -35,10 +35,10 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         Clock.Advance(TimeSpan.FromMinutes(3));
 
         var drug = await (await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Tobradex", "توبرادكس") })).ReadAsync<DrugDto>();
-        var group = await (await owner.PostAsync("/api/v1/drug-groups", CatalogRoutes.GroupBody(drug.Id))).ReadAsync<DrugGroupDto>();
+        var group = await (await owner.PostAsync("/api/v1/drug-groups", CatalogRoutes.ProtocolBody(drug.Id))).ReadAsync<ProtocolDto>();
 
         var drugStamps = await DrugStampsAsync(drug.Id);
-        var groupStamps = await GroupStampsAsync(group.Id);
+        var groupStamps = await ProtocolStampsAsync(group.Id);
         var lineStamps = await LineStampsAsync(group.Id);
         foreach (var (createdAt, updatedAt) in new[] { drugStamps, groupStamps, lineStamps.ShouldHaveSingleItem() })
         {
@@ -81,7 +81,7 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         var clinic = await Data.Clinic();
         var first = await Data.Drug(clinic);
         var second = await Data.Drug(clinic);
-        var group = await Data.Group(clinic).With(first);
+        var group = await Data.Protocol(clinic).With(first);
         var created = Now;
         var owner = await Login.OwnerAsync(clinic);
 
@@ -89,7 +89,7 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         await (await owner.PutAsync($"/api/v1/drug-groups/{group.Id}",
             new { name = group.Name, items = new[] { new { drugId = first.Id }, new { drugId = second.Id } } })).ShouldBeOkAsync();
 
-        (await GroupStampsAsync(group.Id)).ShouldBe((created, Now));
+        (await ProtocolStampsAsync(group.Id)).ShouldBe((created, Now));
     }
 
     [Fact]
@@ -182,14 +182,14 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         return (row.CreatedAt, row.UpdatedAt);
     });
 
-    private Task<(DateTime, DateTime)> GroupStampsAsync(int groupId) => App.QueryDbAsync(async db =>
+    private Task<(DateTime, DateTime)> ProtocolStampsAsync(int groupId) => App.QueryDbAsync(async db =>
     {
-        var row = await db.DrugGroups.IgnoreQueryFilters().Where(g => g.Id == groupId).Select(g => new { g.CreatedAt, g.UpdatedAt }).SingleAsync();
+        var row = await db.Protocols.IgnoreQueryFilters().Where(g => g.Id == groupId).Select(g => new { g.CreatedAt, g.UpdatedAt }).SingleAsync();
         return (row.CreatedAt, row.UpdatedAt);
     });
 
     private Task<List<(DateTime, DateTime)>> LineStampsAsync(int groupId) => App.QueryDbAsync(async db =>
-        (await db.DrugGroupItems.IgnoreQueryFilters().Where(i => i.DrugGroupId == groupId)
+        (await db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == groupId)
             .Select(i => new { i.CreatedAt, i.UpdatedAt }).ToListAsync())
         .Select(r => (r.CreatedAt, r.UpdatedAt)).ToList());
 }

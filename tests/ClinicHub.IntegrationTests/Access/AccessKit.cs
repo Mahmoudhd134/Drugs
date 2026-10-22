@@ -16,7 +16,7 @@ using Shouldly;
 namespace ClinicHub.IntegrationTests.Access;
 
 /// <summary>A clinic's rows the catalog routes act on: a drug to read/edit/delete, a group, and a drug for group bodies.</summary>
-public sealed record CatalogTarget(int DrugId, int GroupId, int GroupDrugId);
+public sealed record CatalogTarget(int DrugId, int ProtocolId, int ProtocolDrugId);
 
 /// <summary>
 /// The 11 gated catalog endpoints (access tech § API), named <c>"GET /drugs/{id}"</c>… for theories, with the
@@ -32,11 +32,11 @@ public static class CatalogRoutes
         ["POST /drugs"] = Permissions.Drugs.Create,
         ["PUT /drugs/{id}"] = Permissions.Drugs.Update,
         ["DELETE /drugs/{id}"] = Permissions.Drugs.Delete,
-        ["GET /drug-groups"] = Permissions.Groups.List,
-        ["GET /drug-groups/{id}"] = Permissions.Groups.Details,
-        ["POST /drug-groups"] = Permissions.Groups.Create,
-        ["PUT /drug-groups/{id}"] = Permissions.Groups.Update,
-        ["DELETE /drug-groups/{id}"] = Permissions.Groups.Delete,
+        ["GET /drug-groups"] = Permissions.Protocols.List,
+        ["GET /drug-groups/{id}"] = Permissions.Protocols.Details,
+        ["POST /drug-groups"] = Permissions.Protocols.Create,
+        ["PUT /drug-groups/{id}"] = Permissions.Protocols.Update,
+        ["DELETE /drug-groups/{id}"] = Permissions.Protocols.Delete,
     };
 
     /// <summary>Every endpoint, as theory data.</summary>
@@ -47,7 +47,7 @@ public static class CatalogRoutes
     {
         var drug = await data.Drug(clinicId);
         var groupDrug = await data.Drug(clinicId);
-        var group = await data.Group(clinicId).With(groupDrug);
+        var group = await data.Protocol(clinicId).With(groupDrug);
         return new CatalogTarget(drug.Id, group.Id, groupDrug.Id);
     }
 
@@ -63,14 +63,14 @@ public static class CatalogRoutes
         "PUT /drugs/{id}" => client.PutAsync($"/api/v1/drugs/{target.DrugId}", new { name = Unique.Name("Drug", "دواء") }),
         "DELETE /drugs/{id}" => client.DeleteAsync($"/api/v1/drugs/{target.DrugId}"),
         "GET /drug-groups" => client.GetAsync("/api/v1/drug-groups"),
-        "GET /drug-groups/{id}" => client.GetAsync($"/api/v1/drug-groups/{target.GroupId}"),
-        "POST /drug-groups" => client.PostAsync("/api/v1/drug-groups", GroupBody(target.GroupDrugId)),
-        "PUT /drug-groups/{id}" => client.PutAsync($"/api/v1/drug-groups/{target.GroupId}", GroupBody(target.GroupDrugId)),
-        "DELETE /drug-groups/{id}" => client.DeleteAsync($"/api/v1/drug-groups/{target.GroupId}"),
+        "GET /drug-groups/{id}" => client.GetAsync($"/api/v1/drug-groups/{target.ProtocolId}"),
+        "POST /drug-groups" => client.PostAsync("/api/v1/drug-groups", ProtocolBody(target.ProtocolDrugId)),
+        "PUT /drug-groups/{id}" => client.PutAsync($"/api/v1/drug-groups/{target.ProtocolId}", ProtocolBody(target.ProtocolDrugId)),
+        "DELETE /drug-groups/{id}" => client.DeleteAsync($"/api/v1/drug-groups/{target.ProtocolId}"),
         _ => throw new ArgumentOutOfRangeException(nameof(endpoint), endpoint, null),
     };
 
-    public static object GroupBody(params int[] drugIds) =>
+    public static object ProtocolBody(params int[] drugIds) =>
         new { name = Unique.Name("Group", "مجموعة"), items = drugIds.Select(id => new { drugId = id }).ToArray() };
 }
 

@@ -30,8 +30,8 @@ import {defaultRoles} from "../../../test/pages/rolesTab.ts";
 
 const AR = {
     drugsList: "عرض قائمة الأدوية والبحث فيها", drugsDetails: "فتح دواء", drugsCreate: "إضافة أدوية", drugsUpdate: "تعديل الأدوية",
-    drugsDelete: "حذف الأدوية", groupsList: "عرض قائمة المجموعات والبحث فيها", groupsDetails: "فتح مجموعة",
-    groupsCreate: "إضافة مجموعات", groupsUpdate: "تعديل المجموعات", groupsDelete: "حذف المجموعات", prescriptions: "كتابة الروشتات",
+    drugsDelete: "حذف الأدوية", protocolsList: "عرض قائمة المجموعات والبحث فيها", protocolsDetails: "فتح مجموعة",
+    protocolsCreate: "إضافة مجموعات", protocolsUpdate: "تعديل المجموعات", protocolsDelete: "حذف المجموعات", prescriptions: "كتابة الروشتات",
 };
 
 const box = (name: string) => screen.getByRole("checkbox", {name});
@@ -90,20 +90,20 @@ describe("role editor: the picker @area:admin", () => {
 
     test("ticking «تعديل المجموعات»: its requirements ticked and locked with «مطلوبة لـ: …», 4 of 11 @ADM-180 @smoke", async () => {
         const {user} = await openEditor();
-        await user.click(box(AR.groupsUpdate));
-        expect(box(AR.groupsUpdate)).toBeChecked();
-        expectLocked(AR.groupsDetails, "مطلوبة لـ: تعديل المجموعات");
+        await user.click(box(AR.protocolsUpdate));
+        expect(box(AR.protocolsUpdate)).toBeChecked();
+        expectLocked(AR.protocolsDetails, "مطلوبة لـ: تعديل المجموعات");
         expectLocked(AR.drugsList, "مطلوبة لـ: تعديل المجموعات");
         // The group list is required by «فتح مجموعة» (directly), which «تعديل المجموعات» requires (tech.md: requiredBy)
-        expectLocked(AR.groupsList, "مطلوبة لـ: فتح مجموعة");
+        expectLocked(AR.protocolsList, "مطلوبة لـ: فتح مجموعة");
         expect(picked(4)).toBeInTheDocument();
     });
 
     test("a locked box stays ticked when clicked or when Space is pressed on it @ADM-181", async () => {
         const {user} = await openEditor();
-        await user.click(box(AR.groupsUpdate));
-        await user.click(box(AR.groupsDetails));
-        expectLocked(AR.groupsDetails, "مطلوبة لـ: تعديل المجموعات");
+        await user.click(box(AR.protocolsUpdate));
+        await user.click(box(AR.protocolsDetails));
+        expectLocked(AR.protocolsDetails, "مطلوبة لـ: تعديل المجموعات");
         box(AR.drugsList).focus();
         await user.keyboard(" ");
         expectLocked(AR.drugsList, "مطلوبة لـ: تعديل المجموعات");
@@ -112,13 +112,13 @@ describe("role editor: the picker @area:admin", () => {
 
     test("unticking «تعديل المجموعات»: its requirements stay ticked, no longer locked by it, 3 of 11 @ADM-182", async () => {
         const {user} = await openEditor();
-        await user.click(box(AR.groupsUpdate));
-        await user.click(box(AR.groupsUpdate));
-        expectFree(AR.groupsUpdate, false);
-        expectFree(AR.groupsDetails, true);
+        await user.click(box(AR.protocolsUpdate));
+        await user.click(box(AR.protocolsUpdate));
+        expectFree(AR.protocolsUpdate, false);
+        expectFree(AR.protocolsDetails, true);
         expectFree(AR.drugsList, true);
         // Still needed by «فتح مجموعة», which stays ticked
-        expectLocked(AR.groupsList, "مطلوبة لـ: فتح مجموعة");
+        expectLocked(AR.protocolsList, "مطلوبة لـ: فتح مجموعة");
         expect(picked(3)).toBeInTheDocument();
     });
 

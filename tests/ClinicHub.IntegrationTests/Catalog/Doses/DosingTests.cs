@@ -149,7 +149,7 @@ public class DosingTests(AppFixture app) : CatalogTest(app)
         await ShouldBeRejectedAsync(new { eye = "ask" });
         var drug = await CreateDrugAsync(owner, "Tobradex");
 
-        var group = await CreateGroupAsync(owner, "Post cataract", Item(drug.Id, new { eye = "ask" }));
+        var group = await CreateProtocolAsync(owner, "Post cataract", Item(drug.Id, new { eye = "ask" }));
 
         group.Items.ShouldHaveSingleItem().Dosing.Eye.ShouldBe("ask");
         var problem = await (await PutDrugAsync(owner, drug.Id, "Tobradex", defaultDosing: new { eye = "ask" }))
@@ -164,7 +164,7 @@ public class DosingTests(AppFixture app) : CatalogTest(app)
         var owner = await OwnerAsync();
         var drug = await CreateDrugAsync(owner, "Tobradex", defaultDosing: new { });
 
-        var group = await CreateGroupAsync(owner, "Empty override", Item(drug.Id, new { eye = "", frequency = " " }));
+        var group = await CreateProtocolAsync(owner, "Empty override", Item(drug.Id, new { eye = "", frequency = " " }));
 
         drug.DefaultDosing.ShouldBeNull();
         group.Items.ShouldHaveSingleItem().Dosing.ShouldBeNull();
@@ -179,10 +179,10 @@ public class DosingTests(AppFixture app) : CatalogTest(app)
 
         // A stale form: a dosing the SPA's own checks would have stopped
         var onDrug = await PutDrugAsync(owner, drug.Id, "Tobradex", defaultDosing: new { doseAmount = 1, frequency = "daily" });
-        var onGroup = await PostGroupAsync(owner, "Stale", Item(drug.Id, new { durationUnit = "days" }));
+        var onProtocol = await PostProtocolAsync(owner, "Stale", Item(drug.Id, new { durationUnit = "days" }));
 
         (await onDrug.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidDosing")).ShouldHaveError("defaultDosing", "invalidDosing");
-        (await onGroup.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidDosing")).ShouldHaveError("items[0].dosing", "invalidDosing");
+        (await onProtocol.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidDosing")).ShouldHaveError("items[0].dosing", "invalidDosing");
     }
 
     // ---- Helpers ----

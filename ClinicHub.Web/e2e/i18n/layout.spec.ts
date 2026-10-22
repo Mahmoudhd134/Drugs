@@ -3,7 +3,7 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
 import {closeSidebar} from "../support/ui.ts";
-import {addDrugToRx, drugRow, drugWith, groupWith, linesPanel, open, shownName, textRect, textsOf} from "../support/ux.ts";
+import {addDrugToRx, drugRow, drugWith, protocolWith, linesPanel, open, shownName, textRect, textsOf} from "../support/ux.ts";
 
 const box = async (locator: Locator) => {
     const rect = await locator.boundingBox();
@@ -23,7 +23,7 @@ test.describe("Direction and alignment @area:i18n", () => {
             const rtl = lang === "ar";
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: DOSINGS.oneDropFour.dosing});
-            const group = await groupWith(data, clinic, `G ${unique()}`, [{drug}]);
+            const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug}]);
             await signIn(page, clinic.owner.phone);
             const width = page.viewportSize()!.width;
 
@@ -70,7 +70,7 @@ test.describe("Direction and alignment @area:i18n", () => {
             }
 
             // The group editor's back arrow points back (right in Arabic), at the start of the header
-            await open(page, `/groups/${group.id}`);
+            await open(page, `/groups/${protocol.id}`);
             const back = page.getByRole("button", {name: t.back});
             const transform = await back.locator("svg").evaluate(e => getComputedStyle(e).transform);
             expect(transform, "arrow mirrored in Arabic only").toBe(rtl ? "matrix(-1, 0, 0, 1, 0, 0)" : "none");

@@ -15,9 +15,9 @@ test.describe("Prescription: the page and adding single drugs @area:prescription
             await expectContextLabel(page, clinic.name);
             await expect(page.getByText(rt.catalog, {exact: true})).toBeVisible();
             await expect(page.getByText(rt.selected, {exact: true})).toBeVisible();
-            await expect(page.getByRole("tab", {name: rt.tabGroups})).toHaveAttribute("aria-selected", "true");
+            await expect(page.getByRole("tab", {name: rt.tabProtocols})).toHaveAttribute("aria-selected", "true");
             await expect(page.getByRole("tab", {name: rt.tabDrugs})).toHaveAttribute("aria-selected", "false");
-            await expect(page.getByPlaceholder(rt.searchGroups)).toBeFocused();
+            await expect(page.getByPlaceholder(rt.searchProtocols)).toBeFocused();
             await healthy();
         });
 

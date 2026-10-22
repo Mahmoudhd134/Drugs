@@ -183,9 +183,9 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
         var other = await Data.Drug(clinic);
-        await Data.Group(clinic).Named("التهاب الملتحمة").With(drug).With(other);
-        await Data.Group(clinic).Named("Post cataract").With(other).With(drug);
-        await Data.Group(clinic).Named("Unrelated").With(other);
+        await Data.Protocol(clinic).Named("التهاب الملتحمة").With(drug).With(other);
+        await Data.Protocol(clinic).Named("Post cataract").With(other).With(drug);
+        await Data.Protocol(clinic).Named("Unrelated").With(other);
 
         var response = await owner.GetAsync($"{DrugsUrl}/{drug.Id}/groups");
 
@@ -201,7 +201,7 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
-        var group = await Data.Group(clinic)
+        var group = await Data.Protocol(clinic)
             .With(drug, new Dosing { Eye = "right" })
             .With(drug, new Dosing { Eye = "left" });
 
@@ -233,17 +233,17 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
         var other = await Data.Drug(clinic);
-        var shared = await Data.Group(clinic).With(other).With(drug);
-        var only = await Data.Group(clinic).With(drug);
+        var shared = await Data.Protocol(clinic).With(other).With(drug);
+        var only = await Data.Protocol(clinic).With(drug);
 
         var response = await owner.DeleteAsync($"{DrugsUrl}/{drug.Id}");
 
         await response.ShouldBeAsync(HttpStatusCode.NoContent);
         await (await owner.GetAsync($"{DrugsUrl}/{drug.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        var sharedNow = await GetGroupAsync(owner, shared.Id);
+        var sharedNow = await GetProtocolAsync(owner, shared.Id);
         sharedNow.Items.Select(i => i.Drug.Id).ShouldBe([other.Id]);
         // A group can be left with no line (drug-groups tech § Data model)
-        (await GetGroupAsync(owner, only.Id)).Items.ShouldBeEmpty();
+        (await GetProtocolAsync(owner, only.Id)).Items.ShouldBeEmpty();
         (await GetDrugAsync(owner, other.Id)).Id.ShouldBe(other.Id);
     }
 

@@ -13,7 +13,7 @@ export type NavItem = ShellNavItem & { permission: Permission };
 // Add new modules of the clinic system here; the sidebar hides those the user can't open
 export const NAV_ITEMS: NavItem[] = [
     {to: "/", labelKey: "nav.prescription", icon: <ReceiptLongIcon/>, end: true, permission: PERMISSIONS.prescriptions.create},
-    {to: "/groups", labelKey: "nav.groups", icon: <CategoryIcon/>, permission: PERMISSIONS.groups.list},
+    {to: "/protocols", labelKey: "nav.protocols", icon: <CategoryIcon/>, permission: PERMISSIONS.protocols.list},
     {to: "/drugs", labelKey: "nav.drugs", icon: <MedicationIcon/>, permission: PERMISSIONS.drugs.list},
 ];
 
