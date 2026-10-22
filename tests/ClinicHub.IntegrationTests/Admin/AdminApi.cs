@@ -105,9 +105,13 @@ public static class AdminClientExtensions
     public static async Task<List<int>> SearchStaffIdsAsync(this ApiClient admin, int clinicId, string search) =>
         (await admin.StaffPageAsync(clinicId, $"pageSize=100&search={Uri.EscapeDataString(search)}")).Items.Select(s => s.Id).ToList();
 
+    /// <summary>
+    /// The clinic's own drugs (<c>source=own</c>, one page of 100): since M1.7 the full list also holds the shared catalog
+    /// (design M1.7 D1, D12), which no clinic copies.
+    /// </summary>
     public static async Task<PagedResult<DrugDto>> DrugsAsync(this ApiClient client)
     {
-        var response = await client.GetAsync("/api/v1/drugs?pageSize=100");
+        var response = await client.GetAsync("/api/v1/drugs?source=own&pageSize=100");
         await response.ShouldBeOkAsync();
         return await response.ReadAsync<PagedResult<DrugDto>>();
     }

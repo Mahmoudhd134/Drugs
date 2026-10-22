@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.Application.Features.Access;
 using ClinicHub.Application.Features.Catalog.Drugs;
@@ -35,11 +36,12 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
     [Fact]
     [Trait("Tier", "Smoke")]
     [Trait("Case", "ACC-010")]
-    public async Task The_owner_has_every_permission_and_every_catalog_call_succeeds()
+    public async Task The_owner_has_every_permission_and_every_catalog_call_on_own_drugs_succeeds()
     {
         var clinic = await Data.Clinic();
         var target = await CatalogRoutes.TargetAsync(Data, clinic);
         var owner = await Login.OwnerAsync(clinic);
+        var shared = await Data.SharedDrug();
 
         var me = await owner.MeAsync();
 
@@ -47,17 +49,24 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         me.Context.Roles.ShouldBe(["Owner"]);
         foreach (var endpoint in EveryEndpointInOrder)
             await (await CatalogRoutes.CallAsync(owner, endpoint, target)).ShouldSucceedAsync();
+        // Every permission still can't change a shared drug (design M1.7 D2, CAT-019)
+        var sharedTarget = target with { DrugId = shared.Id };
+        await (await CatalogRoutes.CallAsync(owner, "PUT /drugs/{id}", sharedTarget)).ShouldBeProblemAsync(HttpStatusCode.Conflict, "sharedDrugReadOnly");
+        await (await CatalogRoutes.CallAsync(owner, "DELETE /drugs/{id}", sharedTarget)).ShouldBeProblemAsync(HttpStatusCode.Conflict, "sharedDrugReadOnly");
+        await (await CatalogRoutes.CallAsync(owner, "GET /drugs/{id}", sharedTarget)).ShouldSucceedAsync();
     }
 
     [Fact]
     [Trait("Case", "ACC-011")]
-    public async Task A_doctor_deletes_a_drug_and_a_protocol_and_has_every_key()
+    public async Task A_doctor_deletes_an_own_drug_and_a_protocol_and_has_every_key()
     {
         var clinic = await Data.Clinic();
         var target = await CatalogRoutes.TargetAsync(Data, clinic);
         var doctor = await Login.WithRoleAsync(clinic, "Doctor");
+        var shared = await Data.SharedDrug();
 
         (await doctor.MeAsync()).Permissions.ShouldBe(AllKeys);
+        await (await doctor.DeleteAsync($"/api/v1/drugs/{shared.Id}")).ShouldBeProblemAsync(HttpStatusCode.Conflict, "sharedDrugReadOnly");
         await (await doctor.DeleteAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeAsync(HttpStatusCode.NoContent);
         await (await doctor.DeleteAsync($"/api/v1/protocols/{target.ProtocolId}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
@@ -79,8 +88,8 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
 
         await (await assistant.GetAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeOkAsync();
         await (await assistant.GetAsync($"/api/v1/protocols/{target.ProtocolId}")).ShouldBeOkAsync();
-        await (await assistant.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
-        await (await assistant.PutAsync($"/api/v1/drugs/{target.DrugId}", new { name = "Tobradex " + Guid.NewGuid() })).ShouldBeOkAsync();
+        await (await assistant.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
+        await (await assistant.PutAsync($"/api/v1/drugs/{target.DrugId}", new { categoryId = CategoryIds.Eye, name = "Tobradex " + Guid.NewGuid() })).ShouldBeOkAsync();
         await (await assistant.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(target.ProtocolDrugId))).ShouldBeAsync(HttpStatusCode.Created);
         await (await assistant.PutAsync($"/api/v1/protocols/{target.ProtocolId}", CatalogRoutes.ProtocolBody(target.ProtocolDrugId))).ShouldBeOkAsync();
         (await assistant.MeAsync()).Permissions.ShouldBe(AssistantKeys);
@@ -116,7 +125,7 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         me.Staff.ShouldBeNull();
         (await admin.MeNodeAsync()).ShouldHaveNull("staff");
 
-        var created = await (await admin.PostAsync("/api/v1/drugs", new { name = "Pred Forte " + Guid.NewGuid() }))
+        var created = await (await admin.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Pred Forte " + Guid.NewGuid() }))
             .ReadAsync<DrugDto>();
         await (await admin.DeleteAsync($"/api/v1/drugs/{created.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
     }
@@ -145,7 +154,7 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         var user = await Login.StaffAsync(await Data.Staff(clinic).WithRoles(creator.Id, protocolRemover.Id));
 
         (await user.MeAsync()).Permissions.ShouldBe(["drugs.list", "drugs.create", "protocols.list", "protocols.delete"]);
-        await (await user.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
+        await (await user.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
         await (await user.DeleteAsync($"/api/v1/protocols/{target.ProtocolId}")).ShouldBeAsync(HttpStatusCode.NoContent);
         await (await user.DeleteAsync($"/api/v1/drugs/{target.DrugId}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
@@ -189,7 +198,7 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
 
         await (await user.GetAsync("/api/v1/drugs")).ShouldBeOkAsync();
         (await user.MeAsync()).Permissions.ShouldBe(["drugs.list"]);
-        await (await user.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() }))
+        await (await user.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() }))
             .ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
 

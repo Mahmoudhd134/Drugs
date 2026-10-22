@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.Application.Common.Paging;
 using ClinicHub.Application.Features.Catalog.Drugs;
@@ -24,9 +25,9 @@ public class ClinicFromTokenTests(AppFixture app) : IntegrationTest(app)
         var b = await Data.Clinic();
         var owner = await Login.OwnerAsync(a);
 
-        var created = await (await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Tobradex", "توبرادكس"), clinicId = b.Id }))
+        var created = await (await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = Unique.Name("Tobradex", "توبرادكس"), clinicId = b.Id }))
             .ReadAsync<DrugDto>();
-        await (await owner.PutAsync($"/api/v1/drugs/{created.Id}", new { name = Unique.Name("Tobradex", "توبرادكس"), clinicId = b.Id }))
+        await (await owner.PutAsync($"/api/v1/drugs/{created.Id}", new { categoryId = CategoryIds.Eye, name = Unique.Name("Tobradex", "توبرادكس"), clinicId = b.Id }))
             .ShouldBeOkAsync();
 
         (await ClinicOfDrugAsync(created.Id)).ShouldBe(a.Id);
@@ -148,7 +149,7 @@ public class ClinicFromTokenTests(AppFixture app) : IntegrationTest(app)
         using var forged = new ApiClient(App.Factory) { AccessToken = ForgedTokens.Clinic(App, a.Owner.UserId, b.Id, staffId: null) };
 
         await (await forged.GetAsync("/api/v1/drugs")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "noAccess");
-        await (await forged.PostAsync("/api/v1/drugs", new { name = "Hijacked " + Guid.NewGuid() }))
+        await (await forged.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Hijacked " + Guid.NewGuid() }))
             .ShouldBeProblemAsync(HttpStatusCode.Forbidden, "noAccess");
     }
 

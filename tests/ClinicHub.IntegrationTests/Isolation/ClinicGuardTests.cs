@@ -1,7 +1,11 @@
+using System.Net;
 using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Infrastructure.Database;
+using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
+using ClinicHub.IntegrationTests.Harness.Databases;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,22 +25,24 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 {
     [Fact]
     [Trait("Case", "ISO-030")]
-    public async Task Without_a_clinic_in_context_no_clinic_owned_row_is_returned()
+    public async Task Without_a_clinic_in_context_only_the_shared_drugs_and_no_clinic_owned_row_are_returned()
     {
         var clinic = await Data.Clinic();
         await Data.Protocol(clinic);
 
         await InClinicAsync(null, async db =>
         {
-            (await db.Drugs.IgnoreQueryFilters().CountAsync()).ShouldBeGreaterThan(0);
-            (await db.Drugs.CountAsync()).ShouldBe(0);
+            (await db.Drugs.IgnoreQueryFilters().CountAsync(d => d.ClinicId != null)).ShouldBeGreaterThan(0);
+            // Drugs: only the shared rows (design M1.7 D1)
+            (await db.Drugs.CountAsync()).ShouldBe(TestRun.Baseline.SharedCount);
+            (await db.Drugs.CountAsync(d => d.ClinicId != null)).ShouldBe(0);
             (await db.Protocols.CountAsync()).ShouldBe(0);
             (await db.ProtocolItems.CountAsync()).ShouldBe(0);
             (await db.Staff.CountAsync()).ShouldBe(0);
             (await db.Roles.CountAsync()).ShouldBe(0);
             (await db.StaffRoles.CountAsync()).ShouldBe(0);
         });
-        await InClinicAsync(clinic.Id, async db => (await db.Drugs.CountAsync()).ShouldBeGreaterThan(0));
+        await InClinicAsync(clinic.Id, async db => (await db.Drugs.CountAsync(d => d.ClinicId != null)).ShouldBeGreaterThan(0));
     }
 
     [Fact]
@@ -49,7 +55,7 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
         await InClinicAsync(null, async db =>
         {
-            db.Drugs.Add(new Drug { Name = name });
+            db.Drugs.Add(new Drug { Name = name, CategoryId = CategoryIds.Eye });
             await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         });
         await InClinicAsync(null, async db =>
@@ -79,7 +85,7 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
         await InClinicAsync(a.Id, async db =>
         {
-            db.Drugs.Add(new Drug { Name = name, ClinicId = b.Id });
+            db.Drugs.Add(new Drug { Name = name, ClinicId = b.Id, CategoryId = CategoryIds.Eye });
             await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         });
         await InClinicAsync(a.Id, async db =>
@@ -118,7 +124,7 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
         await InClinicAsync(null, db =>
         {
-            db.Drugs.Add(new Drug { Name = name });
+            db.Drugs.Add(new Drug { Name = name, CategoryId = CategoryIds.Eye });
             Should.Throw<InvalidOperationException>(() => db.SaveChanges());
             return Task.CompletedTask;
         });
@@ -165,8 +171,8 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
         await InClinicAsync(a.Id, async db =>
         {
-            db.Drugs.Add(new Drug { Name = unset });
-            db.Drugs.Add(new Drug { Name = explicitlyOwn, ClinicId = a.Id });
+            db.Drugs.Add(new Drug { Name = unset, CategoryId = CategoryIds.Eye });
+            db.Drugs.Add(new Drug { Name = explicitlyOwn, ClinicId = a.Id, CategoryId = CategoryIds.Eye });
             (await db.Drugs.SingleAsync(d => d.Id == drug.Id)).Name = drug.Name + " edited";
             await db.SaveChangesAsync();
         });
@@ -183,17 +189,24 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-033")]
-    public async Task Raw_sql_cannot_link_a_protocol_to_another_clinics_drug()
+    public async Task Replacing_a_stored_lines_drug_with_another_clinics_own_drug_is_400_drugNotFound_and_changes_nothing()
     {
+        // No database constraint replaces FK_ProtocolItems_Drugs_DrugId_ClinicId (design M1.7 D4): the protocol handlers
+        // look every line's drug up through the clinic filter
         var a = await Data.Clinic();
         var b = await Data.Clinic();
-        var aProtocol = await Data.Protocol(a);
+        var aDrug = await Data.Drug(a);
+        var other = await Data.Drug(a);
+        var aProtocol = await Data.Protocol(a).With(aDrug).With(other);
         var bDrug = await Data.Drug(b);
+        var owner = await Login.OwnerAsync(a);
 
-        var error = await InsertLineAsync(clinicId: a.Id, protocolId: aProtocol.Id, drugId: bDrug.Id);
+        var response = await owner.PutAsync($"/api/v1/protocols/{aProtocol.Id}",
+            new { name = aProtocol.Name, items = new[] { new { drugId = bDrug.Id }, new { drugId = other.Id } } });
 
-        error.SqlState.ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
-        error.ConstraintName.ShouldBe("FK_ProtocolItems_Drugs_DrugId_ClinicId");
+        await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
+        (await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == aProtocol.Id)
+            .OrderBy(i => i.Order).Select(i => i.DrugId).ToListAsync())).ShouldBe([aDrug.Id, other.Id]);
     }
 
     [Fact]

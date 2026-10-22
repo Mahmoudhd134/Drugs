@@ -188,6 +188,7 @@ public class StaffListTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ADM-289")]
+    [Trait("Case", "CAT-077")]
     public async Task The_name_search_folds_diacritics_hamza_yaa_and_taa_marbuta()
     {
         var admin = await Login.SharedSuperAdminAsync();
