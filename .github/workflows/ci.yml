@@ -189,10 +189,11 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('ClinicHub.Web/package-lock.json') }}
-      - name: Chromium and its system libraries
-        run: npx playwright install --with-deps chromium
-      # Built here rather than in global setup: no compiler server or MSBuild node left alive holding the step's output
-      # open (the runner waits for it: shards hung after their tests)
+      # The browser only: the runner image already has Chrome's system libraries, and --with-deps (mostly fonts the
+      # app doesn't use: its fonts come from Google Fonts) took 10 minutes on a slow apt mirror
+      - name: Chromium
+        run: npx playwright install chromium
+      # Built here rather than in global setup, so the Playwright step's time is the tests' own
       - name: Build the SPA and the Release API
         run: |
           npm run build
