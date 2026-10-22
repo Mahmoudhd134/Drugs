@@ -12,7 +12,7 @@ public sealed record BaselineViolation(string LastClass, string Message);
 /// The check of design M1.7 D12: after each reset (<c>AppFixture.ResetAsync</c>) and at the collection fixture's
 /// dispose, the imported rows must still equal the run's <see cref="CatalogBaseline"/> (checksum, max ids, shared count).
 /// A violation fails the run naming the class; the collection database is then re-created from the template. Harness
-/// self-tests (CAT-225–CAT-228) call it on a scratch copy they changed, never on the run's own databases.
+/// self-tests (CAT-225–CAT-227) call it on a scratch copy they changed, never on the run's own databases.
 /// </summary>
 public static class BaselineGuard
 {

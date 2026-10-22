@@ -9,4 +9,8 @@ namespace ClinicHub.IntegrationTests.Harness.Hosting;
 public sealed class BareAppFixture : AppFixture
 {
     protected override bool UsesBareTemplate => true;
+
+    /// <summary>No catalog, so no baseline.</summary>
+    protected override Task<Databases.BaselineViolation> CheckBaselineAsync(string lastClass) =>
+        Task.FromResult<Databases.BaselineViolation>(null);
 }

@@ -62,6 +62,14 @@ public class AppFixture : IAsyncLifetime
     /// </summary>
     protected virtual bool UsesBareTemplate => false;
 
+    /// <summary>
+    /// The baseline check after a reset and at dispose (design M1.7 D12): null = the imported rows are intact. A seam for
+    /// CAT-228 (a test fixture overrides it to see the dispose's call); <see cref="BareAppFixture"/> has no catalog.
+    /// M1.7b: the calls in the reset and in <see cref="DisposeAsync"/> are track <c>harness</c>'s.
+    /// </summary>
+    protected virtual Task<BaselineViolation> CheckBaselineAsync(string lastClass) =>
+        BaselineGuard.CheckAsync(Factory.ConnectionString, TestRun.Baseline, lastClass);
+
     public async Task InitializeAsync()
     {
         DatabaseName = await TestRun.CreateCopyAsync(UsesBareTemplate);
