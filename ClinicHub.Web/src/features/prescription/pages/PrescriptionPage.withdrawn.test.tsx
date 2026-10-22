@@ -1,7 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import toast from "react-hot-toast";
-import {aDrug, aLine, anItem, aProtocol, aSharedDrug, aProtocolDrug, expectToasts, findToast, isolate, toastTexts} from "../../../test";
+import {aDrug, aLine, anItem, aProtocol, aSharedDrug, aProtocolDrug, expectToasts, fillIn, findToast, isolate, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
 import type {PrescriptionLine} from "../types.ts";
 import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
@@ -95,15 +95,20 @@ describe("prescription lines already there when a drug is disabled or renamed @a
         await page.user.click(within(row).getByRole("button", {name: "إضافة للعين الأخرى"}));
         await waitFor(() => expect(storedLines().map(l => l.dosing.eye)).toEqual(["right", "left"]));
 
+        // Edited: a note saved on the first line is stored and copied
         await page.user.click(within(lineOf(before.name, 0)).getByRole("button", {name: "تعديل الجرعة"}));
-        expect(await screen.findByRole("dialog")).toBeInTheDocument();
-        await page.user.click(within(screen.getByRole("dialog")).getByRole("button", {name: "إلغاء"}));
+        const dialog = await screen.findByRole("dialog");
+        await fillIn(page.user, within(dialog).getByRole("textbox", {name: "ملاحظة لهذه الروشتة"}), "رج الزجاجة");
+        await page.user.click(within(dialog).getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        expect(storedLines().map(l => [l.dosing.eye, l.note || null, l.drug.withdrawn === true]))
+            .toEqual([["right", "رج الزجاجة", false], ["left", null, false]]);
+        expect(within(lineOf(before.name, 0)).queryByText(WITHDRAWN.ar.chip)).not.toBeInTheDocument();
 
         await page.user.click(page.selection().getByRole("button", {name: "نسخ"}));
         expect(await findToast()).toBe("تم النسخ");
         const {text} = await page.clipboard!.written();
-        expect(text).toBe(`${before.name}\nنقطة واحدة في العين اليمنى\n\n${before.name}\nنقطة واحدة في العين اليسرى`);
+        expect(text).toBe(`${before.name}\nنقطة واحدة في العين اليمنى\nرج الزجاجة\n\n${before.name}\nنقطة واحدة في العين اليسرى`);
     });
 
     test("a shared drug renamed by the super admin: the line keeps the old name until removed and added again @RX-109", async () => {

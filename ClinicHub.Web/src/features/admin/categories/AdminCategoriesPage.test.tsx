@@ -113,7 +113,7 @@ describe("admin categories: a delete refused meanwhile @area:admin", () => {
         await user.click(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: "حذف التصنيف الفرعي"}));
         // The destructive confirmation names the subcategory (contract § 3.5 deleteSubCategoryTitle / Message)
         const confirmation = await screen.findByRole("dialog");
-        expect(within(confirmation).getByRole("heading")).toHaveTextContent(/^حذف التصنيف الفرعي «⁨?تصنيف فرعي فارغ⁩?»؟$/);
+        expect(within(confirmation).getByRole("heading")).toHaveTextContent(/^حذف التصنيف الفرعي «\u2068?تصنيف فرعي فارغ\u2069?»؟$/);
         expect(within(confirmation).getByText("لا يمكن التراجع عن ذلك.")).toBeInTheDocument();
         await user.click(confirmButton(confirmation));
 
