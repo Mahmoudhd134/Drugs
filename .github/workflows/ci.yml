@@ -1,0 +1,271 @@
+# The full tier (docs/testing/README.md "Continuous integration") on GitHub Actions, never on the laptop.
+# Runs on: every pull request (step -> feature, feature -> main: "Gates" is the required check), a manual run
+# (Actions -> CI -> Run workflow) and a push whose last commit message contains [ci] (a step branch's report run).
+# Jobs run in parallel and never stop each other (report mode): backend, frontend, e2e in 6 shards; Gates merges the
+# reports, checks traceability and fails when any of them failed.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+
+# A newer run of the same PR or branch cancels the older one
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  # The clinic's (and the laptop's) time zone: dates in the UI and the tests read as at home
+  TZ: Africa/Cairo
+  # Integration and e2e databases: drags_it_<run>_*, drags_e2e_<run>* on the job's own compose PostgreSQL
+  CLINICHUB_TEST_RUN: ci${{ github.run_id }}${{ github.run_attempt }}
+
+jobs:
+  start:
+    name: Start
+    # A push runs the tier only when asked for with [ci] in the last commit message
+    if: github.event_name != 'push' || contains(github.event.head_commit.message, '[ci]')
+    runs-on: ubuntu-latest
+    outputs:
+      seed: ${{ steps.seed.outputs.seed }}
+    steps:
+      - id: seed
+        # The random test order of this run (reproduce locally: ./test.ps1 -Seed <seed>)
+        run: |
+          seed=$(( (RANDOM * 32768 + RANDOM) % 1000000 + 1 ))
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+          echo "Seed of the random test order: \`$seed\` (reproduce: \`./test.ps1 -Seed $seed\`)" >> "$GITHUB_STEP_SUMMARY"
+
+  backend:
+    name: Backend (build, unit, integration, coverage)
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CLINICHUB_TEST_SEED: ${{ needs.start.outputs.seed }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: PostgreSQL (docker compose)
+        run: docker compose up -d --wait
+      - name: Tools
+        run: dotnet tool restore
+      - name: Build (Release)
+        run: dotnet build ClinicHub.sln -c Release -nologo
+      - name: Unit tests
+        run: >
+          dotnet test tests/ClinicHub.UnitTests -c Release --no-build --nologo
+          --logger "trx;LogFileName=unit.trx" --results-directory artifacts/test-results/unit
+          --collect "XPlat Code Coverage" --settings tests/coverage.runsettings
+      - name: Integration tests
+        if: ${{ !cancelled() }}
+        run: >
+          dotnet test tests/ClinicHub.IntegrationTests -c Release --no-build --nologo
+          --logger "trx;LogFileName=integration.trx" --results-directory artifacts/test-results/integration
+          --collect "XPlat Code Coverage" --settings tests/coverage.runsettings
+      - name: Coverage gates (90% lines, 85% branches, 95% branches per critical module)
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet reportgenerator "-reports:artifacts/test-results/**/coverage.cobertura.xml" \
+            -targetdir:artifacts/coverage/backend "-reporttypes:Cobertura;HtmlSummary;Html;JsonSummary" -verbosity:Warning
+          pwsh -NoProfile -File tests/tools/coverage/coverage-gates.ps1 \
+            -Cobertura artifacts/coverage/backend/Cobertura.xml -OutDir artifacts/coverage/backend
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Backend"
+            for f in artifacts/test-results/*/*.trx; do
+              [ -f "$f" ] || continue
+              counters=$(grep -o '<Counters [^>]*>' "$f")
+              count() { echo "$counters" | grep -oE " $1=\"[0-9]+\"" | grep -oE '[0-9]+'; }
+              echo "- $(basename "$f" .trx): $(count passed) passed, $(count failed) failed, $(count notExecuted) skipped of $(count total)"
+            done
+            [ -f artifacts/coverage/backend/gates.md ] && { echo; cat artifacts/coverage/backend/gates.md; }
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: backend
+          path: |
+            artifacts/test-results
+            artifacts/coverage/backend
+          retention-days: 14
+
+  frontend:
+    name: Frontend (tsc, eslint, Vitest coverage)
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Type check (app)
+        run: npx tsc -b
+      - name: Lint (app)
+        if: ${{ !cancelled() }}
+        run: npx eslint src
+      - name: Type check and lint (e2e specs)
+        if: ${{ !cancelled() }}
+        run: npx tsc -p e2e && npx eslint e2e playwright.config.ts
+      - name: Vitest with coverage gates
+        if: ${{ !cancelled() }}
+        run: npm run test:coverage
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          f=../artifacts/coverage/frontend/coverage-summary.json
+          [ -f "$f" ] && echo "## Frontend coverage: lines $(jq .total.lines.pct "$f")%, branches $(jq .total.branches.pct "$f")%" >> "$GITHUB_STEP_SUMMARY"
+          true
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: frontend
+          path: artifacts/coverage/frontend
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e:
+    name: E2E (shard ${{ matrix.shard }}/6)
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    env:
+      CLINICHUB_E2E_BROWSERS: chromium
+      CLINICHUB_E2E_WORKERS: "3"
+      PLAYWRIGHT_BLOB_OUTPUT_DIR: ${{ github.workspace }}/artifacts/e2e/blob
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - name: PostgreSQL (docker compose)
+        working-directory: .
+        run: docker compose up -d --wait
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ClinicHub.Web/package-lock.json') }}
+      - name: Chromium and its system libraries
+        run: npx playwright install --with-deps chromium
+      # Global setup builds the SPA and the Release API, starts the API on its own database (e2e/global-setup.ts)
+      - name: Playwright (shard ${{ matrix.shard }}/6)
+        run: npx playwright test --shard=${{ matrix.shard }}/6 --reporter=list,blob
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-blob-${{ matrix.shard }}
+          path: artifacts/e2e/blob
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: e2e-failures-${{ matrix.shard }}
+          path: |
+            artifacts/e2e/test-results
+            artifacts/e2e/*/api.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  gates:
+    name: Gates
+    needs: [start, backend, frontend, e2e]
+    # Always reports (the required check), unless the run itself was not asked for (a push without [ci])
+    if: ${{ always() && needs.start.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - name: Traceability (self-test, then the gate of 100% P0 and P1)
+        id: traceability
+        run: |
+          pwsh -NoProfile -File tests/tools/traceability/selftest.ps1
+          pwsh -NoProfile -File tests/tools/traceability/traceability.ps1 -Root "$GITHUB_WORKSPACE" -Gate
+      - uses: actions/download-artifact@v8
+        if: ${{ !cancelled() }}
+        with:
+          pattern: e2e-blob-*
+          merge-multiple: true
+          path: all-blob
+      - name: Merge the e2e reports
+        id: e2e
+        if: ${{ !cancelled() && hashFiles('all-blob/**') != '' }}
+        working-directory: ClinicHub.Web
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright merge-reports --config playwright.config.ts ../all-blob
+          jq -r '"## E2E: \(.stats.expected) passed, \(.stats.unexpected) failed, \(.stats.flaky) flaky, \(.stats.skipped) skipped"' \
+            ../artifacts/e2e/results.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-report
+          path: |
+            artifacts/e2e/report
+            artifacts/e2e/results.json
+            artifacts/traceability.md
+            artifacts/traceability.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Traceability summary
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f artifacts/traceability.json ] && jq -r '"## Traceability", "| Priority | Covered | Known bug | Missing | % |", "|---|---:|---:|---:|---:|",
+            (.gate[] | "| \(.Priority) | \(.Covered) | \(.KnownBug) | \(.Missing) | \(.Percent)% |")' artifacts/traceability.json >> "$GITHUB_STEP_SUMMARY"
+          true
+      - name: Verdict
+        if: ${{ always() }}
+        run: |
+          echo "backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} e2e=${{ needs.e2e.result }} traceability=${{ steps.traceability.outcome }}"
+          [ "${{ needs.backend.result }}" = success ] && [ "${{ needs.frontend.result }}" = success ] \
+            && [ "${{ needs.e2e.result }}" = success ] && [ "${{ steps.traceability.outcome }}" = success ]

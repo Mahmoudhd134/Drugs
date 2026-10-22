@@ -108,7 +108,7 @@ function Invoke-Native([string] $exe, [string[]] $arguments, [string] $workingDi
 
 # Another PowerShell script (the gates, traceability): its output to the console, its exit code back
 function Invoke-Script([string] $script, [string[]] $arguments = @()) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script @arguments | Out-Host
+    & ([Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) -NoProfile -ExecutionPolicy Bypass -File $script @arguments | Out-Host
     return $LASTEXITCODE
 }
 
