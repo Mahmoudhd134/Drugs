@@ -88,21 +88,26 @@ export const visitCatalogAdmin = async (page: Page, t: Texts, lang: Lang, check:
 
     await page.goto("/admin/categories");
     await expect(page.getByText(lang === "ar" ? "العيون" : "Eye", {exact: true}).first()).toBeVisible();
-    await check("categories", []);
+    // The category and subcategory names are catalog data (some Arabic names hold Latin acronyms: DPP-4, SGLT2, COX-2):
+    // each row's name is the line just above its count «الأدوية: …»
+    const lines = (await page.locator("main").innerText()).split("\n").map(l => l.trim()).filter(Boolean);
+    const categoryNames = lines.filter((_, i) => /^(الأدوية|Drugs): /.test(lines[i + 1] ?? ""));
+    expect(categoryNames.length, "the category names are read").toBeGreaterThan(0);
+    await check("categories", categoryNames);
     await page.getByRole("button", {name: st.addCategory, exact: true}).click();
     await expect(page.getByRole("dialog", {name: st.newCategory})).toBeVisible();
-    await check("new category dialog", []);
+    await check("new category dialog", categoryNames);
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const eye = categoryRow(page, lang === "ar" ? "العيون" : "Eye", lang);
     await eye.getByRole("button", {name: st.renameCategory}).first().click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    await check("rename category dialog", []);
+    await check("rename category dialog", categoryNames);
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await eye.getByRole("button", {name: st.addSubCategory}).first().click();
     await expect(page.getByRole("dialog", {name: st.newSubCategory})).toBeVisible();
-    await check("new subcategory dialog", []);
+    await check("new subcategory dialog", categoryNames);
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
 };
