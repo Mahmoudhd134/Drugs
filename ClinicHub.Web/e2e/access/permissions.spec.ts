@@ -198,7 +198,11 @@ test.describe("Permissions changed while working @area:access", () => {
 
             await expect(page.getByText(t.forbidden, {exact: true}).first()).toBeVisible();
             await expect.poll(() => me.length).toBeGreaterThanOrEqual(1);
-            // The open dialog follows the new permissions (read only now); close it
+            // The open dialog follows the new permissions (read only now: the details dialog, no Save); close it once it
+            // has turned read only (Esc is ignored while the refused save is still in flight)
+            const details = page.getByRole("dialog", {name: t.drugDetails});
+            await expect(details.getByRole("button", {name: t.close})).toBeVisible();
+            await expect(details.getByRole("button", {name: t.save})).toHaveCount(0);
             await page.keyboard.press("Escape");
             await expect(page.getByRole("dialog")).toHaveCount(0);
             await expect(page.getByRole("button", {name: t.edit})).toHaveCount(0);
