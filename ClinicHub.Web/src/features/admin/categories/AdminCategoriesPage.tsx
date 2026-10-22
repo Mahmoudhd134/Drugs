@@ -104,7 +104,7 @@ export const AdminCategoriesPage = () => {
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title={t("adminCategories.renameCategory")}>
-                                                <IconButton size="small" aria-label={t("adminCategories.renameCategory")}
+                                                <IconButton size="small" aria-label={t("adminCategories.renameCategoryNamed", {name: categoryName(category, language)})}
                                                             onClick={() => open({kind: "category", id: category.id, names: namesOf(category)})}>
                                                     <EditIcon fontSize="small"/>
                                                 </IconButton>
@@ -122,7 +122,7 @@ export const AdminCategoriesPage = () => {
                                         actions={
                                             <>
                                                 <Tooltip title={t("adminCategories.renameSubCategory")}>
-                                                    <IconButton size="small" aria-label={t("adminCategories.renameSubCategory")}
+                                                    <IconButton size="small" aria-label={t("adminCategories.renameSubCategoryNamed", {name: categoryName(sub, language)})}
                                                                 onClick={() => open({
                                                                     kind: "subCategory", id: sub.id, categoryId: category.id,
                                                                     parentName: categoryName(category, language), names: namesOf(sub),
@@ -193,12 +193,15 @@ type DeleteButtonProps = { kind: Kind; row: AdminCategory | AdminSubCategory; on
  * on hover, focus and tap: «لا يمكن حذف هذا التصنيف: يستخدمه N دواء.» (+ «من عيادات محذوفة: N»).
  */
 const DeleteButton = ({kind, row, onDelete}: DeleteButtonProps) => {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     const reasonId = useId();
     const label = t(kind === "category" ? "adminCategories.deleteCategory" : "adminCategories.deleteSubCategory");
+    // The button's name ends with the row's name: no two rows share it (design M1.7b D30)
+    const namedLabel = t(kind === "category" ? "adminCategories.deleteCategoryNamed" : "adminCategories.deleteSubCategoryNamed",
+        {name: categoryName(row, i18n.language)});
     if (row.drugCount === 0) return (
         <Tooltip title={label}>
-            <IconButton size="small" color="error" aria-label={label} onClick={onDelete}>
+            <IconButton size="small" color="error" aria-label={namedLabel} onClick={onDelete}>
                 <DeleteIcon fontSize="small"/>
             </IconButton>
         </Tooltip>
@@ -212,7 +215,7 @@ const DeleteButton = ({kind, row, onDelete}: DeleteButtonProps) => {
             <TapTooltip title={<Box component="span" sx={{whiteSpace: "pre-line"}}>{reason}</Box>} describeChild>
                 <IconButton
                     size="small"
-                    aria-label={label}
+                    aria-label={namedLabel}
                     aria-disabled="true"
                     // The reason is its description at all times, not only while the tooltip is open
                     aria-describedby={reasonId}
