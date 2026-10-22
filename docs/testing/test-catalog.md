@@ -70,14 +70,14 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 142 | 92 | 292 | 3 | 165 | 79 | 48 | 0 |
 | [DRUG](#drug--drug-catalog) | 23 | 48 | 33 | 104 | 0 | 66 | 24 | 15 | 0 |
-| [GRP](#grp--protocols) | 33 | 47 | 26 | 106 | 2 | 36 | 43 | 26 | 0 |
+| [GRP](#grp--protocols) | 33 | 46 | 26 | 105 | 2 | 36 | 43 | 25 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 38 | 45 | 23 | 106 | 38 | 0 | 24 | 47 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 20 | 15 | 41 | 4 | 0 | 17 | 21 | 2 |
 | [CAT](#cat--shared-catalog-and-categories) | 1 | 1 | 0 | 2 | 0 | 2 | 0 | 0 | 0 |
-| **All** | **357** | **527** | **324** | **1208** | **196** | **540** | **301** | **237** | **7** |
+| **All** | **357** | **526** | **324** | **1207** | **196** | **540** | **301** | **236** | **7** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -1347,9 +1347,11 @@ Sources: [protocols business](../features/protocols/business.md), [protocols tec
 
 ### Rename to protocols (M1.7a)
 
+GRP-100 (old `/groups…` bookmarks redirected) is retired: no redirect is kept (user, 2026-10-22: nothing was in
+production); the number stays unused.
+
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-100 | Given an old bookmark `/groups`, `/groups/new`, `/groups/{id}` or `/groups?search=x&page=2`, then it redirects to the matching `/protocols…` with the same id and query | P1 | e2e | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 | GRP-101 | Given the API's old routes `/api/v1/drug-groups…`, then 404 `notFound` for GET and 405 `methodNotAllowed` for POST, PUT and DELETE (no alias kept) | P2 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 | GRP-102 | Given every screen in Arabic (sidebar, page titles, buttons, toasts, empty states, dialogs, prescription tabs, delete warnings), then no «مجموعة» / «المجموعات» remains; in English no "group" (all locale strings searched for leftovers) | P0 | unit+e2e | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 | GRP-103 | Given Arabic grammar with the masculine «بروتوكول», then «تم إنشاء البروتوكول», «تم تحديث البروتوكول», «تم حذف البروتوكول», «بروتوكول جديد», «حذف البروتوكول؟» | P1 | ui | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |

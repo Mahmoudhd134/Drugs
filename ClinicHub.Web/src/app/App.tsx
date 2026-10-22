@@ -9,8 +9,6 @@ import {PERMISSIONS, type PermissionRule} from "../features/access/permissions.t
 import {FirstAllowedPage} from "./FirstAllowedPage.tsx";
 import {AdminLayout} from "../features/admin/components/AdminLayout.tsx";
 import {CLINIC_TABS} from "../features/admin/clinicTabs.tsx";
-import {LEGACY_PROTOCOLS_ROUTES} from "../features/protocols/legacyRoutes.ts";
-import {LegacyProtocolRedirect} from "../features/protocols/components/LegacyProtocolRedirect.tsx";
 
 // Each page is its own chunk, loaded on first visit
 const LoginPage = lazy(() => import("../features/auth/pages/LoginPage.tsx")
@@ -72,9 +70,6 @@ export const App = () => (
                         <Route path="*" element={<Navigate to="/admin" replace/>}/>
                     </Route>
                 </Route>
-                {/* Old bookmarks from before groups were renamed protocols (M1.7a), outside the guards so the sign-in
-                    comes back to the new address */}
-                {LEGACY_PROTOCOLS_ROUTES.map(path => <Route key={path} path={path} element={<LegacyProtocolRedirect/>}/>)}
                 {/* The platform's placeholder page before the admin area (M1.5.4) */}
                 <Route path="platform" element={<Navigate to="/admin" replace/>}/>
                 <Route element={<RequireAuth context="clinic"/>}>
