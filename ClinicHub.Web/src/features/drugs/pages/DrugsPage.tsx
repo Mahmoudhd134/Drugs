@@ -3,8 +3,10 @@ import {
     Alert,
     Box,
     Button,
+    Chip,
     LinearProgress,
     Paper,
+    Stack,
     Table,
     TableBody,
     TableCell,
@@ -44,8 +46,10 @@ export const DrugsPage = () => {
     const {can, canAny} = usePermissions();
     const showActions = canAny(PERMISSIONS.drugs.update, PERMISSIONS.drugs.delete);
     const canUpdate = can(PERMISSIONS.drugs.update);
-    // Without edit permission a row opens read-only details
-    const canOpen = canUpdate || can(PERMISSIONS.drugs.details);
+    const canDetails = can(PERMISSIONS.drugs.details);
+    // Without edit permission an own row opens read-only details; a shared row (read-only for clinics, design M1.7
+    // D9) always opens them, with `drugs.details`
+    const canOpen = (drug: Drug) => (drug.isShared ? canDetails : canUpdate || canDetails);
 
     const drugs = useDrugs(debouncedSearch, page + 1, pageSize, {enabled: can(PERMISSIONS.drugs.list)});
     const deleteDrug = useDeleteDrug();
@@ -141,40 +145,58 @@ export const DrugsPage = () => {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {items.map(drug => (
-                                        <TableRow
-                                            key={drug.id}
-                                            hover={canOpen}
-                                            onClick={canOpen ? () => openEdit(drug) : undefined}
-                                            // Keyboard path to the details too (a viewer has no edit icon)
-                                            tabIndex={canOpen ? 0 : undefined}
-                                            onKeyDown={canOpen ? (e) => {
-                                                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-                                                    e.preventDefault();
-                                                    openEdit(drug);
-                                                }
-                                            } : undefined}
-                                            sx={{cursor: canOpen ? "pointer" : undefined, "& td": {py: 1.25}}}
-                                        >
-                                            <TableCell>
-                                                <DrugText drug={drug} descriptionLines={2} showDosing/>
-                                            </TableCell>
-                                            {showActions && <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                <Tooltip title={t("common.edit")}>
-                                                    <PermissionIconButton permission={PERMISSIONS.drugs.update} size="small"
-                                                                          onClick={() => openEdit(drug)} aria-label={t("common.edit")}>
-                                                        <EditIcon fontSize="small"/>
-                                                    </PermissionIconButton>
-                                                </Tooltip>
-                                                <Tooltip title={t("common.delete")}>
-                                                    <PermissionIconButton permission={PERMISSIONS.drugs.delete} size="small" color="error"
-                                                                          onClick={() => void handleDelete(drug)} aria-label={t("common.delete")}>
-                                                        <DeleteIcon fontSize="small"/>
-                                                    </PermissionIconButton>
-                                                </Tooltip>
-                                            </TableCell>}
-                                        </TableRow>
-                                    ))}
+                                    {items.map(drug => {
+                                        const opens = canOpen(drug);
+                                        return (
+                                            <TableRow
+                                                key={drug.id}
+                                                hover={opens}
+                                                onClick={opens ? () => openEdit(drug) : undefined}
+                                                // Keyboard path to the details too (a viewer and a shared row have no edit icon)
+                                                tabIndex={opens ? 0 : undefined}
+                                                onKeyDown={opens ? (e) => {
+                                                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                                                        e.preventDefault();
+                                                        openEdit(drug);
+                                                    }
+                                                } : undefined}
+                                                sx={{cursor: opens ? "pointer" : undefined, "& td": {py: 1.25}}}
+                                            >
+                                                <TableCell>
+                                                    <Stack direction="row" sx={{gap: 1, alignItems: "flex-start"}}>
+                                                        <Box sx={{flex: 1, minWidth: 0}}>
+                                                            <DrugText drug={drug} descriptionLines={2} showDosing/>
+                                                        </Box>
+                                                        {/* From the platform's shared catalog (read-only) or the clinic's own (design M1.7 D12) */}
+                                                        <Chip
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color={drug.isShared ? "default" : "primary"}
+                                                            label={drug.isShared ? t("drugs.chip.shared") : t("drugs.chip.own")}
+                                                            sx={{flexShrink: 0, mt: 0.25}}
+                                                        />
+                                                    </Stack>
+                                                </TableCell>
+                                                {showActions && <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                                                    {/* A clinic can't edit or delete a shared drug: no buttons at all (design M1.7 D9) */}
+                                                    {!drug.isShared && <>
+                                                        <Tooltip title={t("common.edit")}>
+                                                            <PermissionIconButton permission={PERMISSIONS.drugs.update} size="small"
+                                                                                  onClick={() => openEdit(drug)} aria-label={t("common.edit")}>
+                                                                <EditIcon fontSize="small"/>
+                                                            </PermissionIconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title={t("common.delete")}>
+                                                            <PermissionIconButton permission={PERMISSIONS.drugs.delete} size="small" color="error"
+                                                                                  onClick={() => void handleDelete(drug)} aria-label={t("common.delete")}>
+                                                                <DeleteIcon fontSize="small"/>
+                                                            </PermissionIconButton>
+                                                        </Tooltip>
+                                                    </>}
+                                                </TableCell>}
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </TableContainer>
@@ -195,7 +217,7 @@ export const DrugsPage = () => {
             <DrugFormDialog
                 open={dialog.open}
                 drug={dialog.drug}
-                readOnly={dialog.drug !== null && !canUpdate}
+                readOnly={dialog.drug !== null && (dialog.drug.isShared || !canUpdate)}
                 onClose={() => setDialog(d => ({...d, open: false}))}
             />
             {confirmDialog}
