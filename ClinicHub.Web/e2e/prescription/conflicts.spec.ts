@@ -3,7 +3,7 @@ import {RxPage, dropDaily, expectProtocolToast, expectInOrder, rxDrug, rxProtoco
 import {dropDailySentence, RX_TEXTS} from "../support/texts-rx.ts";
 
 test.describe("Prescription: conflicts with the lines already there @area:prescription", () => {
-    test("a conflict asks «موجود بالفعل في الروشتة» with both sentences; «استخدام جرعة المجموعة» replaces the line in place, note kept @RX-038 @RX-041 @smoke",
+    test("a conflict asks «موجود بالفعل في الروشتة» with both sentences; «استخدام جرعة البروتوكول» replaces the line in place, note kept @RX-038 @RX-041 @smoke",
         async ({page, lang, data, healthy}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -52,7 +52,7 @@ test.describe("Prescription: conflicts with the lines already there @area:prescr
         await rx.expectLines([[a.name, dropDailySentence(4, 1, "right")], [b.name, dropDailySentence(3, 2)]]);
     });
 
-    test("3 conflicts are asked one by one in the group's order, «تطبيق على باقي التعارضات» counting 2, 1, then none @RX-044",
+    test("3 conflicts are asked one by one in the protocol's order, «تطبيق على باقي التعارضات» counting 2, 1, then none @RX-044",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -81,7 +81,7 @@ test.describe("Prescription: conflicts with the lines already there @area:prescr
             await rx.expectLines([a, b, c].map(d => [d.name, dropDailySentence(4, 1)]));
         });
 
-    test("the first of 3 conflicts answered «استخدام جرعة المجموعة» with the box ticked: no more questions, all 3 replaced @RX-045",
+    test("the first of 3 conflicts answered «استخدام جرعة البروتوكول» with the box ticked: no more questions, all 3 replaced @RX-045",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -102,7 +102,7 @@ test.describe("Prescription: conflicts with the lines already there @area:prescr
             await rx.expectLines([a, b, c].map(d => [d.name, dropDailySentence(6, 1)]));
         });
 
-    test("a group of 4 lines (new, replaced, kept, identical): one toast with the 4 counts in this order @RX-049",
+    test("a protocol of 4 lines (new, replaced, kept, identical): one toast with the 4 counts in this order @RX-049",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();

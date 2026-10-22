@@ -137,7 +137,7 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
         expect((await readClipboard(page)).text).toBe(`${a.name}\n${dropDailySentence(4, 1, "right")}`);
     });
 
-    test("a group and a drug changed elsewhere while the page is open: the pickers add the old version until reloaded, not on focus @RX-102",
+    test("a protocol and a drug changed elsewhere while the page is open: the pickers add the old version until reloaded, not on focus @RX-102",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -150,13 +150,13 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
             const rx = new RxPage(page, rt);
             await expect(rx.option(protocol.name)).toBeVisible();
 
-            // Another window changes them: the group's line, the drug's default
+            // Another window changes them: the protocol's line, the drug's default
             const newProtocolName = rxName("Renamed");
             await rxUpdateProtocol(data, clinic, protocol, [{drug: a, dosing: {frequency: "daily", frequencyValue: 6}}], newProtocolName);
             await rxUpdateDrug(data, clinic, b, {dosing: dropDaily(5, 1)});
             // The pickers' data is now stale (older than 30 s): a picker that reloaded on focus would load the new versions
             await page.clock.fastForward("00:31");
-            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|drug-groups)$/);
+            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|protocols)$/);
             await focusBack(page);
             await page.waitForTimeout(1000);
             expect(reloads, "no reload on focus").toHaveLength(0);

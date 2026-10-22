@@ -30,7 +30,7 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             await expect(page.getByRole("textbox", {name: t.ownerPhone})).toHaveCount(0);
         });
 
-    test("SA creates «عيادة النور» in the Arabic UI; its new owner logs in to the template's 2 drugs and its group of 2 lines @ADM-088 @smoke",
+    test("SA creates «عيادة النور» in the Arabic UI; its new owner logs in to the template's 2 drugs and its protocol of 2 lines @ADM-088 @smoke",
         async ({page, t, lang, newBrowser}) => {
             test.skip(lang !== "ar", "the Arabic UI");
             const {template} = runState();
@@ -49,7 +49,7 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             await expect(owner.page.getByText("إجمالي الأدوية: 2", {exact: true})).toBeVisible();
             for (const drug of template.drugs) await expect(owner.page.getByRole("cell", {name: drug})).toBeVisible();
             await navTo(owner.page, t, t.navProtocols);
-            await expect(owner.page.getByText("إجمالي المجموعات: 1", {exact: true})).toBeVisible();
+            await expect(owner.page.getByText("إجمالي البروتوكولات: 1", {exact: true})).toBeVisible();
             await expect(owner.page.getByText(template.protocol.name, {exact: true})).toBeVisible();
             await expect(owner.page.getByText(`الأدوية: ${template.protocol.lines}`, {exact: true})).toBeVisible();
         });

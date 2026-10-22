@@ -17,7 +17,7 @@ test.describe("Every page and dialog of the catalog and prescription @area:ux", 
             });
         });
 
-    test("a 375 px phone in Arabic and English: no horizontal page scroll on the prescription, drugs, groups and group editor pages and their dialogs @UX-001 @I18N-006",
+    test("a 375 px phone in Arabic and English: no horizontal page scroll on the prescription, drugs, protocols and protocol editor pages and their dialogs @UX-001 @I18N-006",
         async ({page, data, isMobile}) => {
             test.slow();
             test.skip(!isMobile, "the phone project");

@@ -98,7 +98,7 @@ describe("a stale tab after another sign-in @area:auth", () => {
         server.use(
             refreshSequence(sessionIn(null, [clinicA, clinicB]), {...sameUser, accessToken: sameUser.accessToken.replace("sig-", "sig9-")}).handler,
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug()]))),
-            http.get(api("/drug-groups"), () => HttpResponse.json(aPage([]))),
+            http.get(api("/protocols"), () => HttpResponse.json(aPage([]))),
         );
         await app.pick("^B$");
 
@@ -139,7 +139,7 @@ describe("a stale tab after another sign-in @area:auth", () => {
         expect(paths.filter(path => path.startsWith("/admin"))).toEqual([]);
     });
 
-    test("«تعديل الأدوية والمجموعات الافتراضية»: the other-user toast and U2's home, not /drugs, no error @AUTH-200", async () => {
+    test("«تعديل العيادة النموذجية»: the other-user toast and U2's home, not /drugs, no error @AUTH-200", async () => {
         server.use(
             refreshSequence(sessionIn(PLATFORM_CONTEXT, [PLATFORM_CONTEXT, template]), sessionIn(null, [clinicU2, clinicB], 2)).handler,
             meOfUsers(),
@@ -149,7 +149,7 @@ describe("a stale tab after another sign-in @area:auth", () => {
         );
         const requests = recordRequests();
         const app = await startApp({route: "/admin", lang: "ar"});
-        const button = await screen.findByRole("button", {name: "تعديل الأدوية والمجموعات الافتراضية"});
+        const button = await screen.findByRole("button", {name: "تعديل العيادة النموذجية"});
         const paths = recordPaths();
         await app.user.click(button);
 
@@ -166,7 +166,7 @@ describe("a stale tab after another sign-in @area:auth", () => {
         const requests = recordRequests();
         // U2 lands in a clinic with the same id as U1's template: only the change of user tells the cached /me apart
         const u2 = sessionIn(template, [template], 2);
-        // U2's home is the prescription page, whose group picker loads the groups
+        // U2's home is the prescription page, whose protocol picker loads the protocols
         server.use(...protocolsHandlers([]));
         const app = await staleTemplateTab(u2);
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));

@@ -17,7 +17,7 @@ export type Options = {
 type Fixtures = {
     /** The expected texts in the project's language */
     t: Texts;
-    /** Test data through the API (the worker's super admin; owners for drugs and groups) */
+    /** Test data through the API (the worker's super admin; owners for drugs and protocols) */
     data: Data;
     /** dir/lang, no horizontal scroll, axe (serious/critical) on the page as it is now */
     healthy: (page?: Page) => Promise<void>;

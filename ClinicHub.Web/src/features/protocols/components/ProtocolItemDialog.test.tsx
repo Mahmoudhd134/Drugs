@@ -7,8 +7,8 @@ import {newItemKey} from "../editorItem.ts";
 import {ProtocolItemDialog} from "./ProtocolItemDialog.tsx";
 import {dosingPreview, stepRow} from "../../../test/pages/dosing.ts";
 
-// The group line dosing dialog: docs/features/drug-groups/business.md "جرعة خاصة بالمجموعة", "تُحدد عند الإضافة",
-// tech.md "Frontend" (GroupItemDialog, inherit mode), docs/features/tapering/business.md "القواعد" (inherited taper).
+// The protocol line dosing dialog: docs/features/protocols/business.md "جرعة خاصة بالبروتوكول", "تُحدد عند الإضافة",
+// tech.md "Frontend" (ProtocolItemDialog, inherit mode), docs/features/tapering/business.md "القواعد" (inherited taper).
 
 const fourTimesTwoWeeks: Dosing = {doseAmount: 1, doseUnit: "drop", frequency: "daily", frequencyValue: 4, durationUnit: "weeks", durationValue: 2};
 
@@ -24,19 +24,19 @@ const combo = (name: string) => screen.getByRole("combobox", {name});
 const number = (name: string) => screen.getByRole("spinbutton", {name});
 const askEye = () => screen.getByText("تُحدد عند الإضافة").closest("button") as HTMLElement;
 
-describe("group line dialog: inheriting the drug's default @area:catalog", () => {
-    test("✎ opens «الجرعة في هذه المجموعة» with the drug, the hint and the ⓘ «افتراضي الدواء» explanation @GRP-066", async () => {
+describe("protocol line dialog: inheriting the drug's default @area:catalog", () => {
+    test("✎ opens «الجرعة في هذا البروتوكول» with the drug, the hint and the ⓘ «افتراضي الدواء» explanation @GRP-066", async () => {
         await renderDialog(aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks}));
-        const title = screen.getByRole("heading", {name: /الجرعة في هذه المجموعة/});
+        const title = screen.getByRole("heading", {name: /الجرعة في هذا البروتوكول/});
         expect(title).toHaveTextContent("Tobradex");
         expect(screen.getByText("الحقول الفارغة تأخذ الجرعة الافتراضية للدواء.")).toBeInTheDocument();
         expect(screen.getByRole("img", {name: "«افتراضي الدواء» يعني أن القيمة تؤخذ من الجرعة الافتراضية للدواء وتتغير معها."}))
             .toBeInTheDocument();
     });
 
-    test("in English: \"Dosing in this group\" and \"Empty fields use the drug's default dosing.\" @GRP-066", async () => {
+    test("in English: \"Dosing in this protocol\" and \"Empty fields use the drug's default dosing.\" @GRP-066", async () => {
         await renderDialog(aDrug({name: "Tobradex"}), {}, "en");
-        expect(screen.getByRole("heading", {name: /Dosing in this group/})).toBeInTheDocument();
+        expect(screen.getByRole("heading", {name: /Dosing in this protocol/})).toBeInTheDocument();
         expect(screen.getByText("Empty fields use the drug's default dosing.")).toBeInTheDocument();
         expect(screen.getByRole("img", {name: "\"Drug default\" means the value comes from the drug's default dosing and follows it if it changes."}))
             .toBeInTheDocument();
@@ -80,7 +80,7 @@ describe("group line dialog: inheriting the drug's default @area:catalog", () =>
     });
 });
 
-describe("group line dialog: invalid overrides @area:catalog", () => {
+describe("protocol line dialog: invalid overrides @area:catalog", () => {
     test("only a dose amount (no unit): the unit turns red and the dialog stays open @GRP-074", async () => {
         const {user, onSave, onClose} = await renderDialog(aDrug({defaultDosing: fourTimesTwoWeeks}));
         await user.type(number("الجرعة"), "2");
@@ -103,13 +103,13 @@ describe("group line dialog: invalid overrides @area:catalog", () => {
     });
 });
 
-describe("group line dialog: «تُحدد عند الإضافة» @area:catalog", () => {
+describe("protocol line dialog: «تُحدد عند الإضافة» @area:catalog", () => {
     test("the eye choices: اليمنى / اليسرى / العينين / بدون عين and «تُحدد عند الإضافة» with its tooltip @GRP-077", async () => {
         await renderDialog(aDrug());
         const eyes = screen.getByText("العين").nextElementSibling as HTMLElement;
         expect(within(eyes).getAllByRole("button").map(b => b.textContent)).toEqual(["اليمنى", "اليسرى", "العينين", "بدون عين", "تُحدد عند الإضافة"]);
         expect(await hoverTooltip(askEye()))
-            .toBe("العين غير محددة في المجموعة: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها المجموعة.");
+            .toBe("العين غير محددة في البروتوكول: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها البروتوكول.");
     });
 
     test("in English the choice reads \"Ask when adding\" @GRP-077", async () => {
@@ -117,36 +117,36 @@ describe("group line dialog: «تُحدد عند الإضافة» @area:catalog"
         expect(screen.getByText("Ask when adding").closest("button")).toBeInTheDocument();
     });
 
-    test("«تُحدد عند الإضافة» chosen: the sentence has no eye, with «العين تُحدد عند إضافة المجموعة» under it @GRP-078", async () => {
+    test("«تُحدد عند الإضافة» chosen: the sentence has no eye, with «العين تُحدد عند إضافة البروتوكول» under it @GRP-078", async () => {
         const {user} = await renderDialog(aDrug({defaultDosing: {...fourTimesTwoWeeks, eye: "right"}}));
         expect(dosingPreview()).toHaveTextContent(/^نقطة واحدة في العين اليمنى 4 مرات يوميًا لمدة أسبوعين$/);
         await user.click(askEye());
         expect(dosingPreview()).toHaveTextContent(/^نقطة واحدة 4 مرات يوميًا لمدة أسبوعين$/);
-        expect(dosingPreview().nextElementSibling).toHaveTextContent(/^العين تُحدد عند إضافة المجموعة$/);
+        expect(dosingPreview().nextElementSibling).toHaveTextContent(/^العين تُحدد عند إضافة البروتوكول$/);
     });
 
-    test("in English the hint under the preview reads \"Eye is chosen when the group is added\" @GRP-078", async () => {
+    test("in English the hint under the preview reads \"Eye is chosen when the protocol is added\" @GRP-078", async () => {
         const {user} = await renderDialog(aDrug({defaultDosing: fourTimesTwoWeeks}), {}, "en");
         await user.click(screen.getByText("Ask when adding").closest("button")!);
-        expect(dosingPreview("Prescription text").nextElementSibling).toHaveTextContent(/^Eye is chosen when the group is added$/);
+        expect(dosingPreview("Prescription text").nextElementSibling).toHaveTextContent(/^Eye is chosen when the protocol is added$/);
     });
 });
 
-describe("group line dialog: the drug's taper @area:catalog", () => {
+describe("protocol line dialog: the drug's taper @area:catalog", () => {
     const week = {durationUnit: "weeks", durationValue: 1} as const;
     const steps: TaperStep[] = [{frequency: "daily", frequencyValue: 4, ...week}, {frequency: "daily", frequencyValue: 2, ...week}];
     const taperDrug = () => aDrug({name: "Pred Forte", defaultDosing: {doseUnit: "drop", taperSteps: steps}});
 
     test("a drug default with a taper and no override schedule: the notice, and the preview shows the drug's steps @TAPER-076", async () => {
         await renderDialog(taperDrug());
-        expect(screen.getByText("الجرعة الافتراضية للدواء فيها تقليل تدريجي. فعّل هذا الخيار لتغييره في هذه المجموعة.")).toBeInTheDocument();
+        expect(screen.getByText("الجرعة الافتراضية للدواء فيها تقليل تدريجي. فعّل هذا الخيار لتغييره في هذا البروتوكول.")).toBeInTheDocument();
         expect(screen.getByRole("switch", {name: "تقليل تدريجي"})).not.toBeChecked();
         expect(dosingPreview()).toHaveTextContent(/^نقطة واحدة 4 مرات يوميًا لمدة أسبوع، ثم مرتين يوميًا لمدة أسبوع، ثم يتوقف$/);
     });
 
     test("in English the notice reads \"The drug default uses a tapering schedule…\" @TAPER-076", async () => {
         await renderDialog(taperDrug(), {}, "en");
-        expect(screen.getByText("The drug default uses a tapering schedule. Turn this on to change it for this group.")).toBeInTheDocument();
+        expect(screen.getByText("The drug default uses a tapering schedule. Turn this on to change it for this protocol.")).toBeInTheDocument();
     });
 
     test("switching tapering on copies the drug's steps into the override for editing @TAPER-077", async () => {

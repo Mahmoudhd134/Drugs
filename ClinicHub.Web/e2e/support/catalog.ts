@@ -3,8 +3,8 @@ import type {ClinicHandle, Data} from "./data.ts";
 import type {CatalogTexts} from "./texts-catalog.ts";
 
 /**
- * Helpers of the catalog journeys (drugs, groups, dosing, tapering): data through the API as an owner (with
- * descriptions, default dosings and group overrides, which `Data.drug` / `Data.group` don't take) and UI locators.
+ * Helpers of the catalog journeys (drugs, protocols, dosing, tapering): data through the API as an owner (with
+ * descriptions, default dosings and protocol overrides, which `Data.drug` / `Data.protocol` don't take) and UI locators.
  */
 
 /** The API's dosing (docs/features/dosing/tech.md "Data model"); every field optional. */
@@ -92,17 +92,17 @@ export const drugRows = (page: Page) => page.locator("tbody tr");
 /** The Arabic dosing sentence(s) inside an element (`DosingText`: lang="ar"). */
 export const sentenceIn = (scope: Locator) => scope.locator("[lang=ar]");
 
-/** A group's card on the groups page. */
+/** A protocol's card on the protocols page. */
 export const protocolCard = (page: Page, name: string) =>
     page.locator(".MuiCard-root").filter({has: page.getByText(name, {exact: true})});
 
 export const protocolCards = (page: Page) => page.locator(".MuiCard-root");
 
-/** The group editor's lines (editable: each has a drag handle), in order. */
+/** The protocol editor's lines (editable: each has a drag handle), in order. */
 export const editorLines = (page: Page, ct: CatalogTexts) =>
     page.getByRole("button", {name: ct.dragToReorder}).locator("..");
 
-/** A picker option (drug or group) by its name. */
+/** A picker option (drug or protocol) by its name. */
 export const option = (page: Page, name: string) =>
     page.getByRole("option").filter({has: page.getByText(name, {exact: true})});
 

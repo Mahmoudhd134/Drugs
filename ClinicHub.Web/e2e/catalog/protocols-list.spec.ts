@@ -7,8 +7,8 @@ import {expectHealthyPage} from "../support/checks.ts";
 import {type Lang, TEXTS} from "../support/texts.ts";
 import {setLanguage} from "../support/ux.ts";
 
-/** The groups page: cards, search, open, delete; the prescription's group search (docs/features/drug-groups). */
-test.describe("The groups list @area:catalog", () => {
+/** The protocols page: cards, search, open, delete; the prescription's protocol search (docs/features/protocols). */
+test.describe("The protocols list @area:catalog", () => {
     test("cards show the name, «الأدوية: N» and the first 4 drugs; 6 drugs also show «+2 أخرى» @GRP-036",
         async ({page, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
@@ -17,11 +17,11 @@ test.describe("The groups list @area:catalog", () => {
             const drugs = await createDrugs(data, clinic, ["F", "E", "D", "C", "B", "A"].map(l => `${l} drug ${u}`));
             const big = await createProtocol(data, clinic, `Six ${u}`, drugs.map(drug => ({drug})));
             const small = await createProtocol(data, clinic, `Two ${u}`, drugs.slice(0, 2).map(drug => ({drug})));
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
 
             const card = protocolCard(page, big.name);
             await expect(card.getByText(ct.drugCount(6), {exact: true})).toBeVisible();
-            // The group's order (not the names' order)
+            // The protocol's order (not the names' order)
             await expect(card.locator("ol li")).toHaveText(drugs.slice(0, 4).map(d => d.name));
             await expect(card.getByText(ct.moreDrugs(2), {exact: true})).toBeVisible();
 
@@ -32,13 +32,13 @@ test.describe("The groups list @area:catalog", () => {
             await healthy();
         });
 
-    test("searching part of a name shows only the matching groups on page 1; no match says «لا توجد مجموعات مطابقة للبحث.» @GRP-038",
+    test("searching part of a name shows only the matching protocols on page 1; no match says «لا توجد بروتوكولات مطابقة للبحث.» @GRP-038",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Drug ${u}`);
-            // 13 "Alpha" + 12 "Beta" + the template's group = 26 groups: 3 pages of 12
+            // 13 "Alpha" + 12 "Beta" + the template's protocol = 26 protocols: 3 pages of 12
             const names = [
                 ...Array.from({length: 13}, (_, i) => `Alpha ${u} ${String(i).padStart(2, "0")}`),
                 ...Array.from({length: 12}, (_, i) => `Beta ${u} ${String(i).padStart(2, "0")}`),
@@ -46,7 +46,7 @@ test.describe("The groups list @area:catalog", () => {
             for (let i = 0; i < names.length; i += 8) { // (createDrug logged the owner in once)
                 await Promise.all(names.slice(i, i + 8).map(n => createProtocol(data, clinic, n, [{drug}])));
             }
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
             await page.getByRole("button", {name: ct.goToPageN(3), exact: true}).click();
             await expect(page.getByRole("button", {name: ct.pageN(3), exact: true})).toHaveAttribute("aria-current", "page");
 
@@ -63,24 +63,24 @@ test.describe("The groups list @area:catalog", () => {
             await expect(protocolCards(page)).toHaveCount(0);
         });
 
-    test("clicking a card opens its editor at /groups/{id} @GRP-041", async ({page, t, data}) => {
+    test("clicking a card opens its editor at /protocols/{id} @GRP-041", async ({page, t, data}) => {
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Drug ${unique()}`);
         const protocol = await createProtocol(data, clinic, `Open me ${unique()}`, [{drug}]);
-        await signIn(page, clinic.owner.phone, "asIs", "/groups");
+        await signIn(page, clinic.owner.phone, "asIs", "/protocols");
         await protocolCard(page, protocol.name).getByText(protocol.name, {exact: true}).click();
-        await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+        await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
         await expect(page.getByRole("heading", {level: 1, name: t.editProtocol})).toBeVisible();
         await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(protocol.name);
     });
 
-    test("a card's delete: «حذف المجموعة؟»; «إلغاء» keeps the group, «حذف» deletes it and keeps its drugs @GRP-042 @GRP-043",
+    test("a card's delete: «حذف البروتوكول؟»; «إلغاء» keeps the protocol, «حذف» deletes it and keeps its drugs @GRP-042 @GRP-043",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Kept drug ${unique()}`);
             const protocol = await createProtocol(data, clinic, `Delete me ${unique()}`, [{drug}]);
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
 
             const askDelete = async () => {
                 await protocolCard(page, protocol.name).getByRole("button", {name: t.delete, exact: true}).click();
@@ -105,7 +105,7 @@ test.describe("The groups list @area:catalog", () => {
             await expect(drugRow(page, drug.name)).toBeVisible();
         });
 
-    test("the prescription's Groups tab: typing «عمليه» lists «بعد عملية المياه» (desktop in the project's language; the 375 px phone in Arabic and English) @GRP-097",
+    test("the prescription's Protocols tab: typing «عمليه» lists «بعد عملية المياه» (desktop in the project's language; the 375 px phone in Arabic and English) @GRP-097",
         async ({page, lang, data, isMobile}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Drug ${unique()}`);

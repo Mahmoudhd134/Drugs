@@ -3,21 +3,21 @@ import {unique} from "../support/phones.ts";
 import {expectContextLabel, expectToast, navTo, openSwitchClinic, pickerEntry, toast} from "../support/ui.ts";
 
 test.describe("Clinic isolation in the browser @area:isolation", () => {
-    test("switching from A's drugs page to B: only B's drugs and groups, never a moment of A's @ISO-040 @smoke", async ({page, t, data}) => {
+    test("switching from A's drugs page to B: only B's drugs and protocols, never a moment of A's @ISO-040 @smoke", async ({page, t, data}) => {
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
         const drugA = await data.drug(a, `Drug A ${u}`);
-        const protocolA = await data.protocol(a, [drugA], `Group A ${u}`);
+        const protocolA = await data.protocol(a, [drugA], `Protocol A ${u}`);
         const drugB = await data.drug(b, `Drug B ${u}`);
-        const protocolB = await data.protocol(b, [drugB], `Group B ${u}`);
+        const protocolB = await data.protocol(b, [drugB], `Protocol B ${u}`);
         const staff = await data.staff(a);
         await data.staff(b, {phone: staff.phone});
         await signIn(page, staff.phone, {clinicId: a.id}, "/drugs");
         await expect(page.getByRole("cell", {name: drugA.name})).toBeVisible();
         await openSwitchClinic(page, t);
 
-        // From here (the picker), A's drug or group anywhere on screen is a leak
+        // From here (the picker), A's drug or protocol anywhere on screen is a leak
         await page.evaluate(([drug, protocol]) => {
             const flags = window as unknown as { leaked?: string };
             new MutationObserver(() => {
@@ -67,13 +67,13 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         expect(stored).toContain(drugA.name);
     });
 
-    test("A's user opening the URL of B's group: «هذا العنصر لم يعد موجودًا.» @ISO-043", async ({page, t, data, healthy, allowApiErrors}) => {
-        // Another clinic's group is not found: the test's subject
-        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
+    test("A's user opening the URL of B's protocol: «هذا العنصر لم يعد موجودًا.» @ISO-043", async ({page, t, data, healthy, allowApiErrors}) => {
+        // Another clinic's protocol is not found: the test's subject
+        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/protocols\/\d+$/});
         const a = await data.clinic();
         const b = await data.clinic();
         const protocolB = await data.protocol(b, [await data.drug(b)]);
-        await signIn(page, a.owner.phone, "asIs", `/groups/${protocolB.id}`);
+        await signIn(page, a.owner.phone, "asIs", `/protocols/${protocolB.id}`);
 
         await expect(page.getByText(t.notFound, {exact: true}).first()).toBeVisible();
         await expect(page.getByText(protocolB.name)).toHaveCount(0);
@@ -84,7 +84,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
 
 test.describe("Client routes and an unreachable API @area:errors", () => {
     test("a client route asked from the server answers 200 with the SPA (deep links and reloads work) @ERR-019", async ({page, data}) => {
-        for (const path of ["/drugs", "/groups/5", "/admin/clinics/1", "/select-clinic"]) {
+        for (const path of ["/drugs", "/protocols/5", "/admin/clinics/1", "/select-clinic"]) {
             const response = await page.request.get(path);
             expect(response.status(), path).toBe(200);
             expect(response.headers()["content-type"], path).toContain("text/html");
@@ -92,13 +92,13 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
         }
         const clinic = await data.clinic();
         const protocol = await data.protocol(clinic, [await data.drug(clinic)]);
-        await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+        await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
         await page.reload();
-        await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+        await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
         await expect(page.getByRole("textbox").first()).toHaveValue(protocol.name);
     });
 
-    test("the API unreachable while saving a drug or a group: «تعذّر الاتصال بالخادم» and the form keeps what was typed @ERR-031",
+    test("the API unreachable while saving a drug or a protocol: «تعذّر الاتصال بالخادم» and the form keeps what was typed @ERR-031",
         async ({page, t, data, allowNetworkErrors}) => {
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
@@ -106,7 +106,7 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             // The API unreachable on save: its "net::ERR_…" console lines are expected
             allowNetworkErrors();
             await page.route("**/api/v1/drugs", route => route.request().method() === "POST" ? route.abort("connectionrefused") : route.continue());
-            await page.route("**/api/v1/drug-groups", route => route.request().method() === "POST" ? route.abort("connectionrefused") : route.continue());
+            await page.route("**/api/v1/protocols", route => route.request().method() === "POST" ? route.abort("connectionrefused") : route.continue());
 
             const name = `Drug ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).click();
@@ -121,14 +121,14 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             await expect(toast(page, t.network)).toHaveCount(0);
             await dialog.getByRole("button", {name: t.cancel}).click();
 
-            const protocol = `Group ${unique()}`;
-            await page.goto("/groups/new");
+            const protocol = `Protocol ${unique()}`;
+            await page.goto("/protocols/new");
             await page.getByRole("textbox", {name: t.protocolName}).fill(protocol);
             await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
             await page.getByRole("option", {name: new RegExp(drug.name)}).click();
             await page.getByRole("button", {name: t.save, exact: true}).click();
             await expectToast(page, t.network);
             await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(protocol);
-            await expect(page).toHaveURL(/\/groups\/new$/);
+            await expect(page).toHaveURL(/\/protocols\/new$/);
         });
 });

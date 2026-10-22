@@ -173,7 +173,7 @@ const tail = (file: string) => {
 
 /**
  * The template's catalog, as the Development seed has it (docs/tech/overview.md "Runtime architecture"): two eye
- * drops and the group "After cataract surgery" using both, the second line overriding the drug's dosing with a taper
+ * drops and the protocol "After cataract surgery" using both, the second line overriding the drug's dosing with a taper
  * (and "ask" eye). New clinics get a copy (ADM-088).
  */
 const seedTemplate = async (baseURL: string, phone: string): Promise<TemplateCatalog> => {

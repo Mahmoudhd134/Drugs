@@ -44,7 +44,7 @@ describe("locale files @area:i18n", () => {
     });
 
     test("a name interpolated in a message sits inside the bidi isolates U+2068…U+2069 @I18N-017", () => {
-        // {{name}}/{{names}}/{{from}}/{{to}} are clinic content (drug, group, clinic, role, staff names), except the
+        // {{name}}/{{names}}/{{from}}/{{to}} are clinic content (drug, protocol, clinic, role, staff names), except the
         // pagination's numbers and the permission labels of "Needed by"
         const notNames = new Set(["common.displayedRows", "roles.editor.requiredBy"]);
         let checked = 0;
@@ -75,7 +75,7 @@ describe("locale files @area:i18n", () => {
         const codes = [
             "notFound", "forbidden", "tooManyRequests", "nameRequired", "nameInvalid", "nameTooLong", "invalidText",
             "noAccess", "clinicSuspended", "staffInactive", "invalidPhone", "invalidCode", "codeExpired", "tooManyAttempts",
-            "drugsRequired", "drugNotFound", "invalidDosing", "duplicateGroupItem",
+            "drugsRequired", "drugNotFound", "invalidDosing", "duplicateProtocolItem",
             "roleNameTaken", "unknownPermission", "roleLocked", "roleInUse", "rolesRequired", "roleNotFound", "staffExists", "lastOwner",
         ];
         for (const code of codes) {
@@ -107,7 +107,7 @@ describe("permission keys and labels @area:access", () => {
         }
         expect(arTexts["permissions.drugs.delete"]).toBe("حذف الأدوية");
         expect(arTexts["permissions.prescriptions.create"]).toBe("كتابة الروشتات");
-        expect(arTexts["permissionModules.catalog"]).toBe("الأدوية والمجموعات");
+        expect(arTexts["permissionModules.catalog"]).toBe("الأدوية والبروتوكولات");
         expect(enTexts["permissionModules.prescription"]).toBe("Prescription");
     });
 });

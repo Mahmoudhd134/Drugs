@@ -7,14 +7,14 @@ import {ProtocolItemDialog} from "../../protocols/components/ProtocolItemDialog.
 import {newItemKey} from "../../protocols/editorItem.ts";
 import {LineEditDialog} from "../../prescription/components/LineEditDialog.tsx";
 
-// The three dosing dialogs (drug default, group line, prescription line): docs/features/tapering/business.md
-// "سيناريوهات" (the switch in every dosing dialog) and docs/features/drug-groups/tech.md "Data model" («تُحدد عند
-// الإضافة» only on group lines).
+// The three dosing dialogs (drug default, protocol line, prescription line): docs/features/tapering/business.md
+// "سيناريوهات" (the switch in every dosing dialog) and docs/features/protocols/tech.md "Data model" («تُحدد عند
+// الإضافة» only on protocol lines).
 
 const drug = () => aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}});
 const dialogs: [string, () => ReactElement][] = [
     ["drug", () => <DrugFormDialog open drug={drug()} onClose={vi.fn()}/>],
-    ["group line", () => <ProtocolItemDialog item={{key: newItemKey(), drug: drug(), dosing: {}}} onClose={vi.fn()} onSave={vi.fn(() => true)}/>],
+    ["protocol line", () => <ProtocolItemDialog item={{key: newItemKey(), drug: drug(), dosing: {}}} onClose={vi.fn()} onSave={vi.fn(() => true)}/>],
     ["prescription line", () => <LineEditDialog line={aLine(drug())} onClose={vi.fn()} onSave={vi.fn(() => true)}/>],
 ];
 
@@ -45,7 +45,7 @@ describe("the dosing dialogs @area:catalog", () => {
             expect(screen.queryByText("تُحدد عند الإضافة"), name).not.toBeInTheDocument();
             unmount();
         }
-        // The group line dialog does
+        // The protocol line dialog does
         await renderWithProviders(dialogs[1][1](), {lang: "ar"});
         expect(eyeChoices()).toContain("تُحدد عند الإضافة");
     });

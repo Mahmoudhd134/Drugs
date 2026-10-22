@@ -38,7 +38,7 @@ export const READ_ONLY: PermissionKey[] = ["drugs.list", "drugs.details", "proto
 
 /**
  * Test data through the API, as the docs prescribe: the super admin (platform) creates clinics, staff and roles; an
- * owner (clinic context) creates drugs and groups. Every name and phone is unique in the run, so tests run in
+ * owner (clinic context) creates drugs and protocols. Every name and phone is unique in the run, so tests run in
  * parallel without seeing each other's data.
  */
 export class Data {
@@ -143,7 +143,7 @@ export class Data {
         await this.admin.ok("PUT", `/api/v1/admin/clinics/${clinic.id}`, {name});
     }
 
-    /** The clinic's owner, logged in through the API in that clinic (to build its drugs and groups). */
+    /** The clinic's owner, logged in through the API in that clinic (to build its drugs and protocols). */
     async ownerApi(clinic: ClinicHandle): Promise<ApiSession> {
         let session = this.owners.get(clinic.id);
         if (!session) {
@@ -158,7 +158,7 @@ export class Data {
         return api.ok<Drug>("POST", "/api/v1/drugs", {name, description: null, defaultDosing});
     }
 
-    async protocol(clinic: ClinicHandle, drugs: Drug[], name = `Group ${unique()}`): Promise<Protocol> {
+    async protocol(clinic: ClinicHandle, drugs: Drug[], name = `Protocol ${unique()}`): Promise<Protocol> {
         const api = await this.ownerApi(clinic);
         return api.ok<Protocol>("POST", "/api/v1/protocols", {name, items: drugs.map(d => ({drugId: d.id, dosing: null}))});
     }

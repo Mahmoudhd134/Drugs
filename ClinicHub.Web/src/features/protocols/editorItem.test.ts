@@ -12,11 +12,11 @@ import {
     type EditorItem,
 } from "./editorItem.ts";
 
-// Rules: docs/features/drug-groups/tech.md, design M1.6 § 5.3 (one drug per effective eye in a group).
+// Rules: docs/features/protocols/tech.md, design M1.6 § 5.3 (one drug per effective eye in a protocol).
 
 const item = (fields: Omit<EditorItem, "key">): EditorItem => ({key: newItemKey(), ...fields});
 
-describe("group editor items @area:catalog", () => {
+describe("protocol editor items @area:catalog", () => {
     test("the effective dosing is the drug default with the override on top; the identity uses its eye", () => {
         const drug = aDrug({defaultDosing: {doseUnit: "drop", eye: "right", frequency: "daily", frequencyValue: 4}});
         const line = item({drug, dosing: {frequencyValue: 6, frequency: "daily"}});
@@ -42,7 +42,7 @@ describe("group editor items @area:catalog", () => {
         expect(clashingItemKeys([])).toEqual(new Set());
     });
 
-    test("loading a group: one editor line per item, the override normalized, a new key each", () => {
+    test("loading a protocol: one editor line per item, the override normalized, a new key each", () => {
         const drug = aDrug();
         const items = toEditorItems([anItem(drug, {frequency: "bedtime", frequencyValue: 3}), anItem(drug, null)]);
         expect(items.map(i => i.dosing)).toEqual([normalizeDosing({frequency: "bedtime"}), normalizeDosing(null)]);

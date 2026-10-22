@@ -7,7 +7,7 @@ import {toast} from "./ui.ts";
 
 /**
  * Helpers of the prescription journeys (RX): test data with descriptions and dosings (the stage-1 `data.drug` /
- * `data.group` builders make drugs without a description and group lines without an override), and the prescription
+ * `data.protocol` builders make drugs without a description and protocol lines without an override), and the prescription
  * page's parts (pickers, lines, dialogs, toasts, clipboard).
  */
 
@@ -68,7 +68,7 @@ export const rxGetDrug = async (data: Data, clinic: ClinicHandle, drug: RxDrug) 
 };
 
 /** A protocol of the clinic (POST /protocols): its lines in order, each with an optional override. */
-export const rxProtocol = async (data: Data, clinic: ClinicHandle, lines: ProtocolLine[], name = rxName("Group")): Promise<RxProtocol> => {
+export const rxProtocol = async (data: Data, clinic: ClinicHandle, lines: ProtocolLine[], name = rxName("Protocol")): Promise<RxProtocol> => {
     const api = await owner(data, clinic);
     return api.ok<RxProtocol>("POST", "/api/v1/protocols", {name, items: lines.map(l => ({drugId: l.drug.id, dosing: l.dosing ?? null}))});
 };
@@ -146,7 +146,7 @@ export class RxPage {
         await this.option(name).click();
     }
 
-    /** Adds single drugs from the Drugs tab, then goes back to the Groups tab. */
+    /** Adds single drugs from the Drugs tab, then goes back to the Protocols tab. */
     async addAlone(drugs: { name: string }[]) {
         await this.openDrugsTab();
         for (const drug of drugs) {
@@ -174,8 +174,8 @@ export class RxPage {
     }
 
     /** A tab's search box. */
-    search(tab: "groups" | "drugs"): Locator {
-        return this.catalog.getByPlaceholder(tab === "groups" ? this.rt.searchProtocols : this.rt.searchDrugs);
+    search(tab: "protocols" | "drugs"): Locator {
+        return this.catalog.getByPlaceholder(tab === "protocols" ? this.rt.searchProtocols : this.rt.searchDrugs);
     }
 
     /**
@@ -208,7 +208,7 @@ export class RxPage {
     }
 }
 
-/** The one toast of an added group: its lines in order (catalog RX-049), and whether it is the success style. */
+/** The one toast of an added protocol: its lines in order (catalog RX-049), and whether it is the success style. */
 export const expectProtocolToast = async (page: Page, lines: string[], style: "success" | "neutral") => {
     const shown = toast(page, lines[0]);
     await expect(shown).toHaveText(lines.join("\n"), {timeout: 20_000});

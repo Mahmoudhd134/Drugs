@@ -10,7 +10,7 @@ export type Target = "platform" | "template" | { clinicId: number } | "asIs";
 
 /**
  * An API session outside the browser (its own cookie jar, like a browser), used to build test data through the
- * real endpoints, as the docs prescribe: the super admin → clinics, staff and roles; an owner → drugs and groups.
+ * real endpoints, as the docs prescribe: the super admin → clinics, staff and roles; an owner → drugs and protocols.
  * A 401 (the 15-min access token expired in a long worker) refreshes once and replays the request.
  */
 export class ApiSession {

@@ -30,8 +30,8 @@ import {defaultRoles} from "../../../test/pages/rolesTab.ts";
 
 const AR = {
     drugsList: "عرض قائمة الأدوية والبحث فيها", drugsDetails: "فتح دواء", drugsCreate: "إضافة أدوية", drugsUpdate: "تعديل الأدوية",
-    drugsDelete: "حذف الأدوية", protocolsList: "عرض قائمة المجموعات والبحث فيها", protocolsDetails: "فتح مجموعة",
-    protocolsCreate: "إضافة مجموعات", protocolsUpdate: "تعديل المجموعات", protocolsDelete: "حذف المجموعات", prescriptions: "كتابة الروشتات",
+    drugsDelete: "حذف الأدوية", protocolsList: "عرض قائمة البروتوكولات والبحث فيها", protocolsDetails: "فتح بروتوكول",
+    protocolsCreate: "إضافة بروتوكولات", protocolsUpdate: "تعديل البروتوكولات", protocolsDelete: "حذف البروتوكولات", prescriptions: "كتابة الروشتات",
 };
 
 const box = (name: string) => screen.getByRole("checkbox", {name});
@@ -64,13 +64,13 @@ const openEditor = async (options: { lang?: "ar" | "en"; role?: Role } = {}) => 
 
 
 describe("role editor: the picker @area:admin", () => {
-    test("\"New role\": the name (max 100), «الأدوية والمجموعات» and «الروشتة», 11 labelled boxes, «المختار: 0 من 11.» @ADM-179", async () => {
+    test("\"New role\": the name (max 100), «الأدوية والبروتوكولات» and «الروشتة», 11 labelled boxes, «المختار: 0 من 11.» @ADM-179", async () => {
         const {dialog, name} = await openEditor();
         expect(within(dialog).getByRole("heading", {name: "دور جديد"})).toBeInTheDocument();
         expect(name).toHaveAttribute("maxlength", "100");
-        const catalog = within(dialog).getByRole("region", {name: "الأدوية والمجموعات"});
+        const catalog = within(dialog).getByRole("region", {name: "الأدوية والبروتوكولات"});
         expect(within(catalog).getByRole("group", {name: "الأدوية"})).toBeInTheDocument();
-        expect(within(catalog).getByRole("group", {name: "المجموعات"})).toBeInTheDocument();
+        expect(within(catalog).getByRole("group", {name: "البروتوكولات"})).toBeInTheDocument();
         const prescription = within(dialog).getByRole("region", {name: "الروشتة"});
         expect(within(prescription).getAllByRole("checkbox")).toHaveLength(1);
         const boxes = within(dialog).getAllByRole("checkbox");
@@ -80,22 +80,22 @@ describe("role editor: the picker @area:admin", () => {
         expect(picked(0)).toBeInTheDocument();
     });
 
-    test("in English: \"Drugs and groups\", \"Prescription\", \"Selected: 0 of 11.\" @ADM-179", async () => {
+    test("in English: \"Drugs and protocols\", \"Prescription\", \"Selected: 0 of 11.\" @ADM-179", async () => {
         const {dialog} = await openEditor({lang: "en"});
-        expect(within(dialog).getByRole("region", {name: "Drugs and groups"})).toBeInTheDocument();
+        expect(within(dialog).getByRole("region", {name: "Drugs and protocols"})).toBeInTheDocument();
         expect(within(dialog).getByRole("region", {name: "Prescription"})).toBeInTheDocument();
-        expect(within(dialog).getByRole("checkbox", {name: "Edit groups"})).toBeInTheDocument();
+        expect(within(dialog).getByRole("checkbox", {name: "Edit protocols"})).toBeInTheDocument();
         expect(picked(0, "en")).toBeInTheDocument();
     });
 
-    test("ticking «تعديل المجموعات»: its requirements ticked and locked with «مطلوبة لـ: …», 4 of 11 @ADM-180 @smoke", async () => {
+    test("ticking «تعديل البروتوكولات»: its requirements ticked and locked with «مطلوبة لـ: …», 4 of 11 @ADM-180 @smoke", async () => {
         const {user} = await openEditor();
         await user.click(box(AR.protocolsUpdate));
         expect(box(AR.protocolsUpdate)).toBeChecked();
-        expectLocked(AR.protocolsDetails, "مطلوبة لـ: تعديل المجموعات");
-        expectLocked(AR.drugsList, "مطلوبة لـ: تعديل المجموعات");
-        // The group list is required by «فتح مجموعة» (directly), which «تعديل المجموعات» requires (tech.md: requiredBy)
-        expectLocked(AR.protocolsList, "مطلوبة لـ: فتح مجموعة");
+        expectLocked(AR.protocolsDetails, "مطلوبة لـ: تعديل البروتوكولات");
+        expectLocked(AR.drugsList, "مطلوبة لـ: تعديل البروتوكولات");
+        // The protocol list is required by «فتح بروتوكول» (directly), which «تعديل البروتوكولات» requires (tech.md: requiredBy)
+        expectLocked(AR.protocolsList, "مطلوبة لـ: فتح بروتوكول");
         expect(picked(4)).toBeInTheDocument();
     });
 
@@ -103,22 +103,22 @@ describe("role editor: the picker @area:admin", () => {
         const {user} = await openEditor();
         await user.click(box(AR.protocolsUpdate));
         await user.click(box(AR.protocolsDetails));
-        expectLocked(AR.protocolsDetails, "مطلوبة لـ: تعديل المجموعات");
+        expectLocked(AR.protocolsDetails, "مطلوبة لـ: تعديل البروتوكولات");
         box(AR.drugsList).focus();
         await user.keyboard(" ");
-        expectLocked(AR.drugsList, "مطلوبة لـ: تعديل المجموعات");
+        expectLocked(AR.drugsList, "مطلوبة لـ: تعديل البروتوكولات");
         expect(picked(4)).toBeInTheDocument();
     });
 
-    test("unticking «تعديل المجموعات»: its requirements stay ticked, no longer locked by it, 3 of 11 @ADM-182", async () => {
+    test("unticking «تعديل البروتوكولات»: its requirements stay ticked, no longer locked by it, 3 of 11 @ADM-182", async () => {
         const {user} = await openEditor();
         await user.click(box(AR.protocolsUpdate));
         await user.click(box(AR.protocolsUpdate));
         expectFree(AR.protocolsUpdate, false);
         expectFree(AR.protocolsDetails, true);
         expectFree(AR.drugsList, true);
-        // Still needed by «فتح مجموعة», which stays ticked
-        expectLocked(AR.protocolsList, "مطلوبة لـ: فتح مجموعة");
+        // Still needed by «فتح بروتوكول», which stays ticked
+        expectLocked(AR.protocolsList, "مطلوبة لـ: فتح بروتوكول");
         expect(picked(3)).toBeInTheDocument();
     });
 
@@ -348,5 +348,26 @@ describe("role editor: locked once saved @area:admin", () => {
         await user.click(saveButton());
         await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
         expect(posts).toBe(2);
+    });
+});
+
+describe("role editor: the protocols resource @area:access", () => {
+    // Design M1.7 D10; M1.7a contract "Every changed locale text" (permissionResources.protocols, permissions.protocols.*)
+    test("the resource reads «البروتوكولات» with its 5 permissions in their Arabic texts, no «مجموعة» left @ACC-086", async () => {
+        const {dialog} = await openEditor();
+        const resource = within(dialog).getByRole("group", {name: "البروتوكولات"});
+        expect(within(resource).getAllByRole("checkbox").map(b => b.closest("label")?.textContent)).toEqual([
+            "عرض قائمة البروتوكولات والبحث فيها", "فتح بروتوكول", "إضافة بروتوكولات", "تعديل البروتوكولات", "حذف البروتوكولات",
+        ]);
+        expect(dialog.textContent).not.toMatch(/مجموع/);
+    });
+
+    test("in English the resource reads \"Protocols\" with \"See the protocol list and search it\"…, no \"group\" left @ACC-086", async () => {
+        const {dialog} = await openEditor({lang: "en"});
+        const resource = within(dialog).getByRole("group", {name: "Protocols"});
+        expect(within(resource).getAllByRole("checkbox").map(b => b.closest("label")?.textContent)).toEqual([
+            "See the protocol list and search it", "Open a protocol", "Add protocols", "Edit protocols", "Delete protocols",
+        ]);
+        expect(dialog.textContent).not.toMatch(/group/i);
     });
 });

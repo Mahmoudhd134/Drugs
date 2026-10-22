@@ -4,9 +4,9 @@ import {aDrug, aProtocol, aLine, anItem, clickOutside, expectStillOpen, findToas
 import type {Dosing, TaperStep} from "../../dosing/types.ts";
 import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
 
-// The dialogs of adding a group: docs/features/prescription/business.md "القواعد التشغيلية" (أي عين؟, «جرعتان لنفس
-// العين», the conflict question, Esc, a click outside answers nothing) and tech.md "Page & components" (addGroup steps
-// 3 and 5, useGroupAddDialogs: each dialog keeps its request rendered until it has faded out; "apply to the remaining";
+// The dialogs of adding a protocol: docs/features/prescription/business.md "القواعد التشغيلية" (أي عين؟, «جرعتان لنفس
+// العين», the conflict question, Esc, a click outside answers nothing) and tech.md "Page & components" (addProtocol steps
+// 3 and 5, useProtocolAddDialogs: each dialog keeps its request rendered until it has faded out; "apply to the remaining";
 // a dosing with nothing to write shows «لا توجد جرعة محددة»). Sentences: the catalog's DOSE and TAPER cases.
 
 const added = (count: number, protocol = "Post cataract") => `تمت الإضافة من «${isolate(protocol)}»: ${count}`;
@@ -63,7 +63,7 @@ describe("the conflict question @area:prescription", () => {
         await page.addProtocol();
         const dialog = await screen.findByRole("dialog", {name: "موجود بالفعل في الروشتة"});
         const current = within(dialog).getByText("الحالي").parentElement as HTMLElement;
-        const incoming = within(dialog).getByText("من المجموعة").parentElement as HTMLElement;
+        const incoming = within(dialog).getByText("من البروتوكول").parentElement as HTMLElement;
         expect(current).toHaveTextContent("الحاليلا توجد جرعة محددة");
         expect(incoming).toHaveTextContent("نقطة واحدة 4 مرات يوميًا");
     });
@@ -185,7 +185,7 @@ describe("closing dialogs keep their text @area:prescription", () => {
 
         const conflict = await screen.findByRole("dialog", {name: "موجود بالفعل في الروشتة"});
         const conflictTexts = recordTexts(conflict);
-        await page.user.click(within(conflict).getByRole("button", {name: "استخدام جرعة المجموعة"}));
+        await page.user.click(within(conflict).getByRole("button", {name: "استخدام جرعة البروتوكول"}));
         await waitFor(() => expect(screen.queryByRole("dialog", {hidden: true})).not.toBeInTheDocument());
         eyeTexts.stop();
         conflictTexts.stop();
@@ -201,6 +201,6 @@ describe("closing dialogs keep their text @area:prescription", () => {
             expect(text).toContain("قبل النوم");
             expect(text).toContain("نقطة واحدة 4 مرات يوميًا");
         }
-        expect(await toastLines()).toEqual([added(1, "G"), "تم الاستبدال بجرعة المجموعة: 1"]);
+        expect(await toastLines()).toEqual([added(1, "G"), "تم الاستبدال بجرعة البروتوكول: 1"]);
     });
 });

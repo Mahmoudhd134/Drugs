@@ -86,7 +86,7 @@ describe("search lists: keyboard @area:ux", () => {
         expect(onSelect).toHaveBeenLastCalledWith(expect.objectContaining({name: "Cosopt"}));
     });
 
-    test("a double click in the group picker adds the group once @UX-027", async () => {
+    test("a double click in the protocol picker adds the protocol once @UX-027", async () => {
         const onSelect = vi.fn();
         server.use(...protocolsHandlers([aProtocol({name: "Post cataract"})]));
         const {user} = await renderWithProviders(<ProtocolPicker onSelect={onSelect}/>, {lang: "ar"});

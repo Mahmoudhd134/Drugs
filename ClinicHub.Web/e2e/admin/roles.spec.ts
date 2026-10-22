@@ -10,7 +10,7 @@ const permissionBox = (dialog: Locator, label: string) =>
     dialog.getByRole("checkbox", {name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)});
 
 test.describe("Platform admin: a clinic's roles @area:admin", () => {
-    test("a new role \"Editors\" with «تعديل المجموعات» (Save double-clicked): one POST, the toast, its row right after the Owner in name order @ADM-185 @smoke",
+    test("a new role \"Editors\" with «تعديل البروتوكولات» (Save double-clicked): one POST, the toast, its row right after the Owner in name order @ADM-185 @smoke",
         async ({page, t, data, healthy}) => {
             const clinic = await data.clinic();
             await signInSuperAdmin(page, `/admin/clinics/${clinic.id}/roles`);
@@ -18,7 +18,7 @@ test.describe("Platform admin: a clinic's roles @area:admin", () => {
             await page.getByRole("button", {name: t.newRole}).click();
             const dialog = page.getByRole("dialog", {name: t.newRoleTitle});
             await dialog.getByRole("textbox", {name: t.roleName}).fill("Editors");
-            await permissionBox(dialog, t.permissionLabel["groups.update"]).check();
+            await permissionBox(dialog, t.permissionLabel["protocols.update"]).check();
             await healthy();
 
             const posts = recordRequests(page, "POST", new RegExp(`/api/v1/admin/clinics/${clinic.id}/roles$`));
@@ -54,7 +54,7 @@ test.describe("Platform admin: a clinic's roles @area:admin", () => {
         const dialog = page.getByRole("dialog", {name: t.roleEditTitle(role.name)});
         await expect(dialog).toBeVisible();
         await expect(dialog.getByRole("textbox", {name: t.roleName})).toHaveValue(role.name);
-        await expect(permissionBox(dialog, t.permissionLabel["groups.list"])).toBeChecked();
+        await expect(permissionBox(dialog, t.permissionLabel["protocols.list"])).toBeChecked();
         await expect(dialog.getByRole("checkbox", {checked: true})).toHaveCount(1);
         await dialog.getByRole("button", {name: t.save}).click();
         await expectToast(page, t.roleSaved(role.name));

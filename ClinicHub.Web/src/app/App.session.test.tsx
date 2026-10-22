@@ -62,7 +62,7 @@ describe("staying logged in @area:auth", () => {
             meByContext(),
             http.get(api("/drugs"), ({request}) =>
                 (isFresh(request) ? HttpResponse.json(aPage([aDrug({name: "Tobradex"})])) : problem(401, "unauthorized"))),
-            http.get(api("/drug-groups"), ({request}) =>
+            http.get(api("/protocols"), ({request}) =>
                 (isFresh(request) ? HttpResponse.json(aPage([aProtocol({name: "Post cataract"})])) : problem(401, "unauthorized"))),
         );
         const requests = recordRequests();
@@ -71,7 +71,7 @@ describe("staying logged in @area:auth", () => {
         expect(await screen.findByText("Post cataract")).toBeInTheDocument();
         await waitFor(() => expect(requests.requests.filter(r => r.path === "/drugs")).toHaveLength(2));
         expect(refresh.calls()).toBe(2);
-        expect(requests.requests.filter(r => r.path === "/drug-groups")).toHaveLength(2);
+        expect(requests.requests.filter(r => r.path === "/protocols")).toHaveLength(2);
     });
 
     test("the refresh answers 5xx at page load: the offline screen, not the login page, and the session is kept @AUTH-175", async () => {
@@ -119,14 +119,14 @@ describe("logging out @area:auth", () => {
             refresh.handler,
             meByContext(),
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})]))),
-            http.get(api("/drug-groups"), () => problem(401, "unauthorized")),
+            http.get(api("/protocols"), () => problem(401, "unauthorized")),
             http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})),
         );
         const app = await startApp({route: "/drugs", lang: "ar"});
         expect(await screen.findByText("Tobradex")).toBeInTheDocument();
 
         // The next call answers 401 (the access token gone stale): the in-session refresh, not a page load
-        await app.user.click(screen.getAllByRole("link", {name: "المجموعات"})[0]);
+        await app.user.click(screen.getAllByRole("link", {name: "البروتوكولات"})[0]);
 
         await expectPath("/login");
         expect(refresh.calls()).toBe(2);

@@ -23,7 +23,7 @@ describe("Esc in the line dialogs @area:ux", () => {
         expect(onSave).not.toHaveBeenCalled();
     });
 
-    test("the group line dialog closes without saving @UX-023", async () => {
+    test("the protocol line dialog closes without saving @UX-023", async () => {
         const onSave = vi.fn(() => true);
         const onClose = vi.fn();
         const item = {key: "k1", drug: aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}}), dosing: {}};
