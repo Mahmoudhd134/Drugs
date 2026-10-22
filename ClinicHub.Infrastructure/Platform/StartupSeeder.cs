@@ -64,6 +64,15 @@ public sealed class StartupSeeder(
         if (assistantPhone == ownerPhone)
             assistantPhone = null;
 
+        // No catalog yet (design M1.7 § 9, D5): seed nothing, so the first start after the load seeds everything (the
+        // check above would skip the template sample if the demo clinics were stored now)
+        if (!await CatalogLoadedAsync())
+        {
+            logger.LogWarning("The shared drug catalog is not loaded: the development data is not seeded (run {Script})",
+                CatalogScript);
+            return;
+        }
+
         var start = Stopwatch.GetTimestamp();
         // All or nothing: a half-done seed would never be repaired (the check above would skip it). The
         // commands sent below join this transaction (savepoints); their post-commit actions run at once, before
@@ -88,8 +97,7 @@ public sealed class StartupSeeder(
     /// The smallest content that proves the copy (design D6, M1.7 § 9): two own drugs with categories and default dosings,
     /// and one protocol on the shared <see cref="SampleSharedDrugName"/> and one own drug (a tapering schedule, the eye
     /// asked when the protocol is added). Skipped (false) when the template already has own drugs (e.g. added by hand,
-    /// or seeded on an earlier start while <c>DevOwnerPhone</c> was empty), and, with a warning, when the shared catalog
-    /// isn't loaded (no categories nor that drug: <see cref="CatalogScript"/> not run yet).
+    /// or seeded on an earlier start while <c>DevOwnerPhone</c> was empty). Runs only once <see cref="CatalogLoadedAsync"/>.
     /// </summary>
     private async Task<bool> SeedTemplateAsync()
     {
@@ -100,14 +108,8 @@ public sealed class StartupSeeder(
                 return false;
 
             var shared = await db.Drugs.AsNoTracking()
-                .FirstOrDefaultAsync(d => d.ClinicId == null && d.Name == SampleSharedDrugName && !d.IsWithdrawn);
-            var eye = await db.Categories.Include(c => c.SubCategories).FirstOrDefaultAsync(c => c.Id == CategoryIds.Eye);
-            if (shared is null || eye is null)
-            {
-                logger.LogWarning("The shared drug catalog is not loaded: the template sample is skipped (run {Script})",
-                    CatalogScript);
-                return false;
-            }
+                .FirstAsync(d => d.ClinicId == null && d.Name == SampleSharedDrugName && !d.IsWithdrawn);
+            var eye = await db.Categories.Include(c => c.SubCategories).FirstAsync(c => c.Id == CategoryIds.Eye);
 
             var steroid = new Drug
             {
@@ -170,6 +172,14 @@ public sealed class StartupSeeder(
             return true;
         }
     }
+
+    /// <summary>
+    /// The shared catalog is loaded (<see cref="CatalogScript"/> run): the template sample's shared drug and the Eye
+    /// category exist.
+    /// </summary>
+    private async Task<bool> CatalogLoadedAsync() =>
+        await db.Drugs.AnyAsync(d => d.ClinicId == null && d.Name == SampleSharedDrugName && !d.IsWithdrawn)
+        && await db.Categories.AnyAsync(c => c.Id == CategoryIds.Eye);
 
     /// <summary>
     /// "Demo clinic" (the template copy, the assistant as Assistant) and "Second demo clinic" (the template copy, a

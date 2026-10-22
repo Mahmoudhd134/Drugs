@@ -225,10 +225,10 @@ the command's one transaction; an exception in any seeder answers 500 and leaves
 
 ## Dev seed
 `Infrastructure/Platform/StartupSeeder` (design D6), Development only, when no non-template clinic exists, in its own
-all-or-nothing transaction:
-1. **Template content** (skipped when the template already has own drugs, `AnyAsync(d => d.ClinicId != null)`; skipped
-   with a warning naming `data/drug-catalog/tools/load_catalog.py` when the shared catalog isn't loaded: no «العيون»
-   category or no shared "VIGAMOX 0.5% EYE DROPS 5 ML"): two own drugs in «العيون», "Prednisolone acetate 1%" (Eye
+all-or-nothing transaction. When the shared catalog isn't loaded (no «العيون» category or no shared
+"VIGAMOX 0.5% EYE DROPS 5 ML") it seeds nothing at all (no template content, no demo clinic) and warns naming
+`data/drug-catalog/tools/load_catalog.py`, so the first start after the load seeds everything (CAT-230):
+1. **Template content** (skipped when the template already has own drugs, `AnyAsync(d => d.ClinicId != null)`): two own drugs in «العيون», "Prednisolone acetate 1%" (Eye
    anti-inflammatories, steroid eye drops, 1 drop 4 times a day for 4 weeks) and "Timolol 0.5%" (Glaucoma, 1 drop twice
    a day), and the protocol "After cataract surgery": the shared VIGAMOX with a line dosing (1 drop 4 times a day for
    1 week; a shared drug has no default), then Prednisolone with an **override** (a taper 4 → 3 → 2 → 1 times a day, one

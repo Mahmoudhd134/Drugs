@@ -167,13 +167,13 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
   also gets sample **template** content (2 own eye drops with categories, Prednisolone and Timolol, and the protocol
-  "After cataract surgery" = the shared "VIGAMOX 0.5% EYE DROPS 5 ML" + Prednisolone with a taper override; skipped
-  with a warning naming `data/drug-catalog/tools/load_catalog.py` when the shared catalog isn't loaded) and two clinics
+  "After cataract surgery" = the shared "VIGAMOX 0.5% EYE DROPS 5 ML" + Prednisolone with a taper override) and two clinics
   **provisioned from it** through `CreateClinicCommand` (default roles, owner, a copy of the template's own drugs and
   protocol): "Demo clinic" and "Second demo clinic" (2 own drugs + 1 protocol each; no bulk drugs since M1.7b), the
   `Platform:DevOwnerPhone` user as staff "Dev Owner" (Owner) in both, and `Platform:DevAssistantPhone` as "Dev
   Assistant" (Assistant in the first, read-only "Viewer" in the second). An empty `DevOwnerPhone` skips only the demo
-  clinics (a warning: a clinic needs an owner; the template is still filled when empty).
+  clinics (a warning: a clinic needs an owner; the template is still filled when empty). Without the shared catalog loaded nothing is seeded (no template content, no
+  demo clinic) and a warning names `data/drug-catalog/tools/load_catalog.py`; the first start after the load seeds all.
 - **Login:** phone + one-time code; a JWT access token per context (a clinic, or the platform for a
   super admin) and a rotating refresh token in an HttpOnly cookie ([login](../features/auth/tech.md)).
 - **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
