@@ -80,7 +80,11 @@ public class ProblemShapeTests(AppFixture app) : IntegrationTest(app)
         await response.ShouldBeOkAsync();
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
         var body = (await response.ReadNodeAsync()).AsObject();
-        body.Select(p => p.Key).ShouldBe(["id", "name", "description", "defaultDosing"], ignoreOrder: true);
+        // The keys of the contract's DrugDto (M1.7b contract § 2.5); never the hidden Arabic name
+        body.Select(p => p.Key).ShouldBe(
+            ["id", "name", "activeIngredients", "description", "defaultDosing", "isShared", "withdrawn", "category", "subCategory"],
+            ignoreOrder: true);
+        body.ContainsKey("nameAr").ShouldBeFalse();
     }
 
     [Fact]

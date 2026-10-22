@@ -158,7 +158,7 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
 
         await InClinicAsync(clinic.Id, db =>
         {
-            db.Drugs.Add(new Drug { Name = name });
+            db.Drugs.Add(new Drug { Name = name, CategoryId = CategoryIds.Eye });
             db.SaveChanges();
             return Task.CompletedTask;
         });

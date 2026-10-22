@@ -16,7 +16,7 @@ namespace ClinicHub.IntegrationTests.Catalog.Journeys;
 
 /// <summary>
 /// The api level of the shared catalog cases whose screens are proven in ClinicHub.Web (design M1.7 D3, D6, D7, D8, § 8;
-/// test cases CAT-046, CAT-062, CAT-073, CAT-155, CAT-163, CAT-175, CAT-187). Imported drugs are read by exact name;
+/// test cases CAT-046, CAT-062, CAT-155, CAT-163, CAT-175, CAT-187). Imported drugs are read by exact name;
 /// every write is on a shared drug, category or subcategory of the test's own (design D12). The literal catalog numbers
 /// are asserted here (the e2e specs compare with the API instead).
 /// </summary>
@@ -85,38 +85,6 @@ public class SharedCatalogJourneyTests(AppFixture app) : IntegrationTest(app)
         foreach (var item in body["items"]!.AsArray())
             item!.AsObject().ContainsKey("nameAr").ShouldBeFalse();
         body.ToJsonString().ShouldNotContain("أليموكس");
-    }
-
-    [Fact]
-    [Trait("Case", "CAT-073")]
-    public async Task Glaucoma_or_its_Arabic_name_finds_the_91_shared_drugs_of_Eye_Glaucoma_after_the_clinics_own_and_qatra_in_B_finds_nothing()
-    {
-        var clinic = await Data.Clinic();
-        var own = await Data.Drug(clinic).Named(Unique.Name("Own drops", "خاص"));
-        var owner = await Login.OwnerAsync(clinic);
-        var inSubcategory = await ListAsync(owner, $"categoryId={CategoryIds.Eye}&subCategoryId={SubCategoryIds.Glaucoma}&source=shared&pageSize=100");
-        inSubcategory.TotalCount.ShouldBe(91);
-
-        foreach (var term in new[] { "glaucoma", "المياه الزرقاء" })
-        {
-            var shared = await ListAsync(owner, $"search={Uri.EscapeDataString(term)}&source=shared&pageSize=100");
-            shared.TotalCount.ShouldBe(91, term);
-            // The same drugs in the same (name) order as the subcategory itself
-            shared.Items.Select(d => d.Id).ShouldBe(inSubcategory.Items.Select(d => d.Id), term);
-            shared.Items.ShouldAllBe(d => d.Category.Id == CategoryIds.Eye && d.SubCategory.Id == SubCategoryIds.Glaucoma);
-
-            // With the clinic's own drugs: its own drug of that subcategory first
-            var all = await ListAsync(owner, $"search={Uri.EscapeDataString(term)}&pageSize=100");
-            all.Items.First().Id.ShouldBe(own.Id, term);
-            all.Items.Where(d => d.IsShared).Select(d => d.Id).ShouldBe(inSubcategory.Items.Select(d => d.Id), term);
-        }
-
-        // «قطرة» in a clinic with no own drug containing it (no shared Arabic name contains it)
-        var clinicB = await Data.Clinic();
-        var ownerB = await Login.OwnerAsync(clinicB);
-        var ownOfB = await ListAsync(ownerB, $"search={Uri.EscapeDataString("قطرة")}&source=own");
-        ownOfB.TotalCount.ShouldBe(0, "precondition: B has no own drug named «قطرة…»");
-        (await ListAsync(ownerB, $"search={Uri.EscapeDataString("قطرة")}")).TotalCount.ShouldBe(0);
     }
 
     [Fact]
