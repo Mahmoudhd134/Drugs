@@ -46,12 +46,11 @@ public class SharedDrugListTests(AppFixture app) : CatalogTest(app)
     [Trait("Case", "CAT-009")]
     public async Task Two_clinics_see_the_same_shared_drugs_and_never_each_others_own()
     {
-        var a = await Data.Clinic();
-        var b = await Data.Clinic();
+        // Without the template's copied drugs: the own lists below are exactly what this test adds
+        var (a, ownerA) = await EmptyClinicAsync();
+        var (b, ownerB) = await EmptyClinicAsync();
         var aDrug = await Data.Drug(a).Named(Unique.Name("Zqa own drug", "خاص أ"));
         var bDrug = await Data.Drug(b).Named(Unique.Name("Zqb own drug", "خاص ب"));
-        var ownerA = await Login.OwnerAsync(a);
-        var ownerB = await Login.OwnerAsync(b);
         var vigamox = await Data.Shared(ImportedDrugs.Vigamox);
 
         var sharedA = await ListDrugsAsync(ownerA, "source=shared&pageSize=100");

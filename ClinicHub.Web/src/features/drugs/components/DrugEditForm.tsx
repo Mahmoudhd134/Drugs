@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useMemo, useState} from "react";
 import {Button, DialogActions, DialogContent, Divider, Stack, TextField, Typography} from "@mui/material";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
@@ -54,10 +54,21 @@ export const DrugEditForm = (props: Props) => {
     const [activeIngredients, setActiveIngredients] = useState(initial?.activeIngredients ?? "");
     const [description, setDescription] = useState(initial?.description ?? "");
     const [dosing, setDosing] = useState<Dosing>(initial?.defaultDosing ?? {});
-    const [category, setCategory] = useState({
+    const [chosen, setCategory] = useState({
         categoryId: initial?.category.id ?? null as number | null,
         subCategoryId: initial?.subCategory?.id ?? null as number | null,
     });
+    // What the selects show and Save sends: an id the (re)loaded lists no longer hold (deleted meanwhile, e.g. after
+    // `subCategoryNotFound`) counts as not chosen, so saving again doesn't resend it; kept as is while the lists load
+    const category = useMemo(() => {
+        if (categories.length === 0)
+            return chosen;
+        const listed = categories.find(c => c.id === chosen.categoryId);
+        return {
+            categoryId: listed ? listed.id : null,
+            subCategoryId: listed?.subCategories.some(s => s.id === chosen.subCategoryId) ? chosen.subCategoryId : null,
+        };
+    }, [categories, chosen]);
     const [showRequired, setShowRequired] = useState(false);
     const [showDosingErrors, setShowDosingErrors] = useState(false);
     const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});

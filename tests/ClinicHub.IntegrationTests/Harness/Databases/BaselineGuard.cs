@@ -10,10 +10,22 @@ namespace ClinicHub.IntegrationTests.Harness.Databases;
 /// </param>
 public sealed record BaselineViolation(string LastClass, string Message);
 
-/// <summary>Fails the run on a <see cref="BaselineViolation"/> (thrown by the collection fixture's reset and dispose).</summary>
-public sealed class BaselineViolationException(BaselineViolation violation) : Exception(violation.Message)
+/// <summary>
+/// Fails the run on a <see cref="BaselineViolation"/> (thrown by the collection fixture's reset and dispose). Its message
+/// is the violation's, followed by the last class when the violation's message doesn't already name it (design D12).
+/// </summary>
+public sealed class BaselineViolationException(BaselineViolation violation) : Exception(MessageOf(violation))
 {
     public BaselineViolation Violation { get; } = violation;
+
+    private static string MessageOf(BaselineViolation violation)
+    {
+        ArgumentNullException.ThrowIfNull(violation);
+        var lastClass = violation.LastClass ?? "(none)";
+        return violation.Message.Contains(lastClass, StringComparison.Ordinal)
+            ? violation.Message
+            : $"{violation.Message} (last class: {lastClass})";
+    }
 }
 
 /// <summary>

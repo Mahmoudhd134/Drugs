@@ -238,13 +238,15 @@ public class WithdrawnDrugTests(AppFixture app) : IntegrationTest(app)
     [Trait("Case", "CAT-164")]
     public async Task Withdraw_and_restore_are_idempotent_and_keep_the_first_withdrawal_time()
     {
-        var admin = await AdminAsync();
+        // Its own sessions: after each clock jump a new sign-in (the shared session's access token would be expired)
+        var admin = await Login.SuperAdminAsync();
         var drug = await Data.SharedDrug();
         var first = Clock.GetUtcNow().UtcDateTime;
 
         await (await admin.PostAsync(Withdraw(drug.Id))).ShouldBeAsync(HttpStatusCode.NoContent);
         (await admin.AdminDrugAsync(drug.Id)).WithdrawnAt.ShouldBe(first);
         Clock.Advance(TimeSpan.FromMinutes(10));
+        admin = await Login.SuperAdminAsync();
         await (await admin.PostAsync(Withdraw(drug.Id))).ShouldBeAsync(HttpStatusCode.NoContent);
         var twice = await admin.AdminDrugAsync(drug.Id);
         (twice.Withdrawn, twice.WithdrawnAt).ShouldBe((true, first));
@@ -256,6 +258,7 @@ public class WithdrawnDrugTests(AppFixture app) : IntegrationTest(app)
         (await admin.AdminDrugAsync(drug.Id)).WithdrawnAt.ShouldBeNull();
 
         Clock.Advance(TimeSpan.FromHours(1));
+        admin = await Login.SuperAdminAsync();
         var again = Clock.GetUtcNow().UtcDateTime;
         await (await admin.PostAsync(Withdraw(drug.Id))).ShouldBeAsync(HttpStatusCode.NoContent);
         var withdrawnAgain = await admin.AdminDrugAsync(drug.Id);

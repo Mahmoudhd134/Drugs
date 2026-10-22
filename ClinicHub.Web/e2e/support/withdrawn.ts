@@ -16,6 +16,8 @@ const tooltip = (page: Page) => page.getByRole("tooltip").filter({visible: true}
 /** The tooltip shows the text, in the UI's direction, fully inside the viewport. */
 const expectTooltipShown = async (page: Page, lang: Lang, what: string) => {
     const shown = tooltip(page);
+    // One tooltip: a neighbour's (e.g. the drag handle's, reached by Shift+Tab) may still be fading out (MUI exit transition)
+    await expect(shown, `${what}: one tooltip`).toHaveCount(1);
     await expect(shown, what).toHaveText(SHARED_TEXTS[lang].withdrawnTooltip);
     const box = await shown.boundingBox();
     const width = page.viewportSize()!.width;

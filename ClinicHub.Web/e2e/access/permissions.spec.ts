@@ -262,6 +262,9 @@ test.describe("Permissions changed while working @area:access", () => {
             const details = page.getByRole("dialog", {name: t.drugDetails});
             await expect(details.getByRole("button", {name: t.close})).toBeVisible();
             await expect(details.getByRole("button", {name: t.save})).toHaveCount(0);
+            // The focused Save button is gone, so focus fell to the page; the dialog takes it back within 50 ms (MUI's
+            // focus trap) and only then hears Esc. A key pressed in between is lost (seen on the Linux CI, ar-phone)
+            await expect.poll(() => page.evaluate(() => document.activeElement !== document.body)).toBe(true);
             await page.keyboard.press("Escape");
             await expect(page.getByRole("dialog")).toHaveCount(0);
             await expect(page.getByRole("button", {name: t.edit})).toHaveCount(0);

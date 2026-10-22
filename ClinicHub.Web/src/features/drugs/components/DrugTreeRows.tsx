@@ -148,7 +148,9 @@ export const DrugTreeDrug = ({id, drug, added, nav, onPick}: DrugProps) => {
                             color={drug.isShared ? "default" : "primary"}
                             label={drug.isShared ? t("drugs.chip.shared") : t("drugs.chip.own")}
                         />
-                        {added && <Chip size="small" color="success" variant="outlined" icon={<CheckIcon/>} label={t("common.added")}/>}
+                        {/* success.dark, not success.main: on a focused row's tint success.main is below WCAG AA's 4.5:1 (as the pickers) */}
+                        {added && <Chip size="small" color="success" variant="outlined" icon={<CheckIcon/>} label={t("common.added")}
+                                        sx={{color: "success.dark", borderColor: "success.dark", "& .MuiChip-icon": {color: "success.dark"}}}/>}
                     </Stack>
                 </Box>
                 {!added && <AddIcon color="action" fontSize="small" sx={{mt: 0.5}}/>}

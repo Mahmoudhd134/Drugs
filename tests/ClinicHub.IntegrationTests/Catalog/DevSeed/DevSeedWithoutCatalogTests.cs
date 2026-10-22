@@ -1,0 +1,72 @@
+using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Infrastructure.Platform;
+using ClinicHub.IntegrationTests.Harness.Builders;
+using ClinicHub.IntegrationTests.Harness.Databases;
+using ClinicHub.IntegrationTests.Harness.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
+
+namespace ClinicHub.IntegrationTests.Catalog.DevSeed;
+
+/// <summary>
+/// The dev seed started before the shared catalog is loaded (design M1.7 § 9 M1.7b: "without the catalog loaded the
+/// template sample is skipped with a warning naming the script"; D5: dev database reset, migrated, then loaded; CAT-223:
+/// a fresh dev database ends with the demo clinics and the template's sample protocol VIGAMOX + one own drug). The
+/// warning tells the developer to run the script, so a later start after the load must seed everything: the dev seed
+/// stores nothing while the catalog is missing (T3 finding B1). In the migration collection: a bare copy (no catalog,
+/// design D12), which this test loads itself; the variant app marks the database for a reset, which empties it again.
+/// </summary>
+[Collection(CatalogMigrationCollection.Name)]
+[Trait("Area", "catalog")]
+public class DevSeedWithoutCatalogTests(BareAppFixture app) : IntegrationTest(app)
+{
+    [Fact]
+    [Trait("Case", "CAT-230")]
+    public async Task A_dev_start_before_the_catalog_load_seeds_nothing_and_the_first_start_after_the_load_seeds_everything()
+    {
+        // The app as in Development (dev phones set) on a database without the catalog
+        await using var dev = App.CreateVariant(new Dictionary<string, string>
+        {
+            ["Platform:DevOwnerPhone"] = Unique.Phone(),
+            ["Platform:DevAssistantPhone"] = Unique.Phone(),
+        });
+        dev.Start();
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().AnyAsync(d => d.ClinicId == null)))
+            .ShouldBeFalse("precondition: no shared catalog");
+
+        await SeedAsync(dev);
+
+        (await App.QueryDbAsync(db => db.Clinics.IgnoreQueryFilters().Where(c => !c.IsTemplate).Select(c => c.Name).ToListAsync()))
+            .ShouldBeEmpty("no demo clinic while the catalog is missing (else a later start never seeds the template sample)");
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().AnyAsync(d => d.ClinicId != null))).ShouldBeFalse("no own drug");
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().AnyAsync())).ShouldBeFalse("no protocol");
+
+        // The developer runs the script the warning names, then starts the app again
+        await CatalogLoader.LoadAsync(App.Factory.ConnectionString);
+        await SeedAsync(dev);
+
+        var clinics = await App.QueryDbAsync(db => db.Clinics.IgnoreQueryFilters().Where(c => !c.IsTemplate).Select(c => c.Name).ToListAsync());
+        clinics.ShouldBe([StartupSeeder.DemoClinicName, StartupSeeder.SecondDemoClinicName], ignoreOrder: true);
+        var templateId = await App.QueryDbAsync(db => db.Clinics.IgnoreQueryFilters().Where(c => c.IsTemplate).Select(c => c.Id).SingleAsync());
+        var vigamoxId = await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters()
+            .Where(d => d.ClinicId == null && d.Name == StartupSeeder.SampleSharedDrugName).Select(d => d.Id).SingleAsync());
+        var templateLines = await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters()
+            .Where(i => i.ClinicId == templateId).Select(i => i.DrugId).ToListAsync());
+        templateLines.ShouldContain(vigamoxId, "the template's sample protocol holds VIGAMOX (shared)");
+        var templateOwn = await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters()
+            .Where(d => d.ClinicId == templateId).Select(d => d.Id).ToListAsync());
+        templateOwn.ShouldNotBeEmpty("the template sample's own drugs");
+        templateLines.Count(templateOwn.Contains).ShouldBe(1, "and one own drug");
+        var demoId = await App.QueryDbAsync(db => db.Clinics.IgnoreQueryFilters()
+            .Where(c => c.Name == StartupSeeder.DemoClinicName).Select(c => c.Id).SingleAsync());
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.ClinicId == demoId)))
+            .ShouldBe(templateOwn.Count, "the demo clinic holds the template's copy");
+    }
+
+    private static async Task SeedAsync(ClinicHubFactory dev)
+    {
+        await using var scope = dev.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IStartupSeeder>().SeedAsync(isDevelopment: true);
+    }
+}

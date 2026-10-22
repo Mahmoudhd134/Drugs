@@ -28,6 +28,10 @@ const openDrugs = async (drugs: Drug[], permissions?: Permission[]) => {
 
 const rowOf = (name: string) => screen.getByText(name).closest("tr") as HTMLElement;
 
+/** The texts of the details' rows (decision D23: «المادة الفعالة: …» and «التصنيف: …» are lines of their own). */
+const detailRows = (details: HTMLElement, name: string) =>
+    Array.from(within(details).getByText(name).parentElement!.children).map(row => row.textContent);
+
 describe("drugs page: a shared drug's read-only details @area:catalog", () => {
     test("a shared drug without ingredients or description: those rows are hidden, never an empty label or \"null\" @CAT-035", async () => {
         const nailner = aSharedDrug({name: "NAILNER NAIL FUNGUS PEN 4 ML", activeIngredients: null, description: null, subCategory: null});
@@ -37,8 +41,9 @@ describe("drugs page: a shared drug's read-only details @area:catalog", () => {
         expect(within(details).getByText(nailner.name)).toBeInTheDocument();
         // No subcategory: the category alone
         expect(within(details).getByText("التصنيف: العيون")).toBeInTheDocument();
-        expect(within(details).queryByText("المادة الفعالة")).not.toBeInTheDocument();
-        expect(within(details).queryByText("الوصف")).not.toBeInTheDocument();
+        // Exactly the name and the category: no ingredients line (not even an empty «المادة الفعالة: »), no description
+        expect(within(details).queryByText(/المادة الفعالة/)).not.toBeInTheDocument();
+        expect(detailRows(details, nailner.name)).toEqual([nailner.name, "التصنيف: العيون"]);
         expect(details.textContent).not.toMatch(/null|undefined/);
         expect(within(details).getAllByRole("button").map(b => b.textContent)).toEqual(["إغلاق"]);
     });
@@ -48,10 +53,12 @@ describe("drugs page: a shared drug's read-only details @area:catalog", () => {
         const {user} = await openDrugs([vigamox], ["drugs.list", "drugs.details"]);
         await user.click(rowOf(vigamox.name));
         const details = await screen.findByRole("dialog", {name: "تفاصيل الدواء"});
-        expect(within(details).getByText("المادة الفعالة")).toBeInTheDocument();
-        expect(within(details).getByText("MOXIFLOXACIN")).toBeInTheDocument();
+        expect(within(details).getByText(/^المادة الفعالة:/)).toHaveTextContent(/^المادة الفعالة: MOXIFLOXACIN$/);
         expect(within(details).getByText("التصنيف: العيون › المياه الزرقاء")).toBeInTheDocument();
         expect(within(details).getByText("Antibiotic eye drops")).toBeInTheDocument();
+        expect(detailRows(details, vigamox.name)).toEqual([
+            vigamox.name, "المادة الفعالة: MOXIFLOXACIN", "التصنيف: العيون › المياه الزرقاء", "Antibiotic eye drops",
+        ]);
     });
 
     test("details open, the drug disabled meanwhile: closing works, the list drops it at its next load, no error toast @CAT-036", async () => {

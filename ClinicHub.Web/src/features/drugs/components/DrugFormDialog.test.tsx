@@ -19,6 +19,7 @@ import {
     recordRequests,
     renderWithProviders,
     server,
+    toastTexts,
 } from "../../../test";
 import type {Drug, SaveDrug} from "../types.ts";
 import {EYE} from "../../../test/data.ts";
@@ -105,52 +106,74 @@ describe("drug dialog: opening and the name @area:catalog", () => {
     });
 });
 
-describe("drug dialog: API refusals as toasts @area:catalog", () => {
+// Decision D22 (design M1.7 D9, drugs tech "API errors show on their inputs"): the API's refusals show under their
+// field (name, description) or under the dosing, never as a toast; the dialog stays open with the typed values
+describe("drug dialog: API refusals on their fields @area:catalog", () => {
     const refuse = async (code: string, field: string, lang: "ar" | "en" = "ar") => {
         server.use(http.post(api("/drugs"), () => problem(400, code, {errors: [{code, field}]})));
         const {user, onClose} = await renderDialog(null, lang);
         await fillIn(user, nameField(lang === "ar" ? "الاسم" : "Name"), "Tobradex");
         await pickCategory(user, {lang});
         await user.click(screen.getByRole("button", {name: lang === "ar" ? "حفظ" : "Save"}));
-        return {toast: await findToast(), onClose};
+        return {onClose};
     };
-
-    test("`nameInvalid`: «الاسم يحتوي على رموز غير مسموح بها.» and the dialog stays open @DRUG-031", async () => {
-        const {toast, onClose} = await refuse("nameInvalid", "name");
-        expect(toast).toBe("الاسم يحتوي على رموز غير مسموح بها.");
-        expect(onClose).not.toHaveBeenCalled();
+    /** The field's message (its accessible description), red, no toast, the dialog open. */
+    const expectOnField = async (field: () => HTMLElement, message: string) => {
+        await waitFor(() => expect(field()).toHaveAccessibleDescription(message));
+        expect(isRed(field())).toBe(true);
+        expect(toastTexts()).toEqual([]);
         expect(screen.getByRole("dialog")).toBeInTheDocument();
+    };
+    const descriptionField = (lang: "ar" | "en" = "ar") => screen.getByRole("textbox", {name: lang === "ar" ? "الوصف" : "Description"});
+
+    test("`nameInvalid`: «الاسم يحتوي على رموز غير مسموح بها.» under the name and the dialog stays open @DRUG-031", async () => {
+        const {onClose} = await refuse("nameInvalid", "name");
+        await expectOnField(() => nameField(), "الاسم يحتوي على رموز غير مسموح بها.");
+        expect(onClose).not.toHaveBeenCalled();
         expect(nameField()).toHaveValue("Tobradex");
     });
 
     test("`nameInvalid` in English @DRUG-031", async () => {
-        expect((await refuse("nameInvalid", "name", "en")).toast).toBe("The name contains characters that aren't allowed.");
+        await refuse("nameInvalid", "name", "en");
+        await expectOnField(() => nameField("Name"), "The name contains characters that aren't allowed.");
     });
 
-    test("`nameTooLong`: «الاسم طويل جدًا.» / \"Name is too long.\" @DRUG-032", async () => {
-        expect((await refuse("nameTooLong", "name")).toast).toBe("الاسم طويل جدًا.");
-    });
-
-    test("`nameTooLong` in English @DRUG-032", async () => {
-        expect((await refuse("nameTooLong", "name", "en")).toast).toBe("Name is too long.");
-    });
-
-    test("`invalidText`: «النص يحتوي على رموز غير مسموح بها.» @DRUG-033", async () => {
-        expect((await refuse("invalidText", "description")).toast).toBe("النص يحتوي على رموز غير مسموح بها.");
-    });
-
-    test("`invalidText` in English @DRUG-033", async () => {
-        expect((await refuse("invalidText", "description", "en")).toast).toBe("The text contains characters that aren't allowed.");
-    });
-
-    test("`invalidDosing` from the API: «بعض بيانات الجرعة ناقصة أو غير صحيحة.» @DOSE-060", async () => {
-        const {toast, onClose} = await refuse("invalidDosing", "defaultDosing");
-        expect(toast).toBe("بعض بيانات الجرعة ناقصة أو غير صحيحة.");
+    test("`nameTooLong`: «الاسم طويل جدًا.» under the name @DRUG-032", async () => {
+        const {onClose} = await refuse("nameTooLong", "name");
+        await expectOnField(() => nameField(), "الاسم طويل جدًا.");
         expect(onClose).not.toHaveBeenCalled();
     });
 
+    test("`nameTooLong` in English @DRUG-032", async () => {
+        await refuse("nameTooLong", "name", "en");
+        await expectOnField(() => nameField("Name"), "Name is too long.");
+    });
+
+    test("`invalidText`: «النص يحتوي على رموز غير مسموح بها.» under the description @DRUG-033", async () => {
+        const {onClose} = await refuse("invalidText", "description");
+        await expectOnField(() => descriptionField(), "النص يحتوي على رموز غير مسموح بها.");
+        expect(isRed(nameField())).toBe(false);
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    test("`invalidText` in English @DRUG-033", async () => {
+        await refuse("invalidText", "description", "en");
+        await expectOnField(() => descriptionField("en"), "The text contains characters that aren't allowed.");
+    });
+
+    test("`invalidDosing` from the API: «بعض بيانات الجرعة ناقصة أو غير صحيحة.» under the dosing, no toast @DOSE-060", async () => {
+        const {onClose} = await refuse("invalidDosing", "defaultDosing");
+        expect(await screen.findByRole("alert")).toHaveTextContent(/^بعض بيانات الجرعة ناقصة أو غير صحيحة\.$/);
+        expect(toastTexts()).toEqual([]);
+        expect(isRed(nameField())).toBe(false);
+        expect(onClose).not.toHaveBeenCalled();
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
     test("`invalidDosing` in English: \"Some dosing values are missing or invalid.\" @DOSE-060", async () => {
-        expect((await refuse("invalidDosing", "defaultDosing", "en")).toast).toBe("Some dosing values are missing or invalid.");
+        await refuse("invalidDosing", "defaultDosing", "en");
+        expect(await screen.findByRole("alert")).toHaveTextContent(/^Some dosing values are missing or invalid\.$/);
+        expect(toastTexts()).toEqual([]);
     });
 });
 
@@ -160,6 +183,8 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         const {user, onClose} = await renderDialog();
         await fillIn(user, nameField(), "Tobradex");
         await choose(user, combo("عدد المرات"), "مرات في اليوم");
+        // The category is required too (M1.7b): picked, so the dosing rule is the one that stops the save
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(isRed(number("العدد"))).toBe(true);
         expect(recorded.writes()).toEqual([]);
@@ -185,6 +210,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         await user.type(number("الجرعة"), "1500");
         await choose(user, combo("عدد المرات"), "مرات في اليوم");
         await choose(user, combo("الفترة"), "أيام");
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
 
         // Amount out of range, amount without unit, times missing, duration missing
@@ -384,7 +410,8 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
 
     test("reopened during its closing animation (after a save, or a Cancel with text typed): it starts empty and unlocked @DRUG-104",
         async () => {
-            server.use(...saveHandlers());
+            // The dialog reads the categories on open (M1.7b contract "Own-drug dialog")
+            server.use(drugCategoriesHandler(DIALOG_CATEGORIES), ...saveHandlers());
             let closed: () => void = () => undefined;
             const Page = () => {
                 const [open, setOpen] = useState(false);
@@ -518,6 +545,33 @@ describe("drug dialog: active ingredients, category and subcategory @area:catalo
             await waitFor(() => expect(reads()).toBeGreaterThan(before));
             expect(onClose).not.toHaveBeenCalled();
             await waitFor(async () => expect(await optionsOf(user, subCategoryField())).toEqual(["بدون تصنيف فرعي", "البنسلينات"]));
+        });
+
+    // T3 W2 (design M1.7 D9 "the form reloads the categories"; contract § Own-drug dialog): once the reloaded list no
+    // longer holds the subcategory, the form drops it: the field shows «بدون تصنيف فرعي» and the next save sends none
+    // (the form never resends the deleted id, so the user is not stuck)
+    test("`subCategoryNotFound`: after the reload the deleted subcategory is cleared and saving again sends no subcategory @CAT-052",
+        async () => {
+            let posts = 0;
+            server.use(http.post(api("/drugs"), async ({request}) => ++posts === 1
+                ? problem(400, "subCategoryNotFound", {errors: [{code: "subCategoryNotFound", field: "subCategoryId"}]})
+                : HttpResponse.json({id: 501, ...(await request.json() as SaveDrug)}, {status: 201})));
+            const recorded = recordRequests();
+            const {user, onClose} = await renderDialog();
+            await fillIn(user, nameField(), "Tobradex");
+            await pickCategory(user, {category: "مضادات العدوى", subCategory: "الكينولونات"});
+            // «الكينولونات» is deleted meanwhile: gone from the next answer
+            server.use(drugCategoriesHandler(DIALOG_CATEGORIES.map(c => c.id === 2 ? {...c, subCategories: c.subCategories.slice(0, 1)} : c)));
+            await user.click(screen.getByRole("button", {name: "حفظ"}));
+            expect(await screen.findByText("هذا التصنيف الفرعي غير موجود في التصنيف المختار.")).toBeInTheDocument();
+            await waitFor(async () => expect(await optionsOf(user, subCategoryField())).toEqual(["بدون تصنيف فرعي", "البنسلينات"]));
+            expect(subCategoryField()).toHaveTextContent("بدون تصنيف فرعي");
+            expect(categoryField()).toHaveTextContent("مضادات العدوى");
+
+            await user.click(screen.getByRole("button", {name: "حفظ"}));
+            await waitFor(() => expect(recorded.writes()).toHaveLength(2));
+            expect(recorded.writes()[1].body).toEqual(expect.objectContaining({categoryId: 2, subCategoryId: null}));
+            await waitFor(() => expect(onClose).toHaveBeenCalled());
         });
 
     test("the active ingredients input is `dir=\"auto\"` (English or Arabic text) @CAT-053", async () => {

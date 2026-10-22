@@ -132,15 +132,16 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
             await signIn(page, staff.phone, "asIs", "/drugs");
             await expectContextLabel(page, clinic.name);
 
-            await data.removeStaff(staff);
-            await data.staff(clinic, {phone: staff.phone, fullName: staff.fullName, roles: ["Doctor"]});
-
+            // The dialog reads the categories when it opens: opened and filled first, so the save is the first refused request
             const name = `Drug ${unique()}`;
             const posts = recordRequests(page, "POST", /\/api\/v1\/drugs$/);
             await page.getByRole("button", {name: t.addDrug}).click();
             const dialog = page.getByRole("dialog");
             await dialog.getByRole("textbox", {name: t.drugName}).fill(name);
             await pickCategory(page, dialog, lang);
+
+            await data.removeStaff(staff);
+            await data.staff(clinic, {phone: staff.phone, fullName: staff.fullName, roles: ["Doctor"]});
             await dialog.getByRole("button", {name: t.save}).click();
 
             await expectToast(page, t.drugAdded);

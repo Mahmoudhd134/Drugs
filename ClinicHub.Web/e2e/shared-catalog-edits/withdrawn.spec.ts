@@ -1,4 +1,5 @@
-import type {Browser, Locator, Page} from "@playwright/test";
+import type {Browser, BrowserContext, Locator, Page} from "@playwright/test";
+import {type ConsolePolicy, watchConsole} from "../support/checks.ts";
 import type {ApiSession} from "../support/api.ts";
 import type {Data} from "../support/data.ts";
 import {expect, settled, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
@@ -266,18 +267,27 @@ const visitMarks = async (page: Page, admin: Page, lang: Lang, w: AdminDrug, pro
     }
 };
 
-/** A 375 px touch phone of the project's language, its own cookies. */
-const touchPhone = async (browser: Browser, lang: Lang) => {
+/**
+ * A 375 px touch phone of the project's language, its own cookies; its console is watched and it joins the test's
+ * opened pages (the end-of-test page checks run on it, then it closes), like `newBrowser`.
+ */
+const touchPhone = async (browser: Browser, lang: Lang, watch: {
+    consoleErrors: string[]; consolePolicy: ConsolePolicy; opened: { pages: Page[]; contexts: BrowserContext[] };
+}) => {
     const context = await browser.newContext({
         baseURL: runState().baseURL, viewport: {width: 375, height: 812}, isMobile: true, hasTouch: true,
         locale: lang === "ar" ? "ar-EG" : "en-US",
     });
-    return {context, page: await context.newPage()};
+    watch.opened.contexts.push(context);
+    const page = await context.newPage();
+    watchConsole(page, watch.consoleErrors, watch.consolePolicy);
+    watch.opened.pages.push(page);
+    return {context, page};
 };
 
 test.describe("The «معطّل من الإدارة» mark and its tooltip everywhere @area:catalog", () => {
     test("Arabic: in each place, hover and Tab focus show «عطّل مدير المنصة هذا الدواء…» (RTL, inside the viewport), Esc closes it; tapped at 375 px too; never copied @CAT-167",
-        async ({page, data, admin, newBrowser, browser, context}) => {
+        async ({page, data, admin, newBrowser, browser, context, healthy, consoleErrors, consolePolicy, opened}) => {
             test.slow();
             await context.grantPermissions(["clipboard-read", "clipboard-write"]);
             const lang: Lang = "ar";
@@ -296,18 +306,17 @@ test.describe("The «معطّل من الإدارة» mark and its tooltip every
             const copied = await readClipboard(page);
             for (const text of [st.withdrawnChip, st.withdrawnTooltip]) expect(copied.text ?? "").not.toContain(text);
 
-            // A touch phone: a tap shows it at once, a tap elsewhere closes it
-            const phone = await touchPhone(browser, lang);
-            const adminPhone = await touchPhone(browser, lang);
-            try {
-                await signIn(phone.page, clinic.owner.phone);
-                await signInSuperAdmin(adminPhone.page);
-                await visitMarks(phone.page, adminPhone.page, lang, w, protocol.id, protocol.name,
-                    (target, mark, what) => expectMarkTapTooltip(target, mark, lang, `375 px ${what}`));
-            } finally {
-                await phone.context.close();
-                await adminPhone.context.close();
-            }
+            // A touch phone: a tap shows it at once, a tap elsewhere closes it; each 375 px page gets the page checks
+            // (RTL, no sideways scroll, axe, cut text): no other project visits these pages on a phone
+            const watch = {consoleErrors, consolePolicy, opened};
+            const phone = await touchPhone(browser, lang, watch);
+            const adminPhone = await touchPhone(browser, lang, watch);
+            await signIn(phone.page, clinic.owner.phone);
+            await signInSuperAdmin(adminPhone.page);
+            await visitMarks(phone.page, adminPhone.page, lang, w, protocol.id, protocol.name, async (target, mark, what) => {
+                await expectMarkTapTooltip(target, mark, lang, `375 px ${what}`);
+                await healthy(target);
+            });
         });
 
     test("English: \"Disabled by admin\" with its tooltip in each place, the editor alert, the ⚠ toast, \"Disable drug\" / \"Enable drug\", their toasts and the status filter @CAT-168",

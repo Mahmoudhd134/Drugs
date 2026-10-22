@@ -18,6 +18,8 @@ $fixtures = Join-Path $PSScriptRoot 'fixtures'
 $catalog = Join-Path $fixtures 'catalog.md'
 $out = Join-Path ([IO.Path]::GetTempPath()) ("clinichub-traceability-selftest-" + [guid]::NewGuid().ToString('N'))
 $failures = New-Object System.Collections.ArrayList
+# The PowerShell running this script (powershell.exe on Windows, pwsh on the Linux CI)
+$shell = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
 
 # The BUG ids the tool lists, as one sorted string
 function Get-BugIds($j) { return (@($j.knownBugIds) | Sort-Object) -join ',' }
@@ -29,7 +31,7 @@ function Invoke-Case([string] $name, [string] $root, [int] $expectedExit, [strin
         '-Catalog', $catalogFile, '-OutDir', $dir, '-Gate') + $extra
     # A refused catalog writes to stderr: not an error of the self-test
     $ErrorActionPreference = 'Continue'
-    & powershell.exe @arguments 2>&1 | Out-Null
+    & $shell @arguments 2>&1 | Out-Null
     $code = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($code -ne $expectedExit) { [void]$failures.Add("$($name): exit $code, expected $expectedExit") ; return }

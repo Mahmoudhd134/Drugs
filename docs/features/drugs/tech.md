@@ -101,8 +101,8 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
 - Page size clamped to 1–100 (`Paging.Normalize`).
 - Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): the template gets two own
   drugs with categories («العيون») and the protocol "After cataract surgery" (the shared "VIGAMOX 0.5% EYE DROPS 5 ML"
-  + one own drug); without the shared catalog loaded the template sample is skipped with a warning naming
-  `data/drug-catalog/tools/load_catalog.py`. No bulk drugs (paging is checked on the 23K shared drugs).
+  + one own drug); without the shared catalog loaded nothing is seeded (no template sample, no demo clinic) and a
+  warning names `data/drug-catalog/tools/load_catalog.py`, so the first start after the load seeds everything. No bulk drugs (paging is checked on the 23K shared drugs).
 
 ## Frontend (`src/features/drugs/`)
 - **Page** `pages/DrugsPage.tsx` at `/drugs` (design M1.7 D9, M1.7c):

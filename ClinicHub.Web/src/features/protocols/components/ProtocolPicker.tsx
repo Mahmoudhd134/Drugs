@@ -42,9 +42,13 @@ export const ProtocolPicker = ({onSelect, autoFocus, maxHeight, enabled = true}:
                             <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{protocol.name}</Typography>
                             <Chip size="small" label={t("protocols.drugCount", {count: protocol.items.length})}/>
                             {protocol.items.some(i => i.drug.withdrawn) && (
-                                // Inside the option (itself the control): not a Tab stop of its own
+                                // Inside the option (itself the control): not a Tab stop of its own. A tap shows its
+                                // tooltip, it doesn't add the protocol
                                 <WithdrawnChipInsideControl.Provider value>
-                                    <WithdrawnChip count={protocol.items.filter(i => i.drug.withdrawn).length}/>
+                                    <Box component="span" sx={{display: "inline-flex", maxWidth: "100%"}}
+                                         onClick={(e) => e.stopPropagation()}>
+                                        <WithdrawnChip count={protocol.items.filter(i => i.drug.withdrawn).length}/>
+                                    </Box>
                                 </WithdrawnChipInsideControl.Provider>
                             )}
                         </Stack>

@@ -93,7 +93,7 @@ public class SharedDrugAdminTests(AppFixture app) : IntegrationTest(app)
         });
         await update.ShouldBeOkAsync();
         (await update.ReadNodeAsync()).AsObject().ContainsKey("defaultDosing").ShouldBeFalse();
-        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().Where(d => d.Id == id).Select(d => d.DefaultDosing).SingleAsync()))
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().AsNoTracking().Where(d => d.Id == id).Select(d => d.DefaultDosing).SingleAsync()))
             .ShouldBeNull();
         var owner = await Login.OwnerAsync(clinic);
         (await owner.ClinicDrugAsync(id)).DefaultDosing.ShouldBeNull();

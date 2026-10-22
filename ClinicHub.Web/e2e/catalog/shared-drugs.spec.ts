@@ -53,7 +53,6 @@ test.describe("Shared drugs on the drugs page @area:catalog", () => {
     test("a viewer clicks «ALEMOX 1 GM 12 F.C.TABS.»: read-only details with «AMOXICILLIN», «التصنيف: مضادات العدوى › البنسلينات», only «إغلاق», no dosing, no Arabic name @CAT-033 @DRUG-072",
         async ({page, t, lang, data, healthy}) => {
             const st = SHARED_TEXTS[lang];
-            const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();
             const alemox = await sharedByName(await data.ownerApi(clinic), IMPORTED.alemox1g);
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, READ_ONLY)).id]});
@@ -64,13 +63,13 @@ test.describe("Shared drugs on the drugs page @area:catalog", () => {
             const details = dialog(page, t.drugDetails);
             await expect(details).toBeVisible();
             await expect(details.getByText(IMPORTED.alemox1g, {exact: true})).toBeVisible();
-            await expect(details.getByText(st.activeIngredients, {exact: true})).toBeVisible();
-            await expect(details.getByText("AMOXICILLIN", {exact: true})).toBeVisible();
+            // Decision D23: one inline line «المادة الفعالة: AMOXICILLIN»
+            await expect(details.getByText(`${st.activeIngredients}: AMOXICILLIN`, {exact: true})).toBeVisible();
             if (lang === "ar") await expect(details.getByText("التصنيف: مضادات العدوى › البنسلينات", {exact: true})).toBeVisible();
             await expect(details.getByText(st.categoryLine(categoryOf(alemox, lang)), {exact: true})).toBeVisible();
-            // No description imported, no dosing on a shared drug, never the hidden Arabic name
-            await expect(details.getByText(ct.drugDescription, {exact: true})).toHaveCount(0);
-            await expect(details.locator("[lang=ar]")).toHaveCount(0);
+            // Exactly these lines: no description imported (no empty row), no dosing on a shared drug, never the hidden Arabic name
+            const lines = details.getByText(IMPORTED.alemox1g, {exact: true}).locator("xpath=../*");
+            await expect(lines).toHaveText([IMPORTED.alemox1g, `${st.activeIngredients}: AMOXICILLIN`, st.categoryLine(categoryOf(alemox, lang))]);
             await expect(details.getByText(st.defaultDosing)).toHaveCount(0);
             await expect(details).not.toContainText("أليموكس");
             await expect(details.getByRole("button")).toHaveText([t.close]);
@@ -172,7 +171,9 @@ test.describe("Shared drugs on the drugs page @area:catalog", () => {
             await searchDrugs(page, t.searchDrugs, own.name);
             await drugRow(page, own.name).getByRole("button", {name: t.delete}).click();
             const confirm = dialog(page, ct.drugDeleteTitle);
-            await expect(confirm.getByText(ct.drugUsedInProtocols([protocol.name]), {exact: true})).toBeVisible();
+            // One message: the delete sentence, then the protocols using it on the next line
+            await expect(confirm.locator(".MuiDialogContentText-root"))
+                .toHaveText(`${ct.drugDeleteMessage(own.name)}\n${ct.drugUsedInProtocols([protocol.name])}`);
             await confirm.getByRole("button", {name: t.delete}).click();
             await expectToast(page, ct.drugDeleted);
 

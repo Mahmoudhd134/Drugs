@@ -39,13 +39,15 @@ const openPage = async (categories: AdminCategory[], lang: "ar" | "en" = "ar") =
 };
 
 /**
- * The row of a category or subcategory (whatever the markup): the nearest element around its name that also holds its
- * count «الأدوية: …».
+ * The row of a category or subcategory (whatever the markup): the largest element around its name that holds exactly one
+ * count «الأدوية: …» (its own; the name+count box alone would miss the row's buttons, the list around it holds more counts).
  */
 const rowOf = (name: string, countLabel = "الأدوية:") => {
-    let element: HTMLElement | null = screen.getByText(name, {exact: true});
-    while (element && !element.textContent?.includes(countLabel)) element = element.parentElement;
-    if (!element) throw new Error(`No row with a count around ${name}`);
+    const counts = (element: HTMLElement) => (element.textContent ?? "").split(countLabel).length - 1;
+    let element: HTMLElement = screen.getByText(name, {exact: true});
+    while (counts(element) === 0 && element.parentElement) element = element.parentElement;
+    if (counts(element) !== 1) throw new Error(`No row with one count around ${name}`);
+    while (element.parentElement && counts(element.parentElement) === 1) element = element.parentElement;
     return element;
 };
 
@@ -110,10 +112,16 @@ describe("admin categories: a delete refused meanwhile @area:admin", () => {
             return problem(409, "subCategoryInUse", {drugCount: 1});
         }));
         await user.click(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: "حذف التصنيف الفرعي"}));
-        await user.click(confirmButton(await screen.findByRole("dialog")));
+        // The destructive confirmation names the subcategory (contract § 3.5 deleteSubCategoryTitle / Message)
+        const confirmation = await screen.findByRole("dialog");
+        expect(within(confirmation).getByRole("heading")).toHaveTextContent(/^حذف التصنيف الفرعي «\u2068?تصنيف فرعي فارغ\u2069?»؟$/);
+        expect(within(confirmation).getByText("لا يمكن التراجع عن ذلك.")).toBeInTheDocument();
+        await user.click(confirmButton(confirmation));
 
         expect(await findToast()).toBe("لا يمكن حذف هذا التصنيف الفرعي: يستخدمه دواء واحد.");
         await waitFor(() => expect(within(rowOf("تصنيف فرعي فارغ")).getByText("الأدوية: 1")).toBeInTheDocument());
+        // The confirmation is gone (while it closes, the page behind it is aria-hidden)
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
         expect(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: "حذف التصنيف الفرعي"})).toHaveAttribute("aria-disabled", "true");
     });
 
@@ -197,7 +205,8 @@ describe("admin categories: the dialogs locked while saving, fresh on each openi
         const {user} = await openPage([eye]);
         const save = holdSave("post", `/admin/drug-categories/${eye.id}/subcategories`, {id: 901, nameEn: "Dry eye", nameAr: "جفاف العين", pinnedLast: false});
         await user.click(within(rowOf("العيون")).getByRole("button", {name: "إضافة تصنيف فرعي"}));
-        const dialog = await screen.findByRole("dialog", {name: "تصنيف فرعي جديد"});
+        // Its title is «تصنيف فرعي جديد» with the category's name under it
+        const dialog = await screen.findByRole("dialog", {name: /^تصنيف فرعي جديد/});
         await fillIn(user, within(dialog).getByRole("textbox", {name: "الاسم بالإنجليزية"}), "Dry eye");
         await fillIn(user, within(dialog).getByRole("textbox", {name: "الاسم بالعربية"}), "جفاف العين");
         await user.click(within(dialog).getByRole("button", {name: "حفظ"}));
@@ -244,6 +253,7 @@ describe("admin categories: the toasts can be dismissed @area:ux", () => {
             await user.click(within(rowOf("تصنيف فارغ")).getByRole("button", {name: "حذف التصنيف"}));
             await user.click(confirmButton(await screen.findByRole("dialog")));
             await expectToasts("تم حذف التصنيف", "تم حذف التصنيف الفرعي");
+            await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
             expect(recorded.writes().map(w => w.path)).toEqual([`/admin/drug-subcategories/${empty.id}`, `/admin/drug-categories/${gone.id}`]);
 
             const first = screen.getByText("تم حذف التصنيف الفرعي").closest("[role=status]")!.parentElement!;
