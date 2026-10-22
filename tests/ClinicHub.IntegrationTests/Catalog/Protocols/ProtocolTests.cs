@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using ClinicHub.Application.Common.Search;
 using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -274,5 +275,46 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
         saved.Name.ShouldBe("Second edit");
         saved.Items.Select(i => i.Drug.Id).ShouldBe([c.Id]);
         saved.Items[0].Dosing.Eye.ShouldBe("ask");
+    }
+
+    // The routes before the rename (design D10): no alias kept, so they answer as any unknown /api path (ERR-015,
+    // ERR-016), also for a protocol and a drug that exist, and change nothing
+    [Theory]
+    [Trait("Case", "GRP-101")]
+    [InlineData("/api/v1/drug-groups")]
+    [InlineData("/api/v1/drug-groups/{protocol}")]
+    [InlineData("/api/v1/drugs/{drug}/groups")]
+    public async Task The_old_routes_answer_404_notFound_to_get_and_405_methodNotAllowed_to_post_put_and_delete(string template)
+    {
+        var (clinic, owner) = await EmptyClinicAsync();
+        var drug = await Data.Drug(clinic);
+        var protocol = await Data.Protocol(clinic).Named("Post cataract").With(drug);
+        var url = template.Replace("{protocol}", protocol.Id.ToString()).Replace("{drug}", drug.Id.ToString());
+        var body = ProtocolBody("Renamed through the old route", Item(drug.Id));
+
+        await (await owner.GetAsync(url)).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await owner.PostAsync(url, body)).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+        await (await owner.PutAsync(url, body)).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+        await (await owner.DeleteAsync(url)).ShouldBeProblemAsync(HttpStatusCode.MethodNotAllowed, "methodNotAllowed");
+
+        var list = await ListProtocolsAsync(owner);
+        list.Items.Select(g => g.Name).ShouldBe(["Post cataract"], "nothing created, renamed or deleted");
+        (await GetProtocolAsync(owner, protocol.Id)).Items.Select(i => i.Drug.Id).ShouldBe([drug.Id]);
+    }
+
+    [Fact]
+    [Trait("Case", "GRP-106")]
+    public async Task A_renamed_protocol_is_searched_by_its_new_name_only()
+    {
+        var (clinic, owner) = await EmptyClinicAsync();
+        var drug = await Data.Drug(clinic);
+        var created = await CreateProtocolAsync(owner, "علاج آلام", Item(drug.Id));
+
+        await (await PutProtocolAsync(owner, created.Id, "مُضاد حيوي", Item(drug.Id))).ShouldBeOkAsync();
+
+        var stored = await App.OutsideTheApp.ScalarAsync<string>("""SELECT "SearchName" FROM "Protocols" WHERE "Id" = @p0""", created.Id);
+        stored.ShouldBe(SearchText.Fold("مُضاد حيوي"));
+        (await SearchProtocolNamesAsync(owner, "مضاد حيوي")).ShouldBe(["مُضاد حيوي"]);
+        (await SearchProtocolNamesAsync(owner, "الام")).ShouldBeEmpty();
     }
 }

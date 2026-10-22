@@ -225,6 +225,23 @@ public class DefaultRolesTests(AppFixture app) : IntegrationTest(app)
         (await App.QueryDbAsync(db => db.Roles.IgnoreQueryFilters().CountAsync(r => r.ClinicId == clinic.Id && r.IsOwner))).ShouldBe(1);
     }
 
+    [Fact]
+    [Trait("Case", "ACC-089")]
+    public async Task A_new_clinics_default_roles_store_protocols_keys_and_no_groups_key()
+    {
+        var clinic = await Data.Clinic();
+
+        var stored = await App.QueryDbAsync(db => db.Roles.IgnoreQueryFilters()
+            .Where(r => r.ClinicId == clinic.Id)
+            .SelectMany(r => r.Permissions.Select(p => new { r.Name, p.Permission }))
+            .ToListAsync());
+
+        stored.Where(r => r.Permission.StartsWith("groups.")).ShouldBeEmpty("groups.* rows");
+        stored.Where(r => r.Name == "Doctor").Select(r => r.Permission).ShouldBe(AllKeys, ignoreOrder: true);
+        stored.Where(r => r.Name == "Assistant").Select(r => r.Permission).ShouldBe(AssistantKeys, ignoreOrder: true);
+        stored.Where(r => r.Name == "Owner").ShouldBeEmpty("the Owner has no rows (every permission)");
+    }
+
     /// <summary>A role's stored keys replaced by hand (psql), before anyone holding it logs in (nothing cached yet).</summary>
     private async Task SetRolePermissionsByHandAsync(int roleId, params string[] keys)
     {

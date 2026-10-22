@@ -103,6 +103,31 @@ public class PermissionCatalogTests(AppFixture app) : IntegrationTest(app)
         await response.ShouldBeProblemAsync(HttpStatusCode.Unauthorized, "unauthorized");
     }
 
+    [Fact]
+    [Trait("Case", "ACC-084")]
+    public async Task The_five_protocols_keys_replace_the_groups_keys_with_the_same_requirements()
+    {
+        var owner = await Login.OwnerAsync(await Data.Clinic());
+
+        var entries = await ReadCatalogAsync(owner);
+
+        var keys = entries.Select(e => (string)e["key"]).ToList();
+        keys.Where(k => k.StartsWith("groups.", StringComparison.Ordinal)).ShouldBeEmpty("groups.* keys left");
+        entries.Select(e => (string)e["resource"]).Distinct().ShouldBe(["drugs", "protocols", "prescriptions"]);
+        var protocols = entries.Where(e => (string)e["resource"] == "protocols").ToList();
+        protocols.Select(e => (string)e["key"])
+            .ShouldBe(["protocols.list", "protocols.details", "protocols.create", "protocols.update", "protocols.delete"]);
+        protocols.ShouldAllBe(e => (string)e["module"] == "catalog");
+        // The requirements of the old groups.* keys (access tech), under the new names
+        var requires = protocols.ToDictionary(e => (string)e["key"],
+            e => e["requires"].AsArray().Select(r => (string)r).Order(StringComparer.Ordinal).ToArray());
+        requires["protocols.list"].ShouldBeEmpty();
+        requires["protocols.details"].ShouldBe(["protocols.list"]);
+        requires["protocols.create"].ShouldBe(["drugs.list", "protocols.list"]);
+        requires["protocols.update"].ShouldBe(["drugs.list", "protocols.details"]);
+        requires["protocols.delete"].ShouldBe(["protocols.list"]);
+    }
+
     private static async Task<List<JsonObject>> ReadCatalogAsync(ApiClient client)
     {
         var response = await client.GetAsync("/api/v1/permissions");
