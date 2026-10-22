@@ -95,7 +95,7 @@ $inBodyWithoutBug = New-Object System.Collections.ArrayList
 function Get-Files([string] $dir, [string[]] $patterns) {
     if (-not (Test-Path $dir)) { return @() }
     Get-ChildItem -Path $dir -Recurse -File -Include $patterns |
-        Where-Object { $_.FullName -notmatch '\\(bin|obj|node_modules)\\' }
+        Where-Object { $_.FullName -notmatch '[\\/](bin|obj|node_modules)[\\/]' }
 }
 
 # The lines with their comments blanked out ("//..." and "/* ... */", also across lines), strings kept: an ID in a

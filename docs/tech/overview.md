@@ -133,7 +133,9 @@ tests/                         automated tests (docs/testing/README.md)
   fixtures/                    dosing-cases.json: dosing/taper rule parity cases
   tools/                       traceability (catalog IDs ↔ tests), coverage gates, mutation score
   stryker-config.json, coverage.runsettings   Stryker.NET (the 6 critical files) and coverage settings
-test.ps1                       the test runner: -Tier step | full | release (reports in artifacts/, git-ignored)
+ci.ps1                         runs a test tier on GitHub Actions (-Tier step | full | release, -Mutate): how tests run
+test.ps1                       the same tiers on the laptop, to debug the runner (reports in artifacts/, git-ignored)
+.github/workflows/ci.yml       the CI workflow (every pull request: full; by hand: any tier)
 docs/                          this documentation (docs/testing/: the test guide, catalog, known bugs, dress rehearsal)
 deploy.ps1, DEPLOY.md          production build + IIS guide
 ```
@@ -693,14 +695,13 @@ MediatR community license key (luckypennysoftware.com) is committed in `appsetti
 choice; expires 2027-10-14, renew yearly); an env var `MediatR__LicenseKey` overrides it, and an empty key stops the
 app outside Development (in Development MediatR only logs a warning).
 
-Checks before committing:
+Checks before committing (the laptop, seconds), then the tests on GitHub Actions after committing:
 
 ```bash
 cd ClinicHub.Web && npx tsc -b && npx eslint src
 dotnet build ClinicHub.sln             # all projects; use -c Release if Rider is running the Debug build
-./test.ps1 -Tier step                  # PowerShell, Docker running: unit + Vitest + integration smoke and the changed
-                                       # areas (+ e2e smoke when ClinicHub.Web/ changed), ≈ 6–10 min
-./test.ps1 -Tier full                  # at the end of a feature or milestone and before merging to main
+./ci.ps1                               # the step tier on CI (pushes the branch, waits), ≈ 5 min
+./ci.ps1 -Tier full                    # the full tier on CI (also every pull request), ≈ 8 min
 ```
 
 Tests: tiers, reports, gates and how to add a test at each level are in the [testing README](../testing/README.md);
@@ -745,7 +746,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
-- Tests run locally only (`test.ps1`; no CI). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
+- Tests run on GitHub Actions (`ci.ps1`, `.github/workflows/ci.yml`; every pull request runs `full`). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist
 
@@ -762,4 +763,5 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
    area for a new feature) and fix the cases whose behavior changed.
 6. Tests at each case's level (`unit`, `api`, `ui`, `e2e`), tagged with the case IDs
    ([testing README § Adding a test](../testing/README.md#adding-a-test)), in the same commit as the code and docs.
-7. Run the checks above: `./test.ps1 -Tier step` after each round, `./test.ps1 -Tier full` when the feature is done.
+7. Run the checks above: `./ci.ps1` (`step` on CI) after each round, `./ci.ps1 -Tier full` when the feature is done,
+   then its pull request ([testing README § Continuous integration](../testing/README.md#continuous-integration-github-actions)).

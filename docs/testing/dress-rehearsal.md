@@ -10,7 +10,7 @@ dress rehearsal is that test, run by us first on a production-like system: every
 in the real deployment, so nothing reaches the client that the automated tests could not see (Word and Notepad
 pastes, a real phone, HTTPS, the real server and database, realistic data, free use).
 
-It comes **after** `./test.ps1 -Tier full` and `./test.ps1 -Tier release` are green on the release candidate
+It comes **after** the `full` and `release` tiers (on CI: `./ci.ps1 -Tier release` runs both) are green on the release candidate
 ([D4](../design/m1.6-test-foundation.md#d4-tiers-and-the-runner)): it doesn't replace the automated tests, it checks what
 they can't and the system as the client will meet it.
 
@@ -67,7 +67,7 @@ Beyond the checklist, try to break it the way a new user would:
 
 The rehearsal passes only with a **clean run**: every checklist item below passes in one run made after the last fix,
 in Arabic and English, on desktop and the phone, and no finding is open. Any fix restarts the affected journeys (and
-`./test.ps1 -Tier full`); a fix touching login, permissions, isolation or the prescription text restarts the whole
+the `full` tier on CI); a fix touching login, permissions, isolation or the prescription text restarts the whole
 checklist. Only then is the system handed to the client.
 
 ## Checklist
