@@ -11,6 +11,7 @@ import {
     createTestQueryClient,
     protocolsHandlers,
     drugsHandlers,
+    drugTreeHandler,
     findToast,
     isRed,
     problem,
@@ -18,6 +19,7 @@ import {
     renderWithProviders,
     server,
 } from "../../../test";
+import {installIntersectionObserver} from "../../../test/intersection.ts";
 import {protocolKeys} from "../api.ts";
 import type {Protocol} from "../types.ts";
 import {ProtocolEditorPage} from "./ProtocolEditorPage.tsx";
@@ -27,6 +29,7 @@ import {
     lineDetails,
     lineRows,
     lineSummary,
+    linesPanel,
     openEditor,
 } from "../../../test/pages/protocolEditor.tsx";
 
@@ -45,7 +48,8 @@ const moveLine = async (user: UserEvent, from: number, steps: number) => {
     await user.keyboard(" ");
     await user.keyboard(steps > 0 ? "{ArrowDown>" + steps + "/}" : "{ArrowUp>" + -steps + "/}");
     await user.keyboard(" ");
-    await waitFor(() => expect(screen.queryByRole("button", {pressed: true})).not.toBeInTheDocument());
+    // The lines' handles only: the drug tree's source toggle has a pressed button («الكل»)
+    await waitFor(() => expect(within(linesPanel()).queryByRole("button", {pressed: true})).not.toBeInTheDocument());
 };
 
 describe("protocol editor: opening @area:catalog", () => {
@@ -102,6 +106,7 @@ describe("protocol editor: always the protocol as it is now @area:catalog", () =
         const held = new Promise<void>(resolve => (release = resolve));
         let count = 0;
         server.use(
+            drugTreeHandler(protocol.items.map(i => i.drug)),
             ...drugsHandlers(protocol.items.map(i => i.drug)),
             http.get(api("/protocols/:id"), async () => {
                 count++;
@@ -109,6 +114,7 @@ describe("protocol editor: always the protocol as it is now @area:catalog", () =
                 return HttpResponse.json(protocol);
             }),
         );
+        installIntersectionObserver();
         return {release, requests: () => count};
     };
 
@@ -176,12 +182,14 @@ describe("protocol editor: always the protocol as it is now @area:catalog", () =
         let gate = Promise.resolve();
         let release = () => {};
         server.use(
+            drugTreeHandler([drug]),
             ...drugsHandlers([drug]),
             http.get(api("/protocols/:id"), async ({params}) => {
                 await gate;
                 return HttpResponse.json(answers.get(Number(params.id)));
             }),
         );
+        installIntersectionObserver();
         // Links outside the page: the route param changes, the page stays mounted
         const GoTo = () => {
             const navigate = useNavigate();

@@ -2,7 +2,7 @@ import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {aDrug, aProtocol, anItem, api, findToast, protocolsHandlers, renderWithProviders, server} from "../../../test";
-import {openEditor, pickerOption} from "../../../test/pages/protocolEditor.tsx";
+import {openEditor, treeDrug} from "../../../test/pages/protocolEditor.tsx";
 import {ProtocolsPage} from "./ProtocolsPage.tsx";
 
 // The Arabic wording of protocols: design M1.7 D10 (masculine «بروتوكول»: «تم إنشاء البروتوكول», «بروتوكول جديد»…),
@@ -13,8 +13,7 @@ describe("protocols: the masculine «بروتوكول» in titles and toasts @ar
         const tobradex = aDrug({name: "Tobradex"});
         const {user} = await openEditor({drugs: [tobradex]});
         expect(screen.getByRole("heading", {level: 1, name: "بروتوكول جديد"})).toBeInTheDocument();
-        await screen.findByText("Tobradex", {selector: "[role=option] *"});
-        await user.click(pickerOption("Tobradex"));
+        await user.click(await treeDrug("Tobradex"));
         await user.type(screen.getByRole("textbox", {name: "اسم البروتوكول"}), "Post cataract");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(await findToast()).toBe("تم إنشاء البروتوكول");

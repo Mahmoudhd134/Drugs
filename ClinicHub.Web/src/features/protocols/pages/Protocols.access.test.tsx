@@ -8,11 +8,13 @@ import {
     api,
     protocolsHandlers,
     drugsHandlers,
+    drugTreeHandler,
     hoverTooltip,
     leaveTooltip,
     renderWithProviders,
     server,
 } from "../../../test";
+import {installIntersectionObserver} from "../../../test/intersection.ts";
 import type {Permission} from "../../access/permissions.ts";
 import type {Protocol} from "../types.ts";
 import {ProtocolsPage} from "./ProtocolsPage.tsx";
@@ -76,7 +78,8 @@ describe("protocols list by permission @area:access", () => {
 
 /** The editor of `protocol` (or a new protocol) for a role with `permissions`. */
 const openEditor = async (permissions: Permission[], id: number | "new" = protocol.id) => {
-    server.use(...protocolsHandlers([protocol]), ...drugsHandlers([tobradex]));
+    server.use(...protocolsHandlers([protocol]), drugTreeHandler([tobradex]), ...drugsHandlers([tobradex]));
+    installIntersectionObserver();
     const rendered = await renderWithProviders(<ProtocolEditorPage/>, {
         lang: "ar", route: `/protocols/${id}`, path: id === "new" ? "/protocols/new" : "/protocols/:id", user: {permissions},
     });
@@ -94,7 +97,8 @@ describe("protocol editor by permission @area:access", () => {
     });
 
     test("in English the tooltip says \"You don't have permission\" @ACC-066", async () => {
-        server.use(...protocolsHandlers([protocol]), ...drugsHandlers([tobradex]));
+        server.use(...protocolsHandlers([protocol]), drugTreeHandler([tobradex]), ...drugsHandlers([tobradex]));
+        installIntersectionObserver();
         await renderWithProviders(<ProtocolEditorPage/>, {
             lang: "en", route: `/protocols/${protocol.id}`, path: "/protocols/:id", user: {permissions: ASSISTANT},
         });

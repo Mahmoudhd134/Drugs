@@ -12,6 +12,7 @@ import {
     contextOfRequest,
     contextsHandler,
     drugCategoriesHandler,
+    drugTreeHandler,
     expectPath,
     expectToasts,
     isolate,
@@ -26,6 +27,7 @@ import {
     startApp,
     toastTexts,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 import type {Context} from "../features/auth/types.ts";
 
 // Losing the clinic mid-session (design D7): docs/features/auth/tech.md "Frontend" (Lost clinic, api/client.ts),
@@ -57,7 +59,10 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
         http.post(api("/drugs"), saveAnswer),
         drugCategoriesHandler(),
         http.get(api("/protocols"), () => HttpResponse.json(aPage([]))),
+        // The start page (the prescription) after a move to another clinic shows the drug tree
+        drugTreeHandler([]),
     );
+    installIntersectionObserver();
     const app = await startApp({route: "/drugs", lang: "ar"});
     await screen.findByText("A drug");
     const addDrug = async () => {

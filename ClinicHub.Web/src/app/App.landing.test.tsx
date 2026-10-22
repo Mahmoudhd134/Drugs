@@ -8,6 +8,7 @@ import {
     contextsHandler,
     protocolsHandlers,
     drugsHandlers,
+    drugTreeHandler,
     expectPath,
     meByContext,
     PLATFORM_CONTEXT,
@@ -18,6 +19,7 @@ import {
     sessionIn,
     startApp,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 import type {AuthResult, Context} from "../features/auth/types.ts";
 
 // Where the login lands: docs/features/auth/tech.md "Frontend" (LoginPage: a logged-in user is sent to the context's
@@ -27,9 +29,10 @@ import type {AuthResult, Context} from "../features/auth/types.ts";
 const clinicA = aClinicContext({clinicId: 1, clinicName: "Clinic A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "Clinic B"});
 
-/** The handlers every home page needs: the prescription page's pickers, the clinics list, the picker's contexts. */
+/** The handlers every home page needs: the prescription page's protocol picker and drug tree, the clinics list, the picker's contexts. */
 const homePages = (contexts: Context[]) => [
     meByContext(),
+    drugTreeHandler([]),
     ...drugsHandlers([]),
     ...protocolsHandlers([]),
     ...adminClinicsHandlers([]),
@@ -48,6 +51,7 @@ const logInFrom = async (route: string, auth: AuthResult) => {
         http.post(api("/auth/otp/verify"), () => HttpResponse.json(auth)),
         ...homePages(auth.contexts),
     );
+    installIntersectionObserver();
     const app = await startApp({route, lang: "ar"});
     await expectPath("/login");
     await app.user.type(await screen.findByRole("textbox", {name: /رقم الموبايل/}), "01001234567");
@@ -101,6 +105,7 @@ describe("/login when logged in @area:auth", () => {
             http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})),
             ...homePages(auth.contexts),
         );
+        installIntersectionObserver();
         const app = await startApp({route: "/login", lang: "ar"});
 
         await expectPath(home);

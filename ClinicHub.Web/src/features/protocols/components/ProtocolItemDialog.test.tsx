@@ -192,7 +192,7 @@ describe("protocol line dialog: a shared drug's line @area:catalog", () => {
         for (const select of ["Unit", "Frequency", "Period"]) expect(combo(select)).not.toHaveTextContent("Drug default");
         expect(number("Dose")).not.toHaveAttribute("placeholder", "Drug default");
         expect(screen.queryByText("Empty fields use the drug's default dosing.")).not.toBeInTheDocument();
-        expect(dosingPreview()).toHaveTextContent(/^No dosing set$/);
+        expect(dosingPreview("Prescription text")).toHaveTextContent(/^No dosing set$/);
     });
 
     test("an override on a shared drug's line: the preview is the override's sentence alone @CAT-171", async () => {

@@ -136,6 +136,8 @@ export const treeOf = (drugs: Drug[], search = "", source = "all"): DrugTreeData
 /**
  * `GET /drugs/tree` over `given` (see `treeOf`; an unknown `source` → 400 `invalidRequest`). `delayMs` delays every
  * answer, or a function picks the delay per search (e.g. an older, slower answer: CAT-102).
+ * Register it before `drugsHandlers` (`server.use(drugTreeHandler(drugs), ...drugsHandlers(drugs))`): their
+ * `GET /drugs/:id` matches `/drugs/tree` too and would answer it 404.
  */
 export const drugTreeHandler = (given: Array<Drug | ProtocolDrug>,
                                 {delayMs}: { delayMs?: number | ((search: string) => number) } = {}) => {

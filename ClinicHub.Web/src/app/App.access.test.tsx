@@ -18,6 +18,7 @@ import {
     startApp,
     toastTexts,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 
 // Permissions and errors in the running app: docs/features/access/tech.md "Frontend" (RequirePermission, 403
 // handling in AppProviders, usePermissions), docs/tech/overview.md "Data fetching" (retries).
@@ -79,16 +80,17 @@ describe("permissions in the app @area:access", () => {
         server.use(
             refreshSequence(sessionIn(clinicA)).handler,
             meByContext(),
-            http.get(api("/drugs"), () => problem(403, "forbidden")),
+            http.get(api("/drugs/tree"), () => problem(403, "forbidden")),
             http.get(api("/protocols"), () => problem(403, "forbidden")),
         );
         const requests = recordRequests();
+        installIntersectionObserver();
         await startApp({route: "/", lang: "ar"});
 
         await waitFor(() => expect(toastTexts()).toEqual(["غير مسموح لك بهذا الإجراء."]));
         await waitFor(() => expect(requests.requests.filter(r => r.path === "/me").length).toBeGreaterThanOrEqual(2));
-        // Both pickers failed, still one toast
-        expect(requests.requests.filter(r => r.path === "/drugs")).toHaveLength(1);
+        // The drug tree and the protocol picker failed, still one toast
+        expect(requests.requests.filter(r => r.path === "/drugs/tree")).toHaveLength(1);
         expect(requests.requests.filter(r => r.path === "/protocols")).toHaveLength(1);
         await act(() => new Promise(resolve => setTimeout(resolve, 20)));
         expect(toastTexts()).toHaveLength(1);

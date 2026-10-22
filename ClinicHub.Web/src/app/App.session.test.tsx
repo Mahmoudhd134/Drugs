@@ -21,7 +21,10 @@ import {
     sessionIn,
     startApp,
     toastTexts,
+    drugsHandlers,
+    treeOf,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 
 // The session in the running app: docs/features/auth/tech.md "Frontend" (session.ts, api/client.ts, AuthProvider,
 // RequireAuth), docs/tech/overview.md "Data fetching".
@@ -58,20 +61,24 @@ describe("staying logged in @area:auth", () => {
         const fresh = {...stale, accessToken: anAccessToken(1).replace("signature", "fresh")};
         const refresh = refreshSequence(stale, fresh);
         const isFresh = (request: Request) => request.headers.get("Authorization") === `Bearer ${fresh.accessToken}`;
-        // The prescription page loads both pickers at once
+        // The prescription page loads its drug tree and protocol picker at once
+        const tobradex = aDrug({name: "Tobradex"});
         server.use(
             refresh.handler,
             meByContext(),
-            http.get(api("/drugs"), ({request}) =>
-                (isFresh(request) ? HttpResponse.json(aPage([aDrug({name: "Tobradex"})])) : problem(401, "unauthorized"))),
+            // Before drugsHandlers: their `/drugs/:id` would answer `/drugs/tree` too
+            http.get(api("/drugs/tree"), ({request}) =>
+                (isFresh(request) ? HttpResponse.json(treeOf([tobradex])) : problem(401, "unauthorized"))),
+            ...drugsHandlers([tobradex]),
             http.get(api("/protocols"), ({request}) =>
                 (isFresh(request) ? HttpResponse.json(aPage([aProtocol({name: "Post cataract"})])) : problem(401, "unauthorized"))),
         );
         const requests = recordRequests();
+        installIntersectionObserver();
         await startApp({route: "/"});
 
         expect(await screen.findByText("Post cataract")).toBeInTheDocument();
-        await waitFor(() => expect(requests.requests.filter(r => r.path === "/drugs")).toHaveLength(2));
+        await waitFor(() => expect(requests.requests.filter(r => r.path === "/drugs/tree")).toHaveLength(2));
         expect(refresh.calls()).toBe(2);
         expect(requests.requests.filter(r => r.path === "/protocols")).toHaveLength(2);
     });
