@@ -14,7 +14,7 @@ import {createDrug, createProtocol} from "../support/catalog.ts";
 const holdSearches = async (page: Page) => {
     let release = () => {};
     const gate = new Promise<void>(resolve => { release = resolve; });
-    await page.route(url => /\/api\/v1\/(drugs|drug-protocols)$/.test(url.pathname) && !!url.searchParams.get("search"),
+    await page.route(url => /\/api\/v1\/(drugs|protocols)$/.test(url.pathname) && !!url.searchParams.get("search"),
         async route => {
             await gate;
             await route.continue();
