@@ -1,4 +1,4 @@
-import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-query";
+import {useInfiniteQuery, useQuery, useQueryClient} from "@tanstack/react-query";
 import {api} from "../../api/client.ts";
 import {hasNextPage, type QueryOptions} from "../../api/types.ts";
 import {drugKeys, fetchDrugs} from "./api.ts";
@@ -23,17 +23,21 @@ export const fetchDrugTree = async (search: string, source: DrugSource) =>
     (await api.get<DrugTreeData>("/drugs/tree", {params: {search, ...(source !== "all" ? {source} : {})}})).data;
 
 /**
- * The tree's counts. `keepPreviousData`: while a new search or source loads, the old tree stays (with the thin progress
- * bar) and an older, slower answer never replaces a newer one (CAT-101, CAT-102). M1.7c contract (track web may tune
- * the options, not the signature).
+ * The tree's counts. Previous data kept as placeholder: while a new search or source loads, the old tree stays (with
+ * the thin progress bar) and an older, slower answer never replaces a newer one (CAT-101, CAT-102). Only while the
+ * previous query is still cached: after a context switch clears the cache, the other clinic's tree is never shown as a
+ * placeholder (CAT-129).
  */
-export const useDrugTree = (search: string, source: DrugSource, {enabled = true}: QueryOptions = {}) =>
-    useQuery({
+export const useDrugTree = (search: string, source: DrugSource, {enabled = true}: QueryOptions = {}) => {
+    const queryClient = useQueryClient();
+    return useQuery({
         queryKey: drugTreeKeys.tree(search, source),
         queryFn: () => fetchDrugTree(search, source),
-        placeholderData: keepPreviousData,
+        placeholderData: (previous, previousQuery) =>
+            previousQuery && Object.is(queryClient.getQueryCache().get(previousQuery.queryHash), previousQuery) ? previous : undefined,
         enabled,
     });
+};
 
 /**
  * One open subcategory's drugs: `GET /drugs?categoryId=&subCategoryId=` + the tree's search and source, 30 per page, in

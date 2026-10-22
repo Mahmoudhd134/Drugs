@@ -1,9 +1,9 @@
+import {categoryName} from "../categories.ts";
 import type {Drug, DrugTreeCategory, DrugTreeData, DrugTreeSubCategory, SubCategoryFilter} from "../types.ts";
 
 /*
  * The drug tree's pure logic (design M1.7 D5, D7, D9): order, auto-open, the visible rows and the keyboard. No React,
- * no requests (StrykerJS-mutated, PURE_LOGIC coverage gate). M1.7c contract: names and signatures final, bodies are
- * stubs (track web).
+ * no requests (StrykerJS-mutated, PURE_LOGIC coverage gate). Names and signatures: M1.7c contract § 2.3.
  */
 
 /** One open subcategory: `"<categoryId>:<subCategoryId>"`, or `"<categoryId>:none"` for «بدون تصنيف فرعي». */
@@ -23,22 +23,34 @@ export const subCategoryFilterOf = (subCategoryId: number | null): SubCategoryFi
  * always the last subcategory of its category.
  */
 export const sortTree = (tree: DrugTreeData, language: string, searching: boolean): DrugTreeCategory[] => {
-    void language;
-    void searching;
-    throw new Error(`M1.7c contract stub (track web): sortTree ${tree.categories.length}`);
+    const collator = new Intl.Collator(language);
+    const name = (row: { nameEn: string | null; nameAr: string | null }) =>
+        categoryName({nameEn: row.nameEn ?? "", nameAr: row.nameAr ?? ""}, language);
+    const compare = (a: DrugTreeCategory | DrugTreeSubCategory, b: DrugTreeCategory | DrugTreeSubCategory) =>
+        Number(a.pinnedLast) - Number(b.pinnedLast)
+        || (searching ? b.count - a.count : 0)
+        || collator.compare(name(a), name(b));
+    return tree.categories
+        .map(category => ({
+            ...category,
+            subCategories: [...category.subCategories].sort((a, b) =>
+                Number(a.id === null) - Number(b.id === null) || compare(a, b)),
+        }))
+        .sort(compare);
 };
 
 /** «النتائج: N» above the tree: the sum of the category counts. */
-export const treeTotal = (tree: DrugTreeData): number => {
-    throw new Error(`M1.7c contract stub (track web): treeTotal ${tree.categories.length}`);
-};
+export const treeTotal = (tree: DrugTreeData): number =>
+    tree.categories.reduce((sum, category) => sum + category.count, 0);
 
 /**
  * The bucket that opens by itself (D7): when the whole answer holds exactly one subcategory bucket (a «بدون تصنيف
  * فرعي» bucket included), that one; else null. Its category opens with it.
  */
 export const autoOpenBucket = (tree: DrugTreeData): { categoryId: number; bucket: BucketKey } | null => {
-    throw new Error(`M1.7c contract stub (track web): autoOpenBucket ${tree.categories.length}`);
+    const buckets = tree.categories.flatMap(category =>
+        category.subCategories.map(subCategory => ({categoryId: category.id, bucket: bucketKey(category.id, subCategory.id)})));
+    return buckets.length === 1 ? buckets[0] : null;
 };
 
 /** A focusable row of the tree, in display order (`visibleRows`). */
@@ -53,12 +65,22 @@ export type TreeRow =
  * and stable across renders: `c<categoryId>`, `s<bucketKey>`, `d<bucketKey>:<drugId>`.
  */
 export const visibleRows = (categories: DrugTreeCategory[], openCategories: ReadonlySet<number>,
-                            openBuckets: ReadonlySet<BucketKey>, drugs: ReadonlyMap<BucketKey, Drug[]>): TreeRow[] => {
-    void openCategories;
-    void openBuckets;
-    void drugs;
-    throw new Error(`M1.7c contract stub (track web): visibleRows ${categories.length}`);
-};
+                            openBuckets: ReadonlySet<BucketKey>, drugs: ReadonlyMap<BucketKey, Drug[]>): TreeRow[] =>
+    categories.flatMap((category): TreeRow[] => [
+        {kind: "category", id: `c${category.id}`, level: 1, category},
+        ...(openCategories.has(category.id)
+            ? category.subCategories.flatMap((subCategory): TreeRow[] => {
+                const bucket = bucketKey(category.id, subCategory.id);
+                return [
+                    {kind: "subCategory", id: `s${bucket}`, level: 2, categoryId: category.id, bucket, subCategory},
+                    ...(openBuckets.has(bucket)
+                        ? (drugs.get(bucket) ?? []).map((drug): TreeRow =>
+                            ({kind: "drug", id: `d${bucket}:${drug.id}`, level: 3, categoryId: category.id, bucket, drug}))
+                        : []),
+                ];
+            })
+            : []),
+    ]);
 
 /** What a key does on a focused tree row (`treeKeyAction`). */
 export type TreeKeyAction =
@@ -83,13 +105,28 @@ export type TreeKeyAction =
  * component lets it through. On a closed category the closing arrow and Esc do nothing (null).
  */
 export const treeKeyAction = (key: string, row: TreeRow, expanded: boolean, rtl: boolean): TreeKeyAction | null => {
-    void row;
-    void expanded;
-    void rtl;
-    throw new Error(`M1.7c contract stub (track web): treeKeyAction ${key}`);
+    const isDrug = row.kind === "drug";
+    switch (key) {
+        case "ArrowDown":
+            return "next";
+        case "ArrowUp":
+            return "previous";
+        case "Enter":
+            return "activate";
+        case rtl ? "ArrowLeft" : "ArrowRight":
+            if (isDrug) return null;
+            return expanded ? "firstChild" : "open";
+        case rtl ? "ArrowRight" : "ArrowLeft":
+        case "Escape":
+            if (!isDrug && expanded) return "close";
+            return row.kind === "category" ? null : "closeParent";
+        default:
+            return null;
+    }
 };
 
 /** The drugs of a bucket's pages, the first copy of each id kept (a drug added between two pages, CAT-122). */
 export const dedupeById = (pages: Drug[][]): Drug[] => {
-    throw new Error(`M1.7c contract stub (track web): dedupeById ${pages.length}`);
+    const seen = new Set<number>();
+    return pages.flat().filter(drug => !seen.has(drug.id) && Boolean(seen.add(drug.id)));
 };
