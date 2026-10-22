@@ -143,8 +143,8 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     drug's default eye changed) get an error chip `protocols.eyeClash` ("Same drug and eye as another line"); editors see
     an alert `protocols.eyeClashSave` above the lines, and Save is blocked with the same message as a toast until a line
     is removed or its eye changed (M1.6.0).
-- The old SPA routes `/groups`, `/groups/new`, `/groups/:id` redirect (replace) to the same `/protocols…` route, keeping
-  the id, the query string and the hash (M1.7a, GRP-100).
+- The old SPA routes `/groups…` are gone with no redirect (M1.7a; user, 2026-10-22: nothing was in production, so no
+  bookmark to keep): they fall to the app's unknown-route handling like any other address.
 - **`ProtocolPicker`** (prescription page): name, line count («الأدوية: N»), the drug names joined with " · " (at most
   2 lines). A long unbroken name wraps (`overflow-wrap: anywhere`), never cut.
 - **`api.ts`**: `protocolKeys`; `useProtocols`, `useProtocolPicker`, `useProtocol`,

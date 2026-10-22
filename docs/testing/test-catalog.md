@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14: 1,208; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,379 now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378 now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -70,14 +70,14 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [ERR](#err--error-contract-problemdetails) | 4 | 18 | 10 | 32 | 9 | 20 | 3 | 2 | 0 |
 | [ADM](#adm--platform-admin) | 58 | 145 | 92 | 295 | 3 | 167 | 79 | 49 | 0 |
 | [DRUG](#drug--drug-catalog) | 24 | 47 | 33 | 104 | 0 | 66 | 23 | 16 | 0 |
-| [GRP](#grp--protocols) | 33 | 47 | 26 | 106 | 2 | 36 | 43 | 26 | 0 |
+| [GRP](#grp--protocols) | 33 | 46 | 26 | 105 | 2 | 36 | 43 | 25 | 0 |
 | [DOSE](#dose--structured-dosing) | 44 | 32 | 12 | 88 | 69 | 18 | 13 | 1 | 0 |
 | [TAPER](#taper--tapering-schedules) | 25 | 35 | 20 | 80 | 55 | 19 | 24 | 2 | 0 |
 | [RX](#rx--prescription-builder) | 40 | 45 | 24 | 109 | 38 | 0 | 25 | 49 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 21 | 16 | 43 | 4 | 0 | 19 | 21 | 2 |
 | [CAT](#cat--shared-catalog-and-categories) | 55 | 69 | 37 | 161 | 10 | 115 | 17 | 28 | 1 |
-| **All** | **416** | **599** | **364** | **1379** | **206** | **658** | **321** | **269** | **8** |
+| **All** | **416** | **598** | **364** | **1378** | **206** | **658** | **321** | **268** | **8** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -1354,9 +1354,11 @@ Sources: [protocols business](../features/protocols/business.md), [protocols tec
 
 ### Rename to protocols (M1.7a)
 
+GRP-100 (old `/groups…` bookmarks redirected) is retired: no redirect is kept (user, 2026-10-22: nothing was in
+production); the number stays unused.
+
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| GRP-100 | Given an old bookmark `/groups`, `/groups/new`, `/groups/{id}` or `/groups?search=x&page=2`, then it redirects to the matching `/protocols…` with the same id and query | P1 | e2e | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 | GRP-101 | Given the API's old routes `/api/v1/drug-groups…`, then 404 `notFound` for GET and 405 `methodNotAllowed` for POST, PUT and DELETE (no alias kept) | P2 | api | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 | GRP-102 | Given every screen in Arabic (sidebar, page titles, buttons, toasts, empty states, dialogs, prescription tabs, delete warnings), then no «مجموعة» / «المجموعات» remains; in English no "group" (all locale strings searched for leftovers) | P0 | unit+e2e | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
 | GRP-103 | Given Arabic grammar with the masculine «بروتوكول», then «تم إنشاء البروتوكول», «تم تحديث البروتوكول», «تم حذف البروتوكول», «بروتوكول جديد», «حذف البروتوكول؟» | P1 | ui | [design D10](../design/m1.7-shared-catalog.md#d10-rename-groups--protocols) |
