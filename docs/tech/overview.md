@@ -52,7 +52,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Search/               SearchText: the Arabic-normalized fold (Fold, Term; OtherText, OtherTerm) and the column
                                names (SearchName, SearchOther) (M1.6.1, M1.7b)
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto (+ ProtocolDrugDto), DrugErrors,
-                               DrugSource, SubCategoryFilter, DrugQueries (the list composition and order, M1.7b)
+                               DrugSource, SubCategoryFilter, DrugQueries (the list composition and order, M1.7b);
+                               Queries/GetDrugTree (the tree's counts, M1.7c)
   Features/Catalog/Protocols/  same, + ProtocolDto, ProtocolErrors, SaveProtocolItem, ProtocolLineRules
   Features/Catalog/Categories/ CategoryDto, CategoryErrors, CategoryIds, CategoryRules; Queries/GetCategories (M1.7b)
   Features/Identity/           IdentityErrors at the root; sub-features:
@@ -407,6 +408,7 @@ Drugs                       Protocols
 | GET | `/me` | User, context, staff, permissions (expanded keys in a clinic context) |
 | GET | `/permissions` | The permission catalog `[{ key, module, resource, action, requires }]` (any access token) |
 | GET | `/drugs?search=&source=&categoryId=&subCategoryId=&page=1&pageSize=20` | Paged own + active shared drugs (`source` = `all`/`shared`/`own`; category filters; `subCategoryId` = id or `none`), own first (newest first; with a search prefix matches first, then by name) |
+| GET | `/drugs/tree?search=&source=` | The drug tree's counts: categories → subcategories (the «بدون تصنيف فرعي» bucket last) with their match counts for the same search and `source` as `/drugs`; rows with 0 matches left out (`drugs.list`, M1.7c) |
 | GET | `/drugs/{id}` | One drug, own or shared (a withdrawn shared one with `withdrawn: true`) |
 | POST | `/drugs` | Create an own drug `{ name, activeIngredients, description, defaultDosing, categoryId, subCategoryId }` → 201 + drug |
 | PUT | `/drugs/{id}` | Update (same body) → drug; a shared drug → 409 `sharedDrugReadOnly` |
