@@ -5,7 +5,9 @@ M1.4 architecture refactor are done ([clinic scoping](../features/clinic-scoping
 [login](../features/auth/tech.md), [access](../features/access/tech.md), [architecture](architecture.md));
 M1.5 platform admin is built ([design](m1.5-platform-admin.md); the admin API for clinics, provisioning, roles and
 staff, the admin area and its clinic, role and staff screens: [platform admin](../features/platform-admin/tech.md));
-M1.6 test foundation is built ([design](m1.6-test-foundation.md), [testing README](../testing/README.md)): from now on
+M1.6 test foundation is built ([design](m1.6-test-foundation.md), [testing README](../testing/README.md)); M1.7 shared
+drug catalog is in progress ([design](m1.7-shared-catalog.md): M1.7a protocols rename, M1.7b catalog core + admin
+([shared catalog](../features/shared-catalog/tech.md)), M1.7c catalog clinic screens): from now on
 every step adds its test cases and tests with its feature. See [Delivery](#12-delivery-phase-1-mvp).
 Decided in discussion on 2026-10-11.
 When each step is built it gets its own `docs/features/<feature>/` (tech + business), its cases in the
@@ -626,7 +628,7 @@ implementation session and validated before the next (terms in the [status](#hig
 
 | Milestone | Steps | Status |
 |---|---|---|
-| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation | M1.1–M1.6 ✅ |
+| **M1 Clinic platform** | M1.1 clinic isolation · M1.2 login · M1.3 access · M1.4 architecture refactor · M1.5 platform admin · M1.6 test foundation · M1.7 shared drug catalog | M1.1–M1.6 ✅, M1.7 in progress |
 | **M2 Patients** | M2.1 dynamic forms · M2.2 patients · M2.3 patient portal | not started |
 | **M3 Production readiness** | M3.1 frontend enhancements ([12.1](#121-enhancements-m31)) · M3.2 hardening → **launch** | not started |
 

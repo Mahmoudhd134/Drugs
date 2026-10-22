@@ -17,6 +17,17 @@ public record SaveProtocolItem(int DrugId, Dosing Dosing)
         .ToList();
 
     /// <summary>
+    /// For each item <see cref="Normalize"/> keeps, its index in <paramref name="items"/> as sent (nulls counted): the
+    /// <c>items[i]</c> of an error about that line (<c>drugWithdrawn</c>).
+    /// </summary>
+    public static List<int> RequestIndexes(List<SaveProtocolItem> items) =>
+        (items ?? [])
+        .Select((item, index) => (item, index))
+        .Where(x => x.item is not null)
+        .Select(x => x.index)
+        .ToList();
+
+    /// <summary>
     /// True when two (normalized) items give the same drug for the same <b>effective</b> eye: the line's own eye, else
     /// the drug's default eye (<paramref name="defaultEyes"/>: drug id → its default eye, null = none), where no eye
     /// and "none" are the same; "ask" is an eye of its own. Like the SPA's <c>itemIdentity</c>.

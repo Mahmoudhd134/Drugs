@@ -1,79 +1,108 @@
 # Drug catalog: technical
 
 ## Summary
-CRUD for drugs (name + optional description + optional **default dosing**). Drugs are referenced by protocols and selected into
-prescriptions. Content is stored once, as typed (not translated).
+A clinic's drug list is its **own drugs** plus the platform's **shared drugs** (M1.7b, design
+[m1.7-shared-catalog](../../design/m1.7-shared-catalog.md) D1–D8; shared catalog, categories and the admin side:
+[shared catalog](../shared-catalog/tech.md)). Own drugs: CRUD with name, optional active ingredients, a required
+category, an optional subcategory, optional description and **default dosing**. Shared drugs are read-only in a clinic
+(409 `sharedDrugReadOnly`), have no default dosing, and a withdrawn one («معطّل من الإدارة») is hidden from the lists and
+search but still answers by id. Drugs are referenced by protocols and selected into prescriptions. Content is stored
+once, as typed (not translated).
 
 ## Data model
-`Drugs` (`ClinicHub.Domain/Catalog/Drug.cs`)
+`Drugs` (`ClinicHub.Domain/Catalog/Drug.cs`, `IClinicOrShared`)
 
 | Column | Type | Rules |
 |---|---|---|
-| Id | integer PK, identity | |
-| Name | varchar(256) | required, max 256 (`FieldLimits.NameMaxLength`) |
+| Id | integer PK, identity | globally unique (own and shared share the sequence) |
+| ClinicId | int **nullable** FK → `Clinics` (restrict) | owning clinic; **null = shared**; stamped on insert; never changes (save interceptor); index `(ClinicId, Name)` |
+| Name | varchar(256) | required, max 256 (`FieldLimits.NameMaxLength`); not unique |
+| NameAr | varchar(256) | internal, search only: the imported shared drug's Arabic name, written only by `load_catalog.py`; null for own and admin-created drugs; in no DTO, request or screen; an admin rename clears it |
+| ActiveIngredients | varchar(1000) | nullable; one line (`SingleLineText`) |
 | Description | text | nullable; free text, may be multi-line |
-| DefaultDosing_* | 9 columns (8 + `TaperSteps` JSON text) | owned `Dosing`, nullable; see [dosing](../dosing/tech.md) |
-| ClinicId | int FK → `Clinics` (restrict) | owning clinic; filled on insert; index `(ClinicId, Name)` |
-| SearchName | text | stored generated column: `Name` lower-cased and Arabic-folded, only searched (M1.6.1, `AddSearchNames`; [search](../../tech/overview.md#conventions)) |
+| DefaultDosing_* | 9 columns (8 + `TaperSteps` JSON text) | owned `Dosing`, nullable; **always null on a shared drug** (interceptor); see [dosing](../dosing/tech.md) |
+| CategoryId | int FK → `Categories` (restrict) | required; index `(CategoryId, SubCategoryId)` |
+| SubCategoryId | int nullable | composite FK `(SubCategoryId, CategoryId)` → `SubCategories(Id, CategoryId)` (restrict): a drug's subcategory always belongs to its category |
+| IsWithdrawn, WithdrawnAt | bool, timestamptz | shared drugs only (`Drug.Withdraw(at)` / `Restore()`); an own drug is never withdrawn (interceptor) |
+| SearchName | text NOT NULL DEFAULT '' | ordinary column, `SearchText.Fold(Name)`, filled by the save interceptor (M1.7 D7) |
+| SearchOther | text NOT NULL DEFAULT '' | ordinary column, `SearchText.OtherText(NameAr, ActiveIngredients)`, filled by the save interceptor |
 | CreatedAt, UpdatedAt | timestamptz | UTC, filled on save |
 
-Every query is scoped to the current clinic: another clinic's drug is 404 (see
-[clinic scoping](../clinic-scoping/tech.md)).
+Query filter: `ClinicId == null || ClinicId == <current clinic>` (a clinic sees the shared drugs + its own; a platform
+request only the shared ones). Another clinic's own drug is 404 (see [clinic scoping](../clinic-scoping/tech.md)).
+Migration `AddSharedCatalog` (M1.7b): schema only, on an empty `Drugs` table.
 
-Relationship: `Drug.ProtocolItems` → `ProtocolItems.DrugId` with **cascade delete** (deleting a drug
-removes it from all protocols).
+Relationship: `ProtocolItems.DrugId` → `Drugs.Id`, simple FK with **cascade delete** (deleting an own drug removes it
+from all protocols; shared drugs are never deleted).
 
-## API (`ClinicHub.Api/Features/Drugs/DrugsController.cs`, route `api/v1/drugs`)
+## API (`ClinicHub.Api/Features/Drugs/`, routes under `api/v1`)
 
-Thin controller: each action sends one use case (below) and maps its `Result`. Errors are
+Thin controllers: each action sends one use case (below) and maps its `Result`. Errors are
 [ProblemDetails](../../tech/overview.md#errors-problemdetails); the table lists their `code`.
 
 | Method | Route | Request | Response | Errors |
 |---|---|---|---|---|
-| GET | `/drugs?search=&page=1&pageSize=20` | query | `PagedResult<DrugDto>` | |
-| GET | `/drugs/{id}` | | `DrugDto` | 404 `notFound` |
-| POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `invalidText`, `invalidDosing` (all that apply, in this order) |
-| PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | 400 (as above, checked first), 404 `notFound` |
-| GET | `/drugs/{id}/protocols` | | `string[]` protocol names using the drug (empty for an unknown drug) | |
-| DELETE | `/drugs/{id}` | | 204 | 404 `notFound` |
+| GET | `/drugs?search=&source=&categoryId=&subCategoryId=&page=1&pageSize=20` | query | `PagedResult<DrugDto>` | 400 `invalidRequest` (`source` not `all`/`shared`/`own`, `subCategoryId` not a positive int or `none`, `subCategoryId` without `categoryId`, a malformed `categoryId`) |
+| GET | `/drugs/{id}` | | `DrugDto` (a withdrawn shared drug: 200, `withdrawn: true`) | 404 `notFound` |
+| POST | `/drugs` | `SaveDrugRequest { name, activeIngredients, description, defaultDosing, categoryId, subCategoryId }` | 201 `DrugDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `invalidText`/`textTooLong` (`activeIngredients`), `invalidText` (`description`), `invalidDosing`, `categoryRequired` (all that apply, in this order); then 400 `categoryNotFound`, `subCategoryNotFound` |
+| PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | as POST, then 404 `notFound`, then 409 `sharedDrugReadOnly` |
+| GET | `/drugs/{id}/protocols` | | `string[]`: this clinic's protocols using the drug (own or shared; empty for an unknown drug) | |
+| DELETE | `/drugs/{id}` | | 204 | 404 `notFound`, then 409 `sharedDrugReadOnly` |
+| GET | `/drug-categories` | | `CategoryDto[]` (`DrugCategoriesController`) | |
 
-`DrugDto = { id, name, description, defaultDosing }` (`defaultDosing` is null when not set).
+`DrugDto = { id, name, activeIngredients, description, defaultDosing, isShared, withdrawn, category: {id, nameEn,
+nameAr}, subCategory: {…} | null }`. No DTO or request carries a drug's Arabic name (an unknown `nameAr` property is
+ignored). `CategoryDto = { id, nameEn, nameAr, pinnedLast, subCategories: [{ id, nameEn, nameAr, pinnedLast }] }`
+(by id; `pinnedLast` only for «أخرى» (23) and «غير مصنف» (182), by id).
 
-Every action needs a clinic token (`ClinicContext` policy) and its permission: `drugs.list` (`GET /drugs`),
-`drugs.details` (`GET /drugs/{id}`, `GET /drugs/{id}/protocols`), `drugs.create` / `drugs.update` / `drugs.delete`;
-else 401 / 403 ([access](../access/tech.md#api)).
+Every action needs a clinic token (`ClinicContext` policy) and its permission: `drugs.list` (`GET /drugs`,
+`GET /drug-categories`), `drugs.details` (`GET /drugs/{id}`, `GET /drugs/{id}/protocols`), `drugs.create` /
+`drugs.update` / `drugs.delete`; else 401 / 403 ([access](../access/tech.md#api)).
 
-## Backend (`ClinicHub.Application/Features/Catalog/Drugs/`)
+## Backend (`ClinicHub.Application/Features/Catalog/Drugs/`, `Catalog/Categories/`)
 
 | Use case | Folder | Notes |
 |---|---|---|
-| `GetDrugsQuery(search, page, pageSize)` | `Queries/GetDrugs` | → `PagedResult<DrugDto>` |
-| `GetDrugQuery(id)` | `Queries/GetDrug` | → `DrugDto` or `DrugErrors.NotFound` |
-| `GetDrugProtocolNamesQuery(drugId)` | `Queries/GetDrugProtocolNames` | → `List<string>` (distinct, by name) |
-| `CreateDrugCommand(name, description, defaultDosing)` | `Commands/CreateDrug` | + validator → `DrugDto` |
-| `UpdateDrugCommand(id, name, description, defaultDosing)` | `Commands/UpdateDrug` | + validator → `DrugDto` or `NotFound` |
-| `DeleteDrugCommand(id)` | `Commands/DeleteDrug` | → `NotFound` or success (cascade removes its protocol lines) |
+| `GetDrugsQuery(search, source, categoryId, subCategoryId, page, pageSize)` | `Queries/GetDrugs` | + validator → `PagedResult<DrugDto>` |
+| `GetDrugQuery(id)` | `Queries/GetDrug` | → `DrugDto` (own or shared, withdrawn included) or `DrugErrors.NotFound` |
+| `GetDrugProtocolNamesQuery(drugId)` | `Queries/GetDrugProtocolNames` | → `List<string>` (this clinic's protocols, distinct, by name) |
+| `CreateDrugCommand(name, activeIngredients, description, defaultDosing, categoryId, subCategoryId)` | `Commands/CreateDrug` | + validator → `DrugDto` |
+| `UpdateDrugCommand(id, …same…)` | `Commands/UpdateDrug` | + validator → `DrugDto`, `NotFound` or `SharedDrugReadOnly` |
+| `DeleteDrugCommand(id)` | `Commands/DeleteDrug` | → `NotFound`, `SharedDrugReadOnly` or success (cascade removes its protocol lines) |
+| `GetCategoriesQuery()` | `Catalog/Categories/Queries/GetCategories` | → `List<CategoryDto>` |
 
-- `DrugDto` (+ `ToDto()`) and `DrugErrors` (`NotFound` = `notFound`, `InvalidDosing`) at the feature root;
-  `nameRequired`/`nameInvalid`/`nameTooLong` (shared `ValidName()` rule) and `invalidText` (`ValidText()`) are
-  `CommonErrors`.
-- Validators (create and update, one each): `ValidName()` (required: not only spaces or invisible format
-  characters; no control characters such as a NUL, line/paragraph separators nor bidi overrides or isolates → `nameInvalid`; ≤ 256 after
-  trim), then `ValidText()` on the description (a NUL → `invalidText`, field `description`; line breaks and tabs are
-  fine), then `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))` (false → `invalidDosing`, field
-  `defaultDosing`; a custom frequency text with a NUL is invalid too).
-  Every failing rule is returned; the first is the response's `code`.
-- The handlers trim name and description (blank description → `null`) and normalize the dosing (an
-  all-empty dosing is stored as `null`). Commands run in one transaction (`TransactionBehavior`).
-- List: optional search = case-insensitive, **Arabic-normalized** `Contains` (M1.6.1): the term folded by
-  `SearchText.Term` (أ إ آ ٱ and the superscript alef → ا, ى → ي, ة → ه, ؤ → و, ئ → ي; tatweel and diacritics
-  U+064B–U+065F removed; lower case) is looked for in `SearchName`, the name folded the same way by the database
-  ([search](../../tech/overview.md#conventions)). Ordering:
-  - no search: by `Name`, then `Id`
-  - search: names whose `SearchName` starts with the term first, then `Name`, then `Id` (display and ordering use the
-    name as stored)
+- `DrugDto`, `ProtocolDrugDto` (+ `ToDto()`, `ToProtocolDrugDto()`, `WithCategories()`) and `DrugErrors`
+  (`NotFound` = `notFound`, `InvalidDosing`, `SharedDrugReadOnly`) at the feature root; `CategoryErrors`
+  (`categoryRequired`, `categoryNotFound`, `subCategoryNotFound`…) in `Catalog/Categories`; `nameRequired`/
+  `nameInvalid`/`nameTooLong` (`ValidName()`), `invalidText` (`ValidText()`, `SingleLineText()`) and `textTooLong`
+  (`SingleLineText()`) are `CommonErrors`.
+- Validators (create and update, one each), in this order: `ValidName()` (required: not only spaces or invisible
+  format characters; no control characters, line/paragraph separators nor bidi overrides or isolates → `nameInvalid`;
+  ≤ 256 after trim), `SingleLineText()` on the active ingredients (any control character, line breaks and tabs
+  included → `invalidText`; > 1,000 once trimmed → `textTooLong`; field `activeIngredients`), `ValidText()` on the
+  description (a NUL → `invalidText`, field `description`), `DosingRules.IsValid(DosingRules.Normalize(defaultDosing))`
+  (→ `invalidDosing`), then `categoryId` not null (→ `categoryRequired`). Every failing rule is returned; the first is
+  the response's `code`.
+- Handlers (§ 7 order): `categoryNotFound` (unknown `categoryId`) → `subCategoryNotFound` (unknown, or of another
+  category) → 404 (update/delete: the drug looked up through the clinic filter, so a shared drug **is found**) →
+  `sharedDrugReadOnly` (a shared drug; update and delete). They trim name, ingredients and description (blank → `null`)
+  and normalize the dosing (an all-empty dosing is stored as `null`). Commands run in one transaction
+  (`TransactionBehavior`). The save interceptor is the last guard (a shared row can't be changed in a clinic).
+- **List** (`DrugQueries.ListedAsync` + `InListOrder`, shared with M1.7c's tree): visible (the filter) + not withdrawn
+  + `source` (`shared` = `ClinicId` null, `own` = not null, empty/`all` = both) + `categoryId` (+ `subCategoryId`:
+  an id, or `none` = without subcategory). Unknown ids or a subcategory of another category → an empty page. Search
+  (case-insensitive, **Arabic-normalized** `Contains`): the term folded by `SearchText.Term` is looked for in
+  `SearchName`, or (`SearchText.OtherTerm`: `+` and `(` as spaces) in `SearchOther` (the hidden Arabic name and the
+  ingredients), or matches the folded English or Arabic name of the drug's category or subcategory (the ≤ ~205 names
+  folded in memory, their ids added to the filter). `%`, `_` and `\` match literally. A term made only of `+`/`(`
+  skips the `SearchOther` part. Order (D7): **own drugs first, then shared**; with a search, names (`SearchName`)
+  starting with the term first, then `Name` (database collation), then `Id`; without one, own drugs newest first
+  (`CreatedAt`, `Id` descending), then shared by `Name`, then `Id`.
 - Page size clamped to 1–100 (`Paging.Normalize`).
-- Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): 10,000 drugs "Drug number N" in "Demo clinic", next to the 2 drugs copied from the template (10,002).
+- Dev seed (`ClinicHub.Infrastructure/Platform/StartupSeeder`, Development only, empty DB): the template gets two own
+  drugs with categories («العيون») and the protocol "After cataract surgery" (the shared "VIGAMOX 0.5% EYE DROPS 5 ML"
+  + one own drug); without the shared catalog loaded the template sample is skipped with a warning naming
+  `data/drug-catalog/tools/load_catalog.py`. No bulk drugs (paging is checked on the 23K shared drugs).
 
 ## Frontend (`src/features/drugs/`)
 - **Page** `pages/DrugsPage.tsx` at `/drugs`: search (debounced 300 ms, resets to page 0),
@@ -108,12 +137,15 @@ else 401 / 403 ([access](../access/tech.md#api)).
 - Deleting the last row on a page steps back one page.
 - Deleting a drug does not touch prescriptions already stored in a browser (`prescription.lines.<clinicId>`).
 - Name ordering follows the database's default collation.
-- No duplicate-name check: two drugs may share a name.
+- No duplicate-name check: two drugs may share a name (a shared and an own one too: both listed, the own one first).
+- A category or subcategory deleted between the check and the insert: the FK refuses it (500, nothing saved; accepted).
+- Moving an own drug to another category changes nothing else (protocol and prescription lines point to the drug).
 
 ## Testing notes
-Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
-[DRUG](../../testing/test-catalog.md#drug--drug-catalog) (incl. the Arabic-normalized search, DRUG-088 to DRUG-102); a
-change here adds or fixes its cases and tests.
+Automated since M1.6 ([testing README](../../testing/README.md)): catalog areas
+[DRUG](../../testing/test-catalog.md#drug--drug-catalog) (incl. the Arabic-normalized search, DRUG-088 to DRUG-102) and
+CAT (M1.7b: fields, `source`, filters, search, order, read-only shared drugs); a change here adds or fixes its cases and
+tests.
 
 | Level | Tests |
 |---|---|
