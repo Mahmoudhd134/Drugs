@@ -5,11 +5,12 @@ import {unique} from "./phones.ts";
 import type {RxTexts} from "./texts-rx.ts";
 import {toast} from "./ui.ts";
 import {ownDrugBody} from "./shared.ts";
+import {DrugTreeUi} from "./tree.ts";
 
 /**
  * Helpers of the prescription journeys (RX): test data with descriptions and dosings (the stage-1 `data.drug` /
  * `data.protocol` builders make drugs without a description and protocol lines without an override), and the prescription
- * page's parts (pickers, lines, dialogs, toasts, clipboard).
+ * page's parts (the protocol picker, the drug tree of the «الأدوية» tab, lines, dialogs, toasts, clipboard).
  */
 
 export type Dosing = Record<string, unknown>;
@@ -88,13 +89,16 @@ export const rxGetProtocol = async (data: Data, clinic: ClinicHandle, protocol: 
 export class RxPage {
     readonly page: Page;
     readonly rt: RxTexts;
+    /** The «الأدوية» tab's drug tree (support/tree.ts) */
+    readonly tree: DrugTreeUi;
 
     constructor(page: Page, rt: RxTexts) {
         this.page = page;
         this.rt = rt;
+        this.tree = new DrugTreeUi(page, this.catalog, rt.tree);
     }
 
-    /** «الأدوية المختارة» panel (the picker of the hidden tab still holds drug names: never search the whole page). */
+    /** «الأدوية المختارة» panel (the hidden tab's list still holds drug names: never search the whole page). */
     get panel(): Locator {
         return this.page.locator(".MuiPaper-root").filter({has: this.page.getByText(this.rt.selected, {exact: true})});
     }
@@ -133,14 +137,25 @@ export class RxPage {
         await expect(this.page.getByRole("tab", {name: this.rt.tabProtocols})).toHaveAttribute("aria-selected", "true");
     }
 
-    /** A result of the shown picker (the other tab's picker is hidden and out of the accessibility tree). */
+    /**
+     * A protocol of the Protocols tab's picker, or a drug row of the Drugs tab's tree, by name (the hidden tab is out of
+     * the accessibility tree). A drug row shows once its subcategory is open (`tree.show`).
+     */
     option(name: string): Locator {
-        return this.catalog.getByRole("option").filter({hasText: name});
+        return this.catalog.getByRole("option").filter({hasText: name}).or(this.drug(name));
     }
 
-    async addDrug(name: string) {
-        const option = this.option(name);
-        await option.click();
+    /** A drug's row in the Drugs tab's tree (accessible name: the drug's name). */
+    drug(name: string): Locator {
+        return this.tree.drug(name);
+    }
+
+    /**
+     * Adds a drug from the Drugs tab's tree (contract M1.7c § 4): its name typed in the tree's search; the bucket that
+     * opens by itself, else its category and subcategory (`where`, or looked up through the API), then its row clicked.
+     */
+    async addDrug(name: string, where?: { category: string; subCategory: string }) {
+        await this.tree.addDrug(name, where);
     }
 
     async addProtocol(name: string) {
@@ -174,9 +189,9 @@ export class RxPage {
         await expect(dialog).toBeHidden();
     }
 
-    /** A tab's search box. */
+    /** A tab's search box (Drugs: the tree's). */
     search(tab: "protocols" | "drugs"): Locator {
-        return this.catalog.getByPlaceholder(tab === "protocols" ? this.rt.searchProtocols : this.rt.searchDrugs);
+        return tab === "protocols" ? this.catalog.getByPlaceholder(this.rt.searchProtocols) : this.tree.searchBox;
     }
 
     /**
