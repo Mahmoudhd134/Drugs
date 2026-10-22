@@ -238,6 +238,24 @@ public class DrugCategoryAdminTests(AppFixture app) : IntegrationTest(app)
     }
 
     [Fact]
+    [Trait("Case", "CAT-232")]
+    public async Task An_empty_subcategory_is_deleted_and_its_category_and_siblings_stay()
+    {
+        var admin = await AdminAsync();
+        var category = await Data.Category();
+        var empty = await Data.SubCategory(category.Id);
+        var sibling = await Data.SubCategory(category.Id);
+
+        await (await admin.DeleteAsync(AdminSubCategory(empty.Id))).ShouldBeAsync(HttpStatusCode.NoContent);
+
+        var stored = await admin.AdminCategoryAsync(category.Id);
+        stored.SubCategories.ShouldNotContain(s => s.Id == empty.Id);
+        stored.SubCategories.ShouldContain(s => s.Id == sibling.Id);
+        (await App.QueryDbAsync(db => db.SubCategories.CountAsync(s => s.Id == empty.Id))).ShouldBe(0);
+        await (await admin.DeleteAsync(AdminSubCategory(empty.Id))).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+    }
+
+    [Fact]
     [Trait("Case", "CAT-198")]
     public async Task A_category_holding_one_own_drug_without_a_subcategory_is_409_categoryInUse_with_drugCount_1()
     {
