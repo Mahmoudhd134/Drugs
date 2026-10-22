@@ -84,7 +84,7 @@ Shapes (`Application/Features/Identity/Sessions/AuthResult.cs`, `ContextDto.cs`,
 `roles` lists the user's role names in that clinic and `permissions` the expanded permission keys in a
 clinic context (`[]` otherwise), both since M1.3 ([access](../access/tech.md)).
 
-Catalog endpoints (`/drugs`, `/drug-groups`) carry `[Authorize(Policy = AuthPolicies.ClinicContext)]`:
+Catalog endpoints (`/drugs`, `/protocols`) carry `[Authorize(Policy = AuthPolicies.ClinicContext)]`:
 no/expired/invalid token → 401; a platform or no-context token → 403 `forbidden`. Since M1.3 each
 action also needs its permission, and the staff member and clinic must still be active
 ([access](../access/tech.md)).
@@ -331,8 +331,8 @@ Startup refuses a configuration outside these ranges (`AppSettings.Validate`, th
 - **`SelectClinicPage`**: title «اختر العيادة» / "Choose a clinic", subtitle «اختر المكان الذي تريد العمل فيه الآن.» /
   "Pick where you want to work now."; the contexts (platform admin first, then the clinics and the template in the
   API's order), each with its hint: «إدارة المنصة» / "Platform admin" with «العيادات وإعدادات المنصة كلها» / "Clinics and
-  settings of the whole platform", «العيادة النموذجية» / "Template clinic" with «الأدوية والمجموعات الافتراضية للعيادات
-  الجديدة» / "Default drugs and groups for new clinics"; current one marked; picking another calls `/auth/context`
+  settings of the whole platform", «العيادة النموذجية» / "Template clinic" with «الأدوية والبروتوكولات الافتراضية للعيادات
+  الجديدة» / "Default drugs and protocols for new clinics"; current one marked; picking another calls `/auth/context`
   and opens that context's home (picking the current one
   just opens its home). Buttons: Back (when a context is set) and Log out; no context → `auth.noContexts` ("No clinic
   is available for your number."). The list is `GET /auth/contexts`, loaded fresh on opening (a
@@ -392,7 +392,7 @@ a reload over the real HTTPS deployment.
 
 ### Before M1.6: manual verification (record)
 
-Kept because test cases cite it (e.g. AUTH-026, AUTH-107). Verified manually on a reset DB (API on :5000 in
+Kept because test cases cite it (e.g. AUTH-026, AUTH-107); names as they were then (groups: protocols since M1.7a). Verified manually on a reset DB (API on :5000 in
 Development, Vite on :5173). With a Python script against the API:
 - invalid phone → `invalidPhone`; unknown phone gets a code (`devCode`, 300 s), a second request
   → 429 `tooManyRequests`, the right code → 403 `noAccess` with no cookie, reused → `invalidCode`;

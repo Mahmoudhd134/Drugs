@@ -3,10 +3,10 @@
 ## Summary
 A reusable **Dosing** value (dose + unit, frequency, duration, eye) that turns into one Arabic
 prescription sentence. Today it is used as a drug's **default dosing** and on each **prescription
-line**, and as a **group line override** (Feature 2). Saved prescriptions (a possible later feature) can reuse it.
+line**, and as a **protocol line override** (Feature 2). Saved prescriptions (a possible later feature) can reuse it.
 
 Dosing flows down three levels, each pre-filling the next:
-drug default → group override (empty parts inherit) → prescription line (edited per patient).
+drug default → protocol override (empty parts inherit) → prescription line (edited per patient).
 
 ## Data model
 `ClinicHub.Domain/Catalog/Dosing.cs`: an EF **owned type**, stored as columns on the owner's table, prefixed
@@ -21,12 +21,12 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 | FrequencyText | string(200) | required for `custom` |
 | DurationValue | int? | 1–365, for `days`/`weeks`/`months` |
 | DurationUnit | string(20) | `days`, `weeks`, `months`, `continuous`, `untilNextVisit` |
-| Eye | string(10) | `right`, `left`, `both`, `none` (null = not set); group lines also `ask` |
+| Eye | string(10) | `right`, `left`, `both`, `none` (null = not set); protocol lines also `ask` |
 | TaperSteps | JSON text | optional tapering schedule (2–10 steps); replaces Frequency/Duration. See [tapering](../tapering/tech.md) |
 
 - Codes live in `DosingCodes`; the frontend mirrors them in `features/dosing/types.ts`. **Keep both in sync.**
 - `Drug.DefaultDosing` (nullable). An all-null dosing is stored as null.
-- Migrations: the columns (9 nullable on `Drugs`, 9 on `DrugGroupItems`) are part of `Initial`. History: they came
+- Migrations: the columns (9 nullable on `Drugs`, 9 on `ProtocolItems`, named `DrugGroupItems` until `RenameGroupsToProtocols`) are part of `Initial`. History: they came
   in `AddDrugDefaultDosing`, `AddGroupItemDosing` and `AddTaperSteps` (no data changes), SQLite migrations later folded
   into the single PostgreSQL `Initial` ([migrations](../../tech/overview.md#migrations)).
 - EF logs a startup warning that `Dosing` is an "optional dependent without a required property".
@@ -37,8 +37,8 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
   - `Normalize`: trims, drops fields that don't apply (value for non-numeric frequency/duration,
     text for non-custom), returns null when empty.
   - `IsValid(dosing, allowAskEye)`: true when valid (or null); the validators map false to
-    `invalidDosing` (`DrugErrors.InvalidDosing`, `DrugGroupErrors.InvalidDosing`).
-    `allowAskEye` accepts the `ask` eye (`DosingCodes.GroupEyes`); only group lines pass `true`.
+    `invalidDosing` (`DrugErrors.InvalidDosing`, `ProtocolErrors.InvalidDosing`).
+    `allowAskEye` accepts the `ask` eye (`DosingCodes.ProtocolEyes`); only protocol lines pass `true`.
 - Drugs API accepts/returns `defaultDosing` (see [drugs tech](../drugs/tech.md)). `CreateDrugCommandValidator` /
   `UpdateDrugCommandValidator` check the name, the description (`invalidText`), then the normalized dosing.
 - Configuration helper `DosingConfiguration.Configure` (in
@@ -66,7 +66,7 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
   preview shows the merged result. `allowAskEye` adds the "Ask when adding" eye.
 - `components/DosingLineList.tsx`: shared numbered, drag-to-reorder list of `{ key, drug }` lines
   with ✎ / ⊕ (other eye) / ✕ actions and a `renderDetails` slot. Used by prescription lines and
-  group lines.
+  protocol lines.
 - `components/DosingText.tsx`: renders the sentence (`dir="rtl"`, aligned with the interface direction).
 
 ### i18n
@@ -79,7 +79,7 @@ with the navigation name (e.g. `Drugs.DefaultDosing_Frequency`). All fields opti
 
 ## Edge cases & limitations
 - No dosing instructions (no dose unit, frequency, duration or tapering: an empty dosing, or only an eye;
-  `hasDosingInstructions` in `types.ts`) → prescription and group lines fall back to the drug's description, followed
+  `hasDosingInstructions` in `types.ts`) → prescription and protocol lines fall back to the drug's description, followed
   by the eye part if any (`LineDetails`, `prescriptionText.ts`; M1.6.1, Q2: before, an eye alone hid the description).
 - `application` (ointment) renders as «طبقة رقيقة» regardless of amount.
 - Decimal amounts other than 0.5 use the `_other` form (e.g. «1.5 قرص»).

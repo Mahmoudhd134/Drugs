@@ -30,10 +30,10 @@ docs/
     ├── auth/                  ← phone + OTP login, sessions, clinic contexts (M1.2)
     ├── access/                ← roles, permissions, permission checks (M1.3)
     ├── platform-admin/        ← super admin: clinics, provisioning, each clinic's roles and staff (M1.5)
-    ├── dosing/                ← structured dosing (shared by drugs, groups, prescriptions)
+    ├── dosing/                ← structured dosing (shared by drugs, protocols, prescriptions)
     ├── tapering/              ← tapering schedules (steps inside a dosing)
     ├── drugs/                 ← drug catalog
-    ├── drug-groups/           ← groups / treatment templates
+    ├── protocols/             ← protocols / treatment templates (drug groups until M1.7a)
     └── prescription/          ← building and copying a prescription
 ```
 
@@ -59,6 +59,6 @@ docs/
 | Structured dosing | [tech](features/dosing/tech.md) | [business](features/dosing/business.md) |
 | Tapering schedules | [tech](features/tapering/tech.md) | [business](features/tapering/business.md) |
 | Drug catalog | [tech](features/drugs/tech.md) | [business](features/drugs/business.md) |
-| Drug groups (protocols) | [tech](features/drug-groups/tech.md) | [business](features/drug-groups/business.md) |
+| Protocols (treatment templates; drug groups until M1.7a) | [tech](features/protocols/tech.md) | [business](features/protocols/business.md) |
 | Prescription builder | [tech](features/prescription/tech.md) | [business](features/prescription/business.md) |
 | Platform admin (M1.5: clinics, roles and staff; API and screens) | [tech](features/platform-admin/tech.md) | [business](features/platform-admin/business.md) |

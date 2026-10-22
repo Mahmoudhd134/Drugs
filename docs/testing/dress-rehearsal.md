@@ -23,7 +23,7 @@ they can't and the system as the client will meet it.
 | Server | The target server size and OS, IIS as in `DEPLOY.md`, the production PostgreSQL version and its default collation |
 | Network | **HTTPS** with a real certificate on the real host name (the refresh cookie is `Secure`); also one pass over plain `http://` on the clinic LAN if the clinic will use it (copy fallback, login not kept on reload) |
 | Database | Fresh: created and migrated with the production procedure (`dotnet ef database update` / the deploy script), no dev seed |
-| Data | Realistic, entered through the app or the API (never raw SQL): **several clinics** (active, one suspended, one deleted), each with staff on the default and custom roles (an Arabic role name like «قراءة فقط»), a super admin; **hundreds of drugs** with Arabic and Latin names and descriptions (some 256 characters long, some multi-line), default dosings of every kind (every unit, frequency, duration, eye; tapers up to 10 steps); **dozens of groups** with overrides, «تُحدد عند الإضافة» lines and right/left pairs; Arabic clinic, staff and group names (also mixed Arabic + Latin, digits and punctuation at the ends) |
+| Data | Realistic, entered through the app or the API (never raw SQL): **several clinics** (active, one suspended, one deleted), each with staff on the default and custom roles (an Arabic role name like «قراءة فقط»), a super admin; **hundreds of drugs** with Arabic and Latin names and descriptions (some 256 characters long, some multi-line), default dosings of every kind (every unit, frequency, duration, eye; tapers up to 10 steps); **dozens of protocols** with overrides, «تُحدد عند الإضافة» lines and right/left pairs; Arabic clinic, staff and protocol names (also mixed Arabic + Latin, digits and punctuation at the ends) |
 | Clients | Desktop: Chrome or Edge and Firefox on Windows (Safari on a Mac if available), 1280 px and wider; a **real phone** (Android and iPhone if available), portrait and landscape; Word (desktop) and Windows 11 Notepad for pasting; WhatsApp for a plain-text paste |
 | Languages | Arabic first (the whole checklist), then English |
 
@@ -44,7 +44,7 @@ be automated, the smallest fix, docs updated if behavior changes; a gap in the d
 
 Beyond the checklist, try to break it the way a new user would:
 
-- **Arabic first**: work a full clinic day in Arabic (log in, build prescriptions from groups, edit lines, copy into
+- **Arabic first**: work a full clinic day in Arabic (log in, build prescriptions from protocols, edit lines, copy into
   Word); check every screen is right-to-left, numbers are Latin digits, no English text is left, names in other
   scripts don't scramble the sentences around them.
 - **Phone**: the whole flow on a real phone by touch (drag to reorder, ⓘ tips by tap, dialogs full screen, the
@@ -55,8 +55,8 @@ Beyond the checklist, try to break it the way a new user would:
   users of one clinic on two computers; the super admin changing roles, staff and clinic status while staff work
   (deactivate, remove, suspend, delete, take a permission away) and the staff's next click; log out and in as another
   user in one tab, then use the old tab.
-- **Stale data**: edit or delete a drug or group in one window and use the old one in another (save, delete, add to a
-  prescription); change a drug's default eye that a group relies on.
+- **Stale data**: edit or delete a drug or protocol in one window and use the old one in another (save, delete, add to a
+  prescription); change a drug's default eye that a protocol relies on.
 - **Hands**: double clicks and double Enter on every button and list, Back / Forward / reload in the middle of a flow,
   very long and odd names (256 characters, emoji, Arabic + Latin, leading digits), pasting text with line breaks.
 - **The deployment**: stay logged in across a browser restart over HTTPS; name ordering (English before Arabic, upper
