@@ -46,6 +46,9 @@ export const SearchableList = <T, >(props: Props<T>) => {
         listRef.current?.querySelector(`[data-index="${activeIndex}"]`)?.scrollIntoView({block: "nearest"});
     }, [activeIndex]);
 
+    // The listbox exists only when there are results to show (aria-controls must point at a rendered element)
+    const hasList = !isLoading && !isError && items.length > 0;
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -69,7 +72,7 @@ export const SearchableList = <T, >(props: Props<T>) => {
                 placeholder={placeholder}
                 autoFocus={autoFocus}
                 onKeyDown={handleKeyDown}
-                controls={listId}
+                controls={hasList ? listId : undefined}
             />
 
             <Box sx={{height: 4, mt: 1}}>
