@@ -7,20 +7,31 @@ import {
     api,
     choose,
     clickOutside,
+    drugCategoriesHandler,
     expectStillOpen,
     fillIn,
     findToast,
     holdTimers,
     isRed,
+    optionsOf,
+    pastExitTransition,
     problem,
     recordRequests,
     renderWithProviders,
     server,
 } from "../../../test";
 import type {Drug, SaveDrug} from "../types.ts";
+import {EYE} from "../../../test/data.ts";
 import type {TaperStep} from "../../dosing/types.ts";
 import {DrugFormDialog} from "./DrugFormDialog.tsx";
 import {stepRow} from "../../../test/pages/dosing.ts";
+import {
+    categoryField,
+    DIALOG_CATEGORIES,
+    ingredientsField,
+    pickCategory,
+    subCategoryField,
+} from "../../../test/pages/drugDialog.ts";
 
 // The drug dialog: docs/features/drugs/business.md "إضافة دواء", "الرسائل", tech.md "Frontend" (DrugFormDialog) and
 // "API"; error messages: docs/tech/overview.md "Data fetching" (errors.<code>), ar.ts / en.ts.
@@ -32,6 +43,8 @@ const saveHandlers = () => [
 ];
 
 const renderDialog = async (drug: Drug | null = null, lang: "ar" | "en" = "ar") => {
+    // The dialog reads the categories on open (M1.7b contract "Own-drug dialog")
+    server.use(drugCategoriesHandler(DIALOG_CATEGORIES));
     const onClose = vi.fn();
     const rendered = await renderWithProviders(<DrugFormDialog open drug={drug} onClose={onClose}/>, {lang});
     return {...rendered, onClose};
@@ -96,6 +109,7 @@ describe("drug dialog: API refusals as toasts @area:catalog", () => {
         server.use(http.post(api("/drugs"), () => problem(400, code, {errors: [{code, field}]})));
         const {user, onClose} = await renderDialog(null, lang);
         await fillIn(user, nameField(lang === "ar" ? "الاسم" : "Name"), "Tobradex");
+        await pickCategory(user, {lang});
         await user.click(screen.getByRole("button", {name: lang === "ar" ? "حفظ" : "Save"}));
         return {toast: await findToast(), onClose};
     };
@@ -158,6 +172,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         await choose(user, combo("الفترة"), "أيام");
         for (const field of [number("الجرعة"), combo("الوحدة"), number("العدد"), number("المدة")]) expect(isRed(field)).toBe(false);
         await fillIn(user, nameField(), "Tobradex");
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(isRed(number("الجرعة"))).toBe(true);
     });
@@ -212,10 +227,14 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         // A unit chosen then cleared again leaves an empty dosing behind
         await choose(user, combo("الوحدة"), "نقطة");
         await choose(user, combo("الوحدة"), "—");
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(onClose).toHaveBeenCalled());
         expect(recorded.writes()).toEqual([
-            expect.objectContaining({method: "POST", path: "/drugs", body: {name: "Tobradex", description: null, defaultDosing: null}}),
+            expect.objectContaining({
+                method: "POST", path: "/drugs",
+                body: {name: "Tobradex", activeIngredients: null, description: null, defaultDosing: null, categoryId: EYE.id, subCategoryId: null},
+            }),
         ]);
     });
 
@@ -229,6 +248,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         }));
         const {user, onClose} = await renderDialog();
         await fillIn(user, nameField(), "Tobradex");
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         const saving = await screen.findByRole("button", {name: "جارٍ الحفظ…"});
         expect(saving).toBeDisabled();
@@ -241,6 +261,7 @@ describe("drug dialog: the default dosing @area:catalog", () => {
         server.use(http.post(api("/drugs"), () => new Promise<never>(() => undefined)));
         const {user} = await renderDialog(null, "en");
         await fillIn(user, nameField("Name"), "Tobradex");
+        await pickCategory(user, {lang: "en"});
         await user.click(screen.getByRole("button", {name: "Save"}));
         expect(await screen.findByRole("button", {name: "Saving…"})).toBeDisabled();
         expect(screen.getByRole("button", {name: "Cancel"})).toBeDisabled();
@@ -292,6 +313,7 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
             // Still rendered open after onClose: as during the closing animation
             const {user, onClose} = await renderDialog();
             await fillIn(user, nameField(), "Tobradex");
+            await pickCategory(user);
             await user.click(screen.getByRole("button", {name: "حفظ"}));
             await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
 
@@ -316,6 +338,7 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
             const {user, onClose} = await renderDialog();
             const dialog = screen.getByRole("dialog");
             await fillIn(user, nameField(), "Tobradex");
+            await pickCategory(user);
             await user.click(screen.getByRole("button", {name: "حفظ"}));
             expect(await screen.findByRole("button", {name: "جارٍ الحفظ…"})).toBeDisabled();
             await user.keyboard("{Escape}");
@@ -332,6 +355,7 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
         server.use(http.post(api("/drugs"), () => problem(500, "internalError")));
         const {user, onClose} = await renderDialog();
         await fillIn(user, nameField(), "Tobradex");
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await findToast();
         await waitFor(() => expect(screen.getByRole("button", {name: "حفظ"})).toBeEnabled());
@@ -346,6 +370,7 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
             : HttpResponse.json({id: 501, ...(await request.json() as SaveDrug)}, {status: 201})));
         const {user, onClose} = await renderDialog();
         await fillIn(user, nameField(), "Tobradex");
+        await pickCategory(user);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await findToast();
         await waitFor(() => expect(screen.getByRole("button", {name: "حفظ"})).toBeEnabled());
@@ -381,6 +406,7 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
             // Saved: the closing animation is held (its timers don't run) while the dialog is reopened
             await reopen();
             await fillIn(user, field(), "Tobradex");
+            await pickCategory(user, {scope: screen.getByRole("dialog", {hidden: true}), hidden: true});
             const timers = holdTimers();
             const closing = new Promise<void>(resolve => (closed = resolve));
             await user.click(save());
@@ -399,4 +425,198 @@ describe("drug dialog: locked once saved, fresh on each opening @area:catalog", 
             expect(field()).toHaveValue("");
             await timers.release();
         });
+});
+
+// The category fields (design M1.7 D3, D9; M1.7b contract "Own-drug dialog"; texts: contract § 3.5)
+describe("drug dialog: active ingredients, category and subcategory @area:catalog", () => {
+    test("saved without a category: the category field turns red with «التصنيف مطلوب.» and no request is sent @CAT-049", async () => {
+        const recorded = recordRequests();
+        const {user, onClose} = await renderDialog();
+        await fillIn(user, nameField(), "Tobradex");
+        await user.click(screen.getByRole("button", {name: "حفظ"}));
+        await waitFor(() => expect(isRed(categoryField())).toBe(true));
+        expect(screen.getByText("التصنيف مطلوب.")).toBeInTheDocument();
+        expect(isRed(nameField())).toBe(false);
+        expect(recorded.writes()).toEqual([]);
+        expect(onClose).not.toHaveBeenCalled();
+
+        // Picking one lets the save through
+        server.use(...saveHandlers());
+        await pickCategory(user);
+        await user.click(screen.getByRole("button", {name: "حفظ"}));
+        await waitFor(() => expect(onClose).toHaveBeenCalled());
+        expect(recorded.writes()).toEqual([expect.objectContaining({method: "POST", path: "/drugs", body: expect.objectContaining({categoryId: EYE.id})})]);
+    });
+
+    test("in English the missing category reads \"Category is required.\" @CAT-049", async () => {
+        const recorded = recordRequests();
+        const {user} = await renderDialog(null, "en");
+        await fillIn(user, nameField("Name"), "Tobradex");
+        await user.click(screen.getByRole("button", {name: "Save"}));
+        expect(await screen.findByText("Category is required.")).toBeInTheDocument();
+        expect(isRed(categoryField(document.body, "en"))).toBe(true);
+        expect(recorded.writes()).toEqual([]);
+    });
+
+    test("a category picked: the subcategory list holds only its subcategories, in Arabic, after «بدون تصنيف فرعي»; another category clears the subcategory @CAT-050",
+        async () => {
+            server.use(...saveHandlers());
+            const recorded = recordRequests();
+            const {user, onClose} = await renderDialog();
+            expect(await optionsOf(user, categoryField())).toEqual(["العيون", "مضادات العدوى", "أخرى"]);
+            await pickCategory(user, {category: "العيون"});
+            expect(await optionsOf(user, subCategoryField())).toEqual(["بدون تصنيف فرعي", "المياه الزرقاء", "مضادات العدوى للعين"]);
+            await choose(user, subCategoryField(), "المياه الزرقاء");
+            expect(subCategoryField()).toHaveTextContent("المياه الزرقاء");
+
+            await choose(user, categoryField(), "مضادات العدوى");
+            expect(subCategoryField()).not.toHaveTextContent("المياه الزرقاء");
+            expect(await optionsOf(user, subCategoryField())).toEqual(["بدون تصنيف فرعي", "البنسلينات", "الكينولونات"]);
+
+            // Saved now: the subcategory cleared by the change is sent as none
+            await fillIn(user, nameField(), "Tobradex");
+            await user.click(screen.getByRole("button", {name: "حفظ"}));
+            await waitFor(() => expect(onClose).toHaveBeenCalled());
+            expect(recorded.writes()[0].body).toEqual(expect.objectContaining({categoryId: 2, subCategoryId: null}));
+        });
+
+    test("in English the categories and subcategories show their English names @CAT-050", async () => {
+        const {user} = await renderDialog(null, "en");
+        expect(await optionsOf(user, categoryField(document.body, "en"))).toEqual(["Anti-infectives", "Eye", "Other"]);
+        await pickCategory(user, {lang: "en", category: "Eye"});
+        expect(await optionsOf(user, subCategoryField(document.body, "en"))).toEqual(["No subcategory", "Eye anti-infectives", "Glaucoma"]);
+    });
+
+    test("a subcategory picked is sent with its category @CAT-050", async () => {
+        server.use(...saveHandlers());
+        const recorded = recordRequests();
+        const {user, onClose} = await renderDialog();
+        await fillIn(user, nameField(), "Tobradex");
+        await pickCategory(user, {category: "مضادات العدوى", subCategory: "البنسلينات"});
+        await user.click(screen.getByRole("button", {name: "حفظ"}));
+        await waitFor(() => expect(onClose).toHaveBeenCalled());
+        expect(recorded.writes()[0].body).toEqual(expect.objectContaining({categoryId: 2, subCategoryId: 21}));
+    });
+
+    test("`subCategoryNotFound` (deleted meanwhile): the message on the subcategory field, and the categories are read again @CAT-052",
+        async () => {
+            const recorded = recordRequests();
+            server.use(http.post(api("/drugs"), () =>
+                problem(400, "subCategoryNotFound", {errors: [{code: "subCategoryNotFound", field: "subCategoryId"}]})));
+            const {user, onClose} = await renderDialog();
+            await fillIn(user, nameField(), "Tobradex");
+            await pickCategory(user, {category: "مضادات العدوى", subCategory: "الكينولونات"});
+            const reads = () => recorded.requests.filter(r => r.method === "GET" && r.path === "/drug-categories").length;
+            const before = reads();
+            // The subcategory is gone from the next answer
+            server.use(drugCategoriesHandler(DIALOG_CATEGORIES.map(c => c.id === 2 ? {...c, subCategories: c.subCategories.slice(0, 1)} : c)));
+            await user.click(screen.getByRole("button", {name: "حفظ"}));
+
+            expect(await screen.findByText("هذا التصنيف الفرعي غير موجود في التصنيف المختار.")).toBeInTheDocument();
+            expect(isRed(subCategoryField())).toBe(true);
+            await waitFor(() => expect(reads()).toBeGreaterThan(before));
+            expect(onClose).not.toHaveBeenCalled();
+            await waitFor(async () => expect(await optionsOf(user, subCategoryField())).toEqual(["بدون تصنيف فرعي", "البنسلينات"]));
+        });
+
+    test("the active ingredients input is `dir=\"auto\"` (English or Arabic text) @CAT-053", async () => {
+        const {user} = await renderDialog();
+        const field = ingredientsField();
+        expect(field).toHaveAttribute("dir", "auto");
+        await fillIn(user, field, "أموكسيسيلين");
+        expect(field).toHaveAttribute("dir", "auto");
+    });
+
+    test("a category created a few seconds before is listed when the dialog opens: it reads /drug-categories again @CAT-054", async () => {
+        server.use(drugCategoriesHandler(DIALOG_CATEGORIES));
+        const recorded = recordRequests();
+        const Page = () => {
+            const [open, setOpen] = useState(false);
+            return (
+                <>
+                    <button onClick={() => setOpen(true)}>إضافة دواء</button>
+                    <DrugFormDialog open={open} drug={null} onClose={() => setOpen(false)}/>
+                </>
+            );
+        };
+        const {user} = await renderWithProviders(<Page/>, {lang: "ar"});
+        await user.click(screen.getByRole("button", {name: "إضافة دواء"}));
+        expect(await optionsOf(user, categoryField())).toEqual(["العيون", "مضادات العدوى", "أخرى"]);
+        await user.click(screen.getByRole("button", {name: "إلغاء"}));
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+        // The super admin adds «الجلدية» (the list would otherwise stay fresh for 30 s)
+        const dermatology = {id: 50, nameEn: "Dermatology", nameAr: "الجلدية", pinnedLast: false, subCategories: []};
+        server.use(drugCategoriesHandler([...DIALOG_CATEGORIES.slice(0, 2), dermatology, DIALOG_CATEGORIES[2]]));
+        await user.click(screen.getByRole("button", {name: "إضافة دواء"}));
+        await waitFor(async () => expect(await optionsOf(user, categoryField())).toContain("الجلدية"));
+        expect(recorded.requests.filter(r => r.method === "GET" && r.path === "/drug-categories").length).toBeGreaterThanOrEqual(2);
+    });
+});
+
+// UX-044 (ADM-292's rule, UX-040; BUG-586/588, UX-041) on the own-drug dialog with its category fields
+describe("drug dialog with the category fields: locked while saving, fresh on each opening @area:ux", () => {
+    test("with the save held: Esc, a backdrop click and «إلغاء» do nothing, a second Save sends nothing; reopened while closing it starts empty @UX-044",
+        async () => {
+            let answer: () => void = () => undefined;
+            const answered = new Promise<void>(resolve => (answer = resolve));
+            server.use(drugCategoriesHandler(DIALOG_CATEGORIES), http.post(api("/drugs"), async () => {
+                await answered;
+                return HttpResponse.json(aDrug({name: "Tobradex"}), {status: 201});
+            }));
+            const recorded = recordRequests();
+            let closed: () => void = () => undefined;
+            const Page = () => {
+                const [open, setOpen] = useState(false);
+                return (
+                    <>
+                        <button onClick={() => setOpen(true)}>إضافة دواء</button>
+                        <DrugFormDialog open={open} drug={null} onClose={() => {
+                            setOpen(false);
+                            closed();
+                        }}/>
+                    </>
+                );
+            };
+            const {user} = await renderWithProviders(<Page/>, {lang: "ar"});
+            await user.click(screen.getByRole("button", {name: "إضافة دواء"}));
+            const dialog = await screen.findByRole("dialog");
+            await fillIn(user, within(dialog).getByRole("textbox", {name: "الاسم"}), "Tobradex");
+            await fillIn(user, ingredientsField(dialog), "TOBRAMYCIN");
+            await pickCategory(user, {scope: dialog, category: "مضادات العدوى", subCategory: "البنسلينات"});
+            await user.click(within(dialog).getByRole("button", {name: "حفظ"}));
+            expect(await within(dialog).findByRole("button", {name: "جارٍ الحفظ…"})).toBeDisabled();
+
+            await user.keyboard("{Escape}");
+            await clickOutside(user, dialog);
+            // «إلغاء» is disabled while saving: a click on it does nothing
+            await act(async () => fireEvent.click(within(dialog).getByRole("button", {name: "إلغاء"})));
+            await expectStillOpen(dialog);
+            await act(async () => fireEvent.click(within(dialog).getByRole("button", {name: "جارٍ الحفظ…"})));
+            await act(async () => fireEvent.submit(dialog.querySelector("form")!));
+            expect(recorded.writes()).toHaveLength(1);
+
+            // Answered: closing; reopened during the closing animation, it starts empty (no category, no ingredients)
+            const timers = holdTimers();
+            const closing = new Promise<void>(resolve => (closed = resolve));
+            answer();
+            await act(async () => closing);
+            await user.click(screen.getByRole("button", {name: "إضافة دواء", hidden: true}));
+            const reopened = screen.getByRole("dialog", {hidden: true});
+            expect(within(reopened).getByRole("textbox", {name: "الاسم", hidden: true})).toHaveValue("");
+            expect(ingredientsField(reopened, "ar", true)).toHaveValue("");
+            expect(categoryField(reopened, "ar", true)).not.toHaveTextContent(/العيون|مضادات العدوى|أخرى/);
+            expect(within(reopened).getByRole("button", {name: "حفظ", hidden: true})).toBeEnabled();
+            await timers.release();
+            await pastExitTransition();
+            expect(recorded.writes()).toHaveLength(1);
+        });
+
+    test("opened on an own drug: it starts from that drug's ingredients, category and subcategory @UX-044", async () => {
+        await renderDialog(aDrug({name: "Tobradex", activeIngredients: "TOBRAMYCIN + DEXAMETHASONE"}));
+        expect(nameField()).toHaveValue("Tobradex");
+        expect(ingredientsField()).toHaveValue("TOBRAMYCIN + DEXAMETHASONE");
+        await waitFor(() => expect(categoryField()).toHaveTextContent("العيون"));
+        expect(subCategoryField()).toHaveTextContent("المياه الزرقاء");
+    });
 });

@@ -1,6 +1,7 @@
 import {ApiSession, type Target} from "./api.ts";
 import {claimSuperAdminPhone, unique, uniquePhone} from "./phones.ts";
 import {runState} from "./run.ts";
+import {ownDrugBody} from "./shared.ts";
 
 /** API shapes (docs/features/platform-admin/tech.md "API"). */
 export type ClinicDetails = {
@@ -155,7 +156,8 @@ export class Data {
 
     async drug(clinic: ClinicHandle, name = `Drug ${unique()}`, defaultDosing: unknown = null): Promise<Drug> {
         const api = await this.ownerApi(clinic);
-        return api.ok<Drug>("POST", "/api/v1/drugs", {name, description: null, defaultDosing});
+        // Own drugs need a category (design M1.7 D12): «العيون › المياه الزرقاء»
+        return api.ok<Drug>("POST", "/api/v1/drugs", await ownDrugBody(api, {name, defaultDosing}));
     }
 
     async protocol(clinic: ClinicHandle, drugs: Drug[], name = `Protocol ${unique()}`): Promise<Protocol> {

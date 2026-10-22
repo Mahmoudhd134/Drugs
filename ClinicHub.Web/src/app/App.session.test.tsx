@@ -1,6 +1,7 @@
 import {describe, expect, test} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
+import {pickCategory} from "../test/pages/drugDialog.ts";
 import {
     aClinicContext,
     aDrug,
@@ -8,6 +9,7 @@ import {
     anAccessToken,
     aPage,
     api,
+    drugCategoriesHandler,
     expectPath,
     expectToasts,
     meByContext,
@@ -95,6 +97,7 @@ describe("staying logged in @area:auth", () => {
             meByContext(),
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})]))),
             http.post(api("/drugs"), () => networkError()),
+            drugCategoriesHandler(),
         );
         const app = await startApp({route: "/drugs", lang: "ar"});
         await screen.findByText("Tobradex");
@@ -102,6 +105,8 @@ describe("staying logged in @area:auth", () => {
         await app.user.click(screen.getByRole("button", {name: "إضافة دواء"}));
         await app.user.click(await screen.findByRole("textbox", {name: /^الاسم/}));
         await app.user.paste("Vigamox");
+        // A new drug needs a category (design M1.7 D3)
+        await pickCategory(app.user, {scope: screen.getByRole("dialog")});
         await app.user.click(screen.getByRole("button", {name: "حفظ"}));
 
         await expectToasts("تعذّر الاتصال بالخادم. تحقّق من الاتصال.");

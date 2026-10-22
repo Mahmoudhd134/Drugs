@@ -199,7 +199,7 @@ test.describe("Content in both languages @area:i18n", () => {
             await animationsDone(page);
         });
 
-    test("numbers use Western digits: counts, pagination, results, line and step numbers, the taper total and the sentences @I18N-014",
+    test("numbers use grouped Western digits: counts, pagination («1–20 من N», N the list's total), results, line and step numbers, the taper total and the sentences @I18N-014",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
@@ -211,8 +211,10 @@ test.describe("Content in both languages @area:i18n", () => {
             const protocols = (await api.ok<{ totalCount: number }>("GET", "/api/v1/protocols?pageSize=20")).totalCount;
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
+            // N is the list's totalCount from the API (the shared catalog included), grouped: never a literal (design M1.7 D12)
+            expect(total, "the shared catalog is in the list").toBeGreaterThan(1000);
             await expect(page.getByText(u.drugsSubtitle(total), {exact: true})).toBeVisible();
-            await expect(page.getByText(u.displayedRows(1, total, total), {exact: true})).toBeVisible();
+            await expect(page.getByText(u.displayedRows(1, 20, total), {exact: true})).toBeVisible();
             await expectShown(page, DOSINGS.twoDropsLeft.text, "sentence");
             await expectWesternDigits(page, "drugs");
             await drugRow(page, taper.name).click();

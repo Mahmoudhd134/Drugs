@@ -4,6 +4,7 @@ import type {ClinicHandle, Data} from "./data.ts";
 import {unique} from "./phones.ts";
 import type {RxTexts} from "./texts-rx.ts";
 import {toast} from "./ui.ts";
+import {ownDrugBody} from "./shared.ts";
 
 /**
  * Helpers of the prescription journeys (RX): test data with descriptions and dosings (the stage-1 `data.drug` /
@@ -42,19 +43,19 @@ const owner = (data: Data, clinic: ClinicHandle) => {
 export const rxDrug = async (data: Data, clinic: ClinicHandle,
                              options: { name?: string; description?: string | null; dosing?: Dosing | null } = {}): Promise<RxDrug> => {
     const api = await owner(data, clinic);
-    return api.ok<RxDrug>("POST", "/api/v1/drugs", {
+    return api.ok<RxDrug>("POST", "/api/v1/drugs", await ownDrugBody(api, {
         name: options.name ?? rxName("Drug"), description: options.description ?? null, defaultDosing: options.dosing ?? null,
-    });
+    }));
 };
 
 export const rxUpdateDrug = async (data: Data, clinic: ClinicHandle, drug: RxDrug,
                                    changes: { name?: string; description?: string | null; dosing?: Dosing | null }) => {
     const api = await owner(data, clinic);
-    return api.ok<RxDrug>("PUT", `/api/v1/drugs/${drug.id}`, {
+    return api.ok<RxDrug>("PUT", `/api/v1/drugs/${drug.id}`, await ownDrugBody(api, {
         name: changes.name ?? drug.name,
         description: changes.description !== undefined ? changes.description : drug.description,
         defaultDosing: changes.dosing !== undefined ? changes.dosing : drug.defaultDosing,
-    });
+    }));
 };
 
 export const rxDeleteDrug = async (data: Data, clinic: ClinicHandle, drug: RxDrug) => {

@@ -18,6 +18,8 @@ import {
 } from "../support/catalog.ts";
 import {CATALOG_TEXTS, type CatalogTexts, SENTENCES} from "../support/texts-catalog.ts";
 import {expectToast, navTo} from "../support/ui.ts";
+import {categorySelect, EYE, GLAUCOMA, ownDrugIn, pickCategory, subCategorySelect} from "../support/shared.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
 
 /** Drugs: add, open, edit, delete, read-only details, default dosing and tapering (docs/features/drugs, dosing, tapering). */
 
@@ -38,8 +40,8 @@ const expectDosingForm = async (form: Locator, ct: CatalogTexts, values: {
 };
 
 test.describe("Drugs: add, open, edit @area:catalog", () => {
-    test("«إضافة دواء», a name, Save: the toast «تمت إضافة الدواء», the dialog closes and the drug is listed @DRUG-061 @smoke",
-        async ({page, t, data, healthy}) => {
+    test("«إضافة دواء», a name, a category, Save: the toast «تمت إضافة الدواء», the dialog closes and the drug is found by search @DRUG-061 @smoke",
+        async ({page, t, lang, data, healthy}) => {
             const clinic = await data.clinic();
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
             const name = `New drug ${unique()}`;
@@ -47,19 +49,26 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             const form = dialog(page, t.newDrug);
             await expect(form).toBeVisible();
             await form.getByRole("textbox", {name: t.drugName}).fill(name);
+            // A category must be picked before saving (design M1.7 D3)
+            await pickCategory(page, form, lang);
             await healthy();
             await form.getByRole("button", {name: t.save}).click();
             await expectToast(page, t.drugAdded);
             await expect(form).toHaveCount(0);
+            await search(page, page.getByPlaceholder(t.searchDrugs), name);
             await expect(drugRow(page, name)).toBeVisible();
+            await expect(drugRow(page, name).getByText(SHARED_TEXTS[lang].chipOwn, {exact: true})).toBeVisible();
         });
 
-    test("a row (or its ✎) opens «تعديل الدواء» filled with the name, description and default dosing @DRUG-066",
+    test("an own row (or its ✎) opens «تعديل الدواء» filled with the name, description, default dosing, ingredients, category and subcategory @DRUG-066",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
+            const st = SHARED_TEXTS[lang];
             const clinic = await data.clinic();
             const description = `Shake well ${unique()}\nKeep cold`;
-            const drug = await createDrug(data, clinic, `Edit me ${unique()}`, {description, dosing: DOSINGS.dropRight4x7d});
+            const drug = await ownDrugIn(data, clinic, {
+                name: `Edit me ${unique()}`, description, defaultDosing: DOSINGS.dropRight4x7d, activeIngredients: "TOBRAMYCIN",
+            });
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             for (const how of ["row", "edit button"] as const) {
@@ -75,6 +84,9 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
                     period: ct.durations.days, duration: "7", eye: ct.eyes.right,
                 });
                 await expect(sentenceIn(form)).toHaveText(SENTENCES.dropRight4x7d);
+                await expect(form.getByRole("textbox", {name: st.activeIngredients})).toHaveValue("TOBRAMYCIN");
+                await expect(categorySelect(form, lang)).toContainText(EYE[lang]);
+                await expect(subCategorySelect(form, lang)).toContainText(GLAUCOMA[lang]);
                 if (how === "row") await healthy();
                 await form.getByRole("button", {name: t.cancel}).click();
                 await expect(form).toHaveCount(0);
@@ -111,11 +123,14 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
         await expectToast(page, t.notFound);
     });
 
-    test("a read-only role: a row opens «تفاصيل الدواء» with the name, dosing sentence and description, and only «إغلاق» @DRUG-072 @DOSE-087",
-        async ({page, t, data, healthy}) => {
+    test("a read-only role: a row opens «تفاصيل الدواء» with the name, active ingredients, «التصنيف: … › …», dosing sentence and description, and only «إغلاق» @DRUG-072 @DOSE-087",
+        async ({page, t, lang, data, healthy}) => {
+            const st = SHARED_TEXTS[lang];
             const clinic = await data.clinic();
             const description = `For dry eyes ${unique()}`;
-            const drug = await createDrug(data, clinic, `Viewer drug ${unique()}`, {description, dosing: DOSINGS.dropRight4x7d});
+            const drug = await ownDrugIn(data, clinic, {
+                name: `Viewer drug ${unique()}`, description, defaultDosing: DOSINGS.dropRight4x7d, activeIngredients: "HYALURONATE",
+            });
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, READ_ONLY)).id]});
             await signIn(page, viewer.phone, "asIs", "/drugs");
             await drugRow(page, drug.name).getByRole("cell").first().click();
@@ -124,6 +139,8 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             await expect(details.getByText(drug.name, {exact: true})).toBeVisible();
             await expect(sentenceIn(details)).toHaveText(SENTENCES.dropRight4x7d);
             await expect(details.getByText(description, {exact: true})).toBeVisible();
+            await expect(details.getByText("HYALURONATE", {exact: true})).toBeVisible();
+            await expect(details.getByText(st.categoryLine(st.categoryPath(EYE[lang], GLAUCOMA[lang])), {exact: true})).toBeVisible();
             await expect(details.getByRole("textbox")).toHaveCount(0);
             await expect(details.getByRole("button")).toHaveText([t.close]);
             await healthy();
@@ -237,6 +254,7 @@ test.describe("Tapering in the drug dialog @area:catalog", () => {
             await form.getByLabel(ct.taper, {exact: true}).check();
             await fillNumber(stepRow(form, ct, 2), ct.dose, 1);
             await expect(sentenceIn(form)).toHaveText(SENTENCES.taperExample);
+            await pickCategory(page, form, lang);
             await healthy();
             await form.getByRole("button", {name: t.save}).click();
             await expectToast(page, t.drugAdded);
