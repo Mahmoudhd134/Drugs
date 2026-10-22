@@ -1,10 +1,9 @@
-import {keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {keepPreviousData, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {api} from "../../api/client.ts";
-import {hasNextPage, type PagedResult, type QueryOptions} from "../../api/types.ts";
+import {type PagedResult, type QueryOptions} from "../../api/types.ts";
 import type {Category, Drug, DrugFilters, SaveDrug} from "./types.ts";
 import {protocolKeys} from "../protocols/api.ts";
 
-const PICKER_PAGE_SIZE = 30;
 /** Categories change rarely (design M1.7 D5): like the pickers; the drug dialog refetches on open. */
 export const CATEGORIES_STALE_TIME = 30_000;
 
@@ -12,7 +11,6 @@ export const drugKeys = {
     all: ["drugs"] as const,
     list: (search: string, page: number, pageSize: number, filters: DrugFilters = {}) =>
         [...drugKeys.all, "list", search, page, pageSize, filters] as const,
-    picker: (search: string) => [...drugKeys.all, "picker", search] as const,
     categories: ["drugCategories"] as const,
 };
 
@@ -52,17 +50,6 @@ export const useDrugs = (search: string, page: number, pageSize: number, {enable
     useQuery({
         queryKey: drugKeys.list(search, page, pageSize, filters),
         queryFn: () => fetchDrugs(search, page, pageSize, filters),
-        placeholderData: keepPreviousData,
-        enabled,
-    });
-
-/** Growing list of drugs ("load more"), for pickers. */
-export const useDrugPicker = (search: string, {enabled = true}: QueryOptions = {}) =>
-    useInfiniteQuery({
-        queryKey: drugKeys.picker(search),
-        queryFn: ({pageParam}) => fetchDrugs(search, pageParam, PICKER_PAGE_SIZE),
-        initialPageParam: 1,
-        getNextPageParam: (last) => (hasNextPage(last) ? last.page + 1 : undefined),
         placeholderData: keepPreviousData,
         enabled,
     });

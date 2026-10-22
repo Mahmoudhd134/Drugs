@@ -129,7 +129,10 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     description, M1.6.1), chips "Protocol dosing" (override set) and "Eye is chosen
     when the protocol is added" (`ask`). Chips wrap on narrow screens. Actions: ✎ edit, ⊕ add for the
     other eye (when the effective eye is right/left and the other is free), ✕ remove; drag to reorder.
-  - Adding a drug from `DrugPicker` creates a line with an empty override; adding a drug+eye pair
+  - The editable editor's "Add drugs" part is `<DrugTree onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>`
+    (M1.7c; [the drug tree](../prescription/tech.md#the-drug-tree-drugtree), which replaced `DrugPicker`; the
+    read-only editor has none). Adding a drug from the tree creates a line with an empty override (as the picker did);
+    the tree keeps its search, open nodes and place after an add; adding a drug+eye pair
     already in the protocol shows `protocols.alreadyInProtocolForEye`.
   - `components/ProtocolItemDialog.tsx`: `DosingFields` in **inherit mode** (`inheritFrom` = drug
     default: empty fields display "Drug default", preview shows the merged result) with

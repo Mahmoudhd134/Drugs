@@ -23,7 +23,7 @@ import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
-import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
+import {DrugTree} from "../../drugs/components/DrugTree.tsx";
 import {DosingLineList} from "../../dosing/components/DosingLineList.tsx";
 import {LineDetails} from "../../dosing/components/LineDetails.tsx";
 import {ASK_EYE, eyeKey, isDosingEmpty, otherEye, type Dosing} from "../../dosing/types.ts";
@@ -331,7 +331,7 @@ const ProtocolEditor = ({protocolId, initial}: { protocolId: number | null; init
                         <Paper variant="outlined" sx={{p: 2.5, position: {md: "sticky"}, top: {md: 88}}}>
                             <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("protocols.addDrugs")}</Typography>
                             <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>{t("protocols.addDrugsHint")}</Typography>
-                            <DrugPicker onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>
+                            <DrugTree onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>
                         </Paper>
                     </Grid>
                 )}
