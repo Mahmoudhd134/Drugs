@@ -371,6 +371,17 @@ public interface IAppDbContext
   super admin's per-clinic admin endpoints (`ClinicErrors.NotFound` for a missing, deleted or template clinic;
   suspended allowed; switching to a *different* clinic once one is set throws) and `using (scope.Use(clinicId))`
   for non-HTTP code (sets it for a block, restores the previous one; nestable).
+- **Shared rows** (M1.7b, `IClinicOrShared`: `Drug` only, `ClinicId` null = a shared drug of the platform catalog):
+  the filter shows the shared rows plus the current clinic's (a platform request sees only the shared ones). Shared
+  rows are written only inside `using (scope.UseSharedCatalog())` (the admin shared-drug handlers): it sets
+  `IClinicContext.WritingSharedCatalog` for a block (nestable), throws when a clinic is in context, and `Use` /
+  `EnterAsync` throw inside it. The save interceptor applies the M1.7 design's D2 table (shared rows read-only in a
+  clinic, never deleted, no owner change, no dosing on a shared drug, an own drug never withdrawn):
+  [clinic scoping](../features/clinic-scoping/tech.md#backend).
+- **Search columns** (M1.7b): `SearchName` (drugs, protocols, clinics, staff) and `SearchOther` (drugs) are ordinary
+  columns filled by the save interceptor from their source properties (`HasSearchName(source)` / `HasSearchOther()`
+  in `SearchNameConfiguration`), folded with `SearchText`, the same code that folds the search term: no
+  database-specific SQL. No `ExecuteUpdate` sets a searched text (it would skip the interceptor).
 - **The admin clinic filter** (M1.5.3, `Api/Features/Platform/AdminClinicFilter.cs`): `[AdminClinic]` on
   `AdminRolesController` and `AdminStaffController` (routes `api/v1/admin/clinics/{clinicId:int}/roles…`,
   `/staff…`, with the `PlatformAdmin` policy, which guarantees no clinic is set yet). A resource filter: it runs
@@ -494,8 +505,8 @@ calls it (so it always runs in that command's transaction); everyone else, the d
 
 - `AppDbContext : DbContext, IAppDbContext`; `ApplyConfigurationsFromAssembly` loads one
   `IEntityTypeConfiguration<T>` per entity (`DrugConfiguration`, `StaffConfiguration`…) instead of one large
-  `OnModelCreating`. The generic clinic setup (FK to `Clinics` + query filter for every `IClinicOwned`) stays
-  in `AppDbContext`.
+  `OnModelCreating`. The generic clinic setup (FK to `Clinics` + query filter for every `IClinicOwned`; since M1.7b also
+  every `IClinicOrShared`, nullable) stays in `AppDbContext`.
 - The clinic/timestamps interceptor moves as is.
 - **Migrations move to `ClinicHub.Infrastructure`** with their ids unchanged, so existing databases are
   unaffected. They are **never regenerated**: new ones are added on top, and both adding and applying use
