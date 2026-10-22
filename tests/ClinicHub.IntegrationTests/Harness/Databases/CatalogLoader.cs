@@ -37,20 +37,26 @@ public static class CatalogLoader
         return $"host={b.Host} port={b.Port} dbname={b.Database} user={b.Username} password={b.Password}";
     }
 
+    /// <summary>How long one load may take (it takes a few seconds; a hung Python is killed and fails the run).</summary>
+    public static readonly TimeSpan LoadTimeout = TimeSpan.FromMinutes(5);
+
     /// <summary>
     /// Loads the catalog into the (migrated, empty) database; throws with the script's output on failure, or with
-    /// <see cref="InstallHint"/> when Python or psycopg is missing. M1.7b T0: a first version; the <c>harness</c> track
-    /// owns it (timeouts, the run log).
+    /// <see cref="InstallHint"/> when Python or psycopg is missing (also the Windows "python" app alias that only opens
+    /// the Store: exit code 9009).
     /// </summary>
     public static async Task LoadAsync(string connectionString)
     {
         var start = new ProcessStartInfo("python")
         {
             RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
+            StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         start.ArgumentList.Add(ScriptPath);
         start.ArgumentList.Add("--connection");
         start.ArgumentList.Add(ConnInfo(connectionString));
+        // The script's own messages in UTF-8 whatever the console code page
+        start.Environment["PYTHONIOENCODING"] = "utf-8";
         Process process;
         try
         {
@@ -64,11 +70,25 @@ public static class CatalogLoader
         {
             var output = process.StandardOutput.ReadToEndAsync();
             var error = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            if (process.ExitCode == 0)
-                return;
+            using (var timeout = new CancellationTokenSource(LoadTimeout))
+            {
+                try
+                {
+                    await process.WaitForExitAsync(timeout.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    process.Kill(entireProcessTree: true);
+                    throw new InvalidOperationException($"load_catalog.py did not finish within {LoadTimeout.TotalMinutes:0} minutes (killed).");
+                }
+            }
             var text = await error;
-            throw new InvalidOperationException(text.Contains("No module named 'psycopg'")
+            if (process.ExitCode == 0)
+            {
+                TestRun.Log.Enqueue($"load_catalog.py: {(await output).Trim()}");
+                return;
+            }
+            throw new InvalidOperationException(text.Contains("No module named 'psycopg'") || process.ExitCode == 9009
                 ? InstallHint
                 : $"load_catalog.py failed ({process.ExitCode}): {await output}{text}");
         }
