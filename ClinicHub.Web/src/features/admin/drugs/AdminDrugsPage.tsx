@@ -181,8 +181,12 @@ export const AdminDrugsPage = () => {
             />
 
             <Paper variant="outlined" sx={{overflow: "hidden"}}>
-                <Stack direction={{xs: "column", md: "row"}} sx={{p: 2, gap: 1.5}}>
-                    <SearchField value={search} onChange={setSearch} placeholder={t("adminDrugs.searchPlaceholder")}/>
+                {/* One row only when the search keeps room for its whole placeholder next to the three filters (with the
+                    sidebar shown, a row below 1200 px squeezed it to "Search the sh…"); else the filters go under it */}
+                <Stack direction={{xs: "column", lg: "row"}} sx={{p: 2, gap: 1.5}}>
+                    <Box sx={{flex: 1, minWidth: {lg: 280}}}>
+                        <SearchField value={search} onChange={setSearch} placeholder={t("adminDrugs.searchPlaceholder")}/>
+                    </Box>
                     <Stack direction={{xs: "column", sm: "row"}} sx={{gap: 1.5}}>
                         <TextField
                             select
