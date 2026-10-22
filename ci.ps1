@@ -98,7 +98,8 @@ $run = $null
 for ($i = 0; $i -lt 30 -and -not $run; $i++) {
     Start-Sleep -Seconds 3
     $json = & $gh run list --workflow ci.yml --branch $branch --event workflow_dispatch --limit 10 --json 'databaseId,headSha,createdAt,url' | Out-String
-    $run = @($json | ConvertFrom-Json) | Where-Object { $_.headSha -eq $sha -and ([datetime]$_.createdAt).ToUniversalTime() -ge $started } |
+    # Windows PowerShell's ConvertFrom-Json passes a JSON list on as one object: unroll it
+    $run = $json | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object { $_.headSha -eq $sha -and ([datetime]$_.createdAt).ToUniversalTime() -ge $started } |
         Select-Object -First 1
 }
 if (-not $run) { throw 'The run did not show up within 90 s: look at the Actions tab' }
