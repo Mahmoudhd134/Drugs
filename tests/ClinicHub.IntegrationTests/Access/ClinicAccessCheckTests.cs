@@ -33,6 +33,21 @@ public class ClinicAccessCheckTests(AppFixture app) : IntegrationTest(app)
         await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
 
+    /// <summary>The catalog reads added with the shared catalog (M1.7b, M1.7c): the categories and the drug tree.</summary>
+    [Theory]
+    [InlineData("/api/v1/drugs/tree")]
+    [InlineData("/api/v1/drugs/tree?search=amox&source=own")]
+    [InlineData("/api/v1/drug-categories")]
+    [Trait("Case", "ACC-034")]
+    public async Task A_platform_token_is_forbidden_on_the_tree_and_the_categories(string url)
+    {
+        var platform = await Login.SharedSuperAdminAsync();
+
+        var response = await platform.GetAsync(url);
+
+        await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
+    }
+
     [Theory]
     [MemberData(nameof(CatalogRoutes.All), MemberType = typeof(CatalogRoutes))]
     [Trait("Case", "ACC-035")]
