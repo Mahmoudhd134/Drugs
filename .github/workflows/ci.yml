@@ -1,6 +1,7 @@
 # The full tier (docs/testing/README.md "Continuous integration") on GitHub Actions, never on the laptop.
-# Runs on: every pull request (step -> feature, feature -> main: "Gates" is the required check), a manual run
-# (Actions -> CI -> Run workflow) and a push whose last commit message contains [ci] (a step branch's report run).
+# Runs on: every pull request (step -> feature, feature -> main: "Gates" is the required check) and a manual run, a step
+# branch's report run (Actions -> CI -> Run workflow, or: gh workflow run CI --ref <branch>). No push trigger: on a PR's
+# branch it would add a second, skipped run to the PR's checks.
 # Jobs run in parallel and never stop each other (report mode): backend, frontend, e2e in 6 shards; Gates merges the
 # reports, checks traceability and fails when any of them failed.
 name: CI
@@ -8,8 +9,6 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
-  push:
-    branches-ignore: [main]
 
 # A newer run of the same PR or branch cancels the older one
 concurrency:
@@ -30,8 +29,6 @@ env:
 jobs:
   start:
     name: Start
-    # A push runs the tier only when asked for with [ci] in the last commit message
-    if: github.event_name != 'push' || contains(github.event.head_commit.message, '[ci]')
     runs-on: ubuntu-latest
     outputs:
       seed: ${{ steps.seed.outputs.seed }}
@@ -194,9 +191,17 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('ClinicHub.Web/package-lock.json') }}
       - name: Chromium and its system libraries
         run: npx playwright install --with-deps chromium
-      # Global setup builds the SPA and the Release API, starts the API on its own database (e2e/global-setup.ts)
+      # Built here rather than in global setup: no compiler server or MSBuild node left alive holding the step's output
+      # open (the runner waits for it: shards hung after their tests)
+      - name: Build the SPA and the Release API
+        run: |
+          npm run build
+          dotnet build ../ClinicHub.Api/ClinicHub.Api.csproj -c Release -nologo -v q -nodeReuse:false -p:UseSharedCompilation=false
+      # Global setup reuses that build, starts the API on its own database (e2e/global-setup.ts)
       - name: Playwright (${{ matrix.part }})
+        timeout-minutes: 20
         env:
+          CLINICHUB_E2E_NO_BUILD: "1"
           PROJECTS: ${{ matrix.part == 'template' && '--project=ar-desktop-template --no-deps' || format('--project=ar-desktop --project=en-desktop --project=ar-phone --shard={0}', matrix.part) }}
         # $PROJECTS splits into its arguments on purpose
         run: |
@@ -228,8 +233,8 @@ jobs:
   gates:
     name: Gates
     needs: [start, backend, frontend, e2e]
-    # Always reports (the required check), unless the run itself was not asked for (a push without [ci])
-    if: ${{ always() && needs.start.result == 'success' }}
+    # Always reports (the required check), whatever the other jobs did
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
