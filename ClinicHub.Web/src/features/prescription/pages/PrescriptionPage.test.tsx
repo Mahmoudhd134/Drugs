@@ -60,8 +60,8 @@ describe("the prescription page @area:prescription", () => {
         expect(await findToast()).toBe("تم النسخ");
         const {text, html} = await clipboard!.written();
         expect(text).toBe("Tears\nقطرة مرطبة\nفي العين اليمنى\n\nGel\nجل مرطب");
-        expect(html).toContain("<strong>Tears</strong><br>قطرة مرطبة<br>في العين اليمنى");
-        expect(html).toContain("<strong>Gel</strong><br>جل مرطب</p>");
+        expect(html).toContain('<strong dir="ltr">Tears</strong><br>قطرة مرطبة<br>في العين اليمنى');
+        expect(html).toContain('<strong dir="ltr">Gel</strong><br>جل مرطب</p>');
     });
 });
 

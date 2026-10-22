@@ -29,14 +29,14 @@ const threeLines = async (page: Page, rx: RxPage, data: Data, clinic: ClinicHand
 };
 
 /**
- * The HTML for Word (RX-067, RX-069): one paragraph per drug (`<strong>name</strong><br>details`, multi-line text
- * with `<br>`), empty paragraphs between drugs; every paragraph `dir="rtl"`, `text-align:right`, no margins, no class.
+ * The HTML for Word (RX-067, RX-069): one paragraph per drug (`<strong dir="ltr">name</strong><br>details`: the Latin
+ * name's own direction, D27; multi-line text with `<br>`), empty paragraphs between drugs; every paragraph `dir="rtl"`, `text-align:right`, no margins, no class.
  */
 const expectWordHtml = (paragraphs: HtmlParagraph[], drugs: string[][]) => {
     const expected: string[] = [];
     drugs.forEach(([name, ...details], i) => {
         if (i) expected.push("<br>");
-        expected.push([`<strong>${name}</strong>`, ...details].join("<br>"));
+        expected.push([`<strong dir="ltr">${name}</strong>`, ...details].join("<br>"));
     });
     expect(paragraphs.map(p => p.html), "the copied paragraphs").toEqual(expected);
     for (const p of paragraphs) {

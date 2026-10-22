@@ -68,7 +68,7 @@ test.describe("Prescription: shared drugs @area:prescription", () => {
         await expectToast(page, rt.copied);
         const copied = await readClipboard(page);
         expect(copied.text).toBe(IMPORTED.vigamox);
-        expect(copied.html).toContain(`<strong>${IMPORTED.vigamox}</strong>`);
+        expect(copied.html).toContain(`<strong dir="ltr">${IMPORTED.vigamox}</strong>`);
     });
 
     test("a shared drug's line edited to «نقطة في العين اليمنى 4 مرات يوميًا», then copied: the Arabic sentence as for own drugs @RX-108",
