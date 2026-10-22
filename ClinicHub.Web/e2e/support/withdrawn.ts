@@ -25,9 +25,20 @@ const expectTooltipShown = async (page: Page, lang: Lang, what: string) => {
     expect(await shown.evaluate(e => getComputedStyle(e).direction), `${what}: the tooltip's direction`).toBe(lang === "ar" ? "rtl" : "ltr");
 };
 
-/** Hover, then keyboard focus (Shift+Tab, Tab: a keyboard focus), each shows the tooltip; Esc closes it. */
-export const expectMarkTooltip = async (page: Page, mark: Locator, lang: Lang, what: string) => {
+/**
+ * Hover, then keyboard focus (Shift+Tab, Tab: a keyboard focus), each shows the tooltip; Esc closes it. `insideControl`:
+ * a chip inside a control (a picker option, `WithdrawnChipInsideControl`) is no Tab stop of its own (contract decision
+ * D17): hover only. The tooltip is found by its role (its text is also the chip's hidden description in the DOM).
+ */
+export const expectMarkTooltip = async (page: Page, mark: Locator, lang: Lang, what: string, insideControl = false) => {
     await expect(mark, what).toBeVisible();
+    if (insideControl) {
+        await mark.hover();
+        await expectTooltipShown(page, lang, `${what}, hovered`);
+        await page.mouse.move(1, 1);
+        await expect(tooltip(page), `${what}: the tooltip closes when the mouse leaves`).toHaveCount(0);
+        return;
+    }
     // The chip itself (or the element around its label that holds the focus) is described by the tooltip text
     const focusable = mark.locator("xpath=ancestor-or-self::*[@tabindex][1]");
     await expect(focusable, `${what}: the mark's accessible description`).toHaveAccessibleDescription(SHARED_TEXTS[lang].withdrawnTooltip);

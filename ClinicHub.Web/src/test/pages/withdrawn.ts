@@ -26,12 +26,18 @@ export const withdrawnMark = (scope: HTMLElement, text: string) => {
     return (label.closest(".MuiChip-root") ?? label) as HTMLElement;
 };
 
-/** The mark is focusable, described by the tooltip text, and hovering it shows that tooltip. */
-export const expectWithdrawnTooltip = async (mark: HTMLElement, lang: "ar" | "en" = "ar") => {
+/**
+ * The mark is focusable, described by the tooltip text, and hovering it shows that tooltip. `insideControl`: the chip
+ * inside a control (`WithdrawnChipInsideControl`, e.g. a picker option): no Tab stop of its own (contract decision D17),
+ * hover only. The tooltip is found by its role (its text is also in the DOM as the hidden description).
+ */
+export const expectWithdrawnTooltip = async (mark: HTMLElement, lang: "ar" | "en" = "ar", insideControl = false) => {
     const {tooltip} = WITHDRAWN[lang];
-    mark.focus();
-    expect(mark, "the mark is focusable").toHaveFocus();
-    expect(mark).toHaveAccessibleDescription(tooltip);
+    if (!insideControl) {
+        mark.focus();
+        expect(mark, "the mark is focusable").toHaveFocus();
+        expect(mark).toHaveAccessibleDescription(tooltip);
+    }
     expect(await hoverTooltip(mark)).toBe(tooltip);
     await leaveTooltip(mark);
 };

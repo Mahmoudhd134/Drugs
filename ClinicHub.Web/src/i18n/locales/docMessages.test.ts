@@ -193,6 +193,8 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["«اسم الدواء» موجود بالفعل في القائمة", () => t("prescription.alreadyAdded", {name: "اسم الدواء"})],
             ["«اسم الدواء» موجود بالفعل في القائمة لنفس العين", () => t("prescription.eyeTaken", {name: "اسم الدواء"})],
             ["أي عين؟", () => t("prescription.chooseEyeTitle")],
+            // M1.7b: the ⚠ toast after a protocol with lines disabled by the admin (design M1.7 D6)
+            ["أُضيف رغم تعطيله من الإدارة: العدد", () => t("prescription.protocolWithdrawn", {count: "العدد"})],
             ["جرعتان لنفس العين", () => t("prescription.protocolClashTitle")],
             ["«اسم الدواء» موجود في البروتوكول مرتين للعين التي اخترتها، بجرعتين مختلفتين. أي جرعة تُضاف؟",
                 () => t("prescription.protocolClashMessage", {name: "اسم الدواء"})],

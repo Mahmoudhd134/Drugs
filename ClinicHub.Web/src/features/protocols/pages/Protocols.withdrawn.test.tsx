@@ -44,7 +44,8 @@ describe("protocol cards with a disabled drug @area:catalog", () => {
         await openPicker([threeLines()]);
         const option = await cardOf("Post cataract");
         expect(option).toHaveTextContent("الأدوية: 3");
-        await expectWithdrawnTooltip(withdrawnMark(option, WITHDRAWN.ar.count(1)));
+        // Inside the option (a control): no Tab stop of its own, its tooltip on hover (contract D17)
+        await expectWithdrawnTooltip(withdrawnMark(option, WITHDRAWN.ar.count(1)), "ar", true);
     });
 
     test("in English: \"Drugs: 3\" and \"Disabled by admin: 1\" with the English tooltip @CAT-157", async () => {

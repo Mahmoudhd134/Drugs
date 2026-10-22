@@ -233,7 +233,7 @@ test.describe("A disabled shared drug in protocols and prescriptions @area:catal
 
 /** Opens every place the mark of `w` shows for the owner of `clinic` (and the super admin's rows), checking each. */
 const visitMarks = async (page: Page, admin: Page, lang: Lang, w: AdminDrug, protocolId: number, protocolName: string,
-                          check: (page: Page, mark: Locator, what: string) => Promise<void>) => {
+                          check: (page: Page, mark: Locator, what: string, insideControl?: boolean) => Promise<void>) => {
     const ct = CATALOG_TEXTS[lang];
     const rt = RX_TEXTS[lang];
     const st = SHARED_TEXTS[lang];
@@ -249,7 +249,8 @@ const visitMarks = async (page: Page, admin: Page, lang: Lang, w: AdminDrug, pro
     await rx.openProtocolsTab();
     await rx.search("protocols").fill(protocolName);
     const option = rx.option(protocolName);
-    await check(page, markIn(option, st.withdrawnCount(1)), "prescription tab card");
+    // Inside the picker option (a control): no Tab stop of its own (contract D17)
+    await check(page, markIn(option, st.withdrawnCount(1)), "prescription tab card", true);
     if (await rx.linesOf(w.name).count() === 0) {
         await rx.addProtocol(protocolName);
         await expect(rx.linesOf(w.name)).toHaveCount(1);
@@ -285,7 +286,7 @@ test.describe("The «معطّل من الإدارة» mark and its tooltip every
             const adminBrowser = await newBrowser();
             await signInSuperAdmin(adminBrowser.page);
             await visitMarks(page, adminBrowser.page, lang, w, protocol.id, protocol.name,
-                (target, mark, what) => expectMarkTooltip(target, mark, lang, what));
+                (target, mark, what, insideControl) => expectMarkTooltip(target, mark, lang, what, insideControl));
 
             // The copied prescription holds neither the chip nor the tooltip
             const rt = RX_TEXTS[lang];
@@ -332,7 +333,7 @@ test.describe("The «معطّل من الإدارة» mark and its tooltip every
             await signInSuperAdmin(adminBrowser.page);
             await setLanguage(adminBrowser.page, "en");
             await visitMarks(page, adminBrowser.page, lang, w, protocol.id, protocol.name,
-                (target, mark, what) => expectMarkTooltip(target, mark, lang, what));
+                (target, mark, what, insideControl) => expectMarkTooltip(target, mark, lang, what, insideControl));
 
             // The admin's words: the status filter, «Enable drug» (no confirm) and «Disable drug» (confirm), their toasts
             const adm = adminBrowser.page;

@@ -17,10 +17,14 @@ const added = (count: number, protocol = "Post cataract") => `تمت الإضا�
 const warning = (count: number) => `أُضيف رغم تعطيله من الإدارة: ${count}`;
 const summary = () => storedLines().map(l => [l.drug.name, l.dosing.eye ?? null, l.drug.withdrawn === true]);
 const drop = (fields: Dosing = {}): Dosing => ({doseAmount: 1, doseUnit: "drop", ...fields});
-/** The prescription line of a drug (its row in «الأدوية المختارة»). */
-const lineOf = (name: string) =>
-    within(screen.getByText("الأدوية المختارة").closest(".MuiPaper-root") as HTMLElement).getByText(name, {exact: true})
-        .closest('[aria-roledescription="sortable"]')!.parentElement as HTMLElement;
+/** The prescription line of a drug (the `index`-th one; its row in «الأدوية المختارة»: the nearest element around the name holding a drag handle). */
+const lineOf = (name: string, index = 0) => {
+    const panel = (screen.queryByText("الأدوية المختارة") ?? screen.getByText("Selected drugs")).closest(".MuiPaper-root") as HTMLElement;
+    let element: HTMLElement | null = within(panel).getAllByText(name, {exact: true})[index];
+    while (element && !element.querySelector('[aria-roledescription="sortable"]')) element = element.parentElement;
+    if (!element) throw new Error(`No prescription line of ${name}`);
+    return element;
+};
 
 describe("adding a protocol with a disabled drug @area:prescription", () => {
     test("a disabled line, an ask line, an identical line and a conflict: each question once, the protocol toast as today, then the ⚠ toast @CAT-159",
@@ -91,7 +95,7 @@ describe("prescription lines already there when a drug is disabled or renamed @a
         await page.user.click(within(row).getByRole("button", {name: "إضافة للعين الأخرى"}));
         await waitFor(() => expect(storedLines().map(l => l.dosing.eye)).toEqual(["right", "left"]));
 
-        await page.user.click(within(lineOf(before.name)).getAllByRole("button", {name: "تعديل الجرعة"})[0]);
+        await page.user.click(within(lineOf(before.name, 0)).getByRole("button", {name: "تعديل الجرعة"}));
         expect(await screen.findByRole("dialog")).toBeInTheDocument();
         await page.user.click(within(screen.getByRole("dialog")).getByRole("button", {name: "إلغاء"}));
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -134,6 +138,7 @@ describe("prescription lines already there when a drug is disabled or renamed @a
         await page.user.click(within(dialog).getByRole("button", {name: "اليمنى"}));
         await page.user.click(within(dialog).getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(storedLines()[0].dosing.eye).toBe("right"));
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
         await page.user.click(page.selection().getByRole("button", {name: "نسخ"}));
         await findToast();
@@ -171,6 +176,7 @@ describe("a shared drug added through a protocol @area:prescription", () => {
         await page.answer("اليمنى");
         await waitFor(() => expect(storedLines().map(l => [l.drug.name, l.dosing.eye])).toEqual([[vigamox.name, "right"]]));
         expect(within(lineOf(vigamox.name)).getByText("في العين اليمنى")).toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
         await page.user.click(page.selection().getByRole("button", {name: "نسخ"}));
         await waitFor(() => expect(toastTexts()).toContain("تم النسخ"));
         expect((await page.clipboard!.written()).text).toBe("VIGAMOX 0.5% EYE DROPS 5 ML\nفي العين اليمنى");
