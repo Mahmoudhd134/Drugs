@@ -1,5 +1,6 @@
 import {expect, signIn, superAdminPhone, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {addToProtocol} from "../support/catalog.ts";
 import {pickCategory} from "../support/shared.ts";
 import {expectContextLabel, expectToast, navTo} from "../support/ui.ts";
 
@@ -35,8 +36,9 @@ test.describe("The template clinic's catalog @area:auth", () => {
         await navTo(page, t, t.navProtocols);
         await page.getByRole("link", {name: t.newProtocol}).click();
         await page.getByRole("textbox", {name: t.protocolName}).fill(protocol);
-        await page.getByPlaceholder(t.searchDrugs).fill(`${drug} edited`);
-        await page.getByRole("option", {name: new RegExp(`${drug} edited`)}).click();
+        // The drug through the editor's tree (its one subcategory opens on the search)
+        await addToProtocol(page, lang, `${drug} edited`);
+        await expect(page.getByText(`${drug} edited`, {exact: true}).first()).toBeVisible();
         await page.getByRole("button", {name: t.save, exact: true}).click();
         await expectToast(page, t.protocolCreated);
         await expect(page).toHaveURL(/\/protocols$/);
