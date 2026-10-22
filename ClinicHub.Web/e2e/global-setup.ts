@@ -6,6 +6,7 @@ import path from "node:path";
 import {ApiSession} from "./support/api.ts";
 import {apiProject, DB_PREFIX, ensureDir, newRunId, publishState, repoRoot, type RunState, type TemplateCatalog, webRoot} from "./support/run.ts";
 import {SUPER_ADMIN_POOL, superAdminPhones} from "./support/phones.ts";
+import {loadCatalog} from "./support/catalogLoad.ts";
 
 /**
  * The e2e environment of one run (design M1.6 § 6, D3): a database `drags_e2e_<run>` on the compose PostgreSQL
@@ -171,6 +172,8 @@ const tail = (file: string) => {
     try { return fs.readFileSync(file, "utf8").split(/\r?\n/).slice(-40).join("\n"); } catch { return "(no log)"; }
 };
 
+type CategoryRow = { id: number; nameEn: string; subCategories: { id: number; nameEn: string }[] };
+
 /**
  * The template's catalog, as the Development seed has it (docs/tech/overview.md "Runtime architecture"): two eye
  * drops and the protocol "After cataract surgery" using both, the second line overriding the drug's dosing with a taper
@@ -179,8 +182,12 @@ const tail = (file: string) => {
 const seedTemplate = async (baseURL: string, phone: string): Promise<TemplateCatalog> => {
     const admin = await ApiSession.login(baseURL, phone, "template");
     try {
+        // Own drugs need a category (design M1.7 D12): «العيون › المياه الزرقاء», looked up by its English names
+        const eye = (await admin.ok<CategoryRow[]>("GET", "/api/v1/drug-categories")).find(c => c.nameEn === "Eye");
+        const glaucoma = eye?.subCategories.find(s => s.nameEn === "Glaucoma");
+        if (!eye || !glaucoma) throw new Error("e2e setup: the catalog has no Eye › Glaucoma (load_catalog.py not run?)");
         const drug = (name: string, description: string, weeks: number) => admin.ok<{ id: number }>("POST", "/api/v1/drugs", {
-            name, description,
+            name, description, categoryId: eye.id, subCategoryId: glaucoma.id,
             defaultDosing: {doseAmount: 1, doseUnit: "drop", frequency: "daily", frequencyValue: 4, durationValue: weeks, durationUnit: "weeks"},
         });
         const antibiotic = await drug("Moxifloxacin 0.5%", "Antibiotic eye drops", 1);
@@ -302,6 +309,8 @@ export default async function globalSetup() {
     try {
         api = await start(new Set());
         const {child, baseURL} = api;
+        // The API's startup created, migrated and seeded the database: load the shared catalog (design M1.7 D12)
+        loadCatalog(database);
         // Logs in with this run's own super admin pool: only our API knows it
         const template = await seedTemplate(baseURL, phones[0]);
         if (child.exitCode !== null) throw new Error(`The e2e API exited (${child.exitCode}) during setup; its log:\n${tail(log)}`);

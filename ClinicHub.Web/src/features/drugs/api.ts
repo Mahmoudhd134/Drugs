@@ -1,29 +1,53 @@
 import {keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {api} from "../../api/client.ts";
 import {hasNextPage, type PagedResult, type QueryOptions} from "../../api/types.ts";
-import type {Drug, SaveDrug} from "./types.ts";
+import type {Category, Drug, DrugFilters, SaveDrug} from "./types.ts";
 import {protocolKeys} from "../protocols/api.ts";
 
 const PICKER_PAGE_SIZE = 30;
+/** Categories change rarely (design M1.7 D5): like the pickers; the drug dialog refetches on open. */
+export const CATEGORIES_STALE_TIME = 30_000;
 
 export const drugKeys = {
     all: ["drugs"] as const,
-    list: (search: string, page: number, pageSize: number) => [...drugKeys.all, "list", search, page, pageSize] as const,
+    list: (search: string, page: number, pageSize: number, filters: DrugFilters = {}) =>
+        [...drugKeys.all, "list", search, page, pageSize, filters] as const,
     picker: (search: string) => [...drugKeys.all, "picker", search] as const,
+    categories: ["drugCategories"] as const,
 };
 
-const fetchDrugs = async (search: string, page: number, pageSize: number) =>
-    (await api.get<PagedResult<Drug>>("/drugs", {params: {search, page, pageSize}})).data;
+/** The query string of the filters: absent values are left out (the API's defaults). */
+const filterParams = ({source, categoryId, subCategoryId}: DrugFilters = {}) => ({
+    ...(source && source !== "all" ? {source} : {}),
+    ...(categoryId != null ? {categoryId} : {}),
+    ...(subCategoryId != null ? {subCategoryId} : {}),
+});
+
+export const fetchDrugs = async (search: string, page: number, pageSize: number, filters: DrugFilters = {}) =>
+    (await api.get<PagedResult<Drug>>("/drugs", {params: {search, page, pageSize, ...filterParams(filters)}})).data;
+
+/** `GET /drug-categories` (needs `drugs.list`). */
+export const fetchDrugCategories = async () => (await api.get<Category[]>("/drug-categories")).data;
+
+/** Every category with its subcategories (unsorted: sort with `sortCategories`). */
+export const useDrugCategories = ({enabled = true}: QueryOptions = {}) =>
+    useQuery({
+        queryKey: drugKeys.categories,
+        queryFn: fetchDrugCategories,
+        staleTime: CATEGORIES_STALE_TIME,
+        enabled,
+    });
 
 /** Names of the protocols that contain the drug. */
 export const fetchDrugProtocolNames = async (id: number) =>
     (await api.get<string[]>(`/drugs/${id}/protocols`)).data;
 
-/** One page of drugs, for tables. */
-export const useDrugs = (search: string, page: number, pageSize: number, {enabled = true}: QueryOptions = {}) =>
+/** One page of drugs, for tables (own first, then shared: design M1.7 D7). */
+export const useDrugs = (search: string, page: number, pageSize: number, {enabled = true}: QueryOptions = {},
+                         filters: DrugFilters = {}) =>
     useQuery({
-        queryKey: drugKeys.list(search, page, pageSize),
-        queryFn: () => fetchDrugs(search, page, pageSize),
+        queryKey: drugKeys.list(search, page, pageSize, filters),
+        queryFn: () => fetchDrugs(search, page, pageSize, filters),
         placeholderData: keepPreviousData,
         enabled,
     });

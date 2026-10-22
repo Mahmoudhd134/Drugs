@@ -3,6 +3,7 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CategoryIcon from "@mui/icons-material/Category";
 import MedicationIcon from "@mui/icons-material/Medication";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import {PERMISSIONS, type Permission} from "../features/access/permissions.ts";
 
 /** A sidebar entry: active on `to` (exactly with `end`, else also below it) and below each `activeFor` path. */
@@ -20,4 +21,6 @@ export const NAV_ITEMS: NavItem[] = [
 // Sections of the platform admin (super admin only, no permissions); add new ones here (e.g. Forms in M2.1)
 export const ADMIN_NAV_ITEMS: ShellNavItem[] = [
     {to: "/admin", labelKey: "admin.nav.clinics", icon: <LocalHospitalIcon/>, end: true, activeFor: ["/admin/clinics"]},
+    {to: "/admin/drugs", labelKey: "admin.nav.drugs", icon: <MedicationIcon/>},
+    {to: "/admin/categories", labelKey: "admin.nav.categories", icon: <AccountTreeIcon/>},
 ];

@@ -15,7 +15,7 @@ import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {htmlForPaste, linesToHtml, linesToPlainText} from "../prescriptionText.ts";
 import type {PrescriptionLine} from "../types.ts";
 import type {Protocol} from "../../protocols/types.ts";
-import type {Drug} from "../../drugs/types.ts";
+import type {Drug, DrugSnapshot} from "../../drugs/types.ts";
 import {useClinic} from "../../auth/useAuth.ts";
 
 export const PrescriptionPage = () => {
@@ -39,7 +39,7 @@ export const PrescriptionPage = () => {
      * 4. Asks about each line that clashes with one already in the prescription (same drug and eye, different dosing).
      */
     const addProtocol = async (protocol: Protocol) => {
-        type Candidate = { drug: Drug; dosing: Dosing };
+        type Candidate = { drug: DrugSnapshot; dosing: Dosing };
         let candidates: Candidate[] = [];
         const seen = new Set<string>();
         let duplicated = 0;

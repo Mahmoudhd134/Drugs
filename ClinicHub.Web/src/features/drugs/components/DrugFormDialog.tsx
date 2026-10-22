@@ -85,6 +85,10 @@ const DrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) =
                 name: name.trim(),
                 description: description.trim() || null,
                 defaultDosing: isDosingEmpty(dosing) ? null : normalizeDosing(dosing),
+                // M1.7b contract: the dialog's new fields (active ingredients, category, subcategory) are track web's
+                activeIngredients: drug?.activeIngredients ?? null,
+                categoryId: drug?.category.id ?? null,
+                subCategoryId: drug?.subCategory?.id ?? null,
             });
             toast.success(drug === null ? t("drugs.created") : t("drugs.updated"));
             onClose();

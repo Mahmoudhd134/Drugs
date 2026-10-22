@@ -5,7 +5,9 @@ import type {ClinicDetails, ClinicSummary} from "../features/admin/types.ts";
 import type {AuthResult, ClinicContext, Context, Me, PlatformContext} from "../features/auth/types.ts";
 import type {Dosing} from "../features/dosing/types.ts";
 import type {Protocol, ProtocolItem} from "../features/protocols/types.ts";
-import type {Drug} from "../features/drugs/types.ts";
+import type {Category, CategoryName, Drug, ProtocolDrug, SubCategory} from "../features/drugs/types.ts";
+import type {AdminDrug} from "../features/admin/drugs/types.ts";
+import type {AdminCategory, AdminSubCategory} from "../features/admin/categories/types.ts";
 import type {PrescriptionLine} from "../features/prescription/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
@@ -19,17 +21,74 @@ let lastId = 1000;
 /** A fresh id (unique within the test file). */
 export const nextId = () => ++lastId;
 
-/** A drug (`GET /drugs`): `defaultDosing` null unless given. */
+/** «العيون» / "Eye" (imported id 17) and its «المياه الزرقاء» / "Glaucoma" (id 138): the default of the builders (D12). */
+export const EYE: CategoryName = {id: 17, nameEn: "Eye", nameAr: "العيون"};
+export const GLAUCOMA: CategoryName = {id: 138, nameEn: "Glaucoma", nameAr: "المياه الزرقاء"};
+/** «أخرى» (23) and «غير مصنف» (182): the two `pinnedLast` rows. */
+export const OTHER: CategoryName = {id: 23, nameEn: "Other", nameAr: "أخرى"};
+export const UNCLASSIFIED: CategoryName = {id: 182, nameEn: "Unclassified", nameAr: "غير مصنف"};
+
+/** An own drug (`GET /drugs`): «العيون › المياه الزرقاء», no ingredients, `defaultDosing` null unless given. */
 export const aDrug = (fields: Partial<Drug> = {}): Drug => ({
     id: nextId(),
     name: "Tobradex",
+    activeIngredients: null,
     description: null,
     defaultDosing: null,
+    isShared: false,
+    withdrawn: false,
+    category: EYE,
+    subCategory: GLAUCOMA,
     ...fields,
 });
 
-/** A protocol line: the drug and its override (`dosing`, null = the drug's default). */
-export const anItem = (drug: Drug, dosing: Dosing | null = null): ProtocolItem => ({drug, dosing});
+/** A shared catalog drug: `isShared`, never a dosing (e.g. `aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"})`). */
+export const aSharedDrug = (fields: Partial<Drug> = {}): Drug =>
+    aDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML", activeIngredients: "MOXIFLOXACIN", isShared: true, ...fields, defaultDosing: null});
+
+/** The drug of a protocol line (`ProtocolDrugDto`: no category), from a full drug. */
+export const aProtocolDrug = ({id, name, description, defaultDosing, isShared, withdrawn}: Drug | ProtocolDrug): ProtocolDrug =>
+    ({id, name, description, defaultDosing, isShared, withdrawn});
+
+/** A full drug from a protocol line's drug (category «العيون › المياه الزرقاء»), e.g. for the picker's `GET /drugs`. */
+export const asDrug = (drug: Drug | ProtocolDrug): Drug => aDrug({...drug});
+
+/** A protocol line: the drug (as `ProtocolDrugDto`) and its override (`dosing`, null = the drug's default). */
+export const anItem = (drug: Drug | ProtocolDrug, dosing: Dosing | null = null): ProtocolItem => ({drug: aProtocolDrug(drug), dosing});
+
+/** A subcategory of `GET /drug-categories`. */
+export const aSubCategory = (fields: Partial<SubCategory> = {}): SubCategory => ({
+    id: nextId(), nameEn: "Glaucoma", nameAr: "المياه الزرقاء", pinnedLast: false, ...fields,
+});
+
+/** A category of `GET /drug-categories` (default «العيون» with «المياه الزرقاء»). */
+export const aCategory = (fields: Partial<Category> = {}): Category => ({
+    ...EYE, pinnedLast: false, subCategories: [{...GLAUCOMA, pinnedLast: false}], ...fields,
+});
+
+/** A shared drug of the admin catalog (`GET /admin/drugs`): active unless given. */
+export const anAdminDrug = (fields: Partial<AdminDrug> = {}): AdminDrug => ({
+    id: nextId(),
+    name: "VIGAMOX 0.5% EYE DROPS 5 ML",
+    activeIngredients: "MOXIFLOXACIN",
+    description: null,
+    withdrawn: false,
+    withdrawnAt: null,
+    category: EYE,
+    subCategory: GLAUCOMA,
+    ...fields,
+});
+
+/** A subcategory of `GET /admin/drug-categories` (no drug unless given). */
+export const anAdminSubCategory = (fields: Partial<AdminSubCategory> = {}): AdminSubCategory => ({
+    ...aSubCategory(), drugCount: 0, deletedClinicsDrugCount: 0, ...fields,
+});
+
+/** A category of `GET /admin/drug-categories` (no drug unless given). */
+export const anAdminCategory = (fields: Partial<AdminCategory> = {}): AdminCategory => ({
+    id: nextId(), nameEn: "Test category", nameAr: "تصنيف تجريبي", pinnedLast: false,
+    drugCount: 0, deletedClinicsDrugCount: 0, noSubCategoryDrugCount: 0, subCategories: [], ...fields,
+});
 
 /** A protocol with its lines in order (`GET /protocols`). */
 export const aProtocol = (fields: Partial<Protocol> = {}): Protocol => ({
@@ -39,8 +98,8 @@ export const aProtocol = (fields: Partial<Protocol> = {}): Protocol => ({
     ...fields,
 });
 
-/** A prescription line as `usePrescriptionLines` stores it. */
-export const aLine = (drug: Drug, dosing: Dosing = drug.defaultDosing ?? {}, note = ""): PrescriptionLine => ({
+/** A prescription line as `usePrescriptionLines` stores it (its drug a snapshot: any drug shape fits). */
+export const aLine = (drug: Drug | ProtocolDrug, dosing: Dosing = drug.defaultDosing ?? {}, note = ""): PrescriptionLine => ({
     key: `line-${nextId()}`,
     drug,
     dosing,

@@ -1,4 +1,4 @@
-import type {Drug} from "../drugs/types.ts";
+import type {ProtocolDrug} from "../drugs/types.ts";
 import type {Dosing} from "../dosing/types.ts";
 
 /**
@@ -6,7 +6,8 @@ import type {Dosing} from "../dosing/types.ts";
  * fall back to the default (see mergeDosing). Its eye may be "ask" (chosen when the protocol is added).
  */
 export interface ProtocolItem {
-    drug: Drug;
+    /** Shared or own; a withdrawn one keeps its line with the «معطّل من الإدارة» chip (design M1.7 D6) */
+    drug: ProtocolDrug;
     dosing?: Dosing | null;
 }
 

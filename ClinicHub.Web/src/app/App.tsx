@@ -21,6 +21,10 @@ const ClinicsPage = lazy(() => import("../features/admin/pages/ClinicsPage.tsx")
     .then(m => ({default: m.ClinicsPage})));
 const CreateClinicPage = lazy(() => import("../features/admin/pages/CreateClinicPage.tsx")
     .then(m => ({default: m.CreateClinicPage})));
+const AdminDrugsPage = lazy(() => import("../features/admin/drugs/AdminDrugsPage.tsx")
+    .then(m => ({default: m.AdminDrugsPage})));
+const AdminCategoriesPage = lazy(() => import("../features/admin/categories/AdminCategoriesPage.tsx")
+    .then(m => ({default: m.AdminCategoriesPage})));
 const ClinicPage = lazy(() => import("../features/admin/pages/ClinicPage.tsx")
     .then(m => ({default: m.ClinicPage})));
 const PrescriptionPage = lazy(() => import("../features/prescription/pages/PrescriptionPage.tsx")
@@ -64,6 +68,8 @@ export const App = () => (
                     <Route path="admin" element={<AdminLayout/>}>
                         <Route index element={<ClinicsPage/>}/>
                         <Route path="clinics/new" element={<CreateClinicPage/>}/>
+                        <Route path="drugs" element={<AdminDrugsPage/>}/>
+                        <Route path="categories" element={<AdminCategoriesPage/>}/>
                         <Route path="clinics/:id" element={<ClinicPage/>}>
                             {CLINIC_TABS.map(tab => tab.path
                                 ? <Route key={tab.path} path={tab.path} element={tab.element}/>

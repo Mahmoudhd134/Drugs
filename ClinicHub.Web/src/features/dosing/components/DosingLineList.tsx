@@ -5,9 +5,9 @@ import EditIcon from "@mui/icons-material/EditOutlined";
 import AddToEyeIcon from "@mui/icons-material/AddCircleOutline";
 import {useTranslation} from "react-i18next";
 import {SortableList} from "../../../components/common/SortableList.tsx";
-import type {Drug} from "../../drugs/types.ts";
+import type {DrugSnapshot} from "../../drugs/types.ts";
 
-type Line = { key: string; drug: Drug };
+type Line = { key: string; drug: DrugSnapshot };
 
 type Props<T extends Line> = {
     lines: T[];

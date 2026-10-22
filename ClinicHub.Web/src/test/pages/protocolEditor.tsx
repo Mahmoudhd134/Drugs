@@ -4,8 +4,8 @@ import {vi} from "vitest";
 import type {Permission} from "../../features/access/permissions.ts";
 import {ProtocolEditorPage} from "../../features/protocols/pages/ProtocolEditorPage.tsx";
 import type {Protocol, SaveProtocolItem} from "../../features/protocols/types.ts";
-import type {Drug} from "../../features/drugs/types.ts";
-import {nextId} from "../data.ts";
+import type {Drug, ProtocolDrug} from "../../features/drugs/types.ts";
+import {aProtocolDrug, nextId} from "../data.ts";
 import {api, protocolsHandlers, drugsHandlers} from "../msw.ts";
 import {renderWithProviders} from "../render.tsx";
 import {server} from "../server.ts";
@@ -19,12 +19,12 @@ import {server} from "../server.ts";
 type SaveBody = { name: string; items: SaveProtocolItem[] };
 
 /** POST /protocols (201) and PUT /protocols/:id answering the saved protocol; `bodies` collects what was sent. */
-export const protocolSaveHandlers = (drugs: Drug[]) => {
+export const protocolSaveHandlers = (drugs: Array<Drug | ProtocolDrug>) => {
     const bodies: SaveBody[] = [];
     const toDto = (id: number, body: SaveBody): Protocol => ({
         id,
         name: body.name,
-        items: body.items.map(i => ({drug: drugs.find(d => d.id === i.drugId)!, dosing: i.dosing})),
+        items: body.items.map(i => ({drug: aProtocolDrug(drugs.find(d => d.id === i.drugId)!), dosing: i.dosing})),
     });
     const handlers = [
         http.post(api("/protocols"), async ({request}) => {
@@ -45,7 +45,7 @@ type EditorOptions = {
     /** The protocol to edit (none: a new protocol) */
     protocol?: Protocol;
     /** The drugs the picker lists (default: the protocol's) */
-    drugs?: Drug[];
+    drugs?: Array<Drug | ProtocolDrug>;
     lang?: "ar" | "en";
     /** `/me` permissions (default: the Owner's, every one) */
     permissions?: Permission[];
