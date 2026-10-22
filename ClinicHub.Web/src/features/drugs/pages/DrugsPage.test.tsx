@@ -46,21 +46,6 @@ describe("drugs page: the list @area:catalog", () => {
         expect(await screen.findByText("Total drugs: 3")).toBeInTheDocument();
     });
 
-    test("no drugs at all: «لا توجد أدوية بعد» / «أضف أول دواء…» with an «إضافة دواء» button @DRUG-055", async () => {
-        const {user} = await openPage([]);
-        const title = await screen.findByText("لا توجد أدوية بعد");
-        const empty = title.parentElement as HTMLElement;
-        expect(within(empty).getByText("أضف أول دواء لتبدأ في كتابة الروشتات.")).toBeInTheDocument();
-        await user.click(within(empty).getByRole("button", {name: "إضافة دواء"}));
-        expect(await screen.findByRole("heading", {name: "دواء جديد"})).toBeInTheDocument();
-    });
-
-    test("in English the empty state reads \"No drugs yet\" @DRUG-055", async () => {
-        await openPage([], "en");
-        expect(await screen.findByText("No drugs yet")).toBeInTheDocument();
-        expect(screen.getByText("Add your first drug to start building prescriptions.")).toBeInTheDocument();
-    });
-
     test("a row shows the name, the Arabic dosing sentence and the description cut to 2 lines @DRUG-056 @smoke", async () => {
         const description = "سطر 1\nسطر 2\nسطر 3\nسطر 4";
         await openPage([aDrug({

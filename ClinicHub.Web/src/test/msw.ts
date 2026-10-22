@@ -90,6 +90,9 @@ export const drugsHandlers = (given: Array<Drug | ProtocolDrug>) => {
             const drug = drugs.find(d => d.id === Number(params.id));
             return drug ? json(drug) : problem(404, "notFound");
         }),
+        // The drug dialog reads the categories on open (design M1.7 D9): «العيون › المياه الزرقاء» unless a test adds
+        // its own `drugCategoriesHandler` after these (a later `server.use` wins)
+        drugCategoriesHandler(),
     ];
 };
 
