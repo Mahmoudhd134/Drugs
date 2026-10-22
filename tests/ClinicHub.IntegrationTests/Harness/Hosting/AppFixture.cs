@@ -27,7 +27,7 @@ namespace ClinicHub.IntegrationTests.Harness.Hosting;
 /// next test start as if it were a new class.
 /// </para>
 /// </summary>
-public sealed class AppFixture : IAsyncLifetime
+public class AppFixture : IAsyncLifetime
 {
     private readonly Dictionary<string, object> perClass = new();
     private Respawner respawner;
@@ -56,9 +56,15 @@ public sealed class AppFixture : IAsyncLifetime
     /// <summary>The test super admin (<c>Platform:SuperAdminPhones</c> of <c>appsettings.Testing.json</c>), E.164.</summary>
     public string SuperAdminPhone => Factory.Services.GetRequiredService<PlatformSettings>().SuperAdminPhones[0];
 
+    /// <summary>
+    /// True for <see cref="BareAppFixture"/> (design M1.7 D12): a copy of the bare template (migrated and seeded, no
+    /// catalog), reset without the baseline and checksum checks: the migration collection.
+    /// </summary>
+    protected virtual bool UsesBareTemplate => false;
+
     public async Task InitializeAsync()
     {
-        DatabaseName = await TestRun.CreateCopyAsync();
+        DatabaseName = await TestRun.CreateCopyAsync(UsesBareTemplate);
         var connectionString = TestRun.ConnectionString(DatabaseName);
         Factory = await TestRun.StartAppAsync(() => new ClinicHubFactory(connectionString), $"the app of {DatabaseName}");
     }

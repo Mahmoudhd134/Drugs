@@ -29,4 +29,15 @@ public static class ProtocolErrors
     public static readonly Error DrugNotFound =
         new("drugNotFound", "A drug of the protocol does not exist in this clinic.", ErrorType.Validation,
             "Items");
+
+    /// <summary>
+    /// A save adds a withdrawn shared drug (design M1.7 D6, § 7): more lines of it in the request than stored in that
+    /// protocol. Reported on the first extra line with its <b>request</b> index (<see cref="DrugWithdrawnAt"/>: field
+    /// <c>items[i].drugId</c>), after <see cref="DrugNotFound"/>, before <see cref="DuplicateItem"/>.
+    /// </summary>
+    public static readonly Error DrugWithdrawn =
+        new("drugWithdrawn", "A drug of the protocol was withdrawn from the shared catalog.", ErrorType.Validation);
+
+    /// <summary><see cref="DrugWithdrawn"/> on line <paramref name="requestIndex"/> of the request (nulls counted).</summary>
+    public static Error DrugWithdrawnAt(int requestIndex) => DrugWithdrawn with { Field = $"Items[{requestIndex}].DrugId" };
 }

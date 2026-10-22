@@ -10,6 +10,8 @@ using ClinicHub.Application.Features.Catalog.Protocols.Commands.UpdateProtocol;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.DeleteDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
+using ClinicHub.Application.Features.Catalog.Categories;
+using ClinicHub.Application.Features.Platform.SharedDrugs;
 using ClinicHub.Application.Features.Platform.Clinics;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.ActivateClinic;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.DeleteClinic;
@@ -99,8 +101,11 @@ public sealed class TestData(AppFixture app)
 
     public ProtocolBuilder Protocol(ClinicHandle clinic) => Protocol(clinic.Id);
 
-    public async Task<DrugDto> UpdateDrugAsync(int clinicId, int drugId, string name, string description = null, Dosing dosing = null) =>
-        (await app.SendAsync(new UpdateDrugCommand(drugId, name, description, dosing), clinicId)).ShouldSucceed();
+    /// <summary>Full update of an own drug; the category defaults to the builders' («العيون › المياه الزرقاء»).</summary>
+    public async Task<DrugDto> UpdateDrugAsync(int clinicId, int drugId, string name, string description = null, Dosing dosing = null,
+        string activeIngredients = null, int categoryId = CategoryIds.Eye, int? subCategoryId = SubCategoryIds.Glaucoma) =>
+        (await app.SendAsync(new UpdateDrugCommand(drugId, name, activeIngredients, description, dosing, categoryId, subCategoryId),
+            clinicId)).ShouldSucceed();
 
     public async Task DeleteDrugAsync(int clinicId, int drugId) =>
         (await app.SendAsync(new DeleteDrugCommand(drugId), clinicId)).ShouldSucceed();
@@ -110,4 +115,38 @@ public sealed class TestData(AppFixture app)
 
     public async Task DeleteProtocolAsync(int clinicId, int protocolId) =>
         (await app.SendAsync(new DeleteProtocolCommand(protocolId), clinicId)).ShouldSucceed();
+
+    // ---- Shared catalog (design M1.7 D12): imported rows are only read; tests write their own rows ----
+
+    /// <summary>
+    /// An imported shared drug looked up by its exact name (e.g. "ALEMOX 1 GM 12 F.C.TABS."); fails unless exactly one
+    /// shared drug has it. Read only: never change it (the baseline check fails the run).
+    /// M1.7b contract stub (track <c>harness</c>).
+    /// </summary>
+    public Task<DrugDto> Shared(string exactName) =>
+        throw new NotImplementedException($"M1.7b contract stub: track harness ({exactName})");
+
+    /// <summary>A test-owned shared drug (create, rename, withdraw, restore it freely).</summary>
+    public SharedDrugBuilder SharedDrug() => new(app);
+
+    /// <summary>A test-owned category.</summary>
+    public CategoryBuilder Category() => new(app);
+
+    /// <summary>A test-owned subcategory, by default under «العيون» (an imported category: allowed, its row is never touched).</summary>
+    public SubCategoryBuilder SubCategory(int categoryId = CategoryIds.Eye) => new(app, categoryId);
+
+    /// <summary>
+    /// Admin actions on a test-owned shared drug (<c>UpdateSharedDrugCommand</c>, <c>WithdrawSharedDrugCommand</c>,
+    /// <c>RestoreSharedDrugCommand</c>). M1.7b contract stubs (track <c>harness</c>).
+    /// </summary>
+    public Task<AdminDrugDto> UpdateSharedDrugAsync(int drugId, string name,
+        string activeIngredients = null, string description = null, int categoryId = CategoryIds.Eye,
+        int? subCategoryId = SubCategoryIds.Glaucoma) =>
+        throw new NotImplementedException($"M1.7b contract stub: track harness ({drugId}, {name}, {activeIngredients}, {description}, {categoryId}, {subCategoryId})");
+
+    public Task WithdrawSharedDrugAsync(int drugId) =>
+        throw new NotImplementedException($"M1.7b contract stub: track harness ({drugId})");
+
+    public Task RestoreSharedDrugAsync(int drugId) =>
+        throw new NotImplementedException($"M1.7b contract stub: track harness ({drugId})");
 }

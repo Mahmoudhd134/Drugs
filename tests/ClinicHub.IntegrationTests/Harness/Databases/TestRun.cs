@@ -45,7 +45,20 @@ public static class TestRun
     public const int AppStartAttempts = 3;
 
     public static string Id { get; } = ResolveId(Environment.GetEnvironmentVariable(RunIdVariable));
+    /// <summary>The loaded template (migrated, seeded, catalog loaded by <see cref="CatalogLoader"/>): every collection but the migrations.</summary>
     public static string TemplateName => $"{DatabaseGuard.Prefix}{Id}_tpl";
+
+    /// <summary>
+    /// The bare template (design M1.7 D12): a copy of <see cref="TemplateName"/> taken after the app's first start and
+    /// before the catalog load (migrated and seeded, no catalog), for the migration collection (<c>BareAppFixture</c>).
+    /// </summary>
+    public static string BareTemplateName => $"{DatabaseGuard.Prefix}{Id}_tpl_bare";
+
+    /// <summary>
+    /// The loaded template's baseline, recorded once per run after the load (design M1.7 D12). M1.7b contract stub
+    /// (track <c>harness</c>): set by <c>StartAsync</c>.
+    /// </summary>
+    public static CatalogBaseline Baseline { get; private set; }
 
     /// <summary>What the run did with databases (created, dropped, stale ones found): for the self-tests and debugging.</summary>
     public static ConcurrentQueue<string> Log { get; } = new();
@@ -175,9 +188,16 @@ public static class TestRun
         return false;
     }
 
-    /// <summary>A new copy of the template for one collection: <c>drags_it_&lt;run&gt;_&lt;n&gt;</c>.</summary>
-    public static async Task<string> CreateCopyAsync()
+    /// <summary>
+    /// A new copy of the template for one collection: <c>drags_it_&lt;run&gt;_&lt;n&gt;</c>, of the loaded template, or of
+    /// the bare one when <paramref name="bare"/> (the migration collection). M1.7b: <paramref name="bare"/> is a contract
+    /// stub (track <c>harness</c>: <c>StartAsync</c> creates <see cref="BareTemplateName"/>, loads the catalog into
+    /// <see cref="TemplateName"/> and records <see cref="Baseline"/>).
+    /// </summary>
+    public static async Task<string> CreateCopyAsync(bool bare = false)
     {
+        if (bare)
+            throw new NotImplementedException($"M1.7b contract stub: track harness ({BareTemplateName}, {Baseline})");
         await EnsureStartedAsync();
         var name = $"{DatabaseGuard.Prefix}{Id}_{Interlocked.Increment(ref copies)}";
         await CreateDatabaseAsync(name, TemplateName);
