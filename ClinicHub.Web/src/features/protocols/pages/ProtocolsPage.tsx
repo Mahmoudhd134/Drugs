@@ -35,9 +35,13 @@ import {PERMISSIONS} from "../../access/permissions.ts";
 import {usePermissions} from "../../access/usePermissions.ts";
 import {Can} from "../../access/components/Can.tsx";
 import {PermissionIconButton} from "../../access/components/PermissionControls.tsx";
+import {WithdrawnChip} from "../../drugs/components/WithdrawnChip.tsx";
 
 const PAGE_SIZE = 12;
 const PREVIEW_DRUGS = 4;
+
+/** Lines whose drug the admin disabled (they still count in «الأدوية: N»). */
+const withdrawnCount = (protocol: Protocol) => protocol.items.filter(i => i.drug.withdrawn).length;
 
 export const ProtocolsPage = () => {
     const {t} = useTranslation();
@@ -159,6 +163,12 @@ export const ProtocolsPage = () => {
                                         )}
                                     </CardContent>
                                 </CardActionArea>
+                                {/* Outside the card's button: the chip is focusable for its tooltip (design M1.7 D6) */}
+                                {withdrawnCount(protocol) > 0 && (
+                                    <Box sx={{px: 2, pb: 1.5, mt: -0.5}}>
+                                        <WithdrawnChip count={withdrawnCount(protocol)}/>
+                                    </Box>
+                                )}
                                 <Can anyOf={[PERMISSIONS.protocols.update, PERMISSIONS.protocols.delete]}>
                                     <CardActions sx={{justifyContent: "flex-end", borderTop: 1, borderColor: "divider"}}>
                                         <Can permission={PERMISSIONS.protocols.update}>

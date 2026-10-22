@@ -6,6 +6,8 @@ import {SearchableList} from "../../../components/common/SearchableList.tsx";
 import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {useProtocolPicker} from "../api.ts";
 import type {Protocol} from "../types.ts";
+import {WithdrawnChip} from "../../drugs/components/WithdrawnChip.tsx";
+import {WithdrawnChipInsideControl} from "../../drugs/components/withdrawnChipContext.ts";
 
 type Props = {
     onSelect: (protocol: Protocol) => void;
@@ -39,6 +41,12 @@ export const ProtocolPicker = ({onSelect, autoFocus, maxHeight, enabled = true}:
                         <Stack direction="row" sx={{gap: 1, alignItems: "center", flexWrap: "wrap"}}>
                             <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{protocol.name}</Typography>
                             <Chip size="small" label={t("protocols.drugCount", {count: protocol.items.length})}/>
+                            {protocol.items.some(i => i.drug.withdrawn) && (
+                                // Inside the option (itself the control): not a Tab stop of its own
+                                <WithdrawnChipInsideControl.Provider value>
+                                    <WithdrawnChip count={protocol.items.filter(i => i.drug.withdrawn).length}/>
+                                </WithdrawnChipInsideControl.Provider>
+                            )}
                         </Stack>
                         <Typography
                             variant="body2"

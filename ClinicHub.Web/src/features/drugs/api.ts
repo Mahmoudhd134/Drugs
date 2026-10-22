@@ -29,13 +29,17 @@ export const fetchDrugs = async (search: string, page: number, pageSize: number,
 /** `GET /drug-categories` (needs `drugs.list`). */
 export const fetchDrugCategories = async () => (await api.get<Category[]>("/drug-categories")).data;
 
-/** Every category with its subcategories (unsorted: sort with `sortCategories`). */
-export const useDrugCategories = ({enabled = true}: QueryOptions = {}) =>
+/**
+ * Every category with its subcategories (unsorted: sort with `sortCategories`). `refetchOnMount: "always"`: fetched
+ * again when the caller mounts, even over a fresh copy (the drug dialog, design M1.7 D5).
+ */
+export const useDrugCategories = ({enabled = true, refetchOnMount}: QueryOptions & { refetchOnMount?: "always" } = {}) =>
     useQuery({
         queryKey: drugKeys.categories,
         queryFn: fetchDrugCategories,
         staleTime: CATEGORIES_STALE_TIME,
         enabled,
+        ...(refetchOnMount ? {refetchOnMount} : {}),
     });
 
 /** Names of the protocols that contain the drug. */
