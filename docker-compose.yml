@@ -6,7 +6,8 @@
 name: drags
 services:
   postgres:
-    image: postgres:17
+    # CI pulls the same image from Google's Docker Hub mirror (CLINICHUB_POSTGRES_IMAGE in .github/workflows/ci.yml)
+    image: ${CLINICHUB_POSTGRES_IMAGE:-postgres:17}
     container_name: drags-postgres
     restart: unless-stopped
     environment:

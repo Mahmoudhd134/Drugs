@@ -25,6 +25,8 @@ env:
   TZ: Africa/Cairo
   # Integration and e2e databases: drags_it_<run>_*, drags_e2e_<run>* on the job's own compose PostgreSQL
   CLINICHUB_TEST_RUN: ci${{ github.run_id }}${{ github.run_attempt }}
+  # docker-compose.yml's PostgreSQL from Google's Docker Hub mirror (no Docker Hub rate limit or slow pull)
+  CLINICHUB_POSTGRES_IMAGE: mirror.gcr.io/library/postgres:17
 
 jobs:
   start:
@@ -60,7 +62,14 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
       - name: PostgreSQL (docker compose)
-        run: docker compose up -d --wait
+        run: &postgres |
+          # A slow pull or start fails in 2 minutes and is tried again (seen: a runner stuck on it for 6+ minutes)
+          for attempt in 1 2 3; do
+            timeout 120 docker compose up -d --wait && exit 0
+            echo "::warning::PostgreSQL not up after attempt $attempt"
+            docker compose down || true
+          done
+          exit 1
       - name: Tools
         run: dotnet tool restore
       - name: Build (Release)
@@ -183,7 +192,7 @@ jobs:
           cache-dependency-path: ClinicHub.Web/package-lock.json
       - name: PostgreSQL (docker compose)
         working-directory: .
-        run: docker compose up -d --wait
+        run: *postgres
       - run: npm ci --no-audit --no-fund
       - uses: actions/cache@v6
         with:
