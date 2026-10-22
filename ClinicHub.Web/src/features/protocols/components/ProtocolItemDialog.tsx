@@ -32,6 +32,7 @@ const ItemForm = ({item, onClose, onSave}: { item: EditorItem } & Omit<Props, "i
     const {t} = useTranslation();
     const [dosing, setDosing] = useState<Dosing>(item.dosing);
     const [showErrors, setShowErrors] = useState(false);
+    const shared = item.drug.isShared;
 
     const handleSave = () => {
         if (dosingErrors(dosing).length) {
@@ -53,28 +54,33 @@ const ItemForm = ({item, onClose, onSave}: { item: EditorItem } & Omit<Props, "i
             </DialogTitle>
             <DialogContent>
                 <Stack sx={{gap: 1.5, pt: 1}}>
-                    <Typography variant="body2" color="text.secondary">
-                        {t("dosing.inheritHint")}
-                        <InfoTip title={t("dosing.inheritInfo")}/>
-                    </Typography>
+                    {/* A shared drug has no default dosing (design M1.7 D3, D9): nothing to inherit or reset to */}
+                    {!shared && (
+                        <Typography variant="body2" color="text.secondary">
+                            {t("dosing.inheritHint")}
+                            <InfoTip title={t("dosing.inheritInfo")}/>
+                        </Typography>
+                    )}
                     <DosingFields
                         value={dosing}
                         onChange={setDosing}
                         showErrors={showErrors}
-                        inheritFrom={item.drug.defaultDosing ?? null}
+                        {...(shared ? {} : {inheritFrom: item.drug.defaultDosing ?? null})}
                         allowAskEye
                     />
                 </Stack>
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>
-                <Button
-                    startIcon={<RestartAltIcon/>}
-                    onClick={() => setDosing({})}
-                    disabled={isDosingEmpty(dosing)}
-                    sx={{marginInlineEnd: "auto"}}
-                >
-                    {t("dosing.resetToDefault")}
-                </Button>
+                {!shared && (
+                    <Button
+                        startIcon={<RestartAltIcon/>}
+                        onClick={() => setDosing({})}
+                        disabled={isDosingEmpty(dosing)}
+                        sx={{marginInlineEnd: "auto"}}
+                    >
+                        {t("dosing.resetToDefault")}
+                    </Button>
+                )}
                 <Button onClick={onClose}>{t("common.cancel")}</Button>
                 <Button variant="contained" onClick={handleSave}>{t("common.save")}</Button>
             </DialogActions>

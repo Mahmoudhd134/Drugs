@@ -1,6 +1,7 @@
 import {TablePagination} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {PAGE_SIZES} from "./pageSizes.ts";
+import {useFormatCount} from "../../i18n/numbers.ts";
 
 type Props = {
     count: number;
@@ -17,6 +18,8 @@ type Props = {
  */
 export const ListPagination = ({count, page, onPageChange, rowsPerPage, onRowsPerPageChange}: Props) => {
     const {t} = useTranslation();
+    // Grouped Latin digits in both languages («1–20 من 23,414»; design M1.7 D9)
+    const formatCount = useFormatCount();
     return (
         <TablePagination
             component="div"
@@ -27,7 +30,8 @@ export const ListPagination = ({count, page, onPageChange, rowsPerPage, onRowsPe
             rowsPerPageOptions={PAGE_SIZES}
             onRowsPerPageChange={(e) => onRowsPerPageChange(Number(e.target.value))}
             labelRowsPerPage={t("common.rowsPerPage")}
-            labelDisplayedRows={({from, to, count}) => t("common.displayedRows", {from, to, count})}
+            labelDisplayedRows={({from, to, count}) =>
+                t("common.displayedRows", {from: formatCount(from), to: formatCount(to), count: formatCount(count)})}
             getItemAriaLabel={(type) => t(`common.pagination.${type}`)}
             // Also named on itself (its aria-labelledby points to the label, which some tools don't follow)
             slotProps={{select: {inputProps: {"aria-label": t("common.rowsPerPage")}}}}
