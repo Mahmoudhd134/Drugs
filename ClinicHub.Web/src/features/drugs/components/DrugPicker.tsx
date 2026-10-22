@@ -44,7 +44,10 @@ export const DrugPicker = ({onSelect, selectedIds, autoFocus, maxHeight, enabled
                             <DrugText drug={drug} descriptionLines={2} showDosing/>
                         </Box>
                         {added
-                            ? <Chip size="small" color="success" variant="outlined" icon={<CheckIcon/>} label={t("common.added")}/>
+                            // success.dark, not success.main: on the highlighted option's tint (#e2efee) success.main
+                            // is 4.3:1, below WCAG AA's 4.5:1 for small text.
+                            ? <Chip size="small" color="success" variant="outlined" icon={<CheckIcon/>} label={t("common.added")}
+                                    sx={{color: "success.dark", borderColor: "success.dark", "& .MuiChip-icon": {color: "success.dark"}}}/>
                             : <AddIcon color="action" fontSize="small" sx={{mt: 0.5}}/>}
                     </Stack>
                 );
