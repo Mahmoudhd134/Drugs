@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {aDrug, aLine} from "../../test";
+import {aDrug, aLine, aProtocolDrug, aSharedDrug} from "../../test";
 import type {Dosing} from "../dosing/types.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml, linesToPlainText} from "./prescriptionText.ts";
 
@@ -107,5 +107,31 @@ describe("htmlToPlainText @area:prescription", () => {
     test("empty editor gives empty text", () => {
         expect(htmlToPlainText("")).toBe("");
         expect(htmlToPlainText("<p><br></p>")).toBe("");
+    });
+});
+
+// Shared catalog names in the copied text (design M1.7 § 8: `"` in 13 names, `&` in 213; D3: no dosing, no description)
+describe("shared drugs in the copied text @area:prescription", () => {
+    test("`CARBOPLATIN \"EBEWE\" 150 MG VIAL` and `<b>X</b> & Y`: literal in the plain text, escaped in the HTML @CAT-001", () => {
+        const carboplatin = aLine(aProtocolDrug(aSharedDrug({name: `CARBOPLATIN "EBEWE" 150 MG VIAL`, activeIngredients: null})), {});
+        const adminMade = aLine(aProtocolDrug(aSharedDrug({name: "<b>X</b> & Y"})), {});
+        expect(linesToPlainText([carboplatin, adminMade])).toBe(`CARBOPLATIN "EBEWE" 150 MG VIAL\n\n<b>X</b> & Y`);
+        const html = linesToHtml([carboplatin, adminMade]);
+        expect(html).toBe(`${P}<strong>CARBOPLATIN &quot;EBEWE&quot; 150 MG VIAL</strong></p>${SPACER}${P}<strong>&lt;b&gt;X&lt;/b&gt; &amp; Y</strong></p>`);
+        const parsed = new DOMParser().parseFromString(html, "text/html").body;
+        expect(parsed.querySelectorAll("b")).toHaveLength(0);
+        expect(Array.from(parsed.querySelectorAll("strong")).map(s => s.textContent)).toEqual([`CARBOPLATIN "EBEWE" 150 MG VIAL`, "<b>X</b> & Y"]);
+    });
+
+    test("a shared drug with only an `ask` override, added for «اليمنى»: the name and «في العين اليمنى» @CAT-172", () => {
+        // The line's dosing after the eye question: the override's eye, nothing from the (absent) drug default
+        const line = aLine(aProtocolDrug(aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"})), {eye: "right"});
+        expect(linesToPlainText([line])).toBe("VIGAMOX 0.5% EYE DROPS 5 ML\nفي العين اليمنى");
+        expect(linesToHtml([line])).toBe(`${P}<strong>VIGAMOX 0.5% EYE DROPS 5 ML</strong><br>في العين اليمنى</p>`);
+    });
+
+    test("a shared drug with no dosing and no description: the name alone, nothing invented @CAT-172", () => {
+        const line = aLine(aProtocolDrug(aSharedDrug({name: "NAILNER NAIL FUNGUS PEN 4 ML", activeIngredients: null})), {});
+        expect(linesToPlainText([line])).toBe("NAILNER NAIL FUNGUS PEN 4 ML");
     });
 });

@@ -7,6 +7,8 @@ import type {Lang} from "./texts.ts";
  * DRUG/GRP/DOSE/TAPER), which quote `ar.ts` / `en.ts`; plain labels (fields, buttons) as the locale files have them.
  * A name inside a message sits in the bidi isolates U+2068/U+2069 (catalog "How to read it").
  */
+/** Counts as the UI shows them: grouped Latin digits (design M1.7 D9 "Numbers", I18N-014). */
+const g = (n: number) => new Intl.NumberFormat("en-US").format(n);
 const iso = (name: string) => `⁨${name}⁩`;
 
 const ar = {
@@ -18,7 +20,7 @@ const ar = {
     /** The protocols using a drug, joined with the Arabic comma «، » in both languages (drugs tech, Q5) */
     drugUsedInProtocols: (names: string[]) => `يُستخدم في هذه البروتوكولات: ${iso(names.join("، "))}`,
     drugDescription: "الوصف",
-    displayedRows: (from: number, to: number, count: number) => `${from}–${to} من ${count}`,
+    displayedRows: (from: number, to: number, count: number) => `${g(from)}–${g(to)} من ${g(count)}`,
     firstPage: "الذهاب إلى الصفحة الأولى",
     // Dosing form (docs/features/dosing/business.md "الحقول")
     dose: "الجرعة",
@@ -73,7 +75,7 @@ const en: CatalogTexts = {
     drugDeleteMessage: name => `“${iso(name)}” will be deleted and removed from every protocol. This can't be undone.`,
     drugUsedInProtocols: names => `It is used in these protocols: ${iso(names.join("، "))}`,
     drugDescription: "Description",
-    displayedRows: (from, to, count) => `${from}–${to} of ${count}`,
+    displayedRows: (from, to, count) => `${g(from)}–${g(to)} of ${g(count)}`,
     firstPage: "Go to first page",
     dose: "Dose",
     unit: "Unit",

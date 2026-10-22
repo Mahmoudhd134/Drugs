@@ -73,23 +73,27 @@ const json = (body: JsonBodyType) => HttpResponse.json(body);
  * order) and `GET /drugs/:id` (404 `notFound` when missing). A protocol line's drug gets the full shape (`asDrug`).
  */
 export const drugsHandlers = (given: Array<Drug | ProtocolDrug>) => {
-    const drugs = given.map(d => ("category" in d ? d : asDrug(d)));
+    // Read at each request: a test may change `given` (a delete splices it) and the next GET shows it
+    const all = () => given.map(d => ("category" in d ? d : asDrug(d)));
     return [
         http.get(api("/drugs"), ({request}) => {
             const params = new URL(request.url).searchParams;
             const source = params.get("source") || "all";
             const categoryId = params.get("categoryId");
             const subCategoryId = params.get("subCategoryId");
-            const listed = drugs.filter(d => !d.withdrawn
+            const listed = all().filter(d => !d.withdrawn
                 && (source === "all" || (source === "shared") === d.isShared)
                 && (!categoryId || d.category.id === Number(categoryId))
                 && (!subCategoryId || (subCategoryId === "none" ? d.subCategory === null : d.subCategory?.id === Number(subCategoryId))));
             return json(pageOf(request, listed));
         }),
         http.get(api("/drugs/:id"), ({params}) => {
-            const drug = drugs.find(d => d.id === Number(params.id));
+            const drug = all().find(d => d.id === Number(params.id));
             return drug ? json(drug) : problem(404, "notFound");
         }),
+        // The drug dialog reads the categories on open (design M1.7 D9): «العيون › المياه الزرقاء» unless a test adds
+        // its own `drugCategoriesHandler` after these (a later `server.use` wins)
+        drugCategoriesHandler(),
     ];
 };
 

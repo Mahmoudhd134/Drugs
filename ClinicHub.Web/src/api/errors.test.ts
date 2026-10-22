@@ -32,6 +32,7 @@ describe("toApiError @area:errors", () => {
             ],
             traceId: "00-test-trace-01",
             clinicNames: [],
+            drugCount: null,
         });
         expect(toApiError(await failWith(networkError))).toBeNull();
         expect(toApiError(new Error("not from axios"))).toBeNull();
@@ -40,9 +41,9 @@ describe("toApiError @area:errors", () => {
 
     test("a body that is not a ProblemDetails keeps the status, the rest empty", async () => {
         expect(toApiError(await failWith(() => new HttpResponse("Bad gateway", {status: 502}))))
-            .toEqual({status: 502, code: null, errors: [], traceId: null, clinicNames: []});
+            .toEqual({status: 502, code: null, errors: [], traceId: null, clinicNames: [], drugCount: null});
         expect(toApiError(await failWith(() => HttpResponse.json({code: 7, errors: "x", traceId: 1}, {status: 400}))))
-            .toEqual({status: 400, code: null, errors: [], traceId: null, clinicNames: []});
+            .toEqual({status: 400, code: null, errors: [], traceId: null, clinicNames: [], drugCount: null});
     });
 
     test("error items without a string code are dropped; description and field are optional", async () => {
@@ -175,5 +176,54 @@ describe("getFieldErrors, getOtherErrors, splitFormErrors @area:errors", () => {
             .toEqual({fields: {}, others: ["Can't reach the server. Check your connection."]});
         expect(getFieldErrors(new Error("x"))).toEqual({});
         expect(getOtherErrors(new Error("x"), [])).toEqual([]);
+    });
+});
+
+// Counts in sentences (design M1.7 D9 "i18n", "Numbers"; M1.7b contract § 3.2, § 3.5): a 409 with `drugCount` reads
+// `errors.<code>_counted` with the Arabic plural forms and grouped Latin digits; the colon texts keep the colon form.
+describe("counted messages and their plurals @area:i18n", () => {
+    const inUse = async (code: "categoryInUse" | "subCategoryInUse", drugCount: number) =>
+        getErrorMessage(await failWith(() => problem(409, code, {drugCount})));
+
+    test("«يستخدمه N دواء» for N = 1, 2, 3, 11, 100: each its Arabic plural form @CAT-214", async () => {
+        await i18n.changeLanguage("ar");
+        const category = "لا يمكن حذف هذا التصنيف: ";
+        expect(await inUse("categoryInUse", 1)).toBe(`${category}يستخدمه دواء واحد.`);
+        expect(await inUse("categoryInUse", 2)).toBe(`${category}يستخدمه دواءان.`);
+        expect(await inUse("categoryInUse", 3)).toBe(`${category}يستخدمه 3 أدوية.`);
+        expect(await inUse("categoryInUse", 11)).toBe(`${category}يستخدمه 11 دواءً.`);
+        expect(await inUse("categoryInUse", 100)).toBe(`${category}يستخدمه 100 دواء.`);
+        const sub = "لا يمكن حذف هذا التصنيف الفرعي: ";
+        expect(await inUse("subCategoryInUse", 1)).toBe(`${sub}يستخدمه دواء واحد.`);
+        expect(await inUse("subCategoryInUse", 2)).toBe(`${sub}يستخدمه دواءان.`);
+        expect(await inUse("subCategoryInUse", 3)).toBe(`${sub}يستخدمه 3 أدوية.`);
+        expect(await inUse("subCategoryInUse", 11)).toBe(`${sub}يستخدمه 11 دواءً.`);
+        expect(await inUse("subCategoryInUse", 100)).toBe(`${sub}يستخدمه 100 دواء.`);
+    });
+
+    test("a big count is grouped in Latin digits: «يستخدمه 1,469 دواءً» @CAT-214", async () => {
+        await i18n.changeLanguage("ar");
+        expect(await inUse("categoryInUse", 1469)).toBe("لا يمكن حذف هذا التصنيف: يستخدمه 1,469 دواءً.");
+    });
+
+    test("in English: \"1 drug uses it\", \"3 drugs use it\" @CAT-214", async () => {
+        await i18n.changeLanguage("en");
+        expect(await inUse("categoryInUse", 1)).toBe("Can't delete this category: 1 drug uses it.");
+        expect(await inUse("categoryInUse", 3)).toBe("Can't delete this category: 3 drugs use it.");
+        expect(await inUse("subCategoryInUse", 1)).toBe("Can't delete this subcategory: 1 drug uses it.");
+    });
+
+    test("without a count the plain message: «لا يمكن حذف هذا التصنيف: تستخدمه أدوية.» @CAT-214", async () => {
+        await i18n.changeLanguage("ar");
+        expect(getErrorMessage(await failWith(() => problem(409, "categoryInUse")))).toBe("لا يمكن حذف هذا التصنيف: تستخدمه أدوية.");
+    });
+
+    test("the warning toast, the card and the deleted-clinics line keep the colon form @CAT-214", async () => {
+        await i18n.changeLanguage("ar");
+        expect(i18n.t("prescription.protocolWithdrawn", {count: 2})).toBe("أُضيف رغم تعطيله من الإدارة: 2");
+        expect(i18n.t("drugs.withdrawn.count", {count: 2})).toBe("معطّل من الإدارة: 2");
+        expect(i18n.t("adminCategories.deletedClinics", {count: 2})).toBe("من عيادات محذوفة: 2");
+        expect(i18n.t("prescription.protocolWithdrawn", {count: 1})).toBe("أُضيف رغم تعطيله من الإدارة: 1");
+        expect(i18n.t("adminCategories.deletedClinics", {count: 1200})).toBe("من عيادات محذوفة: 1,200");
     });
 });

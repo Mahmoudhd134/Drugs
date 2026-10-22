@@ -1,9 +1,11 @@
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {pickCategory} from "../support/shared.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
 import {expectContextLabel, expectToast, navTo, openSwitchClinic, pickerEntry, toast} from "../support/ui.ts";
 
 test.describe("Clinic isolation in the browser @area:isolation", () => {
-    test("switching from A's drugs page to B: only B's drugs and protocols, never a moment of A's @ISO-040 @smoke", async ({page, t, data}) => {
+    test("switching from A's drugs page to B: B's own drugs (+ the shared ones) and B's protocols, never a moment of A's @ISO-040 @smoke", async ({page, t, lang, data}) => {
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -30,6 +32,8 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
 
         await navTo(page, t, t.navDrugs);
         await expect(page.getByRole("cell", {name: drugB.name})).toBeVisible();
+        // The shared catalog shows in B too (design M1.7 D1), after B's own drugs
+        await expect(page.getByText(SHARED_TEXTS[lang].chipShared, {exact: true}).first()).toBeVisible();
         await navTo(page, t, t.navProtocols);
         await expect(page.getByText(protocolB.name, {exact: true})).toBeVisible();
         expect(await page.evaluate(() => (window as unknown as { leaked?: string }).leaked ?? null)).toBeNull();
@@ -99,7 +103,7 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
     });
 
     test("the API unreachable while saving a drug or a protocol: «تعذّر الاتصال بالخادم» and the form keeps what was typed @ERR-031",
-        async ({page, t, data, allowNetworkErrors}) => {
+        async ({page, t, lang, data, allowNetworkErrors}) => {
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
@@ -112,6 +116,7 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             await page.getByRole("button", {name: t.addDrug}).click();
             const dialog = page.getByRole("dialog");
             await dialog.getByRole("textbox", {name: t.drugName}).fill(name);
+            await pickCategory(page, dialog, lang);
             await dialog.getByRole("button", {name: t.save}).click();
             await expectToast(page, t.network);
             await expect(dialog.getByRole("textbox", {name: t.drugName})).toHaveValue(name);

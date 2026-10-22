@@ -2,6 +2,7 @@ import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import toast from "react-hot-toast";
+import {pickCategory} from "../test/pages/drugDialog.ts";
 import {
     aClinicContext,
     aDrug,
@@ -10,6 +11,7 @@ import {
     api,
     contextOfRequest,
     contextsHandler,
+    drugCategoriesHandler,
     expectPath,
     expectToasts,
     isolate,
@@ -53,6 +55,7 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
         drugsByClinic({clinic1: "A drug", clinic2: "B drug", clinic3: "C drug"}),
         contextsHandler(contexts.filter(c => c !== clinicA)),
         http.post(api("/drugs"), saveAnswer),
+        drugCategoriesHandler(),
         http.get(api("/protocols"), () => HttpResponse.json(aPage([]))),
     );
     const app = await startApp({route: "/drugs", lang: "ar"});
@@ -61,6 +64,8 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
         await app.user.click(screen.getByRole("button", {name: "إضافة دواء"}));
         await app.user.click(await screen.findByRole("textbox", {name: /^الاسم/}));
         await app.user.paste("Vigamox");
+        // A new drug needs a category (design M1.7 D3)
+        await pickCategory(app.user, {scope: screen.getByRole("dialog")});
         await app.user.click(screen.getByRole("button", {name: "حفظ"}));
     };
     return {...app, refresh, addDrug};
