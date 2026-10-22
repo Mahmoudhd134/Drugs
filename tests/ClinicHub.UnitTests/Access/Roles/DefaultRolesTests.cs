@@ -37,7 +37,7 @@ public class DefaultRolesTests
 
         assistant.Count.ShouldBe(9);
         assistant.ShouldNotContain("drugs.delete");
-        assistant.ShouldNotContain("groups.delete");
+        assistant.ShouldNotContain("protocols.delete");
         PermissionCatalog.WithRequirements(assistant).Count.ShouldBe(9, "nothing missing that it needs");
     }
 }

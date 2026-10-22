@@ -5,7 +5,7 @@ using Shouldly;
 namespace ClinicHub.UnitTests.Catalog.Protocols;
 
 /// <summary>
-/// Saved group lines (drug-groups tech § Backend): null lines dropped, overrides normalized, and one line per drug per
+/// Saved protocol lines (protocols tech § Backend): null lines dropped, overrides normalized, and one line per drug per
 /// <b>effective</b> eye (the override eye, else the drug's default eye; no eye = "none"; "ask" is its own value).
 /// </summary>
 [Trait("Area", "catalog")]

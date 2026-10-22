@@ -6,7 +6,7 @@ using Shouldly;
 
 namespace ClinicHub.UnitTests.Catalog.Protocols;
 
-/// <summary><c>PUT /drug-groups/{id}</c> validation: the same rules and order as create (drug-groups tech § Backend).</summary>
+/// <summary><c>PUT /protocols/{id}</c> validation: the same rules and order as create (protocols tech § Backend).</summary>
 [Trait("Area", "catalog")]
 public class UpdateProtocolCommandValidatorTests
 {
@@ -16,7 +16,7 @@ public class UpdateProtocolCommandValidatorTests
     private static SaveProtocolItem Item(int drugId, Dosing dosing = null) => new(drugId, dosing);
 
     [Fact]
-    public void A_group_with_a_name_and_lines_is_valid()
+    public void A_protocol_with_a_name_and_lines_is_valid()
     {
         Validate("Post cataract", [Item(1, new Dosing { Eye = "ask" }), Item(1, new Dosing { Eye = "right" })])
             .IsValid.ShouldBeTrue();
@@ -32,7 +32,7 @@ public class UpdateProtocolCommandValidatorTests
     }
 
     [Fact]
-    public void A_group_needs_at_least_one_drug()
+    public void A_protocol_needs_at_least_one_drug()
     {
         Validate("G", []).Errors.ShouldBe([new ApiFieldError("drugsRequired", "items")]);
         Validate("G", null).Errors.ShouldBe([new ApiFieldError("drugsRequired", "items")]);
@@ -40,7 +40,7 @@ public class UpdateProtocolCommandValidatorTests
     }
 
     [Fact]
-    public void A_group_holds_at_most_1000_lines()
+    public void A_protocol_holds_at_most_1000_lines()
     {
         Validate("G", Enumerable.Range(1, 1000).Select(id => Item(id)).ToList()).IsValid.ShouldBeTrue();
         Validate("G", Enumerable.Range(1, 1001).Select(id => Item(id, new Dosing { Eye = "top" })).ToList())

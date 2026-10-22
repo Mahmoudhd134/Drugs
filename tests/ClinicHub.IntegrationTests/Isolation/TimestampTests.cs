@@ -18,7 +18,7 @@ namespace ClinicHub.IntegrationTests.Isolation;
 /// <summary>
 /// UTC timestamps filled by the save interceptor (clinic-scoping tech § Backend): a new row gets
 /// <c>CreatedAt = UpdatedAt = now</c>; a change moves only <c>UpdatedAt</c>, also when only an owned value (a dosing)
-/// or only a group's lines changed. The test clock makes "now" exact.
+/// or only a protocol's lines changed. The test clock makes "now" exact.
 /// </summary>
 [Collection(IsolationCollection3.Name)]
 [Trait("Area", "isolation")]
@@ -28,19 +28,19 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-037")]
-    public async Task A_new_drug_group_and_line_are_created_and_updated_now_in_utc()
+    public async Task A_new_drug_protocol_and_line_are_created_and_updated_now_in_utc()
     {
         var clinic = await Data.Clinic();
         var owner = await Login.OwnerAsync(clinic);
         Clock.Advance(TimeSpan.FromMinutes(3));
 
         var drug = await (await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Tobradex", "توبرادكس") })).ReadAsync<DrugDto>();
-        var group = await (await owner.PostAsync("/api/v1/drug-groups", CatalogRoutes.ProtocolBody(drug.Id))).ReadAsync<ProtocolDto>();
+        var protocol = await (await owner.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(drug.Id))).ReadAsync<ProtocolDto>();
 
         var drugStamps = await DrugStampsAsync(drug.Id);
-        var groupStamps = await ProtocolStampsAsync(group.Id);
-        var lineStamps = await LineStampsAsync(group.Id);
-        foreach (var (createdAt, updatedAt) in new[] { drugStamps, groupStamps, lineStamps.ShouldHaveSingleItem() })
+        var protocolStamps = await ProtocolStampsAsync(protocol.Id);
+        var lineStamps = await LineStampsAsync(protocol.Id);
+        foreach (var (createdAt, updatedAt) in new[] { drugStamps, protocolStamps, lineStamps.ShouldHaveSingleItem() })
         {
             createdAt.Kind.ShouldBe(DateTimeKind.Utc);
             createdAt.ShouldBe(Now);
@@ -76,20 +76,20 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-039")]
-    public async Task A_group_save_that_changes_only_its_lines_moves_the_groups_updated_at()
+    public async Task A_protocol_save_that_changes_only_its_lines_moves_the_protocols_updated_at()
     {
         var clinic = await Data.Clinic();
         var first = await Data.Drug(clinic);
         var second = await Data.Drug(clinic);
-        var group = await Data.Protocol(clinic).With(first);
+        var protocol = await Data.Protocol(clinic).With(first);
         var created = Now;
         var owner = await Login.OwnerAsync(clinic);
 
         Clock.Advance(TimeSpan.FromMinutes(5));
-        await (await owner.PutAsync($"/api/v1/drug-groups/{group.Id}",
-            new { name = group.Name, items = new[] { new { drugId = first.Id }, new { drugId = second.Id } } })).ShouldBeOkAsync();
+        await (await owner.PutAsync($"/api/v1/protocols/{protocol.Id}",
+            new { name = protocol.Name, items = new[] { new { drugId = first.Id }, new { drugId = second.Id } } })).ShouldBeOkAsync();
 
-        (await ProtocolStampsAsync(group.Id)).ShouldBe((created, Now));
+        (await ProtocolStampsAsync(protocol.Id)).ShouldBe((created, Now));
     }
 
     [Fact]
@@ -182,14 +182,14 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         return (row.CreatedAt, row.UpdatedAt);
     });
 
-    private Task<(DateTime, DateTime)> ProtocolStampsAsync(int groupId) => App.QueryDbAsync(async db =>
+    private Task<(DateTime, DateTime)> ProtocolStampsAsync(int protocolId) => App.QueryDbAsync(async db =>
     {
-        var row = await db.Protocols.IgnoreQueryFilters().Where(g => g.Id == groupId).Select(g => new { g.CreatedAt, g.UpdatedAt }).SingleAsync();
+        var row = await db.Protocols.IgnoreQueryFilters().Where(g => g.Id == protocolId).Select(g => new { g.CreatedAt, g.UpdatedAt }).SingleAsync();
         return (row.CreatedAt, row.UpdatedAt);
     });
 
-    private Task<List<(DateTime, DateTime)>> LineStampsAsync(int groupId) => App.QueryDbAsync(async db =>
-        (await db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == groupId)
+    private Task<List<(DateTime, DateTime)>> LineStampsAsync(int protocolId) => App.QueryDbAsync(async db =>
+        (await db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == protocolId)
             .Select(i => new { i.CreatedAt, i.UpdatedAt }).ToListAsync())
         .Select(r => (r.CreatedAt, r.UpdatedAt)).ToList());
 }

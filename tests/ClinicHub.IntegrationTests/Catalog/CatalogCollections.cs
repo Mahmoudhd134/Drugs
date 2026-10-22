@@ -23,7 +23,7 @@ public sealed class CatalogProtocolsCollection : ICollectionFixture<AppFixture>
     public const string Name = "catalog-3";
 }
 
-/// <summary>Dosing and tapering through the drug and group APIs.</summary>
+/// <summary>Dosing and tapering through the drug and protocol APIs.</summary>
 [CollectionDefinition(Name)]
 public sealed class CatalogDosingCollection : ICollectionFixture<AppFixture>
 {

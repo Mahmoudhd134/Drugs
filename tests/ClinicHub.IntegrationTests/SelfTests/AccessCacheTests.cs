@@ -72,7 +72,7 @@ public class AccessCacheTests(AppFixture app) : IntegrationTest(app)
         await Data.UpdateRoleAsync(clinic, role.Id, role.Name, Permissions.Protocols.List);
 
         await (await user.GetAsync("/api/v1/drugs")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
-        await (await user.GetAsync("/api/v1/drug-groups")).ShouldBeOkAsync();
+        await (await user.GetAsync("/api/v1/protocols")).ShouldBeOkAsync();
         (await user.MeAsync()).Permissions.ShouldBe([Permissions.Protocols.List]);
     }
 

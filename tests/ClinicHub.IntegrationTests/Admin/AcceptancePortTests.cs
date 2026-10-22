@@ -190,7 +190,7 @@ public class LockoutAfterAdminChangeTests(AppFixture app) : IntegrationTest(app)
 
 /// <summary>
 /// Ported from the M1.5 acceptance runs (accept-api.py "misc" and accept-reg-api.py "cap" / "perms"): catalog limits,
-/// control characters and the default roles' rights, through the API (drug-groups tech "Validators", drugs tech "API",
+/// control characters and the default roles' rights, through the API (protocols tech "Validators", drugs tech "API",
 /// access business "الأدوار"). Their catalog and access cases belong to other tracks: these tests carry no case ID.
 /// </summary>
 [Collection(AdminCollection2.Name)]
@@ -205,12 +205,12 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
     }
 
     [Fact]
-    public async Task A_group_of_more_than_1000_lines_is_refused_with_one_invalidRequest_error()
+    public async Task A_protocol_of_more_than_1000_lines_is_refused_with_one_invalidRequest_error()
     {
         var (_, owner) = await ClinicFromTemplateAsync();
         var drug = (await owner.DrugsAsync()).Items[0];
 
-        var problem = await (await owner.PostAsync("/api/v1/drug-groups",
+        var problem = await (await owner.PostAsync("/api/v1/protocols",
                 new { name = "Too big", items = Enumerable.Repeat(new { drugId = drug.Id, dosing = (object)null }, 1001) }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
 
@@ -218,7 +218,7 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
     }
 
     [Fact]
-    public async Task A_group_of_exactly_1000_distinct_drugs_is_saved_and_1001_are_refused()
+    public async Task A_protocol_of_exactly_1000_distinct_drugs_is_saved_and_1001_are_refused()
     {
         var clinic = await Data.Clinic();
         var owner = await Login.OwnerAsync(clinic);
@@ -228,29 +228,29 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
                 .Select(async i => (await Data.Drug(clinic).Named($"Drug number {i:D4}")).Id))).ToList());
         var items = ids.Select(id => new { drugId = id, dosing = (object)null }).ToList();
 
-        await (await owner.PostAsync("/api/v1/drug-groups", new { name = "Too big", items }))
+        await (await owner.PostAsync("/api/v1/protocols", new { name = "Too big", items }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
-        var created = await owner.PostAsync("/api/v1/drug-groups", new { name = "Exactly 1000", items = items.Take(1000) });
+        var created = await owner.PostAsync("/api/v1/protocols", new { name = "Exactly 1000", items = items.Take(1000) });
         await created.ShouldBeAsync(HttpStatusCode.Created);
-        var group = await created.ReadAsync<ProtocolDto>();
-        group.Items.Count.ShouldBe(1000);
-        await (await owner.PutAsync($"/api/v1/drug-groups/{group.Id}", new { name = "Exactly 1000", items }))
+        var protocol = await created.ReadAsync<ProtocolDto>();
+        protocol.Items.Count.ShouldBe(1000);
+        await (await owner.PutAsync($"/api/v1/protocols/{protocol.Id}", new { name = "Exactly 1000", items }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
-        await (await owner.DeleteAsync($"/api/v1/drug-groups/{group.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await owner.DeleteAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
     }
 
     [Fact]
-    public async Task Duplicate_lines_unknown_drugs_and_an_empty_group_are_refused()
+    public async Task Duplicate_lines_unknown_drugs_and_an_empty_protocol_are_refused()
     {
         var (_, owner) = await ClinicFromTemplateAsync();
         var drug = (await owner.DrugsAsync()).Items[0];
 
-        await (await owner.PostAsync("/api/v1/drug-groups",
+        await (await owner.PostAsync("/api/v1/protocols",
                 new { name = "Dup", items = new[] { new { drugId = drug.Id, dosing = (object)null }, new { drugId = drug.Id, dosing = (object)null } } }))
-            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateGroupItem");
-        await (await owner.PostAsync("/api/v1/drug-groups", new { name = "Unknown", items = new[] { new { drugId = 99_999_999, dosing = (object)null } } }))
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "duplicateProtocolItem");
+        await (await owner.PostAsync("/api/v1/protocols", new { name = "Unknown", items = new[] { new { drugId = 99_999_999, dosing = (object)null } } }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
-        (await (await owner.PostAsync("/api/v1/drug-groups", new { name = "  ", items = Array.Empty<object>() }))
+        (await (await owner.PostAsync("/api/v1/protocols", new { name = "  ", items = Array.Empty<object>() }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "nameRequired")).Codes.ShouldBe(["nameRequired", "drugsRequired"]);
     }
 
@@ -274,7 +274,7 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
     {
         var (_, owner) = await ClinicFromTemplateAsync();
 
-        foreach (var url in new[] { "/api/v1/drugs?search=%00", "/api/v1/drug-groups?search=%00", "/api/v1/drugs?search=x%00y" })
+        foreach (var url in new[] { "/api/v1/drugs?search=%00", "/api/v1/protocols?search=%00", "/api/v1/drugs?search=x%00y" })
             await (await owner.GetAsync(url)).ShouldBeOkAsync();
         var all = await (await owner.GetAsync("/api/v1/drugs")).ReadAsync<ClinicHub.Application.Common.Paging.PagedResult<DrugDto>>();
         (await (await owner.GetAsync("/api/v1/drugs?search=%00")).ReadAsync<ClinicHub.Application.Common.Paging.PagedResult<DrugDto>>())
@@ -287,22 +287,22 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
         var (clinic, owner) = await ClinicFromTemplateAsync();
         var assistant = await Login.WithRoleAsync(clinic, DefaultRoles.Assistant);
         var drug = (await owner.DrugsAsync()).Items[0];
-        var group = (await owner.ProtocolsAsync())[0];
+        var protocol = (await owner.ProtocolsAsync())[0];
 
         var permissions = (await assistant.MeAsync()).Permissions;
         permissions.ShouldNotContain("drugs.delete");
-        permissions.ShouldNotContain("groups.delete");
+        permissions.ShouldNotContain("protocols.delete");
         await (await assistant.DeleteAsync($"/api/v1/drugs/{drug.Id}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
-        await (await assistant.DeleteAsync($"/api/v1/drug-groups/{group.Id}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
+        await (await assistant.DeleteAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
 
     [Fact]
     public async Task A_read_only_role_lists_the_template_copy_and_cannot_add_a_drug()
     {
         var (clinic, _) = await ClinicFromTemplateAsync();
-        var viewer = await Login.WithPermissionsAsync(clinic, "drugs.list", "drugs.details", "groups.list", "groups.details");
+        var viewer = await Login.WithPermissionsAsync(clinic, "drugs.list", "drugs.details", "protocols.list", "protocols.details");
 
-        (await viewer.MeAsync()).Permissions.ShouldBe(["drugs.list", "drugs.details", "groups.list", "groups.details"], ignoreOrder: true);
+        (await viewer.MeAsync()).Permissions.ShouldBe(["drugs.list", "drugs.details", "protocols.list", "protocols.details"], ignoreOrder: true);
         (await viewer.PostAsync("/api/v1/drugs", new { name = "x", description = (string)null, defaultDosing = (object)null })).StatusCode
             .ShouldBe(HttpStatusCode.Forbidden);
         (await viewer.DrugsAsync()).TotalCount.ShouldBe(2);

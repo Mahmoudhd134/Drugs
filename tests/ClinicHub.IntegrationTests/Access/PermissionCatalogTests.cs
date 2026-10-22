@@ -16,7 +16,7 @@ public class PermissionCatalogTests(AppFixture app) : IntegrationTest(app)
     private static readonly string[] CatalogOrder =
     [
         "drugs.list", "drugs.details", "drugs.create", "drugs.update", "drugs.delete",
-        "groups.list", "groups.details", "groups.create", "groups.update", "groups.delete",
+        "protocols.list", "protocols.details", "protocols.create", "protocols.update", "protocols.delete",
         "prescriptions.create",
     ];
 
@@ -40,7 +40,7 @@ public class PermissionCatalogTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ACC-002")]
-    public async Task The_drug_and_group_keys_are_in_the_catalog_module_and_the_prescription_key_in_its_own()
+    public async Task The_drug_and_protocol_keys_are_in_the_catalog_module_and_the_prescription_key_in_its_own()
     {
         var owner = await Login.OwnerAsync(await Data.Clinic());
 
@@ -50,8 +50,8 @@ public class PermissionCatalogTests(AppFixture app) : IntegrationTest(app)
         {
             ["drugs.list"] = "catalog", ["drugs.details"] = "catalog", ["drugs.create"] = "catalog",
             ["drugs.update"] = "catalog", ["drugs.delete"] = "catalog",
-            ["groups.list"] = "catalog", ["groups.details"] = "catalog", ["groups.create"] = "catalog",
-            ["groups.update"] = "catalog", ["groups.delete"] = "catalog",
+            ["protocols.list"] = "catalog", ["protocols.details"] = "catalog", ["protocols.create"] = "catalog",
+            ["protocols.update"] = "catalog", ["protocols.delete"] = "catalog",
             ["prescriptions.create"] = "prescription",
         }, ignoreOrder: true);
     }
@@ -71,11 +71,11 @@ public class PermissionCatalogTests(AppFixture app) : IntegrationTest(app)
         requires["drugs.create"].ShouldBe(["drugs.list"]);
         requires["drugs.update"].ShouldBe(["drugs.details"]);
         requires["drugs.delete"].ShouldBe(["drugs.details"]);
-        requires["groups.list"].ShouldBeEmpty();
-        requires["groups.details"].ShouldBe(["groups.list"]);
-        requires["groups.delete"].ShouldBe(["groups.list"]);
-        requires["groups.create"].ShouldBe(["drugs.list", "groups.list"]);
-        requires["groups.update"].ShouldBe(["drugs.list", "groups.details"]);
+        requires["protocols.list"].ShouldBeEmpty();
+        requires["protocols.details"].ShouldBe(["protocols.list"]);
+        requires["protocols.delete"].ShouldBe(["protocols.list"]);
+        requires["protocols.create"].ShouldBe(["drugs.list", "protocols.list"]);
+        requires["protocols.update"].ShouldBe(["drugs.list", "protocols.details"]);
         requires["prescriptions.create"].ShouldBe(["drugs.list"]);
     }
 

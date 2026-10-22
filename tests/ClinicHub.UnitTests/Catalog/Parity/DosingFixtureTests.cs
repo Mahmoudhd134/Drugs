@@ -9,7 +9,7 @@ using DosingRules = ClinicHub.Domain.Catalog.DosingRules;
 namespace ClinicHub.UnitTests.Catalog.Parity;
 
 /// <summary>
-/// The parity fixture (M1.6 design D6) against the C# side: <c>DosingRules</c> and the drug/group validators as the
+/// The parity fixture (M1.6 design D6) against the C# side: <c>DosingRules</c> and the drug/protocol validators as the
 /// API runs them. The frontend runs the same file against <c>types.ts</c>.
 /// </summary>
 [Trait("Area", "catalog")]

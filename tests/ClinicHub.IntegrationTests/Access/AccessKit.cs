@@ -15,7 +15,7 @@ using Shouldly;
 
 namespace ClinicHub.IntegrationTests.Access;
 
-/// <summary>A clinic's rows the catalog routes act on: a drug to read/edit/delete, a group, and a drug for group bodies.</summary>
+/// <summary>A clinic's rows the catalog routes act on: a drug to read/edit/delete, a protocol, and a drug for protocol bodies.</summary>
 public sealed record CatalogTarget(int DrugId, int ProtocolId, int ProtocolDrugId);
 
 /// <summary>
@@ -28,27 +28,27 @@ public static class CatalogRoutes
     {
         ["GET /drugs"] = Permissions.Drugs.List,
         ["GET /drugs/{id}"] = Permissions.Drugs.Details,
-        ["GET /drugs/{id}/groups"] = Permissions.Drugs.Details,
+        ["GET /drugs/{id}/protocols"] = Permissions.Drugs.Details,
         ["POST /drugs"] = Permissions.Drugs.Create,
         ["PUT /drugs/{id}"] = Permissions.Drugs.Update,
         ["DELETE /drugs/{id}"] = Permissions.Drugs.Delete,
-        ["GET /drug-groups"] = Permissions.Protocols.List,
-        ["GET /drug-groups/{id}"] = Permissions.Protocols.Details,
-        ["POST /drug-groups"] = Permissions.Protocols.Create,
-        ["PUT /drug-groups/{id}"] = Permissions.Protocols.Update,
-        ["DELETE /drug-groups/{id}"] = Permissions.Protocols.Delete,
+        ["GET /protocols"] = Permissions.Protocols.List,
+        ["GET /protocols/{id}"] = Permissions.Protocols.Details,
+        ["POST /protocols"] = Permissions.Protocols.Create,
+        ["PUT /protocols/{id}"] = Permissions.Protocols.Update,
+        ["DELETE /protocols/{id}"] = Permissions.Protocols.Delete,
     };
 
     /// <summary>Every endpoint, as theory data.</summary>
     public static TheoryData<string> All => new(PermissionOf.Keys);
 
-    /// <summary>A drug, and a group with another drug, in the clinic.</summary>
+    /// <summary>A drug, and a protocol with another drug, in the clinic.</summary>
     public static async Task<CatalogTarget> TargetAsync(TestData data, int clinicId)
     {
         var drug = await data.Drug(clinicId);
-        var groupDrug = await data.Drug(clinicId);
-        var group = await data.Protocol(clinicId).With(groupDrug);
-        return new CatalogTarget(drug.Id, group.Id, groupDrug.Id);
+        var protocolDrug = await data.Drug(clinicId);
+        var protocol = await data.Protocol(clinicId).With(protocolDrug);
+        return new CatalogTarget(drug.Id, protocol.Id, protocolDrug.Id);
     }
 
     public static Task<CatalogTarget> TargetAsync(TestData data, ClinicHandle clinic) => TargetAsync(data, clinic.Id);
@@ -58,20 +58,20 @@ public static class CatalogRoutes
     {
         "GET /drugs" => client.GetAsync("/api/v1/drugs"),
         "GET /drugs/{id}" => client.GetAsync($"/api/v1/drugs/{target.DrugId}"),
-        "GET /drugs/{id}/groups" => client.GetAsync($"/api/v1/drugs/{target.DrugId}/groups"),
+        "GET /drugs/{id}/protocols" => client.GetAsync($"/api/v1/drugs/{target.DrugId}/protocols"),
         "POST /drugs" => client.PostAsync("/api/v1/drugs", new { name = Unique.Name("Drug", "دواء") }),
         "PUT /drugs/{id}" => client.PutAsync($"/api/v1/drugs/{target.DrugId}", new { name = Unique.Name("Drug", "دواء") }),
         "DELETE /drugs/{id}" => client.DeleteAsync($"/api/v1/drugs/{target.DrugId}"),
-        "GET /drug-groups" => client.GetAsync("/api/v1/drug-groups"),
-        "GET /drug-groups/{id}" => client.GetAsync($"/api/v1/drug-groups/{target.ProtocolId}"),
-        "POST /drug-groups" => client.PostAsync("/api/v1/drug-groups", ProtocolBody(target.ProtocolDrugId)),
-        "PUT /drug-groups/{id}" => client.PutAsync($"/api/v1/drug-groups/{target.ProtocolId}", ProtocolBody(target.ProtocolDrugId)),
-        "DELETE /drug-groups/{id}" => client.DeleteAsync($"/api/v1/drug-groups/{target.ProtocolId}"),
+        "GET /protocols" => client.GetAsync("/api/v1/protocols"),
+        "GET /protocols/{id}" => client.GetAsync($"/api/v1/protocols/{target.ProtocolId}"),
+        "POST /protocols" => client.PostAsync("/api/v1/protocols", ProtocolBody(target.ProtocolDrugId)),
+        "PUT /protocols/{id}" => client.PutAsync($"/api/v1/protocols/{target.ProtocolId}", ProtocolBody(target.ProtocolDrugId)),
+        "DELETE /protocols/{id}" => client.DeleteAsync($"/api/v1/protocols/{target.ProtocolId}"),
         _ => throw new ArgumentOutOfRangeException(nameof(endpoint), endpoint, null),
     };
 
     public static object ProtocolBody(params int[] drugIds) =>
-        new { name = Unique.Name("Group", "مجموعة"), items = drugIds.Select(id => new { drugId = id }).ToArray() };
+        new { name = Unique.Name("Protocol", "بروتوكول"), items = drugIds.Select(id => new { drugId = id }).ToArray() };
 }
 
 /// <summary>Access tokens forged with the Testing signing key (only possible with the key: the "mismatching ids" cases).</summary>

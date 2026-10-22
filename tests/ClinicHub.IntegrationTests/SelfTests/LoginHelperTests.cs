@@ -71,7 +71,7 @@ public class LoginHelperTests(AppFixture app) : IntegrationTest(app)
 
         (await reader.MeAsync()).Permissions.ShouldBe([Permissions.Drugs.List]);
         await (await reader.GetAsync("/api/v1/drugs")).ShouldBeOkAsync();
-        await (await reader.GetAsync("/api/v1/drug-groups")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
+        await (await reader.GetAsync("/api/v1/protocols")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
 
     [Fact]

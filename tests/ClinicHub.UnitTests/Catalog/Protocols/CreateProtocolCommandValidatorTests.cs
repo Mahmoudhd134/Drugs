@@ -7,7 +7,7 @@ using Shouldly;
 namespace ClinicHub.UnitTests.Catalog.Protocols;
 
 /// <summary>
-/// <c>POST /drug-groups</c> validation (drug-groups tech § Backend): name → at least one item → at most 1000 items
+/// <c>POST /protocols</c> validation (protocols tech § Backend): name → at least one item → at most 1000 items
 /// (<c>invalidRequest</c>, item rules skipped) → each item's normalized dosing ("ask" allowed). Null items ignored.
 /// </summary>
 [Trait("Area", "catalog")]
@@ -21,7 +21,7 @@ public class CreateProtocolCommandValidatorTests
     private static readonly Dosing Invalid = new() { Frequency = "daily" };
 
     [Fact]
-    public void A_group_with_a_name_and_lines_is_valid()
+    public void A_protocol_with_a_name_and_lines_is_valid()
     {
         Validate("Post cataract", [Item(1), Item(2, new Dosing { Eye = "ask" }), Item(3, new Dosing { Eye = "left" })])
             .IsValid.ShouldBeTrue();
@@ -45,7 +45,7 @@ public class CreateProtocolCommandValidatorTests
     }
 
     [Fact]
-    public void A_group_needs_at_least_one_drug()
+    public void A_protocol_needs_at_least_one_drug()
     {
         Validate("G", []).Errors.ShouldBe([new ApiFieldError("drugsRequired", "items")]);
         Validate("G", null).Errors.ShouldBe([new ApiFieldError("drugsRequired", "items")]);
@@ -59,7 +59,7 @@ public class CreateProtocolCommandValidatorTests
     }
 
     [Fact]
-    public void A_group_holds_at_most_1000_lines()
+    public void A_protocol_holds_at_most_1000_lines()
     {
         var thousand = Enumerable.Range(1, 1000).Select(id => Item(id)).ToList();
         Validate("G", thousand).IsValid.ShouldBeTrue();
