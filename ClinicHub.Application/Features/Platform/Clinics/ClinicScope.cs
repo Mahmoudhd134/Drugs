@@ -31,6 +31,9 @@ internal sealed class ClinicScope(IAppDbContext db, ClinicContext clinicContext)
         return new Restore(clinicContext, previous);
     }
 
+    /// <summary>M1.7b contract stub (track <c>core</c>): see <see cref="IClinicScope.UseSharedCatalog"/>.</summary>
+    public IDisposable UseSharedCatalog() => throw new NotImplementedException();
+
     private sealed class Restore(ClinicContext clinicContext, int? previous) : IDisposable
     {
         private bool disposed;

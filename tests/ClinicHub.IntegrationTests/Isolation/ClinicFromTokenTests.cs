@@ -153,5 +153,5 @@ public class ClinicFromTokenTests(AppFixture app) : IntegrationTest(app)
     }
 
     private Task<int> ClinicOfDrugAsync(int drugId) =>
-        App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().Where(d => d.Id == drugId).Select(d => d.ClinicId).SingleAsync());
+        App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().Where(d => d.Id == drugId).Select(d => d.ClinicId.Value).SingleAsync());
 }

@@ -1,42 +1,44 @@
-using System.Text;
 using ClinicHub.Application.Common.Search;
+using ClinicHub.Domain.Catalog;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ClinicHub.Infrastructure.Database.Configurations.Common;
 
 /// <summary>
-/// The stored generated column <see cref="SearchText.Column"/> of a searched table (M1.6.1, Q6):
-/// <c>translate(lower(name), from, to)</c>, built from <see cref="SearchText.Replacements"/> and
-/// <see cref="SearchText.Removed"/> (characters of <c>from</c> beyond the length of <c>to</c> are dropped by
-/// <c>translate</c>), so the database folds a name exactly as <see cref="SearchText.Fold"/> folds a search term. They
-/// must stay identical; a change to the table changes this SQL and needs a new migration. Display, ordering and the
-/// stored names are unchanged; the column is only searched.
+/// The search columns of the searched tables (design M1.7 D7): ordinary columns (<c>text NOT NULL DEFAULT ''</c>), EF
+/// shadow properties the domain entities don't carry, filled by <see cref="ClinicAndTimestampsInterceptor"/> with
+/// <see cref="SearchText"/> whenever a row is added or its source text changes. Each column records its source
+/// properties in the <see cref="SourceAnnotation"/> annotation, which the interceptor reads: a new searched table needs
+/// one configuration line. Display, ordering and the stored names are unchanged; the columns are only searched.
 /// </summary>
 public static class SearchNameConfiguration
 {
-    /// <summary>Adds the search column computed from <paramref name="sourceColumn"/> (the column name, e.g. "Name").</summary>
-    public static void HasSearchName<T>(this EntityTypeBuilder<T> builder, string sourceColumn) where T : class =>
-        builder.Property<string>(SearchText.Column)
-            .HasComputedColumnSql(Sql(sourceColumn), stored: true)
-            .IsRequired();
+    /// <summary>
+    /// On a search column: its source properties, comma-separated in the order <see cref="SearchText"/> joins them
+    /// (<c>"Name"</c>; <c>"NameAr,ActiveIngredients"</c>).
+    /// </summary>
+    public const string SourceAnnotation = "ClinicHub:SearchSource";
+
+    /// <summary><see cref="SearchText.Column"/> = <see cref="SearchText.Fold"/> of <paramref name="sourceProperty"/> (e.g. "Name").</summary>
+    public static void HasSearchName<T>(this EntityTypeBuilder<T> builder, string sourceProperty) where T : class =>
+        SearchColumn(builder, SearchText.Column, sourceProperty);
 
     /// <summary>
-    /// The SQL expression, its Arabic letters written as PostgreSQL Unicode escapes (<c>U&amp;'\0623…'</c>) so the
-    /// migration stays readable. <c>lower()</c> and <c>translate()</c> are immutable, as a generated column requires.
+    /// <c>Drugs</c>: <see cref="SearchText.OtherColumn"/> = <see cref="SearchText.OtherText"/> of the hidden Arabic name
+    /// and the active ingredients.
     /// </summary>
-    public static string Sql(string sourceColumn)
-    {
-        var from = SearchText.Replacements.Select(r => r.From).Concat(SearchText.Removed);
-        var to = SearchText.Replacements.Select(r => r.To);
-        return $"translate(lower(\"{sourceColumn}\"), {UnicodeLiteral(from)}, {UnicodeLiteral(to)})";
-    }
+    public static void HasSearchOther(this EntityTypeBuilder<Drug> builder) =>
+        SearchColumn(builder, SearchText.OtherColumn, $"{nameof(Drug.NameAr)},{nameof(Drug.ActiveIngredients)}");
 
-    private static string UnicodeLiteral(IEnumerable<char> chars)
-    {
-        var literal = new StringBuilder("U&'");
-        foreach (var c in chars)
-            literal.Append('\\').Append(((int)c).ToString("X4"));
-        return literal.Append('\'').ToString();
-    }
+    /// <summary>The source properties of a search column (the annotation), empty for any other property.</summary>
+    public static IReadOnlyList<string> SourcesOf(IReadOnlyProperty property) =>
+        property.FindAnnotation(SourceAnnotation)?.Value is string sources ? sources.Split(',') : [];
+
+    private static void SearchColumn<T>(EntityTypeBuilder<T> builder, string column, string sources) where T : class =>
+        builder.Property<string>(column)
+            .IsRequired()
+            .HasDefaultValue("")
+            .HasAnnotation(SourceAnnotation, sources);
 }

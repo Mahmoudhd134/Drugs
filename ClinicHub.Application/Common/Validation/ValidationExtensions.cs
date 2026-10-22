@@ -38,6 +38,17 @@ public static class ValidationExtensions
     public static IRuleBuilderOptions<T, string> ValidText<T>(this IRuleBuilder<T, string> rule) =>
         rule.Must(text => text is null || !text.Contains('\0')).WithError(CommonErrors.InvalidText);
 
+    /// <summary>
+    /// Optional one-line text (design M1.7 D3, a drug's active ingredients): no control characters, line breaks and tabs
+    /// included (<see cref="CommonErrors.InvalidText"/>), and at most <paramref name="maxLength"/> characters once
+    /// trimmed (<see cref="CommonErrors.TextTooLong"/>). Null or blank passes (the handler stores null).
+    /// </summary>
+    public static IRuleBuilderOptions<T, string> SingleLineText<T>(this IRuleBuilder<T, string> rule,
+        int maxLength = FieldLimits.ActiveIngredientsMaxLength) =>
+        rule
+            .Must(text => text is null || !text.Any(IsLineOrControl)).WithError(CommonErrors.InvalidText)
+            .Must(text => text is null || text.Trim().Length <= maxLength).WithError(CommonErrors.TextTooLong);
+
     private static bool IsBlank(string name) =>
         name is null || name.All(c => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) == UnicodeCategory.Format);
 

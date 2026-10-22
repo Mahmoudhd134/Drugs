@@ -9,7 +9,8 @@ namespace ClinicHub.Application.Common.Abstractions;
 
 /// <summary>
 /// The database as use cases see it: one set per table (filtered to the current clinic for
-/// <see cref="IClinicOwned"/> rows) and saving. Migrations, raw SQL, transactions and the change
+/// <see cref="IClinicOwned"/> rows, to the current clinic's and the shared rows for <see cref="IClinicOrShared"/>) and
+/// saving. Migrations, raw SQL, transactions and the change
 /// tracker stay in Infrastructure. <see cref="RolePermission"/> has no set: it has no clinic column, so
 /// it is only read through its (filtered) <see cref="Role"/>.
 /// </summary>
@@ -25,6 +26,9 @@ public interface IAppDbContext
     DbSet<Drug> Drugs { get; }
     DbSet<Protocol> Protocols { get; }
     DbSet<ProtocolItem> ProtocolItems { get; }
+    /// <summary>Platform rows (not clinic-owned): every clinic reads them; only the admin handlers write them.</summary>
+    DbSet<Category> Categories { get; }
+    DbSet<SubCategory> SubCategories { get; }
 
     /// <summary>
     /// Marks the row as changed so its UpdatedAt moves (e.g. a protocol whose items changed); the
