@@ -18,6 +18,10 @@ and isolates with `nameInvalid`, so a name can't show reversed and can always be
 disable / enable, delete with the name typed), and a link into the template ([Frontend](#frontend)). M1.5.5: the
 clinic page's **Roles** and **Staff** tabs (frontend only), built from reusable components that get their data through
 an adapter (design D9), so a clinic-side screen can mount them later ([Roles and staff screens](#roles-and-staff-screens-m155)).
+M1.7b: the **shared drug catalog and categories** admin (`/api/v1/admin/drugs…`, `/admin/drug-categories…`,
+`/admin/drug-subcategories/{id}`, the `/admin/drugs` and `/admin/categories` screens), documented in
+[shared catalog](../shared-catalog/tech.md); provisioning and the dev seed changed with it ([Provisioning](#provisioning),
+[Dev seed](#dev-seed)).
 
 ## Data model
 Migration **`AddClinicDeletedAt`** (M1.5.1, on top of `AddRoles`; adds one nullable column, no data step needed).
@@ -65,7 +69,8 @@ type ClinicDetails = ClinicSummary & { owners: { staffId: number; fullName: stri
 - A missing or deleted clinic, or the **template**, → 404 `notFound` on every `{id}` route (so the template can't be
   renamed, suspended or deleted, and a deleted clinic can't be deleted again).
 - List: no template, no deleted clinics; `search` = case-insensitive, Arabic-normalized `Contains` (M1.6.1: the term
-  folded by `SearchText.Term`, looked for in the generated column `Clinics.SearchName`;
+  folded by `SearchText.Term`, looked for in `Clinics.SearchName`, an ordinary column filled by the save interceptor
+  since M1.7b;
   [search](../../tech/overview.md#conventions)), names whose folded name starts with it first; `status` = `active` / `suspended` (trimmed, lower-cased, control characters dropped; any other value matches nothing); then by
   name and id. Paging as everywhere (`Paging.Normalize`: page ≥ 1, pageSize 1–100, default 20).
 - `staffCount` = active staff. `owners` = active staff holding the Owner role, by name.
@@ -121,7 +126,7 @@ type StaffMember = { id: number; userId: number; phone: string; fullName: string
 - **Owner role** (`IsOwner`): update and delete → 409 `roleLocked` (after validation).
 - **Role delete**: real delete (its `RolePermissions` cascade); any staff holding it, active or not → 409 `roleInUse`.
 - **Staff list**: the clinic's staff, active or not, by full name then id; paging as everywhere. `search`
-  (`SearchText.Term`) matches the full name (`Contains` in the generated column `Staff.SearchName`: case-insensitive
+  (`SearchText.Term`) matches the full name (`Contains` in `Staff.SearchName`, filled by the save interceptor: case-insensitive
   and Arabic-normalized, M1.6.1, [search](../../tech/overview.md#conventions)); a term that looks like a phone (only
   digits, Arabic-Indic too, spaces, `+ - ( )`) **also** matches the stored phone containing its digits (mapped to
   ASCII) with the **leading zeros dropped**: a local `0100…` (trunk prefix), «٠١٠٠…» or an international `0020…` finds
@@ -202,11 +207,14 @@ after such a 403 (its API client, as for a 401; or a `/me` without a context) an
 replays the request when the clinic is still there (since M1.5.3, [auth](../auth/tech.md)).
 
 ## Provisioning
-`TemplateCatalogSeeder` (design D5): finds the template (`IsTemplate`; missing → exception, the create fails), reads its
-drugs and then its protocols with their items across clinics (`IgnoreQueryFilters()` + `ClinicId == templateId`,
-`AsNoTracking`, read only), and inserts **new** rows in the current (new) clinic: the drugs first (saved, so their ids
-are known), then the protocols with their items, each item's `DrugId` remapped to the copy of its template drug, `Order`
-kept. Every `Dosing` (drug defaults and item overrides) is a **new instance**, its `TaperSteps` too (an owned value
+`TemplateCatalogSeeder` (design D5; M1.7b, shared catalog design § 9): finds the template (`IsTemplate`; missing →
+exception, the create fails), reads its **own** drugs and then its protocols with their items across clinics
+(`IgnoreQueryFilters()` + `ClinicId == templateId`, `AsNoTracking`, read only), and inserts **new** rows in the current
+(new) clinic: the own drugs first (name, active ingredients, description, default dosing, category, subcategory; saved,
+so their ids are known), then the protocols with their items, `Order` kept. Shared drugs are never copied (every clinic
+sees them): an item on a shared drug keeps its id (a withdrawn one too), an item on a template own drug is remapped to
+its copy, and any other id (only in the accepted race of a drug saved in the template between the two reads) throws
+`KeyNotFoundException` (500, rolled back). Protocols are copied even when the template has no own drug. Every `Dosing` (drug defaults and item overrides) is a **new instance**, its `TaperSteps` too (an owned value
 can't be shared between two rows). The save interceptor stamps the new clinic on every row and refuses any other.
 The copy is a snapshot: later template edits don't change existing clinics, and a clinic's edits never reach the
 template. In memory: fine for templates of hundreds of drugs; thousands would move the copy to SQL behind a
@@ -218,17 +226,22 @@ the command's one transaction; an exception in any seeder answers 500 and leaves
 ## Dev seed
 `Infrastructure/Platform/StartupSeeder` (design D6), Development only, when no non-template clinic exists, in its own
 all-or-nothing transaction:
-1. **Template content** (skipped when the template already has drugs): "Moxifloxacin 0.5%" (antibiotic eye drops,
-   1 drop 4 times a day for 1 week) and "Prednisolone acetate 1%" (steroid eye drops, 1 drop 4 times a day for
-   4 weeks), and the protocol "After cataract surgery": Moxifloxacin with its default dosing, then Prednisolone with an
-   **override** (a taper 4 → 3 → 2 → 1 times a day, one week each; eye `ask`; the dose comes from the drug).
+1. **Template content** (skipped when the template already has own drugs, `AnyAsync(d => d.ClinicId != null)`; skipped
+   with a warning naming `data/drug-catalog/tools/load_catalog.py` when the shared catalog isn't loaded: no «العيون»
+   category or no shared "VIGAMOX 0.5% EYE DROPS 5 ML"): two own drugs in «العيون», "Prednisolone acetate 1%" (Eye
+   anti-inflammatories, steroid eye drops, 1 drop 4 times a day for 4 weeks) and "Timolol 0.5%" (Glaucoma, 1 drop twice
+   a day), and the protocol "After cataract surgery": the shared VIGAMOX with a line dosing (1 drop 4 times a day for
+   1 week; a shared drug has no default), then Prednisolone with an **override** (a taper 4 → 3 → 2 → 1 times a day, one
+   week each; eye `ask`; the dose comes from the drug).
 2. **"Demo clinic"**: `CreateClinicCommand` through `ISender` (owner `Platform:DevOwnerPhone`, "Dev Owner"), then,
-   inside `IClinicScope.Use(demoId)`, the 10,000 bulk drugs ("Drug number N") and `Platform:DevAssistantPhone` as
-   "Dev Assistant" with the Assistant role (no deletes). 10,002 drugs, 1 protocol. The change tracker is cleared after
-   it (the 10,000 drugs are not tracked through the next saves).
+   inside `IClinicScope.Use(demoId)`, `Platform:DevAssistantPhone` as "Dev Assistant" with the Assistant role (no
+   deletes). No bulk drugs since M1.7b (paging and search are checked on the 23K shared drugs): 2 own drugs, 1 protocol.
 3. **"Second demo clinic"**: the same command (same owner), then the read-only **"Viewer"** role (`drugs.list`,
    `drugs.details`, `protocols.list`, `protocols.details`) and the assistant as Viewer. Its catalog is the template copy
-   (2 drugs, 1 protocol).
+   (2 own drugs, 1 protocol).
+
+Dev order on a fresh database: `dotnet ef database update`, then `load_catalog.py`, then the first start (a first start
+before the load seeds the clinics without the template sample).
 
 The commands join the seed's transaction through savepoints (`TransactionRunner`); their post-commit actions would run
 at once, before the seed commits (none: a create needs no invalidation). Dev phones are normalized first
@@ -236,7 +249,7 @@ at once, before the seed commits (none: a create needs no invalidation). Dev pho
 empty `DevAssistantPhone` skips the assistant; an empty `DevOwnerPhone` skips only the demo clinics, with a warning on
 every start (a clinic needs an owner; the template is still filled when empty). Outside Development: unchanged
 (template ensured, empty; super admins seeded). Logged when something was seeded: "Development data seeded in N ms"
-(about 1.8–2.1 s on a fresh dev DB, mostly the 10,000 drugs).
+(under 1 s on a fresh dev DB since M1.7b).
 
 ## Frontend
 Built in M1.5.4 (clinics) and M1.5.5 (the roles and staff tabs, [below](#roles-and-staff-screens-m155)). Everything under `/admin` is lazy, inside

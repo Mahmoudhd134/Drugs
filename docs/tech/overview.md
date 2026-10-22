@@ -45,12 +45,16 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
   Common/Validation/           .WithError(error), the shared ValidName(maxLength = 256) (nameRequired; nameInvalid: control, line/paragraph
-                               separator or bidi override or isolate characters; nameTooLong) and
-                               ValidText() (invalidText) rules
+                               separator or bidi override or isolate characters; nameTooLong), ValidText() (invalidText)
+                               and SingleLineText(1000) (invalidText, textTooLong) rules
+  Common/Results/              Result, Error, CommonErrors, ClinicError (clinicNames), CountError (drugCount, M1.7b)
   Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
-  Common/Search/               SearchText: the Arabic-normalized search term (Term, Fold) and its column name (M1.6.1)
-  Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
-  Features/Catalog/Protocols/  same, + ProtocolDto, ProtocolErrors, SaveProtocolItem
+  Common/Search/               SearchText: the Arabic-normalized fold (Fold, Term; OtherText, OtherTerm) and the column
+                               names (SearchName, SearchOther) (M1.6.1, M1.7b)
+  Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto (+ ProtocolDrugDto), DrugErrors,
+                               DrugSource, SubCategoryFilter, DrugQueries (the list composition and order, M1.7b)
+  Features/Catalog/Protocols/  same, + ProtocolDto, ProtocolErrors, SaveProtocolItem, ProtocolLineRules
+  Features/Catalog/Categories/ CategoryDto, CategoryErrors, CategoryIds, CategoryRules; Queries/GetCategories (M1.7b)
   Features/Identity/           IdentityErrors at the root; sub-features:
     Login/                     IOtpLock, IOtpSender, OtpHash; Commands/ (RequestOtp, VerifyOtp), Queries/GetOtpMode
     Sessions/                  ISessionService/SessionService, SessionRules (RotationGrace, SetContext),
@@ -72,13 +76,19 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                SuspendClinic, ActivateClinic, DeleteClinic), Queries/ (GetClinics, GetClinic)
   Features/Platform/Provisioning/  IClinicProvisioner/ClinicProvisioner, IClinicSeeder (+ ClinicSeedContext); Seeders/
                                (DefaultRolesSeeder, OwnerSeeder, TemplateCatalogSeeder); all internal
+  Features/Platform/SharedDrugs/   AdminDrugDto, SharedDrugErrors, SharedDrugStatus; Commands/ (CreateSharedDrug,
+                               UpdateSharedDrug, WithdrawSharedDrug, RestoreSharedDrug), Queries/ (GetSharedDrugs,
+                               GetSharedDrug) (M1.7b)
+  Features/Platform/DrugCategories/  AdminCategoryDto; Commands/ (CreateCategory, RenameCategory, DeleteCategory,
+                               CreateSubCategory, RenameSubCategory, DeleteSubCategory), Queries/GetAdminCategories (M1.7b)
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Database/AppDbContext.cs     DbSets, IAppDbContext, clinic FK + query filter for every IClinicOwned
   Database/Configurations/<Module>/   one IEntityTypeConfiguration<T> per entity (+ DosingConfiguration; Common/
-                                      SearchNameConfiguration: the generated SearchName column)
-  Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt on save
+                                      SearchNameConfiguration: the search columns and their source annotation)
+  Database/ClinicAndTimestampsInterceptor.cs   fills ClinicId + CreatedAt/UpdatedAt and the search columns on save;
+                                               guards shared drugs (M1.7 D2)
   Database/TransactionRunner.cs                ITransactionRunner (EF execution strategy + savepoints) and
                                                IPostCommitActions (runs the queue when its outermost transaction ends)
   Migrations/                  EF Core migrations (applied automatically on startup)
@@ -156,17 +166,20 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
-  also gets sample **template** content (2 eye drops, Moxifloxacin and Prednisolone, and the protocol "After cataract
-  surgery" using both, the second line overriding its drug's dosing with a taper) and two clinics **provisioned from
-  it** through `CreateClinicCommand` (default roles, owner, a copy of the template's drugs and protocol): "Demo clinic"
-  (+ 10,000 sample drugs: 10,002) and "Second demo clinic" (the template copy only: 2 drugs + 1 protocol), the
+  also gets sample **template** content (2 own eye drops with categories, Prednisolone and Timolol, and the protocol
+  "After cataract surgery" = the shared "VIGAMOX 0.5% EYE DROPS 5 ML" + Prednisolone with a taper override; skipped
+  with a warning naming `data/drug-catalog/tools/load_catalog.py` when the shared catalog isn't loaded) and two clinics
+  **provisioned from it** through `CreateClinicCommand` (default roles, owner, a copy of the template's own drugs and
+  protocol): "Demo clinic" and "Second demo clinic" (2 own drugs + 1 protocol each; no bulk drugs since M1.7b), the
   `Platform:DevOwnerPhone` user as staff "Dev Owner" (Owner) in both, and `Platform:DevAssistantPhone` as "Dev
   Assistant" (Assistant in the first, read-only "Viewer" in the second). An empty `DevOwnerPhone` skips only the demo
   clinics (a warning: a clinic needs an owner; the template is still filled when empty).
 - **Login:** phone + one-time code; a JWT access token per context (a clinic, or the platform for a
   super admin) and a rotating refresh token in an HttpOnly cookie ([login](../features/auth/tech.md)).
 - **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
-  request's clinic automatically ([clinic scoping](../features/clinic-scoping/tech.md)). The clinic
+  request's clinic automatically ([clinic scoping](../features/clinic-scoping/tech.md)), except the platform's
+  **shared drugs** (`Drugs.ClinicId` null, M1.7b: every clinic sees them, only the super admin writes them; categories
+  are platform rows too: [shared catalog](../features/shared-catalog/tech.md)). The clinic
   comes only from the access token's `clinic_id` (`UseClinicFromToken`); no token = no clinic.
 - **Permissions:** roles per clinic, one permission per action, checked on every catalog endpoint
   (`[HasPermission]`) and in the UI; never in the token: cached per staff/role on the server, read from
@@ -206,21 +219,27 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   `Paging.Normalize`: page ≥ 1, pageSize 1–100; a huge page is capped at `int.MaxValue / pageSize`, so the offset
   `(page - 1) × pageSize` always fits an `int`: such a page is simply empty, never an error).
 - **Search** (drugs, protocols, admin clinics, admin staff by name) is a case-insensitive, **Arabic-normalized**
-  `Contains` (M1.6.1): the searched tables (`Drugs`, `Protocols`, `Clinics`, `Staff`) have a **stored generated
-  column** `SearchName` = the name (`FullName` for staff) lower-cased, with أ إ آ ٱ and the superscript alef U+0670
-  → ا, ى → ي, ة → ه, ؤ → و, ئ → ي, and the tatweel (U+0640) and the diacritics (U+064B–U+065F) removed
-  (`translate(lower(…))`); the term is folded the same way by `SearchText.Term` (`Application/Common/Search`). The
-  SQL is built from `SearchText`'s own table by `SearchNameConfiguration` (Infrastructure), so the two can't drift; a
-  change to the table changes the column's SQL and needs a new migration (`has-pending-model-changes` reports it).
-  Handlers filter with `EF.Property<string>(x, SearchText.Column).Contains(term)` (a shadow property: the domain
-  entities don't carry it). Drug and clinic search rank names whose folded name **starts with** the term first.
+  `Contains` (M1.6.1; M1.7b): the searched tables (`Drugs`, `Protocols`, `Clinics`, `Staff`) have an ordinary column
+  `SearchName` (`text NOT NULL DEFAULT ''`) = `SearchText.Fold` of the name (`FullName` for staff): lower case, with
+  أ إ آ ٱ and the superscript alef U+0670 → ا, ى → ي, ة → ه, ؤ → و, ئ → ي, and the tatweel (U+0640) and the diacritics
+  (U+064B–U+065F) removed; `Drugs` also has `SearchOther` = `SearchText.OtherText(NameAr, ActiveIngredients)`. The
+  **save interceptor fills them** from their source properties whenever a row is added or a source changes
+  (`SearchNameConfiguration` records the sources in a model annotation: a new searched table needs one configuration
+  line); the term is folded by the same `SearchText` code (`Term`, `OtherTerm`), so the two sides can't drift and
+  search has **no database-specific SQL**. Consequences: no `ExecuteUpdate` may set a searched text (it would leave the
+  column stale; architecture test); a row inserted by raw SQL gets `''` and isn't found until the app saves it; a
+  change to the fold table needs a data migration that refolds the stored rows (and the same change in
+  `load_catalog.py`). Handlers filter with `EF.Property<string>(x, SearchText.Column).Contains(term)` (a shadow
+  property: the domain entities don't carry it). Drug and clinic search rank names whose folded name **starts with**
+  the term first (drugs: own drugs before shared ones, design M1.7 D7).
   Display, ordering and the stored names are unchanged. `Paging.SearchTerm` (first step of `SearchText.Term`) trims
   the term and removes control characters (no name has one; a NUL would fail in the database): they are dropped from
   the term; a term left empty (e.g. only a tatweel) means no filter. The staff search by phone digits is separate
   (unchanged).
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `ProtocolErrors`,
-  `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`, `StaffErrors`). Add new codes
+  `CategoryErrors`, `SharedDrugErrors`, `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`,
+  `StaffErrors`). Add new codes
   there **and** under `errors.*` in both locale files. A code that may name a clinic (`clinicSuspended`,
   `staffInactive`: the `clinicNames` field below) also has `errors.<code>_named` (plural forms, `{{clinics}}`). The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;
@@ -275,6 +294,8 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
   at login every clinic with that reason, by name); the SPA then shows `errors.<code>_named` (plural forms, the names
   quoted with `common.quotedName` and joined with `Intl.ListFormat`). Absent everywhere else (one shape, one optional
   field).
+- `drugCount` (M1.7b): a number, only when the first error is a `CountError` (`categoryInUse`, `subCategoryInUse`:
+  every drug blocking the delete); the SPA then shows `errors.<code>_counted` (plural forms).
 - Status from the first error's `ErrorType`: Validation 400, Unauthorized 401, Forbidden 403, NotFound 404,
   Conflict 409, Failure 500; `tooManyRequests` 429 and `methodNotAllowed` 405 by code. A `TooManyRequestsError`
   (e.g. the OTP limits) also sets `Retry-After`. A caller may pass an explicit status, which then wins over the
@@ -315,14 +336,16 @@ constraint; the non-GET quirk in [architecture](../design/architecture.md#carry-
 ```
 Clinics (Platform)
 - Id (PK), Name (≤256), Status ("active" | "suspended"), IsTemplate (only one: partial unique index),
-  DeletedAt (timestamptz null: set = soft deleted, Status untouched; no query filter), SearchName (generated)
+  DeletedAt (timestamptz null: set = soft deleted, Status untouched; no query filter), SearchName (filled by the app)
+Categories (Platform)  Id (fixed 1–23 imported), NameEn, NameAr (≤100); no ClinicId (M1.7b)
+SubCategories          Id (fixed 1–182), CategoryId (restrict), NameEn, NameAr; unique (Id, CategoryId)
 
 Users (Identity)       Phone (E.164, unique), IsSuperAdmin, LastLoginAt
 OtpCodes (Identity)    Phone, CodeHash (HMAC), ExpiresAt, Attempts, ConsumedAt; index (Phone, CreatedAt)
 Sessions (Identity)    Id (uuid), UserId (cascade), RefreshTokenHash (unique), PreviousRefreshTokenHash
                        (indexed) + RotatedAt (30 s rotation grace), ContextType, ClinicId (restrict),
                        ExpiresAt (sliding), LastUsedAt, RevokedAt
-Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive, SearchName (generated);
+Staff (Access)         ClinicId (clinic-owned), UserId (restrict), FullName, IsActive, SearchName (filled by the app);
                        unique (ClinicId, UserId)
 Roles (Access)         ClinicId (clinic-owned), Name (<=100, unique per clinic), IsOwner (one per clinic)
 RolePermissions        RoleId (cascade) + Permission (<=100), PK (RoleId, Permission); none for Owner
@@ -334,20 +357,25 @@ Details: [login tech](../features/auth/tech.md), [access tech](../features/acces
 
 Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
 (`timestamptz`, UTC, set on save). `Drugs`, `Protocols`
-and `ProtocolItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
-`Drugs` and `Protocols`. `Drugs`, `Protocols`, `Clinics` and `Staff` have `SearchName` (text, not null, a
-**stored generated column** from the name, only searched: [search](#conventions); M1.6.1). It has no index: a
-`Contains` can't use a btree index, and a clinic's 10,000 drugs are searched in about a millisecond; the
-`(ClinicId, Name)` indexes still serve the ordered lists. Protocol items reference their protocol and drug with composite FKs
-`(ProtocolId, ClinicId)` / `(DrugId, ClinicId)`, so the database rejects cross-clinic lines.
+and `ProtocolItems` have `ClinicId` (FK → `Clinics`, restrict; **nullable on `Drugs`: null = a shared drug**, M1.7b);
+indexes `(ClinicId, Name)` on `Drugs` and `Protocols`, `(CategoryId, SubCategoryId)` on `Drugs`. `Drugs`, `Protocols`,
+`Clinics` and `Staff` have `SearchName` (`Drugs` also `SearchOther`): ordinary text columns filled by the save
+interceptor, only searched ([search](#conventions)). No index: a `Contains` can't use a btree index (~23K visible drugs
+are scanned per request; design M1.7 D7 budget). Protocol items reference their protocol with the composite FK
+`(ProtocolId, ClinicId)` and their drug with a simple FK (`DrugId`, cascade): a line's drug is shared or the clinic's
+own, checked by the protocol handlers (`drugNotFound`), not by the database (M1.7b).
 
 ```
 Drugs                       Protocols
 - Id (PK)                   - Id (PK)
-- Name (≤256, required)     - Name (≤256, required)
-- SearchName (generated)    - SearchName (generated)
+- ClinicId (null = shared)  - Name (≤256, required)
+- Name (≤256, required)     - SearchName (filled by the app)
+- NameAr (internal, imported shared drugs only, search only)
+- ActiveIngredients (≤1000), CategoryId (required), SubCategoryId (composite FK with CategoryId)
+- IsWithdrawn, WithdrawnAt (shared only)
+- SearchName, SearchOther (filled by the app)
 - Description (nullable)
-- DefaultDosing_* (owned Dosing, nullable: dose, frequency, duration, eye, TaperSteps JSON)
+- DefaultDosing_* (owned Dosing, nullable; never on a shared drug: dose, frequency, duration, eye, TaperSteps JSON)
         ▲                           ▲
         │ DrugId (cascade)          │ ProtocolId (cascade)
         └────── ProtocolItems ──────┘
@@ -378,16 +406,17 @@ Drugs                       Protocols
 | POST | `/auth/logout` | Revokes the session, clears the cookie → 204 |
 | GET | `/me` | User, context, staff, permissions (expanded keys in a clinic context) |
 | GET | `/permissions` | The permission catalog `[{ key, module, resource, action, requires }]` (any access token) |
-| GET | `/drugs?search=&page=1&pageSize=20` | Paged drugs, ordered by name (prefix matches first when searching) |
-| GET | `/drugs/{id}` | One drug |
-| POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |
-| PUT | `/drugs/{id}` | Update `{ name, description, defaultDosing }` → drug |
-| GET | `/drugs/{id}/protocols` | Names of protocols using the drug |
-| DELETE | `/drugs/{id}` | Delete → 204 |
+| GET | `/drugs?search=&source=&categoryId=&subCategoryId=&page=1&pageSize=20` | Paged own + active shared drugs (`source` = `all`/`shared`/`own`; category filters; `subCategoryId` = id or `none`), own first (newest first; with a search prefix matches first, then by name) |
+| GET | `/drugs/{id}` | One drug, own or shared (a withdrawn shared one with `withdrawn: true`) |
+| POST | `/drugs` | Create an own drug `{ name, activeIngredients, description, defaultDosing, categoryId, subCategoryId }` → 201 + drug |
+| PUT | `/drugs/{id}` | Update (same body) → drug; a shared drug → 409 `sharedDrugReadOnly` |
+| GET | `/drugs/{id}/protocols` | Names of this clinic's protocols using the drug |
+| DELETE | `/drugs/{id}` | Delete → 204; a shared drug → 409 `sharedDrugReadOnly` |
+| GET | `/drug-categories` | Every category with its subcategories (`drugs.list`) |
 | GET | `/protocols?search=&page=1&pageSize=20` | Paged protocols (each with its items: drug + override, in order), ordered by name |
 | GET | `/protocols/{id}` | One protocol with its items |
 | POST | `/protocols` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + protocol |
-| PUT | `/protocols/{id}` | Replace name and items (order + overrides) → protocol |
+| PUT | `/protocols/{id}` | Replace name and items (order + overrides) → protocol; a withdrawn shared drug keeps its stored lines only (`drugWithdrawn`) |
 | DELETE | `/protocols/{id}` | Delete → 204 |
 | GET | `/admin/clinics?search=&status=&page=1&pageSize=20` | Paged `ClinicSummary` (no template, no deleted), by name (prefix matches first when searching); `status` = `active` / `suspended` |
 | GET | `/admin/clinics/{id}` | `ClinicDetails` (+ `owners`) |
@@ -403,6 +432,13 @@ Drugs                       Protocols
 | POST | `/admin/clinics/{clinicId}/staff` | Add `{ phone, fullName, roleIds[] }` → 201 + `StaffMember` (user reused by phone or created; `Location` = the list) |
 | PUT | `/admin/clinics/{clinicId}/staff/{staffId}` | `{ fullName, isActive, roleIds[] }` → `StaffMember` (phone can't change; `lastOwner`) |
 | DELETE | `/admin/clinics/{clinicId}/staff/{staffId}` | Remove (real delete) → 204 (`lastOwner`) |
+| GET | `/admin/drugs?search=&status=&categoryId=&subCategoryId=&page=&pageSize=` | Paged shared drugs (`status` = `active` (default) / `withdrawn` / `all`), the clinic list's search and order (M1.7b) |
+| GET | `/admin/drugs/{id}` | One shared drug (`AdminDrugDto`); own or unknown → 404 |
+| POST | `/admin/drugs`, PUT `/admin/drugs/{id}` | Create / update `{ name, activeIngredients, description, categoryId, subCategoryId }` (no dosing) |
+| POST | `/admin/drugs/{id}/withdraw`, `/admin/drugs/{id}/restore` | → 204 (idempotent) |
+| GET | `/admin/drug-categories` | Categories and subcategories with `drugCount`, `deletedClinicsDrugCount` (+ `noSubCategoryDrugCount`) |
+| POST | `/admin/drug-categories`, PUT `/admin/drug-categories/{id}`, DELETE `/admin/drug-categories/{id}` | Create / rename `{ nameEn, nameAr }` (`categoryNameTaken`) / delete (`categoryInUse` + `drugCount`) |
+| POST | `/admin/drug-categories/{id}/subcategories`, PUT/DELETE `/admin/drug-subcategories/{id}` | Same for subcategories (`subCategoryNameTaken`, `subCategoryInUse`) |
 
 Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/protocols`) need a clinic-context access token
 (`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
@@ -442,9 +478,15 @@ Swagger UI is available in Development at `/swagger`.
   `DrugGroups` → `Protocols`, `DrugGroupItems` → `ProtocolItems`, `DrugGroupId` → `ProtocolId`, every PK/AK/FK and index
   name (`RENAME CONSTRAINT`, `RenameIndex`) and the two identity sequences, so a migrated database matches a fresh one;
   then the stored permission keys `groups.*` → `protocols.*` in `RolePermissions`; down reverses it; tested up → down →
-  up with data).
+  up with data) → `AddSharedCatalog` (M1.7b: schema only, on an empty `Drugs` table: `Categories`, `SubCategories`,
+  the new drug columns, nullable `Drugs.ClinicId`, the items' drug FK made simple (cascade) and `AK_Drugs_Id_ClinicId`
+  dropped, the composite subcategory FK, the four `SearchName` columns turned into ordinary columns filled by the app
+  and `SearchOther` added; no rows (the shared catalog is loaded by `data/drug-catalog/tools/load_catalog.py`, once);
+  down restores the generated columns and fails, rolled back, while shared drugs exist).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
-  `dotnet ef database update <ef args>`.
+  `dotnet ef database update <ef args>`, then `python data/drug-catalog/tools/load_catalog.py --connection
+  "host=localhost port=5432 dbname=drags user=drags password=drags"` before the first start (the dev seed's template
+  sample needs the catalog).
 
 ## Frontend
 

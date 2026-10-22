@@ -6,22 +6,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Catalog.Protocols.Commands.CreateProtocol;
 
+/// <summary>After the validator: <see cref="ProtocolLineRules"/> (a new protocol has no stored line, so any withdrawn drug is refused).</summary>
 internal sealed class CreateProtocolCommandHandler(IAppDbContext db)
     : ICommandHandler<CreateProtocolCommand, ProtocolDto>
 {
     public async Task<Result<ProtocolDto>> Handle(CreateProtocolCommand command, CancellationToken cancellationToken)
     {
         var items = SaveProtocolItem.Normalize(command.Items);
-        var drugIds = items.Select(x => x.DrugId).Distinct().ToList();
-        // Each drug's default eye: a line without an eye of its own takes it (the effective eye)
-        var defaultEyes = await db.Drugs.AsNoTracking()
-            .Where(d => drugIds.Contains(d.Id))
-            .Select(d => new { d.Id, d.DefaultDosing.Eye })
-            .ToDictionaryAsync(d => d.Id, d => d.Eye, cancellationToken);
-        if (defaultEyes.Count != drugIds.Count)
-            return ProtocolErrors.DrugNotFound;
-        if (SaveProtocolItem.HasDuplicate(items, defaultEyes))
-            return ProtocolErrors.DuplicateItem;
+        var lineError = await ProtocolLineRules.CheckAsync(db, command.Items, items, protocolId: null, cancellationToken);
+        if (lineError is not null)
+            return lineError;
 
         var protocol = new Protocol
         {

@@ -1,5 +1,7 @@
 using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Common.Search;
 using ClinicHub.Domain.Catalog;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Catalog.Drugs;
 
@@ -18,17 +20,87 @@ public static class DrugQueries
     /// Visible (the clinic filter) + not withdrawn + source + category filters + search: the folded term contained in
     /// <c>SearchName</c> or (with <c>SearchText.OtherTerm</c>) <c>SearchOther</c>, or the drug's category or subcategory
     /// whose folded English or Arabic name contains it (the ≤ 205 names are folded in memory; their ids join the filter).
-    /// M1.7b contract stub (track <c>api</c>).
+    /// A <c>%</c>, <c>_</c> or <c>\</c> in the term is matched literally (EF escapes the LIKE pattern of
+    /// <c>Contains</c>). Untracked.
     /// </summary>
     public static Task<IQueryable<Drug>> ListedAsync(IAppDbContext db, DrugListFilter filter, CancellationToken cancellationToken) =>
-        throw new NotImplementedException("M1.7b contract stub: track api");
+        FilteredAsync(db, db.Drugs.AsNoTracking().Where(d => !d.IsWithdrawn), filter, cancellationToken);
+
+    /// <summary>
+    /// <see cref="ListedAsync"/>'s source, category and search filters on <paramref name="drugs"/> (the admin list starts
+    /// from its status filter instead of "not withdrawn").
+    /// </summary>
+    internal static async Task<IQueryable<Drug>> FilteredAsync(IAppDbContext db, IQueryable<Drug> drugs,
+        DrugListFilter filter, CancellationToken cancellationToken)
+    {
+        if (filter.Source == DrugSource.Shared)
+            drugs = drugs.Where(d => d.ClinicId == null);
+        else if (filter.Source == DrugSource.Own)
+            drugs = drugs.Where(d => d.ClinicId != null);
+
+        if (filter.CategoryId is { } categoryId)
+        {
+            drugs = drugs.Where(d => d.CategoryId == categoryId);
+            if (filter.SubCategoryId == SubCategoryFilter.None)
+                drugs = drugs.Where(d => d.SubCategoryId == null);
+            else if (int.TryParse(filter.SubCategoryId, out var subCategoryId))
+                drugs = drugs.Where(d => d.SubCategoryId == subCategoryId);
+        }
+
+        var term = SearchText.Term(filter.Search);
+        if (string.IsNullOrEmpty(term))
+            return drugs;
+
+        // A term made only of "+" or "(" folds to blanks for SearchOther, which would match every row (its two parts
+        // are joined by a space): that part is then left out
+        var otherTerm = SearchText.OtherTerm(filter.Search);
+        var matchOther = !string.IsNullOrWhiteSpace(otherTerm);
+
+        // The ≤ ~205 category names, folded in memory with the columns' function
+        var categoryIds = (await db.Categories.AsNoTracking()
+                .Select(c => new { c.Id, c.NameEn, c.NameAr })
+                .ToListAsync(cancellationToken))
+            .Where(c => NameMatches(c.NameEn, c.NameAr, term))
+            .Select(c => c.Id)
+            .ToList();
+        var subCategoryIds = (await db.SubCategories.AsNoTracking()
+                .Select(s => new { s.Id, s.NameEn, s.NameAr })
+                .ToListAsync(cancellationToken))
+            .Where(s => NameMatches(s.NameEn, s.NameAr, term))
+            .Select(s => (int?)s.Id)
+            .ToList();
+
+        return drugs.Where(d => EF.Property<string>(d, SearchText.Column).Contains(term)
+                                || (matchOther && EF.Property<string>(d, SearchText.OtherColumn).Contains(otherTerm))
+                                || categoryIds.Contains(d.CategoryId)
+                                || subCategoryIds.Contains(d.SubCategoryId));
+    }
 
     /// <summary>
     /// The D7 order: own drugs first, then shared; with a search, names (<c>SearchName</c>) starting with the term first,
     /// then <c>Name</c>, then <c>Id</c>; without one, own drugs newest first (<c>CreatedAt</c>, <c>Id</c> descending), then
     /// shared by <c>Name</c>, then <c>Id</c>. The admin list (shared only) uses the same.
-    /// M1.7b contract stub (track <c>api</c>).
     /// </summary>
-    public static IOrderedQueryable<Drug> InListOrder(this IQueryable<Drug> drugs, string search) =>
-        throw new NotImplementedException("M1.7b contract stub: track api");
+    public static IOrderedQueryable<Drug> InListOrder(this IQueryable<Drug> drugs, string search)
+    {
+        // false (own) before true (shared)
+        var ownFirst = drugs.OrderBy(d => d.ClinicId == null);
+        var term = SearchText.Term(search);
+        if (!string.IsNullOrEmpty(term))
+            return ownFirst
+                .ThenBy(d => EF.Property<string>(d, SearchText.Column).StartsWith(term) ? 0 : 1)
+                .ThenBy(d => d.Name)
+                .ThenBy(d => d.Id);
+
+        // Shared rows tie on the two own-only keys and fall through to Name, Id
+        return ownFirst
+            .ThenByDescending(d => d.ClinicId == null ? (DateTime?)null : d.CreatedAt)
+            .ThenByDescending(d => d.ClinicId == null ? 0 : d.Id)
+            .ThenBy(d => d.Name)
+            .ThenBy(d => d.Id);
+    }
+
+    private static bool NameMatches(string nameEn, string nameAr, string term) =>
+        SearchText.Fold(nameEn ?? "").Contains(term, StringComparison.Ordinal)
+        || SearchText.Fold(nameAr ?? "").Contains(term, StringComparison.Ordinal);
 }
