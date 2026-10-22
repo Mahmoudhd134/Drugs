@@ -321,7 +321,9 @@ jobs:
         run: *postgres
       - name: Tools
         run: dotnet tool restore
-      # tests/stryker-config.json with this file only; with areas, only those areas' integration tests score it
+      # tests/stryker-config.json with this file only, in its own project (Stryker otherwise runs the initial tests and
+      # creates mutants for every project of the solution), 4 test sessions (the runner's cores); with areas, only those
+      # areas' integration tests score it
       - name: Stryker.NET (gate 85%)
         env:
           FILE: ${{ matrix.file }}
@@ -333,8 +335,10 @@ jobs:
           if [ -n "$AREAS" ]; then
             filter="($(echo "$AREAS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep . | sed 's/^/Area=/' | paste -sd'|'))&FullyQualifiedName~ClinicHub.IntegrationTests"
           fi
-          jq --arg file "**/$FILE" --arg sln "$GITHUB_WORKSPACE/ClinicHub.sln" --arg filter "$filter" \
+          project="${FILE%%/*}.csproj"
+          jq --arg file "**/$FILE" --arg sln "$GITHUB_WORKSPACE/ClinicHub.sln" --arg project "$project" --arg filter "$filter" \
             '."stryker-config".mutate = [$file] | ."stryker-config".solution = $sln
+             | ."stryker-config".project = $project | ."stryker-config".concurrency = 4
              | if $filter != "" then ."stryker-config"."test-case-filter" = $filter else . end' \
             tests/stryker-config.json > artifacts/mutation/stryker-config.chosen.json
           dotnet stryker -f artifacts/mutation/stryker-config.chosen.json -O "$out" | tee "$out/stryker.log"
