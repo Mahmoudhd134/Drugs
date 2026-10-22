@@ -1,15 +1,18 @@
 using System.Net;
 using System.Text.Json;
 using ClinicHub.Application.Features.Access.StaffMembers;
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Platform.Clinics;
 using ClinicHub.Application.Features.Platform.Provisioning;
 using ClinicHub.Domain.Access;
+using ClinicHub.IntegrationTests.Admin.SharedDrugs;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
 using ClinicHub.IntegrationTests.Harness.Clients;
+using ClinicHub.IntegrationTests.Harness.Databases;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,13 +51,32 @@ public static class CreateClinicApi
 [Trait("Area", "admin")]
 public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app)
 {
-    private Task<TemplateCatalog> TemplateAsync() => App.PerClassAsync("template", () => TemplateCatalog.CreateAsync(App));
+    private Task<TemplateCatalog> TemplateAsync() => App.PerClassAsync("template", () => WithCategoriesAsync(App));
+
+    /// <summary>
+    /// <see cref="TemplateCatalog"/> whose 2 own drugs also carry distinct ingredients, categories and subcategories
+    /// (M1.7: the copy carries them too): the first «أخرى» without a subcategory, the second «العيون › المياه الزرقاء».
+    /// </summary>
+    internal static async Task<TemplateCatalog> WithCategoriesAsync(AppFixture app)
+    {
+        var template = await TemplateCatalog.CreateAsync(app);
+        var first = await app.Data.UpdateDrugAsync(template.TemplateId, template.First.Id, template.First.Name,
+            template.First.Description, template.First.DefaultDosing, "MOXIFLOXACIN", CategoryIds.Other, null);
+        var second = await app.Data.UpdateDrugAsync(template.TemplateId, template.Second.Id, template.Second.Name,
+            template.Second.Description, template.Second.DefaultDosing, "PREDNISOLONE ACETATE", CategoryIds.Eye, SubCategoryIds.Glaucoma);
+        return template with { First = first, Second = second };
+    }
 
     private Task<ApiClient> InTemplateAsync() => Login.SharedAsync("template", Login.SuperAdminInTemplateAsync);
 
     private static string Json(object value) => JsonSerializer.Serialize(value, Harness.Assertions.Json.Options);
 
-    private static string DrugContent(DrugDto drug) => Json(new { drug.Name, drug.Description, drug.DefaultDosing });
+    /// <summary>What a copy keeps of an own drug (M1.7: + ingredients, category, subcategory; never shared).</summary>
+    internal static string DrugContent(DrugDto drug) => Json(new
+    {
+        drug.Name, drug.Description, drug.DefaultDosing, drug.ActiveIngredients, Category = drug.Category?.Id,
+        SubCategory = drug.SubCategory?.Id, drug.IsShared,
+    });
 
     private static string ProtocolContent(ProtocolDto protocol) =>
         Json(new { protocol.Name, Items = protocol.Items.Select(i => new { Drug = i.Drug.Name, i.Dosing }) });
@@ -153,15 +175,23 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var admin = await Login.SharedSuperAdminAsync();
         var inTemplate = await InTemplateAsync();
         var phone = Unique.Phone();
-        await admin.CreateClinicAsync(phone);
+        var clinic = await admin.CreateClinicAsync(phone);
         var owner = await Login.AsAsync(phone);
 
-        var drugs = (await owner.DrugsAsync()).Items;
+        var drugs = (await owner.OwnDrugsAsync()).Items;
         var protocols = await owner.ProtocolsAsync();
 
-        drugs.Select(DrugContent).ShouldBe((await inTemplate.DrugsAsync()).Items.Select(DrugContent), ignoreOrder: true);
+        drugs.Select(DrugContent).ShouldBe((await inTemplate.OwnDrugsAsync()).Items.Select(DrugContent), ignoreOrder: true);
         drugs.Select(DrugContent).ShouldBe([DrugContent(template.First), DrugContent(template.Second)], ignoreOrder: true);
         drugs.Single(d => d.Name == template.Second.Name).DefaultDosing.TaperSteps.Count.ShouldBe(3);
+        var first = drugs.Single(d => d.Name == template.First.Name);
+        (first.ActiveIngredients, first.Category.Id).ShouldBe(("MOXIFLOXACIN", CategoryIds.Other));
+        first.SubCategory.ShouldBeNull();
+        var second = drugs.Single(d => d.Name == template.Second.Name);
+        (second.ActiveIngredients, second.Category.Id, second.SubCategory.Id)
+            .ShouldBe(("PREDNISOLONE ACETATE", CategoryIds.Eye, SubCategoryIds.Glaucoma));
+        // No shared drug is copied (CAT-221): the clinic owns exactly the template's 2 drugs
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.ClinicId == clinic.Id))).ShouldBe(2);
         var protocol = protocols.ShouldHaveSingleItem();
         ProtocolContent(protocol).ShouldBe(ProtocolContent(template.Protocol));
         protocol.Items.Select(i => i.Drug.Name).ShouldBe([template.First.Name, template.Second.Name]);
@@ -181,19 +211,20 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var template = await TemplateAsync();
         var admin = await Login.SharedSuperAdminAsync();
         var inTemplate = await InTemplateAsync();
-        var templateDrugsBefore = (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ToList();
+        var templateDrugsBefore = (await inTemplate.OwnDrugsAsync()).Items.Select(d => Json(d)).ToList();
         var templateProtocolsBefore = (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var phone = Unique.Phone();
         await admin.CreateClinicAsync(phone);
         var owner = await Login.AsAsync(phone);
 
-        var ownDrugIds = (await owner.DrugsAsync()).Items.Select(d => d.Id).ToList();
+        var ownDrugIds = (await owner.OwnDrugsAsync()).Items.Select(d => d.Id).ToList();
+        ownDrugIds.Count.ShouldBe(2);
         var protocol = (await owner.ProtocolsAsync()).Single();
 
         protocol.Id.ShouldNotBe(template.Protocol.Id);
         protocol.Items.ShouldAllBe(i => ownDrugIds.Contains(i.Drug.Id));
         protocol.Items.ShouldAllBe(i => i.Drug.Id != template.First.Id && i.Drug.Id != template.Second.Id);
-        (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugsBefore);
+        (await inTemplate.OwnDrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugsBefore);
         (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(templateProtocolsBefore);
     }
 
@@ -210,16 +241,18 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         await admin.CreateClinicAsync(phoneB);
         var ownerA = await Login.AsAsync(phoneA);
         var ownerB = await Login.AsAsync(phoneB);
-        var templateDrugs = (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ToList();
+        var templateDrugs = (await inTemplate.OwnDrugsAsync()).Items.Select(d => Json(d)).ToList();
         var templateProtocols = (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ToList();
-        var otherDrugs = (await ownerB.DrugsAsync()).Items.Select(d => Json(d)).ToList();
+        var otherDrugs = (await ownerB.OwnDrugsAsync()).Items.Select(d => Json(d)).ToList();
         var otherProtocols = (await ownerB.ProtocolsAsync()).Select(g => Json(g)).ToList();
-        var drugs = (await ownerA.DrugsAsync()).Items;
+        var drugs = (await ownerA.OwnDrugsAsync()).Items;
+        drugs.Count.ShouldBe(2);
         var protocol = (await ownerA.ProtocolsAsync()).Single();
 
         await (await ownerA.PutAsync($"/api/v1/drugs/{drugs[0].Id}", new
         {
-            name = drugs[0].Name + " CLINIC", description = "Edited", defaultDosing = drugs[0].DefaultDosing,
+            name = drugs[0].Name + " CLINIC", activeIngredients = "EDITED INGREDIENT", description = "Edited",
+            defaultDosing = drugs[0].DefaultDosing, categoryId = CategoryIds.Other, subCategoryId = SubCategoryIds.Unclassified,
         })).ShouldBeOkAsync();
         await (await ownerA.PutAsync($"/api/v1/protocols/{protocol.Id}", new
         {
@@ -228,9 +261,9 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         await (await ownerA.DeleteAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
         await (await ownerA.DeleteAsync($"/api/v1/drugs/{drugs[1].Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
-        (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugs);
+        (await inTemplate.OwnDrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugs);
         (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(templateProtocols);
-        (await ownerB.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(otherDrugs);
+        (await ownerB.OwnDrugsAsync()).Items.Select(d => Json(d)).ShouldBe(otherDrugs);
         (await ownerB.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(otherProtocols);
     }
 
@@ -361,9 +394,9 @@ public class TemplateSnapshotTests(AppFixture app) : IntegrationTest(app)
 {
     private static string Json(object value) => JsonSerializer.Serialize(value, Harness.Assertions.Json.Options);
 
-    private static string DrugContent(DrugDto drug) => Json(new { drug.Name, drug.Description, drug.DefaultDosing });
+    private static string DrugContent(DrugDto drug) => CreateClinicProvisioningTests.DrugContent(drug);
 
-    private Task<TemplateCatalog> TemplateAsync() => TemplateCatalog.CreateAsync(App);
+    private Task<TemplateCatalog> TemplateAsync() => CreateClinicProvisioningTests.WithCategoriesAsync(App);
 
     private Task<ApiClient> InTemplateAsync() => Login.SuperAdminInTemplateAsync();
 
@@ -377,14 +410,16 @@ public class TemplateSnapshotTests(AppFixture app) : IntegrationTest(app)
         var phone = Unique.Phone();
         await admin.CreateClinicAsync(phone);
         var owner = await Login.AsAsync(phone);
-        var copyBefore = (await owner.DrugsAsync()).Items.Select(d => Json(d)).ToList();
+        var copyBefore = (await owner.OwnDrugsAsync()).Items.Select(d => Json(d)).ToList();
+        copyBefore.Count.ShouldBe(2);
 
         await (await inTemplate.PutAsync($"/api/v1/drugs/{template.First.Id}", new
         {
-            name = template.First.Name + " EDITED", description = template.First.Description, defaultDosing = template.First.DefaultDosing,
+            name = template.First.Name + " EDITED", activeIngredients = "EDITED INGREDIENT", description = template.First.Description,
+            defaultDosing = template.First.DefaultDosing, categoryId = CategoryIds.Eye, subCategoryId = SubCategoryIds.Glaucoma,
         })).ShouldBeOkAsync();
 
-        (await owner.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(copyBefore);
+        (await owner.OwnDrugsAsync()).Items.Select(d => Json(d)).ShouldBe(copyBefore);
     }
 
     [Fact]
@@ -399,8 +434,8 @@ public class TemplateSnapshotTests(AppFixture app) : IntegrationTest(app)
         var laterPhone = Unique.Phone();
         await admin.CreateClinicAsync(laterPhone);
 
-        var later = (await (await Login.AsAsync(laterPhone)).DrugsAsync()).Items;
-        var earlier = (await (await Login.AsAsync(earlierPhone)).DrugsAsync()).Items;
+        var later = (await (await Login.AsAsync(laterPhone)).OwnDrugsAsync()).Items;
+        var earlier = (await (await Login.AsAsync(earlierPhone)).OwnDrugsAsync()).Items;
 
         later.Select(DrugContent).ShouldContain(DrugContent(added));
         earlier.Select(d => d.Name).ShouldNotContain(added.Name);
@@ -426,8 +461,12 @@ public class CreateClinicFromAnEmptyTemplateTests(AppFixture app) : IntegrationT
         clinic.Owners.ShouldHaveSingleItem();
         (await admin.RolesAsync(clinic.Id)).Select(r => r.Name).ShouldBe(["Owner", "Assistant", "Doctor"]);
         var owner = await Login.AsAsync(phone);
-        (await owner.DrugsAsync()).TotalCount.ShouldBe(0);
+        (await owner.OwnDrugsAsync()).TotalCount.ShouldBe(0);
         (await owner.ProtocolsAsync()).ShouldBeEmpty();
+        // The clinic still sees the whole shared catalog (none of it is copied)
+        (await owner.ClinicDrugsAsync("pageSize=1")).TotalCount.ShouldBe(TestRun.Baseline.SharedCount);
+        (await owner.ClinicDrugsAsync("source=shared&pageSize=1")).TotalCount.ShouldBe(TestRun.Baseline.SharedCount);
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.ClinicId == clinic.Id))).ShouldBe(0);
     }
 }
 
@@ -436,8 +475,7 @@ public class CreateClinicFromAnEmptyTemplateTests(AppFixture app) : IntegrationT
 [Trait("Area", "admin")]
 public class CreateClinicFromATemplateWithoutProtocolsTests(AppFixture app) : IntegrationTest(app)
 {
-    private static string DrugContent(DrugDto drug) =>
-        JsonSerializer.Serialize(new { drug.Name, drug.Description, drug.DefaultDosing }, Harness.Assertions.Json.Options);
+    private static string DrugContent(DrugDto drug) => CreateClinicProvisioningTests.DrugContent(drug);
 
     [Fact]
     public async Task The_clinic_gets_a_copy_of_the_templates_drugs_and_no_protocols()
@@ -452,7 +490,7 @@ public class CreateClinicFromATemplateWithoutProtocolsTests(AppFixture app) : In
         await admin.CreateClinicAsync(phone);
 
         var owner = await Login.AsAsync(phone);
-        DrugContent((await owner.DrugsAsync()).Items.ShouldHaveSingleItem()).ShouldBe(DrugContent(drug));
+        DrugContent((await owner.OwnDrugsAsync()).Items.ShouldHaveSingleItem()).ShouldBe(DrugContent(drug));
         (await owner.ProtocolsAsync()).ShouldBeEmpty();
     }
 }
