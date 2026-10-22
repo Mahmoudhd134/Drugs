@@ -7,8 +7,8 @@ import {ProtocolEditorPage} from "./ProtocolEditorPage.tsx";
 
 // A tab still running the old bundle after the upgrade: its protocol calls reach routes that no longer exist and the
 // API answers 404 `notFound` (GET) or 405 `methodNotAllowed` (POST, PUT, DELETE): design M1.7 D10 ("the SPA's existing
-// 404/405 error handling"), M1.7a contract "Old API routes" (GET → errors.notFound, saves → errors.generic since
-// `methodNotAllowed` has no key), docs/tech/overview.md "Data fetching" (getErrorMessage).
+// 404/405 error handling"), M1.7a contract "Old API routes" (the list's GET → common.loadFailed, the editor's GET →
+// errors.notFound, saves → errors.generic since `methodNotAllowed` has no key), docs/tech/overview.md "Data fetching" (getErrorMessage).
 
 const tobradex = aDrug({name: "Tobradex"});
 const protocol = aProtocol({name: "Post cataract", items: [anItem(tobradex)]});
@@ -20,7 +20,8 @@ describe("protocols: the old API routes answering 404 / 405 @area:errors", () =>
         server.use(http.get(api("/protocols"), gone));
         await renderWithProviders(<ProtocolsPage/>, {lang: "ar", route: "/protocols"});
         const alert = await screen.findByRole("alert");
-        expect(alert.textContent).toMatch(/هذا العنصر لم يعد موجودًا\.|تعذّر تحميل البيانات\./);
+        expect(alert).toHaveTextContent("تعذّر تحميل البيانات.");
+        expect(alert).not.toHaveTextContent("هذا العنصر لم يعد موجودًا.");
         expect(within(alert).getByRole("button", {name: "إعادة المحاولة"})).toBeInTheDocument();
         expect(screen.getByRole("heading", {level: 1, name: "البروتوكولات"})).toBeInTheDocument();
     });
