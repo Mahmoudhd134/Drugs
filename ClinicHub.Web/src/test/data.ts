@@ -5,7 +5,9 @@ import type {ClinicDetails, ClinicSummary} from "../features/admin/types.ts";
 import type {AuthResult, ClinicContext, Context, Me, PlatformContext} from "../features/auth/types.ts";
 import type {Dosing} from "../features/dosing/types.ts";
 import type {Protocol, ProtocolItem} from "../features/protocols/types.ts";
-import type {Category, CategoryName, Drug, ProtocolDrug, SubCategory} from "../features/drugs/types.ts";
+import type {
+    Category, CategoryName, Drug, DrugTreeCategory, DrugTreeSubCategory, ProtocolDrug, SubCategory,
+} from "../features/drugs/types.ts";
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory, AdminSubCategory} from "../features/admin/categories/types.ts";
 import type {PrescriptionLine} from "../features/prescription/types.ts";
@@ -65,6 +67,24 @@ export const aSubCategory = (fields: Partial<SubCategory> = {}): SubCategory => 
 export const aCategory = (fields: Partial<Category> = {}): Category => ({
     ...EYE, pinnedLast: false, subCategories: [{...GLAUCOMA, pinnedLast: false}], ...fields,
 });
+
+/**
+ * `count` drugs of one subcategory for paging tests (M1.7c tree): `aDrug` with names "<prefix> 001", "<prefix> 002"…
+ * (zero-padded, so name order = creation order) and the given fields.
+ */
+export const manyDrugs = (count: number, fields: Partial<Drug> = {}, prefix = "Drug"): Drug[] =>
+    Array.from({length: count}, (_, i) => aDrug({name: `${prefix} ${String(i + 1).padStart(3, "0")}`, ...fields}));
+
+/** A subcategory of `GET /drugs/tree` (default «المياه الزرقاء», count 1); `{id: null, nameEn: null, nameAr: null}` = the bucket. */
+export const aTreeSubCategory = (fields: Partial<DrugTreeSubCategory> = {}): DrugTreeSubCategory => ({
+    ...GLAUCOMA, pinnedLast: false, count: 1, ...fields,
+});
+
+/** A category of `GET /drugs/tree` (default «العيون» with one subcategory); `count` = the sum of its subcategories unless given. */
+export const aTreeCategory = (fields: Partial<DrugTreeCategory> = {}): DrugTreeCategory => {
+    const subCategories = fields.subCategories ?? [aTreeSubCategory()];
+    return {...EYE, pinnedLast: false, count: subCategories.reduce((sum, s) => sum + s.count, 0), ...fields, subCategories};
+};
 
 /** A shared drug of the admin catalog (`GET /admin/drugs`): active unless given. */
 export const anAdminDrug = (fields: Partial<AdminDrug> = {}): AdminDrug => ({

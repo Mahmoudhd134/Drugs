@@ -1,10 +1,10 @@
-import {http, HttpResponse, type JsonBodyType} from "msw";
+import {delay, http, HttpResponse, type JsonBodyType} from "msw";
 import type {PagedResult} from "../api/types.ts";
 import type {PermissionDefinition} from "../features/access/api.ts";
 import type {ClinicDetails, ClinicSummary} from "../features/admin/types.ts";
 import type {AuthResult, Context, Me} from "../features/auth/types.ts";
 import type {Protocol} from "../features/protocols/types.ts";
-import type {Category, Drug, ProtocolDrug} from "../features/drugs/types.ts";
+import type {Category, Drug, DrugTreeCategory, DrugTreeData, ProtocolDrug} from "../features/drugs/types.ts";
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory} from "../features/admin/categories/types.ts";
 import type {Role} from "../features/roles/types.ts";
@@ -91,6 +91,60 @@ export const drugsHandlers = (given: Array<Drug | ProtocolDrug>) => {
             return drug ? json(drug) : problem(404, "notFound");
         }),
     ];
+};
+
+/** The pins of the tree's answer, by id like the API («أخرى» 23, «غير مصنف» 182). */
+const PINNED_CATEGORY = 23;
+const PINNED_SUBCATEGORY = 182;
+
+/**
+ * The tree of `drugs` as `GET /drugs/tree` answers it: the drugs `drugsHandlers` lists for the same search (by name)
+ * and source (withdrawn hidden), counted per category and subcategory; categories and subcategories by id, the bucket
+ * last; nothing with 0 matches.
+ */
+export const treeOf = (drugs: Drug[], search = "", source = "all"): DrugTreeData => {
+    const term = search.trim().toLowerCase();
+    const listed = drugs.filter(d => !d.withdrawn
+        && (source === "all" || (source === "shared") === d.isShared)
+        && (!term || d.name.toLowerCase().includes(term)));
+    const categories = new Map<number, DrugTreeCategory>();
+    for (const drug of listed) {
+        const category = categories.get(drug.category.id)
+            ?? {...drug.category, pinnedLast: drug.category.id === PINNED_CATEGORY, count: 0, subCategories: []};
+        categories.set(category.id, category);
+        category.count++;
+        const subId = drug.subCategory?.id ?? null;
+        let sub = category.subCategories.find(s => s.id === subId);
+        if (!sub) {
+            sub = drug.subCategory
+                ? {...drug.subCategory, pinnedLast: drug.subCategory.id === PINNED_SUBCATEGORY, count: 0}
+                : {id: null, nameEn: null, nameAr: null, pinnedLast: false, count: 0};
+            category.subCategories.push(sub);
+        }
+        sub.count++;
+    }
+    const last = Number.MAX_SAFE_INTEGER;
+    const sorted = [...categories.values()].sort((a, b) => a.id - b.id);
+    for (const c of sorted) c.subCategories.sort((a, b) => (a.id ?? last) - (b.id ?? last));
+    return {categories: sorted};
+};
+
+/**
+ * `GET /drugs/tree` over `given` (see `treeOf`; an unknown `source` → 400 `invalidRequest`). `delayMs` delays every
+ * answer, or a function picks the delay per search (e.g. an older, slower answer: CAT-102).
+ */
+export const drugTreeHandler = (given: Array<Drug | ProtocolDrug>,
+                                {delayMs}: { delayMs?: number | ((search: string) => number) } = {}) => {
+    const drugs = given.map(d => ("category" in d ? d : asDrug(d)));
+    return http.get(api("/drugs/tree"), async ({request}) => {
+        const params = new URL(request.url).searchParams;
+        const search = params.get("search") ?? "";
+        const source = params.get("source") || "all";
+        const wait = typeof delayMs === "function" ? delayMs(search) : delayMs;
+        if (wait) await delay(wait);
+        if (!["all", "shared", "own"].includes(source)) return problem(400, "invalidRequest");
+        return json(treeOf(drugs, search, source));
+    });
 };
 
 /** `GET /drug-categories` (default: «العيون» with «المياه الزرقاء»). */
