@@ -36,6 +36,21 @@ The tiers don't replace the other checks (`npx tsc -b`, `npx eslint src`, `dotne
 request** (`full`) and **by hand**, any tier, on any pushed branch. A push alone runs nothing. A newer run of the same
 pull request or branch cancels the older one.
 
+### Day to day
+
+1. **While working**, after each change: commit, then `./ci.ps1` (`step`, ≈ 4.5 min). A failure: read
+   `artifacts/ci/summary.md` (and the traces under `artifacts/ci/`), fix, commit, run again. Changed important logic?
+   Add `-Mutate <that file>`. While writing one test, run only that test on the laptop (seconds).
+2. **A full check without a pull request** (a step's report run, T2): `./ci.ps1 -Tier full`.
+3. **At the end:** open the pull request (`gh pr create --base <target> --fill`); its automatic `full` run is the gate
+   (`gh pr checks --watch`). Don't run `./ci.ps1 -Tier full` right before it or on its branch: the pull request runs it
+   anyway (on the branch merged with its target). A fix: commit and push, the pull request runs again. Green, and the
+   user's OK: `gh pr merge --merge`.
+4. **At a milestone's end:** `./ci.ps1 -Tier release`.
+
+Only committed work reaches CI: `ci.ps1` pushes the branch (`git push -u origin HEAD`), and GitHub tests what was
+pushed. Every branch run shows in the Actions tab and the branch under the repository's branches.
+
 ### `ci.ps1`: a tier from the laptop
 
 ```powershell
