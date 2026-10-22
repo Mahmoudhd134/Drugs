@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ClinicHub.Application.Features.Platform.Provisioning.Seeders;
 
 /// <summary>
-/// Step 30: a copy of the template clinic's drugs, then of its groups, their items pointing to the copied drugs.
+/// Step 30: a copy of the template clinic's drugs, then of its protocols, their items pointing to the copied drugs.
 /// The template is read across clinics (<c>IgnoreQueryFilters()</c>, read only: Platform code); the copies are
 /// new rows of the current clinic, so later template edits don't change this clinic. In memory: fine for
 /// templates of hundreds of drugs (design D5, limits).
@@ -29,8 +29,8 @@ internal sealed class TemplateCatalogSeeder(IAppDbContext db) : IClinicSeeder
         if (templateDrugs.Count == 0)
             return;
 
-        // Template drug id → its copy (whose id is known once saved). Hand-written copies (here, the groups'
-        // and Copy below): keep them in sync with Drug, DrugGroup, DrugGroupItem, Dosing and TaperStep
+        // Template drug id → its copy (whose id is known once saved). Hand-written copies (here, the protocols'
+        // and Copy below): keep them in sync with Drug, Protocol, ProtocolItem, Dosing and TaperStep
         var copies = templateDrugs.ToDictionary(d => d.Id, d => new Drug
         {
             Name = d.Name,
@@ -40,22 +40,22 @@ internal sealed class TemplateCatalogSeeder(IAppDbContext db) : IClinicSeeder
         db.Drugs.AddRange(copies.Values);
         await db.SaveChangesAsync(cancellationToken);
 
-        var templateGroups = await db.DrugGroups.IgnoreQueryFilters().AsNoTracking()
+        var templateProtocols = await db.Protocols.IgnoreQueryFilters().AsNoTracking()
             .Where(g => g.ClinicId == templateId)
             .Include(g => g.Items)
             .OrderBy(g => g.Id)
             .ToListAsync(cancellationToken);
-        if (templateGroups.Count == 0)
+        if (templateProtocols.Count == 0)
             return;
 
-        db.DrugGroups.AddRange(templateGroups.Select(g => new DrugGroup
+        db.Protocols.AddRange(templateProtocols.Select(g => new Protocol
         {
             Name = g.Name,
-            Items = g.Items.OrderBy(i => i.Order).ThenBy(i => i.Id).Select(i => new DrugGroupItem
+            Items = g.Items.OrderBy(i => i.Order).ThenBy(i => i.Id).Select(i => new ProtocolItem
             {
                 // The composite FKs keep a template item on a template drug, so every item has a copy, except in
-                // the accepted race (a drug and a group using it saved in the template between the two reads):
-                // KeyNotFound → 500, rolled back, better than a group missing a line
+                // the accepted race (a drug and a protocol using it saved in the template between the two reads):
+                // KeyNotFound → 500, rolled back, better than a protocol missing a line
                 DrugId = copies[i.DrugId].Id,
                 Order = i.Order,
                 Dosing = Copy(i.Dosing),

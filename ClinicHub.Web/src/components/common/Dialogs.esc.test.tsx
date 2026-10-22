@@ -2,7 +2,7 @@ import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
 import {aDrug, aLine, renderWithProviders} from "../../test";
 import {LineEditDialog} from "../../features/prescription/components/LineEditDialog.tsx";
-import {GroupItemDialog} from "../../features/drugGroups/components/GroupItemDialog.tsx";
+import {ProtocolItemDialog} from "../../features/protocols/components/ProtocolItemDialog.tsx";
 
 // Dialogs and Esc: docs/tech/overview.md "Shared components" (dialogs close without saving). The drug dialog's Esc is in
 // DrugsPage.crossCutting.test.tsx.
@@ -23,11 +23,11 @@ describe("Esc in the line dialogs @area:ux", () => {
         expect(onSave).not.toHaveBeenCalled();
     });
 
-    test("the group line dialog closes without saving @UX-023", async () => {
+    test("the protocol line dialog closes without saving @UX-023", async () => {
         const onSave = vi.fn(() => true);
         const onClose = vi.fn();
         const item = {key: "k1", drug: aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}}), dosing: {}};
-        const {user} = await renderWithProviders(<GroupItemDialog item={item} onClose={onClose} onSave={onSave}/>, {lang: "ar"});
+        const {user} = await renderWithProviders(<ProtocolItemDialog item={item} onClose={onClose} onSave={onSave}/>, {lang: "ar"});
         const dialog = await screen.findByRole("dialog");
         await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
         await user.keyboard("{Escape}");

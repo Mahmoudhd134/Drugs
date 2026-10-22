@@ -1,9 +1,9 @@
 # Technical overview
 
-Clinic Drugs is a small web app for a clinic. It keeps a **drug catalog**, groups drugs into
-reusable **groups** (treatment templates), and lets staff build a **prescription** and copy it
+Clinic Drugs is a small web app for a clinic. It keeps a **drug catalog**, puts drugs into
+reusable **protocols** (treatment templates), and lets staff build a **prescription** and copy it
 (plain or formatted for Word). The interface is in **English and Arabic** (right-to-left).
-Drug and group **content is not translated**: it is stored once, as typed.
+Drug and protocol **content is not translated**: it is stored once, as typed.
 
 > `ClinicHub` is the neutral code name of the code base (solution, projects, namespaces). It was
 > renamed from `Drags` (an old typo) on 2026-10-14; the commercial brand will only touch UI strings,
@@ -30,7 +30,7 @@ ClinicHub.sln                  Domain ← Application ← Infrastructure ← Api
                                docs/design/architecture.md; M1.4 done)
 ClinicHub.Domain/              entities and pure rules; no references (no EF Core, no ASP.NET)
   Common/                      IClinicOwned, IHasTimestamps, FieldLimits (column lengths)
-  Catalog/                     Drug, DrugGroup (+ DrugGroupItem), Dosing (+ TaperStep, DosingCodes),
+  Catalog/                     Drug, Protocol (+ ProtocolItem), Dosing (+ TaperStep, DosingCodes),
                                DosingRules
   Identity/                    User, OtpCode, Session (+ ContextTypes)
   Access/                      Staff, Role (+ RolePermission, StaffRole)
@@ -50,7 +50,7 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
   Common/Search/               SearchText: the Arabic-normalized search term (Term, Fold) and its column name (M1.6.1)
   Features/Catalog/Drugs/      Commands/<UseCase>/, Queries/<UseCase>/, DrugDto, DrugErrors
-  Features/Catalog/DrugGroups/ same, + DrugGroupDto, DrugGroupErrors, SaveDrugGroupItem
+  Features/Catalog/Protocols/  same, + ProtocolDto, ProtocolErrors, SaveProtocolItem
   Features/Identity/           IdentityErrors at the root; sub-features:
     Login/                     IOtpLock, IOtpSender, OtpHash; Commands/ (RequestOtp, VerifyOtp), Queries/GetOtpMode
     Sessions/                  ISessionService/SessionService, SessionRules (RotationGrace, SetContext),
@@ -95,7 +95,7 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   Errors/                      ApiProblemFactory, Result → HTTP helpers, UnexpectedExceptionHandler
   DependencyInjection.cs       AddApi(): lowercase URLs, controllers, invalid-body 400, ProblemDetails safety
                                net, 500 handler
-  Features/Drugs, DrugGroups/  thin controllers (+ their request records)
+  Features/Drugs, Protocols/   thin controllers (+ their request records)
   Features/Identity/           AuthController (+ the refresh cookie), MeController, CurrentUser (ICurrentUser
                                from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
   Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy),
@@ -156,10 +156,10 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
   `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
-  also gets sample **template** content (2 eye drops, Moxifloxacin and Prednisolone, and the group "After cataract
+  also gets sample **template** content (2 eye drops, Moxifloxacin and Prednisolone, and the protocol "After cataract
   surgery" using both, the second line overriding its drug's dosing with a taper) and two clinics **provisioned from
-  it** through `CreateClinicCommand` (default roles, owner, a copy of the template's drugs and group): "Demo clinic"
-  (+ 10,000 sample drugs: 10,002) and "Second demo clinic" (the template copy only: 2 drugs + 1 group), the
+  it** through `CreateClinicCommand` (default roles, owner, a copy of the template's drugs and protocol): "Demo clinic"
+  (+ 10,000 sample drugs: 10,002) and "Second demo clinic" (the template copy only: 2 drugs + 1 protocol), the
   `Platform:DevOwnerPhone` user as staff "Dev Owner" (Owner) in both, and `Platform:DevAssistantPhone` as "Dev
   Assistant" (Assistant in the first, read-only "Viewer" in the second). An empty `DevOwnerPhone` skips only the demo
   clinics (a warning: a clinic needs an owner; the template is still filled when empty).
@@ -188,8 +188,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Controllers are thin** (`ClinicHub.Api/Features/<Feature>/`, Identity and Access included): build the command/query, `sender.Send` it,
   map the `Result` with `ToOk()`, `ToCreated(nameof(GetById), d => new { id = d.Id })` or `ToNoContent()`
   (`Api/Errors/ResultHttpExtensions`). Request records (`SaveDrugRequest`) live next to the controller.
-  Controllers inherit `BaseApiController` (route `api/v1/[controller]`; override with `[Route]` for kebab-case,
-  e.g. `api/v1/drug-groups`).
+  Controllers inherit `BaseApiController` (route `api/v1/[controller]`; override with `[Route]` for a nested or
+  kebab-case route, e.g. `api/v1/admin/clinics`).
 - **Handlers** use `IAppDbContext` (never `AppDbContext`), take the `CancellationToken`, and return a `Result`:
   expected failures are `Error`s from the feature's error class (implicit conversion: `return DrugErrors.NotFound;`),
   never exceptions. Commands run in one transaction (`TransactionBehavior`): a failed `Result` or an exception
@@ -205,8 +205,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - Lists return `PagedResult<T>` = `{ items, totalCount, page, pageSize }` (page is 1-based;
   `Paging.Normalize`: page ≥ 1, pageSize 1–100; a huge page is capped at `int.MaxValue / pageSize`, so the offset
   `(page - 1) × pageSize` always fits an `int`: such a page is simply empty, never an error).
-- **Search** (drugs, groups, admin clinics, admin staff by name) is a case-insensitive, **Arabic-normalized**
-  `Contains` (M1.6.1): the searched tables (`Drugs`, `DrugGroups`, `Clinics`, `Staff`) have a **stored generated
+- **Search** (drugs, protocols, admin clinics, admin staff by name) is a case-insensitive, **Arabic-normalized**
+  `Contains` (M1.6.1): the searched tables (`Drugs`, `Protocols`, `Clinics`, `Staff`) have a **stored generated
   column** `SearchName` = the name (`FullName` for staff) lower-cased, with أ إ آ ٱ and the superscript alef U+0670
   → ا, ى → ي, ة → ه, ؤ → و, ئ → ي, and the tatweel (U+0640) and the diacritics (U+064B–U+065F) removed
   (`translate(lower(…))`); the term is folded the same way by `SearchText.Term` (`Application/Common/Search`). The
@@ -219,7 +219,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   the term; a term left empty (e.g. only a tatweel) means no filter. The staff search by phone digits is separate
   (unchanged).
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
-  API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `DrugGroupErrors`,
+  API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `ProtocolErrors`,
   `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`, `StaffErrors`). Add new codes
   there **and** under `errors.*` in both locale files. A code that may name a clinic (`clinicSuspended`,
   `staffInactive`: the `clinicNames` field below) also has `errors.<code>_named` (plural forms, `{{clinics}}`). The transport codes (`unauthorized`, `invalidRequest`,
@@ -292,8 +292,8 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 | Unhandled exception | `UnexpectedExceptionHandler` | `unexpected` 500; message and stack only in Development |
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
 
-A missing drug or group answers `notFound` (the SPA shows "this item no longer exists"). An id that is not a whole
-number (`/drugs/abc`, `/drug-groups/abc`, any `{id:int}` segment) fails its route's constraint: the methods that route
+A missing drug or protocol answers `notFound` (the SPA shows "this item no longer exists"). An id that is not a whole
+number (`/drugs/abc`, `/protocols/abc`, any `{id:int}` segment) fails its route's constraint: the methods that route
 has (`GET`/`PUT`/`DELETE` on `/drugs/{id:int}`) and `GET` always → 404 `notFound`, the other methods (`POST`, `PATCH`
 on `/drugs/abc`; `PUT` on `/admin/clinics/abc/suspend`) → 405 `methodNotAllowed` (the method check runs before the
 constraint; the non-GET quirk in [architecture](../design/architecture.md#carry-over-to-m15)).
@@ -333,35 +333,35 @@ StaffRoles             StaffId, RoleId, ClinicId (clinic-owned); PK (StaffId, Ro
 Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md).
 
 Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
-(`timestamptz`, UTC, set on save). `Drugs`, `DrugGroups`
-and `DrugGroupItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
-`Drugs` and `DrugGroups`. `Drugs`, `DrugGroups`, `Clinics` and `Staff` have `SearchName` (text, not null, a
+(`timestamptz`, UTC, set on save). `Drugs`, `Protocols`
+and `ProtocolItems` have `ClinicId` (FK → `Clinics`, restrict); indexes `(ClinicId, Name)` on
+`Drugs` and `Protocols`. `Drugs`, `Protocols`, `Clinics` and `Staff` have `SearchName` (text, not null, a
 **stored generated column** from the name, only searched: [search](#conventions); M1.6.1). It has no index: a
 `Contains` can't use a btree index, and a clinic's 10,000 drugs are searched in about a millisecond; the
-`(ClinicId, Name)` indexes still serve the ordered lists. Group items reference their group and drug with composite FKs
-`(DrugGroupId, ClinicId)` / `(DrugId, ClinicId)`, so the database rejects cross-clinic lines.
+`(ClinicId, Name)` indexes still serve the ordered lists. Protocol items reference their protocol and drug with composite FKs
+`(ProtocolId, ClinicId)` / `(DrugId, ClinicId)`, so the database rejects cross-clinic lines.
 
 ```
-Drugs                       DrugGroups
+Drugs                       Protocols
 - Id (PK)                   - Id (PK)
 - Name (≤256, required)     - Name (≤256, required)
 - SearchName (generated)    - SearchName (generated)
 - Description (nullable)
 - DefaultDosing_* (owned Dosing, nullable: dose, frequency, duration, eye, TaperSteps JSON)
         ▲                           ▲
-        │ DrugId (cascade)          │ DrugGroupId (cascade)
-        └────── DrugGroupItems ─────┘
+        │ DrugId (cascade)          │ ProtocolId (cascade)
+        └────── ProtocolItems ──────┘
                 - Id (PK)
-                - Order (int, 0-based position in the group)
-                - Dosing_* (owned Dosing, nullable: group override; eye may be "ask")
+                - Order (int, 0-based position in the protocol)
+                - Dosing_* (owned Dosing, nullable: protocol override; eye may be "ask")
 ```
 
 - `TaperSteps` is an optional tapering schedule stored as one JSON text column
   ([tapering tech](../features/tapering/tech.md)).
 
-- Deleting a drug removes it from every group (cascade). Deleting a group keeps its drugs.
-- A drug appears at most once per group **per effective eye** (the line's own eye, else the drug's default;
-  `duplicateGroupItem`, checked by the handlers since M1.6.0).
+- Deleting a drug removes it from every protocol (cascade). Deleting a protocol keeps its drugs.
+- A drug appears at most once per protocol **per effective eye** (the line's own eye, else the drug's default;
+  `duplicateProtocolItem`, checked by the handlers since M1.6.0).
 - `Dosing` is an EF **owned type** (`ClinicHub.Domain/Catalog/Dosing.cs`), reusable on any entity via
   `OwnsOne(..., DosingConfiguration.Configure)`. Codes and rules: [dosing tech](../features/dosing/tech.md).
 
@@ -382,16 +382,16 @@ Drugs                       DrugGroups
 | GET | `/drugs/{id}` | One drug |
 | POST | `/drugs` | Create `{ name, description, defaultDosing }` → 201 + drug |
 | PUT | `/drugs/{id}` | Update `{ name, description, defaultDosing }` → drug |
-| GET | `/drugs/{id}/groups` | Names of groups using the drug |
+| GET | `/drugs/{id}/protocols` | Names of protocols using the drug |
 | DELETE | `/drugs/{id}` | Delete → 204 |
-| GET | `/drug-groups?search=&page=1&pageSize=20` | Paged groups (each with its items: drug + override, in order), ordered by name |
-| GET | `/drug-groups/{id}` | One group with its items |
-| POST | `/drug-groups` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + group |
-| PUT | `/drug-groups/{id}` | Replace name and items (order + overrides) → group |
-| DELETE | `/drug-groups/{id}` | Delete → 204 |
+| GET | `/protocols?search=&page=1&pageSize=20` | Paged protocols (each with its items: drug + override, in order), ordered by name |
+| GET | `/protocols/{id}` | One protocol with its items |
+| POST | `/protocols` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + protocol |
+| PUT | `/protocols/{id}` | Replace name and items (order + overrides) → protocol |
+| DELETE | `/protocols/{id}` | Delete → 204 |
 | GET | `/admin/clinics?search=&status=&page=1&pageSize=20` | Paged `ClinicSummary` (no template, no deleted), by name (prefix matches first when searching); `status` = `active` / `suspended` |
 | GET | `/admin/clinics/{id}` | `ClinicDetails` (+ `owners`) |
-| POST | `/admin/clinics` | Create `{ name, owner: { phone, fullName } }` → 201 + `ClinicDetails`, provisioned from the template (roles, owner, drugs and groups copied; all or nothing) |
+| POST | `/admin/clinics` | Create `{ name, owner: { phone, fullName } }` → 201 + `ClinicDetails`, provisioned from the template (roles, owner, drugs and protocols copied; all or nothing) |
 | PUT | `/admin/clinics/{id}` | Rename `{ name }` → `ClinicDetails` |
 | POST | `/admin/clinics/{id}/suspend`, `/admin/clinics/{id}/activate` | → 204 (idempotent) |
 | DELETE | `/admin/clinics/{id}` | Soft delete → 204 (final for now) |
@@ -404,7 +404,7 @@ Drugs                       DrugGroups
 | PUT | `/admin/clinics/{clinicId}/staff/{staffId}` | `{ fullName, isActive, roleIds[] }` → `StaffMember` (phone can't change; `lastOwner`) |
 | DELETE | `/admin/clinics/{clinicId}/staff/{staffId}` | Remove (real delete) → 204 (`lastOwner`) |
 
-Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/drug-groups`) need a clinic-context access token
+Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/protocols`) need a clinic-context access token
 (`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
 permission (e.g. `drugs.delete`, [table](../features/access/tech.md#api)), else 403 `forbidden`;
 inactive staff or a deleted clinic → 403 `noAccess`, suspended clinic → 403 `clinicSuspended`. Auth contracts:
@@ -438,7 +438,11 @@ Swagger UI is available in Development at `/swagger`.
   (M1.2). From M1.3 on, migrations are **added on top**, never regenerated: `Initial` → `AddRoles` (M1.3) →
   `AddClinicDeletedAt` (M1.5.1, one nullable column) → `AddSearchNames` (M1.6.1: the stored generated `SearchName`
   columns on `Drugs`, `DrugGroups`, `Clinics` and `Staff`; computed for existing rows when added, so no data step; down
-  drops them; tested up → down → up with data).
+  drops them; tested up → down → up with data) → `RenameGroupsToProtocols` (M1.7a: renames in place, no drop/create:
+  `DrugGroups` → `Protocols`, `DrugGroupItems` → `ProtocolItems`, `DrugGroupId` → `ProtocolId`, every PK/AK/FK and index
+  name (`RENAME CONSTRAINT`, `RenameIndex`) and the two identity sequences, so a migrated database matches a fresh one;
+  then the stored permission keys `groups.*` → `protocols.*` in `RolePermissions`; down reverses it; tested up → down →
+  up with data).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`.
 
@@ -457,7 +461,7 @@ Swagger UI is available in Development at `/swagger`.
   get theirs from the app (the Quill toolbar: `EditorContent`, `prescription.toolbar.*`).
 - **Contrast**: text reads at ≥ 4.5:1 (axe `color-contrast`). The theme's `warning` is `#b45309` (MUI's `#ed6c02` gives
   white text 3.1:1: the login page's filled display-mode banner); muted text that must be read uses `text.secondary`,
-  never `text.disabled` (the dosing preview's «لا توجد جرعة محددة», the group dialogs' boxes, the staff editor's locked
+  never `text.disabled` (the dosing preview's «لا توجد جرعة محددة», the protocol dialogs' boxes, the staff editor's locked
   phone explanation: a disabled field's helper text is set back to `text.secondary`).
 - **Toasts** (`react-hot-toast`'s `Toaster`, bottom-center; `white-space: pre-line`, so a message's parts joined with
   `\n` show on their own lines, and `overflow-wrap: anywhere`, so a long name wraps): success, error or neutral
@@ -485,8 +489,9 @@ Swagger UI is available in Development at `/swagger`.
 | `/admin/*` | redirects to `/admin` |
 | `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
-| `/groups` | `DrugGroupsPage` (`groups.list`) |
-| `/groups/new`, `/groups/:id` | `DrugGroupEditorPage` (`groups.create` / `groups.details`; read only without `groups.update`) |
+| `/protocols` | `ProtocolsPage` (`protocols.list`) |
+| `/protocols/new`, `/protocols/:id` | `ProtocolEditorPage` (`protocols.create` / `protocols.details`; read only without `protocols.update`) |
+| `/groups`, `/groups/new`, `/groups/:id` | redirect (replace) to the same `/protocols…` route, id, query and hash kept (M1.7a) |
 | `/drugs` | `DrugsPage` (`drugs.list`) |
 | `/manage` | redirects to `/drugs` (old URL) |
 | `*` | redirects to `/` |
@@ -528,7 +533,7 @@ Swagger UI is available in Development at `/swagger`.
   **not** applied by this MUI version (they render as zero); don't use them. A `dir="auto"` element
   flips its own start/end, so put `dir="auto"` on an inner span, not on the element carrying the spacing.
   Directional icons (e.g. back arrow) must be flipped manually when `dir === "rtl"`.
-- User-entered content (drug/group names) can be Arabic or English: inputs use `dir="auto"`. A name
+- User-entered content (drug/protocol names) can be Arabic or English: inputs use `dir="auto"`. A name
   interpolated into a message is wrapped in the bidi isolates U+2068/U+2069 in both locale files (written
   `\u2068{{name}}\u2069`; some `roles.*` / `staff.*` strings hold the literal characters instead, same result): the
   quotes and the text after it stay in place in either direction.
@@ -545,7 +550,7 @@ Swagger UI is available in Development at `/swagger`.
   (→ `/login`), a network error doesn't. The access token lives only in memory
   (`features/auth/session.ts`), never in storage.
 - A context switch or logout cancels in-flight queries and clears the whole query cache.
-- Each feature has `api.ts` with a query-key factory (`drugKeys`, `drugGroupKeys`) and hooks:
+- Each feature has `api.ts` with a query-key factory (`drugKeys`, `protocolKeys`) and hooks:
   `useX` (one page, `keepPreviousData`), `useXPicker` (`useInfiniteQuery`, "load more", 30/page),
   `useSaveX` / `useDeleteX` mutations that invalidate the feature's keys. Query hooks take
   `{enabled}` (`QueryOptions`), so pages never call endpoints the user can't use.
@@ -554,7 +559,7 @@ Swagger UI is available in Development at `/swagger`.
   is first handled by the refresh interceptor, like a 401: it refreshes the session (as does a `/me` without a
   context while in a clinic, or in the platform admin of a user no longer super admin) and follows it: picker, the only clinic left, or login (with a message; a refresh 401
   `noContexts` = no clinic left), else replays the request once ([auth](../features/auth/tech.md)). `/me` also reloads when the tab gets the focus back.
-  Drug mutations also invalidate group queries (groups embed drug names).
+  Drug mutations also invalidate protocol queries (protocols embed drug names).
 - `api/errors.ts` is the one place that reads error responses (the refresh interceptor uses it too): `toApiError(error)` parses the API's
   ProblemDetails into a typed `ApiError { status, code, errors, traceId }` (null without an HTTP response);
   `getErrorMessage(error)` maps `code` to `errors.<code>`, else 404 to `errors.notFound`, no response to
@@ -577,7 +582,7 @@ Swagger UI is available in Development at `/swagger`.
 | `EmptyState` | Icon + title + description + optional action |
 | `useConfirm` | Promise-based confirmation dialog: `if (await confirm({...}))`; long titles/messages wrap; `destructive` starts with the focus on Cancel (a stray Enter does nothing) |
 | `InfoTip` | Small ⓘ icon with a tooltip (a `TapTooltip`: on hover, on keyboard focus, and on tap at once; after a tap it stays ~5 s) to explain a field or option |
-| `TapTooltip` | A `Tooltip` for tooltips that explain (ⓘ, why a control is disabled, the group editor line's custom-dosing and ask-the-eye chips in the read-only view; in edit mode a tap on the line opens its dosing dialog): a quick tap shows it at once and it stays ~5 s (`leaveTouchDelay` 5000); hover and focus as usual. MUI's default needs a 700 ms long press, and even with `enterTouchDelay={0}` a touchend in the same tick (a quick tap) cancels its open timer, so it is controlled and the child's `touchend` opens it; MUI's leave timer closes it. The child takes the ref and event props (wrap a disabled control in a `span`); `tap={false}` keeps MUI's touch behaviour while a tap is the control's own action. Used by `InfoTip`, the `Permission*` denied tooltip, the tapering steps editor's disabled step dose / «إضافة مرحلة», the role list's held-role Delete |
+| `TapTooltip` | A `Tooltip` for tooltips that explain (ⓘ, why a control is disabled, the protocol editor line's custom-dosing and ask-the-eye chips in the read-only view; in edit mode a tap on the line opens its dosing dialog): a quick tap shows it at once and it stays ~5 s (`leaveTouchDelay` 5000); hover and focus as usual. MUI's default needs a 700 ms long press, and even with `enterTouchDelay={0}` a touchend in the same tick (a quick tap) cancels its open timer, so it is controlled and the child's `touchend` opens it; MUI's leave timer closes it. The child takes the ref and event props (wrap a disabled control in a `span`); `tap={false}` keeps MUI's touch behaviour while a tap is the control's own action. Used by `InfoTip`, the `Permission*` denied tooltip, the tapering steps editor's disabled step dose / «إضافة مرحلة», the role list's held-role Delete |
 | `AppToaster` | The app's toaster ([App shell](#app-shell) "Toasts"): bottom-center, every toast with a × «إغلاق» / "Close" icon button and swipe-to-close; mounted once by `AppProviders` |
 | `FormDialog` | The `Dialog` of a create/edit form saving through `useDialogSave`: Esc and a backdrop click do nothing while the save is in flight (contract below) |
 | `DialogForm` | The `<form>` of a dialog around `DialogContent` + `DialogActions`: a flex column, so only the content scrolls and Save / Cancel stay on screen (also full screen on a phone). Drug, role and staff dialogs; its `onSubmit` is `useDialogSave`'s `submit` (below) |
@@ -602,7 +607,7 @@ Every create/edit dialog whose Save calls the API (drug, role, staff, Rename cli
 - The clinic Delete dialog (a confirmation; its delete runs in the page) is not closable while deleting either:
   `onClose={pending ? undefined : onClose}`.
 
-The line dialogs (group line, prescription line) save locally and synchronously; their form is rendered only while a line
+The line dialogs (protocol line, prescription line) save locally and synchronously; their form is rendered only while a line
 is given (`{item && <Form key={item.key}/>}`), so it is gone as soon as they close.
 
 Permission pieces (`features/access`, [details](../features/access/tech.md#frontend-srcfeaturesaccess)):

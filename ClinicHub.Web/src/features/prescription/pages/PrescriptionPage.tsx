@@ -9,12 +9,12 @@ import {SelectionPanel} from "../components/SelectionPanel.tsx";
 import {EditorDialog} from "../components/EditorDialog.tsx";
 import {LineEditDialog} from "../components/LineEditDialog.tsx";
 import {lineIdentity, newLine, usePrescriptionLines} from "../usePrescriptionLines.ts";
-import {useGroupAddDialogs} from "../components/useGroupAddDialogs.tsx";
+import {useProtocolAddDialogs} from "../components/useProtocolAddDialogs.tsx";
 import {ASK_EYE, type Dosing, mergeDosing, sameDosing} from "../../dosing/types.ts";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {htmlForPaste, linesToHtml, linesToPlainText} from "../prescriptionText.ts";
 import type {PrescriptionLine} from "../types.ts";
-import type {DrugGroup} from "../../drugGroups/types.ts";
+import type {Protocol} from "../../protocols/types.ts";
 import type {Drug} from "../../drugs/types.ts";
 import {useClinic} from "../../auth/useAuth.ts";
 
@@ -25,25 +25,25 @@ export const PrescriptionPage = () => {
     const prescription = usePrescriptionLines(clinicId);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingLine, setEditingLine] = useState<PrescriptionLine | null>(null);
-    const groupDialogs = useGroupAddDialogs();
-    // A group is added once per click: a fast double click must not run the flow (and its dialogs) twice
+    const protocolDialogs = useProtocolAddDialogs();
+    // A protocol is added once per click: a fast double click must not run the flow (and its dialogs) twice
     const once = useSingleFlight();
 
     /**
-     * Adds a group's lines: each drug's default dosing with the group's override on top.
-     * 1. Lines that give the same drug for the same eye as saved (a drug's default eye changed after the group was
+     * Adds a protocol's lines: each drug's default dosing with the protocol's override on top.
+     * 1. Lines that give the same drug for the same eye as saved (a drug's default eye changed after the protocol was
      *    saved; the API refuses new ones) are added once, the others counted in the summary ("duplicated").
      * 2. Asks once for the eye when lines use "ask".
      * 3. An "ask" line and a line for the eye then chosen (same drug) meet only now: when their dosings differ, the user
-     *    picks one (the conflict dialog, group variant), so no dosing is dropped unseen; identical ones are added once.
+     *    picks one (the conflict dialog, protocol variant), so no dosing is dropped unseen; identical ones are added once.
      * 4. Asks about each line that clashes with one already in the prescription (same drug and eye, different dosing).
      */
-    const addGroup = async (group: DrugGroup) => {
+    const addProtocol = async (protocol: Protocol) => {
         type Candidate = { drug: Drug; dosing: Dosing };
         let candidates: Candidate[] = [];
         const seen = new Set<string>();
         let duplicated = 0;
-        for (const item of group.items) {
+        for (const item of protocol.items) {
             const candidate = {drug: item.drug, dosing: mergeDosing(item.drug.defaultDosing, item.dosing)};
             const id = lineIdentity(candidate.drug.id, candidate.dosing);
             if (seen.has(id)) {
@@ -55,7 +55,7 @@ export const PrescriptionPage = () => {
         }
 
         if (candidates.some(c => c.dosing.eye === ASK_EYE)) {
-            const eye = await groupDialogs.askEye(group.name);
+            const eye = await protocolDialogs.askEye(protocol.name);
             if (!eye) return;
             candidates = candidates.map(c => (c.dosing.eye === ASK_EYE ? {...c, dosing: {...c.dosing, eye}} : c));
 
@@ -77,8 +77,8 @@ export const PrescriptionPage = () => {
             for (const [position, {index, other}] of clashes.entries()) {
                 let useOther = useOtherForAll;
                 if (useOther === null) {
-                    const answer = await groupDialogs.askConflict({
-                        variant: "group",
+                    const answer = await protocolDialogs.askConflict({
+                        variant: "protocol",
                         drugName: other.drug.name,
                         current: merged[index].dosing,
                         incoming: other.dosing,
@@ -108,7 +108,7 @@ export const PrescriptionPage = () => {
         for (const [index, {existing, incoming}] of conflicts.entries()) {
             let replace = decision;
             if (replace === null) {
-                const answer = await groupDialogs.askConflict({
+                const answer = await protocolDialogs.askConflict({
                     drugName: incoming.drug.name,
                     current: existing.dosing,
                     incoming: incoming.dosing,
@@ -127,11 +127,11 @@ export const PrescriptionPage = () => {
         prescription.addLines(fresh);
 
         const message = [
-            t("prescription.groupAdded", {name: group.name, count: fresh.length}),
-            replaced ? t("prescription.groupReplaced", {count: replaced}) : null,
-            kept ? t("prescription.groupKept", {count: kept}) : null,
-            unchanged ? t("prescription.groupSkipped", {count: unchanged}) : null,
-            duplicated ? t("prescription.groupDuplicated", {count: duplicated}) : null,
+            t("prescription.protocolAdded", {name: protocol.name, count: fresh.length}),
+            replaced ? t("prescription.protocolReplaced", {count: replaced}) : null,
+            kept ? t("prescription.protocolKept", {count: kept}) : null,
+            unchanged ? t("prescription.protocolSkipped", {count: unchanged}) : null,
+            duplicated ? t("prescription.protocolDuplicated", {count: duplicated}) : null,
         ].filter(Boolean).join("\n");
         if (fresh.length || replaced) toast.success(message);
         else toast(message);
@@ -172,7 +172,7 @@ export const PrescriptionPage = () => {
                 <Grid size={{xs: 12, md: 5}}>
                     <CatalogPanel
                         selectedIds={prescription.drugIds}
-                        onSelectGroup={(group) => void once(() => addGroup(group))}
+                        onSelectProtocol={(protocol) => void once(() => addProtocol(protocol))}
                         onSelectDrug={addDrug}
                     />
                 </Grid>
@@ -192,7 +192,7 @@ export const PrescriptionPage = () => {
             </Grid>
             <LineEditDialog line={editingLine} onClose={() => setEditingLine(null)} onSave={prescription.updateLine}/>
             <EditorDialog open={editorOpen} lines={prescription.lines} onClose={() => setEditorOpen(false)}/>
-            {groupDialogs.dialogs}
+            {protocolDialogs.dialogs}
         </>
     );
 };

@@ -21,7 +21,7 @@ public class ErrorCodeTextsTests
 
     /// <summary>The error classes the tech overview names, plus the routing-only <c>methodNotAllowed</c>.</summary>
     private static readonly string[] DocumentedClasses =
-        ["CommonErrors", "DrugErrors", "DrugGroupErrors", "IdentityErrors", "AccessErrors", "ClinicErrors", "RoleErrors", "StaffErrors", nameof(ApiProblemFactory)];
+        ["CommonErrors", "DrugErrors", "ProtocolErrors", "IdentityErrors", "AccessErrors", "ClinicErrors", "RoleErrors", "StaffErrors", nameof(ApiProblemFactory)];
 
     /// <summary>Every <c>static</c> <see cref="Error"/> the Application and Api declare, by declaring class.</summary>
     private static readonly IReadOnlyList<(string Class, string Code)> Declared =

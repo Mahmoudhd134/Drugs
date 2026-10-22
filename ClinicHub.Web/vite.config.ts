@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 /**
  * The pure-logic files (design M1.6 D3 "Frontend rules", plus the other pure modules with rules): each must reach the
  * D5 coverage gate on its own (lines ≥ 95%, branches ≥ 90%). StrykerJS mutates them (stryker.config.json `mutate`,
- * which also has features/drugGroups/editorItem.ts: tested, but 1 of its 8 branches is an unreachable `?? 0`).
+ * which also has features/protocols/editorItem.ts: tested, but 1 of its 8 branches is an unreachable `?? 0`).
  */
 const PURE_LOGIC = [
     'src/features/dosing/types.ts',

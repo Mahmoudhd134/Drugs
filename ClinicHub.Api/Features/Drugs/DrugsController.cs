@@ -9,7 +9,7 @@ using ClinicHub.Application.Features.Catalog.Drugs.Commands.CreateDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.DeleteDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrug;
-using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugGroupNames;
+using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugProtocolNames;
 using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugs;
 using ClinicHub.Domain.Catalog;
 using MediatR;
@@ -47,11 +47,11 @@ public class DrugsController(ISender sender) : BaseApiController
         (await sender.Send(new UpdateDrugCommand(id, request.Name, request.Description, request.DefaultDosing),
             cancellationToken)).ToOk();
 
-    /// <summary>Names of the groups that contain this drug (shown before deleting it).</summary>
-    [HttpGet("{id:int}/groups")]
+    /// <summary>Names of the protocols that contain this drug (shown before deleting it).</summary>
+    [HttpGet("{id:int}/protocols")]
     [HasPermission(Permissions.Drugs.Details)]
-    public async Task<ActionResult<List<string>>> GetGroups(int id, CancellationToken cancellationToken) =>
-        (await sender.Send(new GetDrugGroupNamesQuery(id), cancellationToken)).ToOk();
+    public async Task<ActionResult<List<string>>> GetProtocols(int id, CancellationToken cancellationToken) =>
+        (await sender.Send(new GetDrugProtocolNamesQuery(id), cancellationToken)).ToOk();
 
     [HttpDelete("{id:int}")]
     [HasPermission(Permissions.Drugs.Delete)]

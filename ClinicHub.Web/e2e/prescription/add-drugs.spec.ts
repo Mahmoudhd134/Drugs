@@ -4,7 +4,7 @@ import {dropDailySentence, RX_TEXTS} from "../support/texts-rx.ts";
 import {expectContextLabel, toast} from "../support/ui.ts";
 
 test.describe("Prescription: the page and adding single drugs @area:prescription", () => {
-    test("a doctor's login opens the prescription page first, Groups tab selected with its search focused @RX-001 @RX-002 @smoke",
+    test("a doctor's login opens the prescription page first, Protocols tab selected with its search focused @RX-001 @RX-002 @smoke",
         async ({page, t, lang, data, healthy}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -15,9 +15,9 @@ test.describe("Prescription: the page and adding single drugs @area:prescription
             await expectContextLabel(page, clinic.name);
             await expect(page.getByText(rt.catalog, {exact: true})).toBeVisible();
             await expect(page.getByText(rt.selected, {exact: true})).toBeVisible();
-            await expect(page.getByRole("tab", {name: rt.tabGroups})).toHaveAttribute("aria-selected", "true");
+            await expect(page.getByRole("tab", {name: rt.tabProtocols})).toHaveAttribute("aria-selected", "true");
             await expect(page.getByRole("tab", {name: rt.tabDrugs})).toHaveAttribute("aria-selected", "false");
-            await expect(page.getByPlaceholder(rt.searchGroups)).toBeFocused();
+            await expect(page.getByPlaceholder(rt.searchProtocols)).toBeFocused();
             await healthy();
         });
 

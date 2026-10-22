@@ -10,7 +10,7 @@ M1.4 was done in three parts:
    controllers and auth stay in `ClinicHub.Api`.
 2. **Application foundations + Catalog (done):** MediatR abstractions, `Result`/`Error`, FluentValidation, the
    pipeline behaviors and `ITransactionRunner` (§ 3); `ApiProblemFactory` with every error source and the
-   `Result` → HTTP helpers (§ 5, § 6); the Catalog module (Drugs, DrugGroups) as commands/queries with thin
+   `Result` → HTTP helpers (§ 5, § 6); the Catalog module (Drugs, DrugGroups: Protocols since M1.7a) as commands/queries with thin
    controllers. The app works end to end after this part.
 3. **Identity, Access, Platform + permission structure (done):** the remaining services move to Application on top
    of the abstractions (purpose-built interfaces for what `IAppDbContext` hides), their use cases and
@@ -32,15 +32,15 @@ Module by module, so every part ended with a working app.
 - `TransactionRunner` (Infrastructure): EF execution strategy + one transaction; commits only a successful
   `Result`; on a failed one it rolls back and clears the change tracker; inside an existing transaction it
   uses a savepoint (released on success, rolled back to on failure).
-- Catalog (`Application/Features/Catalog/Drugs`, `…/DrugGroups`): one folder per use case. Create and update
+- Catalog (`Application/Features/Catalog/Drugs`, `…/Protocols`): one folder per use case. Create and update
   each have their own validator and handler (no shared interface or base validator: a few repeated lines
-  are simpler). `SaveDrugGroupItem.Normalize` is the one shared helper (validators + handlers).
+  are simpler). `SaveProtocolItem.Normalize` is the one shared helper (validators + handlers).
 - `ErrorCodes.ValidateName` became `ValidName()`; `DosingRules.IsValid` → `invalidDosing` is a `.Must(...)`
-  rule. The group's `drugNotFound` reads the database, so the handlers check it after validation (same
+  rule. The protocol's `drugNotFound` reads the database, so the handlers check it after validation (same
   precedence as before: it is only reported when everything else is valid).
-- **404 code:** an unknown drug or group answers `code: "notFound"` (`DrugErrors.NotFound`,
-  `DrugGroupErrors.NotFound`), not `drugNotFound`: before, the 404 had no code and the SPA showed
-  `errors.notFound`; `drugNotFound` stays the 400 for an unknown drug *inside* a group.
+- **404 code:** an unknown drug or protocol answers `code: "notFound"` (`DrugErrors.NotFound`,
+  `ProtocolErrors.NotFound`), not `drugNotFound`: before, the 404 had no code and the SPA showed
+  `errors.notFound`; `drugNotFound` stays the 400 for an unknown drug *inside* a protocol.
 - API: `Errors/ApiProblemFactory` (+ `ResultHttpExtensions`, `UnexpectedExceptionHandler`), `AddApi()`,
   `UseProblemStatusCodePages()`; the SPA fallback no longer answers `/api/*` (an unknown API route is a 404
   ProblemDetails instead of `index.html`).
@@ -113,7 +113,7 @@ in `permissions.ts` changed):
 - **Sub-feature folders**: Identity → `Login/`, `Sessions/`, `Users/`; Access → `Authorization/`, `Roles/`,
   `StaffMembers/`. Module roots keep only `IdentityErrors`, `AccessErrors` and Access's `Permissions.cs`.
   Files moved with `git mv`; namespaces follow the folders. The Api and Infrastructure folders have no flat roots
-  (Api: `Features/Drugs`, `DrugGroups`, `Identity`, `Access`; Infrastructure: `Database`, `Identity`, `Access`,
+  (Api: `Features/Drugs`, `Protocols`, `Identity`, `Access`; Infrastructure: `Database`, `Identity`, `Access`,
   `Platform`) and kept their layout.
 - **An interface for every service and seeder**: `ISessionService`, `IMembershipService` (both internal, with
   their classes), `IPermissionService` (now its own file), `IIdentitySeeder`, `IPhoneNormalizer` (`PhoneNormalizer`
@@ -188,7 +188,7 @@ ClinicHub.Api              → Application, Infrastructure
 
 | Project | Contains |
 |---|---|
-| **Domain** | Entities (`Drug`, `DrugGroup`, `DrugGroupItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`), field limits (`FieldLimits`) |
+| **Domain** | Entities (`Drug`, `Protocol`, `ProtocolItem`, `Clinic`, `User`, `OtpCode`, `Session`, `Staff`, `Role`, `RolePermission`, `StaffRole`), owned values (`Dosing`, `TaperStep`), code lists (`DosingCodes`, `ClinicStatus`, `ContextTypes`), pure rules (`DosingRules`), markers (`IClinicOwned`, `IHasTimestamps`), field limits (`FieldLimits`) |
 | **Application** | Use cases (commands, queries, handlers, validators), DTOs, errors, MediatR abstractions and behaviors, `Result`/`Error`, abstractions implemented elsewhere (`IAppDbContext`, `IClinicContext`, `ICurrentUser`, `IAccessCache`, `IOtpSender`, `IOtpLock`, `ITokenService`, `ITransactionRunner`, `IPostCommitActions`, `IStartupSeeder`), `IClinicScope` (implemented in `Features/Platform/Clinics`), application services that are not use cases, each behind an interface (`IPermissionService`, `IMembershipService`, `ISessionService`, `IIdentitySeeder`, `IUserAccounts`, `IPhoneNormalizer`; internal: `IClinicProvisioner` and the `IClinicSeeder`s), the `Permissions` constants and catalog, `DefaultRoles`, the settings classes it reads (`Common/Settings`) |
 | **Infrastructure** | `AppDbContext` (implements `IAppDbContext`), one `IEntityTypeConfiguration<T>` per entity, the clinic query filter, the clinic/timestamps interceptor, migrations, `TransactionRunner` (also `IPostCommitActions`), `AccessCache` (HybridCache), `TokenService` (JWT) + `AuthClaims`, `DisplayOtpSender` (later SMS), `OtpLock` (advisory lock), `JwtValidation` (the token key and validation, read by the Api), `StartupSeeder` (`IStartupSeeder`; needs EF internals) |
 | **Api** | Thin controllers (+ the refresh cookie in `AuthController`), authentication and authorization setup, `CurrentUser` (claims reader: needs `HttpContext`), `[HasPermission]` and its handlers, the clinic middleware, the `ApiProblemFactory` and every error source, `Result` → HTTP mapping, SPA hosting (`wwwroot`), `Program.cs`, config binding and validation (`AppSettings`), `Database.MigrateAsync()` |
@@ -282,7 +282,7 @@ public static class DrugErrors
 
 - **Codes stay exactly as today** (`nameRequired`, `drugNotFound`, `invalidDosing`, `noAccess`…), so the
   frontend's `errors.<code>` translations keep working. A missing row is `notFound` (the SPA's generic
-  "this item no longer exists"); `drugNotFound` is the 400 for an unknown drug inside a group.
+  "this item no longer exists"); `drugNotFound` is the 400 for an unknown drug inside a protocol.
 - The description is English, for developers and logs; the UI always translates by code.
 - Cross-cutting errors (`forbidden`, `unauthorized`, `notFound`, `conflict`, `invalidRequest`, `unexpected`,
   `tooManyRequests`), the shared name rules (`nameRequired`, `nameInvalid`, `nameTooLong`) and the free-text rule
@@ -348,10 +348,10 @@ public interface IAppDbContext
     DbSet<Role> Roles { get; }   // + its Permissions (RolePermission: no set, see below)
     DbSet<StaffRole> StaffRoles { get; }
     DbSet<Drug> Drugs { get; }
-    DbSet<DrugGroup> DrugGroups { get; }
-    DbSet<DrugGroupItem> DrugGroupItems { get; }
+    DbSet<Protocol> Protocols { get; }
+    DbSet<ProtocolItem> ProtocolItems { get; }
 
-    /// <summary>Marks the row as changed so its UpdatedAt moves (e.g. a group whose items changed).</summary>
+    /// <summary>Marks the row as changed so its UpdatedAt moves (e.g. a protocol whose items changed).</summary>
     void Touch(IHasTimestamps entity);
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
@@ -408,12 +408,12 @@ ClinicHub.Application/
           GetDrugsQuery.cs
           GetDrugsQueryHandler.cs
         GetDrug/ …
-        GetDrugGroupNames/
-          GetDrugGroupNamesQuery.cs
-          GetDrugGroupNamesQueryHandler.cs   (returns List<string>; a type used by one use case only would live here)
+        GetDrugProtocolNames/
+          GetDrugProtocolNamesQuery.cs
+          GetDrugProtocolNamesQueryHandler.cs   (returns List<string>; a type used by one use case only would live here)
       DrugDto.cs                  ← shared by several use cases: lives at the sub-feature root
       DrugErrors.cs
-    DrugGroups/ …
+    Protocols/ …
    Identity/
     IdentityErrors.cs            ← the only file at a module root (Access also has Permissions.cs)
     Login/                       phone + OTP → session start

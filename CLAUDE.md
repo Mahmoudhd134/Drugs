@@ -1,8 +1,8 @@
 # Clinic Drugs (ClinicHub)
 
-Web app for a clinic: drug catalog, drug groups (treatment templates), and a prescription builder
+Web app for a clinic: drug catalog, protocols (treatment templates), and a prescription builder
 that copies text for Word. ASP.NET Core 9 + EF Core + PostgreSQL API; React + TypeScript + MUI SPA;
-UI in English and Arabic (RTL). Drug/group content is not translated.
+UI in English and Arabic (RTL). Drug/protocol content is not translated.
 `ClinicHub` is the neutral code name (renamed from `Drags` on 2026-10-14); the PostgreSQL database,
 user, Docker Compose project and volume keep the legacy name `drags`.
 Backend projects: `ClinicHub.Domain` ← `ClinicHub.Application` ← `ClinicHub.Infrastructure` ← `ClinicHub.Api`

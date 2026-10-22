@@ -60,7 +60,7 @@ export const dosingToText = (dosing: Dosing | null | undefined): string => {
 
     if (d.doseUnit) parts.push(doseText(t, d.doseUnit, d.doseAmount));
 
-    // "ask" is resolved before a group reaches a prescription, so it has no wording
+    // "ask" is resolved before a protocol reaches a prescription, so it has no wording
     if (d.eye && d.eye !== "ask") parts.push(t(`rxText.eye.${d.eye}`));
 
     if (d.taperSteps) {

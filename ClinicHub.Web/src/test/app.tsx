@@ -37,8 +37,8 @@ const LAZY_PAGES = [
     () => import("../features/admin/components/ClinicStaffTab.tsx"),
     () => import("../features/prescription/pages/PrescriptionPage.tsx"),
     () => import("../features/drugs/pages/DrugsPage.tsx"),
-    () => import("../features/drugGroups/pages/DrugGroupsPage.tsx"),
-    () => import("../features/drugGroups/pages/DrugGroupEditorPage.tsx"),
+    () => import("../features/protocols/pages/ProtocolsPage.tsx"),
+    () => import("../features/protocols/pages/ProtocolEditorPage.tsx"),
 ];
 
 /**

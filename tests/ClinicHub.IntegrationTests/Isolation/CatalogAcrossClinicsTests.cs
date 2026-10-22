@@ -1,6 +1,6 @@
 using System.Net;
 using ClinicHub.Application.Common.Paging;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.IntegrationTests.Access;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -20,9 +20,9 @@ namespace ClinicHub.IntegrationTests.Isolation;
 [Trait("Area", "isolation")]
 public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
 {
-    /// <summary>Clinics A and B, each with two drugs and a group using its first drug; the caller is A's owner.</summary>
-    private sealed record Setup(ClinicHandle A, ClinicHandle B, ApiClient Caller, DrugDto ADrug, DrugGroupDto AGroup, DrugDto BDrug,
-        DrugGroupDto BGroup);
+    /// <summary>Clinics A and B, each with two drugs and a protocol using its first drug; the caller is A's owner.</summary>
+    private sealed record Setup(ClinicHandle A, ClinicHandle B, ApiClient Caller, DrugDto ADrug, ProtocolDto AProtocol, DrugDto BDrug,
+        ProtocolDto BProtocol);
 
     private async Task<Setup> TwoClinicsAsync()
     {
@@ -30,11 +30,11 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
         var b = await Data.Clinic().Named(Unique.Name("Clinic B", "عيادة ب"));
         var aDrug = await Data.Drug(a).Named(Unique.Name("Tobradex", "توبرادكس"));
         await Data.Drug(a);
-        var aGroup = await Data.Group(a).With(aDrug);
+        var aProtocol = await Data.Protocol(a).With(aDrug);
         var bDrug = await Data.Drug(b).Named(Unique.Name("Vigamox", "فيجاموكس"));
         await Data.Drug(b);
-        var bGroup = await Data.Group(b).With(bDrug);
-        return new Setup(a, b, await Login.OwnerAsync(a), aDrug, aGroup, bDrug, bGroup);
+        var bProtocol = await Data.Protocol(b).With(bDrug);
+        return new Setup(a, b, await Login.OwnerAsync(a), aDrug, aProtocol, bDrug, bProtocol);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-005")]
-    public async Task Deleting_another_clinics_drug_is_not_found_and_keeps_it_and_its_group_lines()
+    public async Task Deleting_another_clinics_drug_is_not_found_and_keeps_it_and_its_protocol_lines()
     {
         var s = await TwoClinicsAsync();
 
@@ -97,16 +97,16 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
 
         await response.ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
         (await DrugNameAsync(s.BDrug.Id)).ShouldBe(s.BDrug.Name);
-        (await LineDrugIdsAsync(s.BGroup.Id)).ShouldBe([s.BDrug.Id]);
+        (await LineDrugIdsAsync(s.BProtocol.Id)).ShouldBe([s.BDrug.Id]);
     }
 
     [Fact]
     [Trait("Case", "ISO-006")]
-    public async Task The_groups_of_another_clinics_drug_are_an_empty_list()
+    public async Task The_protocols_of_another_clinics_drug_are_an_empty_list()
     {
         var s = await TwoClinicsAsync();
 
-        var response = await s.Caller.GetAsync($"/api/v1/drugs/{s.BDrug.Id}/groups");
+        var response = await s.Caller.GetAsync($"/api/v1/drugs/{s.BDrug.Id}/protocols");
 
         await response.ShouldBeOkAsync();
         (await response.ReadAsync<List<string>>()).ShouldBeEmpty();
@@ -114,92 +114,92 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-007")]
-    public async Task The_group_list_has_only_the_clinics_groups_naming_only_its_drugs()
+    public async Task The_protocol_list_has_only_the_clinics_protocols_naming_only_its_drugs()
     {
         var s = await TwoClinicsAsync();
         var aDrugIds = await DrugIdsAsync(s.A.Id);
-        var aGroupIds = await App.QueryDbAsync(db =>
-            db.DrugGroups.IgnoreQueryFilters().Where(g => g.ClinicId == s.A.Id).Select(g => g.Id).ToListAsync());
+        var aProtocolIds = await App.QueryDbAsync(db =>
+            db.Protocols.IgnoreQueryFilters().Where(g => g.ClinicId == s.A.Id).Select(g => g.Id).ToListAsync());
 
-        var page = await (await s.Caller.GetAsync("/api/v1/drug-groups?pageSize=100")).ReadAsync<PagedResult<DrugGroupDto>>();
+        var page = await (await s.Caller.GetAsync("/api/v1/protocols?pageSize=100")).ReadAsync<PagedResult<ProtocolDto>>();
 
-        page.Items.Select(g => g.Id).ShouldBe(aGroupIds, ignoreOrder: true);
-        page.TotalCount.ShouldBe(aGroupIds.Count);
+        page.Items.Select(g => g.Id).ShouldBe(aProtocolIds, ignoreOrder: true);
+        page.TotalCount.ShouldBe(aProtocolIds.Count);
         page.Items.SelectMany(g => g.Items).ShouldAllBe(i => aDrugIds.Contains(i.Drug.Id));
     }
 
     [Fact]
     [Trait("Case", "ISO-008")]
-    public async Task Another_clinics_group_is_not_found()
+    public async Task Another_clinics_protocol_is_not_found()
     {
         var s = await TwoClinicsAsync();
 
-        await (await s.Caller.GetAsync($"/api/v1/drug-groups/{s.BGroup.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await s.Caller.GetAsync($"/api/v1/protocols/{s.BProtocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
     }
 
     [Fact]
     [Trait("Case", "ISO-009")]
-    public async Task Updating_another_clinics_group_with_own_drugs_is_not_found_and_changes_nothing()
+    public async Task Updating_another_clinics_protocol_with_own_drugs_is_not_found_and_changes_nothing()
     {
         var s = await TwoClinicsAsync();
 
-        var response = await s.Caller.PutAsync($"/api/v1/drug-groups/{s.BGroup.Id}", CatalogRoutes.GroupBody(s.ADrug.Id));
+        var response = await s.Caller.PutAsync($"/api/v1/protocols/{s.BProtocol.Id}", CatalogRoutes.ProtocolBody(s.ADrug.Id));
 
         await response.ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        (await GroupNameAsync(s.BGroup.Id)).ShouldBe(s.BGroup.Name);
-        (await LineDrugIdsAsync(s.BGroup.Id)).ShouldBe([s.BDrug.Id]);
+        (await ProtocolNameAsync(s.BProtocol.Id)).ShouldBe(s.BProtocol.Name);
+        (await LineDrugIdsAsync(s.BProtocol.Id)).ShouldBe([s.BDrug.Id]);
     }
 
     [Fact]
     [Trait("Case", "ISO-010")]
-    public async Task Updating_another_clinics_group_with_its_drugs_answers_drug_not_found_first()
+    public async Task Updating_another_clinics_protocol_with_its_drugs_answers_drug_not_found_first()
     {
         var s = await TwoClinicsAsync();
 
-        var response = await s.Caller.PutAsync($"/api/v1/drug-groups/{s.BGroup.Id}", CatalogRoutes.GroupBody(s.BDrug.Id));
+        var response = await s.Caller.PutAsync($"/api/v1/protocols/{s.BProtocol.Id}", CatalogRoutes.ProtocolBody(s.BDrug.Id));
 
         await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
-        (await GroupNameAsync(s.BGroup.Id)).ShouldBe(s.BGroup.Name);
-        (await LineDrugIdsAsync(s.BGroup.Id)).ShouldBe([s.BDrug.Id]);
+        (await ProtocolNameAsync(s.BProtocol.Id)).ShouldBe(s.BProtocol.Name);
+        (await LineDrugIdsAsync(s.BProtocol.Id)).ShouldBe([s.BDrug.Id]);
     }
 
     [Fact]
     [Trait("Case", "ISO-011")]
-    public async Task Deleting_another_clinics_group_is_not_found_and_keeps_it()
+    public async Task Deleting_another_clinics_protocol_is_not_found_and_keeps_it()
     {
         var s = await TwoClinicsAsync();
 
-        var response = await s.Caller.DeleteAsync($"/api/v1/drug-groups/{s.BGroup.Id}");
+        var response = await s.Caller.DeleteAsync($"/api/v1/protocols/{s.BProtocol.Id}");
 
         await response.ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        (await GroupNameAsync(s.BGroup.Id)).ShouldBe(s.BGroup.Name);
-        (await LineDrugIdsAsync(s.BGroup.Id)).ShouldBe([s.BDrug.Id]);
+        (await ProtocolNameAsync(s.BProtocol.Id)).ShouldBe(s.BProtocol.Name);
+        (await LineDrugIdsAsync(s.BProtocol.Id)).ShouldBe([s.BDrug.Id]);
     }
 
     [Fact]
     [Trait("Case", "ISO-012")]
-    public async Task A_new_group_with_another_clinics_drug_is_refused_and_not_created()
+    public async Task A_new_protocol_with_another_clinics_drug_is_refused_and_not_created()
     {
         var s = await TwoClinicsAsync();
-        var groupsBefore = await GroupCountAsync(s.A.Id);
+        var protocolsBefore = await ProtocolCountAsync(s.A.Id);
 
-        var response = await s.Caller.PostAsync("/api/v1/drug-groups", CatalogRoutes.GroupBody(s.ADrug.Id, s.BDrug.Id));
+        var response = await s.Caller.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(s.ADrug.Id, s.BDrug.Id));
 
         await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
-        (await GroupCountAsync(s.A.Id)).ShouldBe(groupsBefore);
+        (await ProtocolCountAsync(s.A.Id)).ShouldBe(protocolsBefore);
     }
 
     [Fact]
     [Trait("Case", "ISO-013")]
-    public async Task Adding_another_clinics_drug_to_an_own_group_is_refused_and_changes_nothing()
+    public async Task Adding_another_clinics_drug_to_an_own_protocol_is_refused_and_changes_nothing()
     {
         var s = await TwoClinicsAsync();
 
-        var response = await s.Caller.PutAsync($"/api/v1/drug-groups/{s.AGroup.Id}", CatalogRoutes.GroupBody(s.ADrug.Id, s.BDrug.Id));
+        var response = await s.Caller.PutAsync($"/api/v1/protocols/{s.AProtocol.Id}", CatalogRoutes.ProtocolBody(s.ADrug.Id, s.BDrug.Id));
 
         await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "drugNotFound");
-        (await GroupNameAsync(s.AGroup.Id)).ShouldBe(s.AGroup.Name);
-        (await LineDrugIdsAsync(s.AGroup.Id)).ShouldBe([s.ADrug.Id]);
+        (await ProtocolNameAsync(s.AProtocol.Id)).ShouldBe(s.AProtocol.Name);
+        (await LineDrugIdsAsync(s.AProtocol.Id)).ShouldBe([s.ADrug.Id]);
     }
 
     [Fact]
@@ -218,9 +218,9 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
         Comparable(other).ShouldBe(Comparable(missing));
         other.Body.Select(p => p.Key).ShouldBe(missing.Body.Select(p => p.Key));
 
-        var otherGroup = await (await s.Caller.GetAsync($"/api/v1/drug-groups/{s.BGroup.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        var missingGroup = await (await s.Caller.GetAsync($"/api/v1/drug-groups/{neverExisted}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        Comparable(otherGroup).ShouldBe(Comparable(missingGroup));
+        var otherProtocol = await (await s.Caller.GetAsync($"/api/v1/protocols/{s.BProtocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        var missingProtocol = await (await s.Caller.GetAsync($"/api/v1/protocols/{neverExisted}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        Comparable(otherProtocol).ShouldBe(Comparable(missingProtocol));
     }
 
     [Fact]
@@ -243,18 +243,18 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-016")]
-    public async Task A_new_group_and_each_of_its_lines_are_stored_in_the_callers_clinic()
+    public async Task A_new_protocol_and_each_of_its_lines_are_stored_in_the_callers_clinic()
     {
         var s = await TwoClinicsAsync();
         var second = await Data.Drug(s.A);
 
-        var created = await (await s.Caller.PostAsync("/api/v1/drug-groups", CatalogRoutes.GroupBody(s.ADrug.Id, second.Id)))
-            .ReadAsync<DrugGroupDto>();
+        var created = await (await s.Caller.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(s.ADrug.Id, second.Id)))
+            .ReadAsync<ProtocolDto>();
 
-        (await App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters().Where(g => g.Id == created.Id).Select(g => g.ClinicId).SingleAsync()))
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().Where(g => g.Id == created.Id).Select(g => g.ClinicId).SingleAsync()))
             .ShouldBe(s.A.Id);
-        var lineClinics = await App.QueryDbAsync(db => db.DrugGroupItems.IgnoreQueryFilters()
-            .Where(i => i.DrugGroupId == created.Id).Select(i => i.ClinicId).ToListAsync());
+        var lineClinics = await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters()
+            .Where(i => i.ProtocolId == created.Id).Select(i => i.ClinicId).ToListAsync());
         lineClinics.Count.ShouldBe(2);
         lineClinics.ShouldAllBe(id => id == s.A.Id);
     }
@@ -265,7 +265,7 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
     {
         var templateId = await App.TemplateClinicIdAsync();
         var templateDrug = await Data.Drug(templateId).Named(Unique.Name("Template drug", "دواء القالب"));
-        var templateGroup = await Data.Group(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(templateDrug);
+        var templateProtocol = await Data.Protocol(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(templateDrug);
         var a = await Data.Clinic();
         var owner = await Login.OwnerAsync(a);
 
@@ -273,32 +273,32 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
         await (await owner.PutAsync($"/api/v1/drugs/{templateDrug.Id}", new { name = "Hijacked " + Guid.NewGuid() }))
             .ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
         await (await owner.DeleteAsync($"/api/v1/drugs/{templateDrug.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        await (await owner.GetAsync($"/api/v1/drug-groups/{templateGroup.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        await (await owner.PutAsync($"/api/v1/drug-groups/{templateGroup.Id}", CatalogRoutes.GroupBody((await Data.Drug(a)).Id)))
+        await (await owner.GetAsync($"/api/v1/protocols/{templateProtocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await owner.PutAsync($"/api/v1/protocols/{templateProtocol.Id}", CatalogRoutes.ProtocolBody((await Data.Drug(a)).Id)))
             .ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        await (await owner.DeleteAsync($"/api/v1/drug-groups/{templateGroup.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
+        await (await owner.DeleteAsync($"/api/v1/protocols/{templateProtocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
 
         var drugs = await (await owner.GetAsync("/api/v1/drugs?pageSize=100")).ReadAsync<PagedResult<DrugDto>>();
-        var groups = await (await owner.GetAsync("/api/v1/drug-groups?pageSize=100")).ReadAsync<PagedResult<DrugGroupDto>>();
+        var protocols = await (await owner.GetAsync("/api/v1/protocols?pageSize=100")).ReadAsync<PagedResult<ProtocolDto>>();
         drugs.Items.ShouldNotContain(d => d.Id == templateDrug.Id);
-        groups.Items.ShouldNotContain(g => g.Id == templateGroup.Id);
+        protocols.Items.ShouldNotContain(g => g.Id == templateProtocol.Id);
         drugs.Items.ShouldContain(d => d.Name == templateDrug.Name);
-        groups.Items.ShouldContain(g => g.Name == templateGroup.Name);
+        protocols.Items.ShouldContain(g => g.Name == templateProtocol.Name);
         (await DrugNameAsync(templateDrug.Id)).ShouldBe(templateDrug.Name);
-        (await GroupNameAsync(templateGroup.Id)).ShouldBe(templateGroup.Name);
+        (await ProtocolNameAsync(templateProtocol.Id)).ShouldBe(templateProtocol.Name);
     }
 
     [Fact]
     [Trait("Case", "ISO-018")]
-    public async Task A_drugs_groups_name_only_the_clinics_groups()
+    public async Task A_drugs_protocols_name_only_the_clinics_protocols()
     {
         var s = await TwoClinicsAsync();
-        var second = await Data.Group(s.A).With(s.ADrug);
+        var second = await Data.Protocol(s.A).With(s.ADrug);
 
-        var names = await (await s.Caller.GetAsync($"/api/v1/drugs/{s.ADrug.Id}/groups")).ReadAsync<List<string>>();
+        var names = await (await s.Caller.GetAsync($"/api/v1/drugs/{s.ADrug.Id}/protocols")).ReadAsync<List<string>>();
 
-        names.ShouldBe([s.AGroup.Name, second.Name], ignoreOrder: true);
-        names.ShouldNotContain(s.BGroup.Name);
+        names.ShouldBe([s.AProtocol.Name, second.Name], ignoreOrder: true);
+        names.ShouldNotContain(s.BProtocol.Name);
     }
 
     private static string Comparable(Problem problem) =>
@@ -312,13 +312,13 @@ public class CatalogAcrossClinicsTests(AppFixture app) : IntegrationTest(app)
     private Task<string> DrugNameAsync(int drugId) =>
         App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().Where(d => d.Id == drugId).Select(d => d.Name).SingleOrDefaultAsync());
 
-    private Task<string> GroupNameAsync(int groupId) =>
-        App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters().Where(g => g.Id == groupId).Select(g => g.Name).SingleOrDefaultAsync());
+    private Task<string> ProtocolNameAsync(int protocolId) =>
+        App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().Where(g => g.Id == protocolId).Select(g => g.Name).SingleOrDefaultAsync());
 
-    private Task<int> GroupCountAsync(int clinicId) =>
-        App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters().CountAsync(g => g.ClinicId == clinicId));
+    private Task<int> ProtocolCountAsync(int clinicId) =>
+        App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(g => g.ClinicId == clinicId));
 
-    private Task<List<int>> LineDrugIdsAsync(int groupId) =>
-        App.QueryDbAsync(db => db.DrugGroupItems.IgnoreQueryFilters().Where(i => i.DrugGroupId == groupId)
+    private Task<List<int>> LineDrugIdsAsync(int protocolId) =>
+        App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == protocolId)
             .OrderBy(i => i.Order).Select(i => i.DrugId).ToListAsync());
 }

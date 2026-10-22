@@ -54,14 +54,14 @@ describe("clinics list @area:admin", () => {
         server.use(...adminClinicsHandlers([]));
         await renderAdmin("/admin", {lang: "ar"});
         expect(await screen.findByText("لا توجد عيادات بعد")).toBeInTheDocument();
-        expect(screen.getByText("أنشئ أول عيادة. يستطيع مالكها الدخول فورًا ويجد فيها الأدوية والمجموعات الافتراضية.")).toBeInTheDocument();
+        expect(screen.getByText("أنشئ أول عيادة. يستطيع مالكها الدخول فورًا ويجد فيها الأدوية والبروتوكولات الافتراضية.")).toBeInTheDocument();
     });
 
     test("no clinic at all, in English: \"No clinics yet\" @ADM-032", async () => {
         server.use(...adminClinicsHandlers([]));
         await renderAdmin("/admin");
         expect(await screen.findByText("No clinics yet")).toBeInTheDocument();
-        expect(screen.getByText("Create the first clinic. Its owner can log in right away and finds the default drugs and groups.")).toBeInTheDocument();
+        expect(screen.getByText("Create the first clinic. Its owner can log in right away and finds the default drugs and protocols.")).toBeInTheDocument();
     });
 
     test("a search with no match: «لا توجد عيادات مطابقة للبحث أو الفلتر.» @ADM-033", async () => {

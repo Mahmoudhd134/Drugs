@@ -17,8 +17,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
 
     public DbSet<Clinic> Clinics { get; set; }
     public DbSet<Drug> Drugs { get; set; }
-    public DbSet<DrugGroup> DrugGroups { get; set; }
-    public DbSet<DrugGroupItem> DrugGroupItems { get; set; }
+    public DbSet<Protocol> Protocols { get; set; }
+    public DbSet<ProtocolItem> ProtocolItems { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<OtpCode> OtpCodes { get; set; }
     public DbSet<Session> Sessions { get; set; }

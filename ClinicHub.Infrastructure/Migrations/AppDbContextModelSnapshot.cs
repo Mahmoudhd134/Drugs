@@ -178,7 +178,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("Drugs");
                 });
 
-            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroup", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Protocol", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -210,10 +210,10 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.HasIndex("ClinicId", "Name");
 
-                    b.ToTable("DrugGroups");
+                    b.ToTable("Protocols");
                 });
 
-            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroupItem", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.ProtocolItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -227,13 +227,13 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("DrugGroupId")
-                        .HasColumnType("integer");
-
                     b.Property<int>("DrugId")
                         .HasColumnType("integer");
 
                     b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProtocolId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -243,11 +243,11 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.HasIndex("ClinicId");
 
-                    b.HasIndex("DrugGroupId", "ClinicId");
-
                     b.HasIndex("DrugId", "ClinicId");
 
-                    b.ToTable("DrugGroupItems");
+                    b.HasIndex("ProtocolId", "ClinicId");
+
+                    b.ToTable("ProtocolItems");
                 });
 
             modelBuilder.Entity("ClinicHub.Domain.Identity.OtpCode", b =>
@@ -544,7 +544,7 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Navigation("DefaultDosing");
                 });
 
-            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroup", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Protocol", b =>
                 {
                     b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
@@ -553,7 +553,7 @@ namespace ClinicHub.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroupItem", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.ProtocolItem", b =>
                 {
                     b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
@@ -561,23 +561,23 @@ namespace ClinicHub.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ClinicHub.Domain.Catalog.DrugGroup", "DrugGroup")
-                        .WithMany("Items")
-                        .HasForeignKey("DrugGroupId", "ClinicId")
+                    b.HasOne("ClinicHub.Domain.Catalog.Drug", "Drug")
+                        .WithMany("ProtocolItems")
+                        .HasForeignKey("DrugId", "ClinicId")
                         .HasPrincipalKey("Id", "ClinicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ClinicHub.Domain.Catalog.Drug", "Drug")
-                        .WithMany("GroupItems")
-                        .HasForeignKey("DrugId", "ClinicId")
+                    b.HasOne("ClinicHub.Domain.Catalog.Protocol", "Protocol")
+                        .WithMany("Items")
+                        .HasForeignKey("ProtocolId", "ClinicId")
                         .HasPrincipalKey("Id", "ClinicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.OwnsOne("ClinicHub.Domain.Catalog.Dosing", "Dosing", b1 =>
                         {
-                            b1.Property<int>("DrugGroupItemId")
+                            b1.Property<int>("ProtocolItemId")
                                 .HasColumnType("integer");
 
                             b1.Property<decimal?>("DoseAmount")
@@ -612,19 +612,19 @@ namespace ClinicHub.Infrastructure.Migrations
                             b1.Property<string>("TaperSteps")
                                 .HasColumnType("text");
 
-                            b1.HasKey("DrugGroupItemId");
+                            b1.HasKey("ProtocolItemId");
 
-                            b1.ToTable("DrugGroupItems");
+                            b1.ToTable("ProtocolItems");
 
                             b1.WithOwner()
-                                .HasForeignKey("DrugGroupItemId");
+                                .HasForeignKey("ProtocolItemId");
                         });
 
                     b.Navigation("Dosing");
 
                     b.Navigation("Drug");
 
-                    b.Navigation("DrugGroup");
+                    b.Navigation("Protocol");
                 });
 
             modelBuilder.Entity("ClinicHub.Domain.Identity.Session", b =>
@@ -655,10 +655,10 @@ namespace ClinicHub.Infrastructure.Migrations
 
             modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>
                 {
-                    b.Navigation("GroupItems");
+                    b.Navigation("ProtocolItems");
                 });
 
-            modelBuilder.Entity("ClinicHub.Domain.Catalog.DrugGroup", b =>
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Protocol", b =>
                 {
                     b.Navigation("Items");
                 });

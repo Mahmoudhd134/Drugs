@@ -10,9 +10,9 @@ import {renderAdmin} from "./admin.tsx";
 
 /** The roles as the API answers them (permissions expanded with their requirements, catalog order). */
 export const ROLE_KEYS = {
-    assistant: ["drugs.list", "drugs.details", "drugs.create", "drugs.update", "groups.list", "groups.details", "groups.create",
-        "groups.update", "prescriptions.create"],
-    groupEditors: ["drugs.list", "drugs.details", "drugs.delete", "groups.list", "groups.details", "groups.update"],
+    assistant: ["drugs.list", "drugs.details", "drugs.create", "drugs.update", "protocols.list", "protocols.details", "protocols.create",
+        "protocols.update", "prescriptions.create"],
+    protocolEditors: ["drugs.list", "drugs.details", "drugs.delete", "protocols.list", "protocols.details", "protocols.update"],
 };
 
 /** A clinic's default roles (Owner, Assistant held by one, Doctor unused). */

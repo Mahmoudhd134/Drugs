@@ -3,7 +3,7 @@ import type {PagedResult} from "../api/types.ts";
 import type {PermissionDefinition} from "../features/access/api.ts";
 import type {ClinicDetails, ClinicSummary} from "../features/admin/types.ts";
 import type {AuthResult, Context, Me} from "../features/auth/types.ts";
-import type {DrugGroup} from "../features/drugGroups/types.ts";
+import type {Protocol} from "../features/protocols/types.ts";
 import type {Drug} from "../features/drugs/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
@@ -73,12 +73,12 @@ export const drugsHandlers = (drugs: Drug[]) => [
     }),
 ];
 
-/** `GET /drug-groups` (paged, searched by name) and `GET /drug-groups/:id` (404 `notFound` when missing). */
-export const drugGroupsHandlers = (groups: DrugGroup[]) => [
-    http.get(api("/drug-groups"), ({request}) => json(pageOf(request, groups))),
-    http.get(api("/drug-groups/:id"), ({params}) => {
-        const group = groups.find(g => g.id === Number(params.id));
-        return group ? json(group) : problem(404, "notFound");
+/** `GET /protocols` (paged, searched by name) and `GET /protocols/:id` (404 `notFound` when missing). */
+export const protocolsHandlers = (protocols: Protocol[]) => [
+    http.get(api("/protocols"), ({request}) => json(pageOf(request, protocols))),
+    http.get(api("/protocols/:id"), ({params}) => {
+        const protocol = protocols.find(g => g.id === Number(params.id));
+        return protocol ? json(protocol) : problem(404, "notFound");
     }),
 ];
 

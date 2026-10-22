@@ -86,7 +86,7 @@ public static class DosingRules
 
     /// <summary>
     /// Whether a normalized dosing is valid (no dosing is valid). Callers map false to their error code.
-    /// <paramref name="allowAskEye"/> permits the "ask" eye, which only group lines may use.
+    /// <paramref name="allowAskEye"/> permits the "ask" eye, which only protocol lines may use.
     /// </summary>
     public static bool IsValid(Dosing dosing, bool allowAskEye = false)
     {
@@ -97,7 +97,7 @@ public static class DosingRules
             In(dosing.DoseUnit, DosingCodes.DoseUnits)
             && In(dosing.Frequency, DosingCodes.Frequencies)
             && In(dosing.DurationUnit, DosingCodes.DurationUnits)
-            && In(dosing.Eye, allowAskEye ? DosingCodes.GroupEyes : DosingCodes.Eyes)
+            && In(dosing.Eye, allowAskEye ? DosingCodes.ProtocolEyes : DosingCodes.Eyes)
             // An amount needs a unit
             && (dosing.DoseAmount is null || (dosing.DoseUnit is not null && dosing.DoseAmount is > 0 and <= 1000))
             && ValidFrequency(dosing.Frequency, dosing.FrequencyValue, dosing.FrequencyText)
@@ -115,7 +115,7 @@ public static class DosingRules
 
         // Every step needs a frequency and a period; open-ended periods only on the last step
         return steps.Select((step, i) =>
-                // A step dose uses the dosing's unit, which a group line may inherit from the drug
+                // A step dose uses the dosing's unit, which a protocol line may inherit from the drug
                 step.DoseAmount is null or > 0 and <= 1000
                 && step.Frequency is not null && TaperFrequencies.Contains(step.Frequency)
                 && step.DurationUnit is not null

@@ -24,7 +24,7 @@ type Props<T extends Line> = {
 
 /**
  * Numbered, drag-to-reorder list of drug lines with edit / add-for-other-eye / remove actions.
- * Used for prescription lines and group lines.
+ * Used for prescription lines and protocol lines.
  */
 export const DosingLineList = <T extends Line>(props: Props<T>) => {
     const {lines, onReorder, onEdit, onRemove, renderDetails, canAddOtherEye, onAddOtherEye, readOnly} = props;

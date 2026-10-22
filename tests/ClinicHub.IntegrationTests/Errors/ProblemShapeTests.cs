@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using ClinicHub.Application.Features.Catalog.Drugs;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.IntegrationTests.Access;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
@@ -91,15 +91,15 @@ public class ProblemShapeTests(AppFixture app) : IntegrationTest(app)
         var owner = await Login.OwnerAsync(clinic);
 
         var drugResponse = await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Tobradex", "توبرادكس") });
-        var groupResponse = await owner.PostAsync("/api/v1/drug-groups", CatalogRoutes.GroupBody(drug.Id));
+        var protocolResponse = await owner.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(drug.Id));
 
         await drugResponse.ShouldBeAsync(HttpStatusCode.Created);
         var created = await drugResponse.ReadAsync<DrugDto>();
         drugResponse.Headers.Location.ShouldNotBeNull();
         LocationPath(drugResponse).ShouldBe($"/api/v1/drugs/{created.Id}");
-        await groupResponse.ShouldBeAsync(HttpStatusCode.Created);
-        var group = await groupResponse.ReadAsync<DrugGroupDto>();
-        LocationPath(groupResponse).ShouldBe($"/api/v1/drug-groups/{group.Id}");
+        await protocolResponse.ShouldBeAsync(HttpStatusCode.Created);
+        var protocol = await protocolResponse.ReadAsync<ProtocolDto>();
+        LocationPath(protocolResponse).ShouldBe($"/api/v1/protocols/{protocol.Id}");
     }
 
     [Theory]

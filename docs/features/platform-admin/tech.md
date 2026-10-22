@@ -203,9 +203,9 @@ replays the request when the clinic is still there (since M1.5.3, [auth](../auth
 
 ## Provisioning
 `TemplateCatalogSeeder` (design D5): finds the template (`IsTemplate`; missing → exception, the create fails), reads its
-drugs and then its groups with their items across clinics (`IgnoreQueryFilters()` + `ClinicId == templateId`,
+drugs and then its protocols with their items across clinics (`IgnoreQueryFilters()` + `ClinicId == templateId`,
 `AsNoTracking`, read only), and inserts **new** rows in the current (new) clinic: the drugs first (saved, so their ids
-are known), then the groups with their items, each item's `DrugId` remapped to the copy of its template drug, `Order`
+are known), then the protocols with their items, each item's `DrugId` remapped to the copy of its template drug, `Order`
 kept. Every `Dosing` (drug defaults and item overrides) is a **new instance**, its `TaperSteps` too (an owned value
 can't be shared between two rows). The save interceptor stamps the new clinic on every row and refuses any other.
 The copy is a snapshot: later template edits don't change existing clinics, and a clinic's edits never reach the
@@ -220,15 +220,15 @@ the command's one transaction; an exception in any seeder answers 500 and leaves
 all-or-nothing transaction:
 1. **Template content** (skipped when the template already has drugs): "Moxifloxacin 0.5%" (antibiotic eye drops,
    1 drop 4 times a day for 1 week) and "Prednisolone acetate 1%" (steroid eye drops, 1 drop 4 times a day for
-   4 weeks), and the group "After cataract surgery": Moxifloxacin with its default dosing, then Prednisolone with an
+   4 weeks), and the protocol "After cataract surgery": Moxifloxacin with its default dosing, then Prednisolone with an
    **override** (a taper 4 → 3 → 2 → 1 times a day, one week each; eye `ask`; the dose comes from the drug).
 2. **"Demo clinic"**: `CreateClinicCommand` through `ISender` (owner `Platform:DevOwnerPhone`, "Dev Owner"), then,
    inside `IClinicScope.Use(demoId)`, the 10,000 bulk drugs ("Drug number N") and `Platform:DevAssistantPhone` as
-   "Dev Assistant" with the Assistant role (no deletes). 10,002 drugs, 1 group. The change tracker is cleared after
+   "Dev Assistant" with the Assistant role (no deletes). 10,002 drugs, 1 protocol. The change tracker is cleared after
    it (the 10,000 drugs are not tracked through the next saves).
 3. **"Second demo clinic"**: the same command (same owner), then the read-only **"Viewer"** role (`drugs.list`,
-   `drugs.details`, `groups.list`, `groups.details`) and the assistant as Viewer. Its catalog is the template copy
-   (2 drugs, 1 group).
+   `drugs.details`, `protocols.list`, `protocols.details`) and the assistant as Viewer. Its catalog is the template copy
+   (2 drugs, 1 protocol).
 
 The commands join the seed's transaction through savepoints (`TransactionRunner`); their post-commit actions would run
 at once, before the seed commits (none: a create needs no invalidation). Dev phones are normalized first
@@ -256,7 +256,7 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 
 | Piece | Role |
 |---|---|
-| `features/admin/components/AdminLayout.tsx` | The admin frame: `AppShell` with "Platform admin" in the app bar, `ADMIN_NAV_ITEMS`, and **"Edit default catalog"** («تعديل الأدوية والمجموعات الافتراضية») below the sections: switches to the template context (`switchContext` with the session's template context, once) and opens `/drugs` (template banner shown there) |
+| `features/admin/components/AdminLayout.tsx` | The admin frame: `AppShell` with "Platform admin" in the app bar, `ADMIN_NAV_ITEMS`, and **"Edit template clinic"** («تعديل العيادة النموذجية») below the sections: switches to the template context (`switchContext` with the session's template context, once) and opens `/drugs` (template banner shown there) |
 | `components/layout/AppLayout.tsx` | In the template, for a user who also has the platform context (the super admin), the banner has **"Back to platform admin"**: switches to the platform context and opens `/admin`. The app bar names the template "Template clinic" / «العيادة النموذجية» (`useContextLabel`), not its stored English name |
 | `components/layout/AppShell.tsx` | Shared frame: app bar (logo link, context label, `LanguageMenu`, `UserMenu`), sidebar in a `<nav>` landmark (permanent ≥ md, drawer below), optional banner, the page in a `PageBoundary` (spinner while its chunk loads, "Couldn't load — Reload" when it fails). `AppLayout` (clinic app) and `AdminLayout` are thin wrappers around it. An entry is active on its path (`end`: exactly) and under each `activeFor` path |
 | `app/navigation.tsx` | `ADMIN_NAV_ITEMS` next to the clinic `NAV_ITEMS`: Clinics today; a new section (e.g. M2.1's Forms) is one entry here + its route |
@@ -265,7 +265,7 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 | `features/admin/listState.ts` | `ClinicsListState` (the list's query, passed as navigation state) and `useClinicsListPath()` (the Back target, kept across tabs) |
 | `features/admin/components/` | `ClinicStatusChip`, `ClinicOverview`, `RenameClinicDialog`, `DeleteClinicDialog`, `disabledTone.ts` |
 | `api/errors.ts` | `getFieldErrors(error)`: field → translated message of its first error (`errors.<code>`); `getOtherErrors(error, inputFields)`: the translated messages of the errors no input shows |
-| Shared (`components/common`, `hooks`) | `PageHeader` (`titleText`: cut after 3 lines with a tooltip; top-aligned leading; subtitle may hold a chip), `BackButton`, `ListPagination` (also on the drugs page; the rows-per-page choice hidden below `sm`), `PageBoundary`, `useConfirm` (long titles wrap; a `destructive` confirm starts on Cancel), `useSingleFlight` (one run at a time; also the group editor's Save), `FormDialog` + `useDialogSave` / `useOpeningKey` (the Rename, role, staff and drug dialogs: not closable while saving, locked once saved, fresh on each opening) |
+| Shared (`components/common`, `hooks`) | `PageHeader` (`titleText`: cut after 3 lines with a tooltip; top-aligned leading; subtitle may hold a chip), `BackButton`, `ListPagination` (also on the drugs page; the rows-per-page choice hidden below `sm`), `PageBoundary`, `useConfirm` (long titles wrap; a `destructive` confirm starts on Cancel), `useSingleFlight` (one run at a time; also the protocol editor's Save), `FormDialog` + `useDialogSave` / `useOpeningKey` (the Rename, role, staff and drug dialogs: not closable while saving, locked once saved, fresh on each opening) |
 | `features/auth` | `useContextLabel()` (platform → "Platform admin", template → "Template clinic", else the clinic name: picker, app bar, lost-context messages); the picker lists the platform first; a lost platform context is handled like a lost clinic (below) |
 | `hooks/useFormatDate.ts` | Dates in the UI language with Latin digits (like the app's counts), in the browser's time zone: `medium` in the list, `long` on the Overview |
 
@@ -306,7 +306,7 @@ action (`<Can>`, or capability flags on the adapter) comes with the clinic-side 
 | `features/roles/useRoles.ts` | `useRoles(adapter)` (key = the scope, `staleTime: 0`), `useSaveRole` (create when `id` is null), `useDeleteRole`; after success, or a stale-data refusal, `refreshScope` |
 | `features/roles/permissionChoice.ts` | Pure rules of the picker (like `PermissionCatalog.WithRequirements`): `withRequirements(catalog, keys)` (transitive, catalog order, unknown keys dropped), `requiredBy(catalog, ticked, key)` (the ticked permissions directly requiring it; enough, the ticked set being closed), `toggle` (tick = add with requirements; untick only when nothing ticked requires it), `groupCatalog` (modules → resources, catalog order) |
 | `features/roles/usePermissionLabels.ts` | Labels: `permissionModules.<module>`, `permissionResources.<resource>`, `permissions.<key>`; a key without a label shows as it is |
-| `features/roles/components/RoleList.tsx` | Header (title, explanation, **New role**) and a table: name (+ **Locked** chip for the Owner) with a summary line under it (Owner: "Every permission, always…"; else "All permissions", "No permissions", or "*n* permissions: Drugs, Groups", plural forms, the resources from the catalog's `resource`; blank until the catalog is loaded), staff count (every holder, active or not), actions (edit, delete; none for the Owner). Delete of a role held by anyone is **disabled** (`aria-disabled`, still focusable; its tooltip is its description: "Held by *n* staff members. Take it away from them first.", plural forms; a `TapTooltip`, so a tap on a phone shows it at once); the API's `roleInUse` check stays. Delete: `useConfirm` (destructive, focus on Cancel), single-flight, toast with the name; `roleInUse` / `roleLocked` / `notFound` → toast (and the list reloads) |
+| `features/roles/components/RoleList.tsx` | Header (title, explanation, **New role**) and a table: name (+ **Locked** chip for the Owner) with a summary line under it (Owner: "Every permission, always…"; else "All permissions", "No permissions", or "*n* permissions: Drugs, Protocols", plural forms, the resources from the catalog's `resource`; blank until the catalog is loaded), staff count (every holder, active or not), actions (edit, delete; none for the Owner). Delete of a role held by anyone is **disabled** (`aria-disabled`, still focusable; its tooltip is its description: "Held by *n* staff members. Take it away from them first.", plural forms; a `TapTooltip`, so a tap on a phone shows it at once); the API's `roleInUse` check stays. Delete: `useConfirm` (destructive, focus on Cancel), single-flight, toast with the name; `roleInUse` / `roleLocked` / `notFound` → toast (and the list reloads) |
 | `features/roles/components/RoleEditorDialog.tsx` | Title "New role" / "Edit the role “…”". Name (`dir="auto"`, max 100) + `PermissionPicker`; "Selected: *n* of 11." (live region). Required name checked first. `name` errors on the input (`nameRequired`, `nameTooLong`, `nameInvalid` and `roleNameTaken`, which names no field: mapped by code), the focus back on it; anything else (`unknownPermission`, `roleLocked`…) toasted. 404 → toast, the dialog closes, the list reloads. Not closable while saving (Esc and a backdrop click do nothing, Cancel disabled, the typed values kept). Full screen below `sm`, only the content scrolls (`components/common/DialogForm`: the form is a flex column, so Save and Cancel stay on screen; the drug and staff dialogs use it too); not closable while saving; each opening starts from the role given. Waits for the catalog (spinner, or "Couldn't load" + Retry) |
 | `features/roles/components/PermissionPicker.tsx` | One `section` per module (heading), one `fieldset` per resource (legend; a module of one resource, e.g. Prescription, shows no legend: the fieldset is named by `aria-label`), a checkbox per permission. A ticked permission's requirements are ticked and **locked**: `aria-disabled` (not `disabled`, so Tab reaches it; clicking does nothing), the tick in `text.secondary` (≈ 5.7:1), label in the normal colour, and "Needed by: Edit drugs, Delete drugs" under the label, the box's `aria-describedby` (said after its name) |
 | `features/staff/useStaff.ts` | `useStaffList(adapter, query)` (`keepPreviousData`, `staleTime: 0`), `useSaveStaff` (`{id: null, body: AddStaff}` or `{id, body: UpdateStaff}`), `useRemoveStaff`; reload as for roles, also after `roleNotFound` |
@@ -317,7 +317,7 @@ action (`<Can>`, or capability flags on the adapter) comes with the clinic-side 
 - After a **staff** change: the staff list (all pages and searches), the roles (staff counts), the clinic's Overview
   (active staff count, owners) and the clinics lists (staff count) load again, also when not shown. After a **role**
   change: the roles, the staff list (role chips) and the clinic's details. Each query once per change.
-- i18n: `roles.*`, `staff.*`, `permissionModules.*` (catalog → "Drugs and groups" / «الأدوية والمجموعات», prescription →
+- i18n: `roles.*`, `staff.*`, `permissionModules.*` (catalog → "Drugs and protocols" / «الأدوية والبروتوكولات», prescription →
   "Prescription" / «الروشتة», as the resource), `common.listSeparator` (", " / «، »), `admin.clinic.tabs.roles|staff`; names
   inside bidi isolates; plural forms for the staff count, the result count, the permission summary and the held-role
   Delete tooltip. Role names are clinic content (not translated: "Doctor", "Assistant" stay in English), **except the
@@ -353,8 +353,8 @@ action (`<Can>`, or capability flags on the adapter) comes with the clinic-side 
 - An existing user made owner gets a new staff row with the owner name sent in the request (names are per clinic);
   their other clinics' staff names are untouched. Creating a clinic never touches the user's super-admin flag.
 - The template is copied as it is at that moment: no "re-sync" of an existing clinic with later template edits.
-- Accepted (MVP, one super admin, design D5): the copy reads the template's drugs, then its groups (two queries, read
-  committed); a group saved in the template between them with a brand-new drug would make the create fail with a 500
+- Accepted (MVP, one super admin, design D5): the copy reads the template's drugs, then its protocols (two queries, read
+  committed); a protocol saved in the template between them with a brand-new drug would make the create fail with a 500
   (rolled back; sending it again works). No lock.
 - Accepted (design D7, § 11): after a super admin logs out, their platform access token still works on
   `/admin/*` until it expires (≤ 15 min): the policy checks the super-admin flag, not the session.
@@ -393,7 +393,7 @@ Mutation: `AdminClinicFilter.cs` is a critical file (85%, scored by the `admin` 
 
 ### Before M1.6: manual verification (record)
 
-Kept because test cases and the [HLD](../../design/platform-hld.md#m1-clinic-platform) cite it (e.g. ADM-157, ADM-232).
+Kept because test cases and the [HLD](../../design/platform-hld.md#m1-clinic-platform) cite it (e.g. ADM-157, ADM-232); names as they were then (groups: protocols since M1.7a).
 
 **M1.5.5**, verified in the built-in browser on a scratch database `drags_m155` (fresh dev seed; dropped afterwards; the
 main dev DB untouched), API on `:5055` from the Release build serving the built SPA, opened as `http://m155.localhost:5055`

@@ -6,7 +6,7 @@ import {
     adminClinicsHandlers,
     api,
     contextsHandler,
-    drugGroupsHandlers,
+    protocolsHandlers,
     drugsHandlers,
     expectPath,
     meByContext,
@@ -31,7 +31,7 @@ const clinicB = aClinicContext({clinicId: 2, clinicName: "Clinic B"});
 const homePages = (contexts: Context[]) => [
     meByContext(),
     ...drugsHandlers([]),
-    ...drugGroupsHandlers([]),
+    ...protocolsHandlers([]),
     ...adminClinicsHandlers([]),
     contextsHandler(contexts),
 ];

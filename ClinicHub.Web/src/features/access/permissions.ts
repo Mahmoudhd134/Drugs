@@ -11,12 +11,12 @@ export const PERMISSIONS = {
         update: "drugs.update",
         delete: "drugs.delete",
     },
-    groups: {
-        list: "groups.list",
-        details: "groups.details",
-        create: "groups.create",
-        update: "groups.update",
-        delete: "groups.delete",
+    protocols: {
+        list: "protocols.list",
+        details: "protocols.details",
+        create: "protocols.create",
+        update: "protocols.update",
+        delete: "protocols.delete",
     },
     prescriptions: {
         create: "prescriptions.create",

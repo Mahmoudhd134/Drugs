@@ -11,7 +11,7 @@ const expectUiIn = async (page: Page, lang: Lang) => {
     await expect(page.locator("html")).toHaveAttribute("lang", lang);
     await expect(page.locator("html")).toHaveAttribute("dir", lang === "ar" ? "rtl" : "ltr");
     await expect(page.getByRole("heading", {level: 1, name: UX_TEXTS[lang].rxTitle})).toBeVisible();
-    await expect(page.getByRole("tab", {name: t.rxTabGroups})).toBeVisible();
+    await expect(page.getByRole("tab", {name: t.rxTabProtocols})).toBeVisible();
     await expect(page.getByRole("button", {name: UX_TEXTS[lang].language})).toHaveText(LANGUAGE_NAMES[lang]);
 };
 

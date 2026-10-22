@@ -3,13 +3,13 @@ import {expect, settled, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {
     createDrug,
-    createGroup,
+    createProtocol,
     dialog,
     DOSINGS,
     drugRow,
     editorLines,
     fillNumber,
-    groupCard,
+    protocolCard,
     option,
     search,
     sentenceIn,
@@ -19,8 +19,8 @@ import type {Texts} from "../support/texts.ts";
 import {expectToast, navTo, toast} from "../support/ui.ts";
 
 /**
- * A drug's default dosing flows into its groups and the prescription (docs/features/dosing/business.md "كيف تعمل الجرعة
- * على ثلاثة مستويات", docs/features/drug-groups/business.md "القواعد التشغيلية", docs/features/tapering/business.md).
+ * A drug's default dosing flows into its protocols and the prescription (docs/features/dosing/business.md "كيف تعمل الجرعة
+ * على ثلاثة مستويات", docs/features/protocols/business.md "القواعد التشغيلية", docs/features/tapering/business.md).
  */
 
 /** Opens a drug's dialog from the drugs page, lets `edit` change it, saves. */
@@ -35,10 +35,10 @@ const editDrug = async (page: Page, t: Texts, name: string, edit: (form: Locator
     await expect(toast(page, t.drugUpdated)).toHaveCount(0);
 };
 
-const openGroup = async (page: Page, t: Texts, name: string) => {
-    await navTo(page, t, t.navGroups);
-    await groupCard(page, name).getByText(name, {exact: true}).click();
-    await expect(page.getByRole("heading", {level: 1, name: t.editGroup})).toBeVisible();
+const openProtocol = async (page: Page, t: Texts, name: string) => {
+    await navTo(page, t, t.navProtocols);
+    await protocolCard(page, name).getByText(name, {exact: true}).click();
+    await expect(page.getByRole("heading", {level: 1, name: t.editProtocol})).toBeVisible();
 };
 
 const lineOf = (page: Page, ct: CatalogTexts, drug: string) => editorLines(page, ct).filter({hasText: drug});
@@ -48,16 +48,16 @@ const markPage = (page: Page) => page.evaluate(() => { (window as unknown as { e
 const expectSamePage = async (page: Page) =>
     expect(await page.evaluate(() => (window as unknown as { e2eMark?: boolean }).e2eMark ?? false), "no reload").toBe(true);
 
-test.describe("Default dosing flowing into groups and prescriptions @area:catalog", () => {
+test.describe("Default dosing flowing into protocols and prescriptions @area:catalog", () => {
     test("a drug's new default: a line overriding only the frequency keeps it with the new duration; a line without override follows it all, no chip @GRP-072 @GRP-073 @smoke",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
-            // In the group: the drops at 6 times a day (their default: 4 times a day for 7 days), the tablets as their default
+            // In the protocol: the drops at 6 times a day (their default: 4 times a day for 7 days), the tablets as their default
             const drops = await createDrug(data, clinic, `Drops ${u}`, {dosing: DOSINGS.drop4x7d});
             const tablets = await createDrug(data, clinic, `Tablets ${u}`, {dosing: DOSINGS.tablet2x1w});
-            const group = await createGroup(data, clinic, `Protocol ${u}`, [
+            const protocol = await createProtocol(data, clinic, `Protocol ${u}`, [
                 {drug: drops, dosing: {frequency: "daily", frequencyValue: 6}},
                 {drug: tablets},
             ]);
@@ -72,28 +72,28 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
             await expect(sentenceIn(drugRow(page, drops.name))).toHaveText(SENTENCES.drop4x14d);
             await expect(sentenceIn(drugRow(page, tablets.name))).toHaveText(SENTENCES.tablet3x2w);
 
-            await openGroup(page, t, group.name);
+            await openProtocol(page, t, protocol.name);
             await expect(sentenceIn(lineOf(page, ct, drops.name))).toHaveText(SENTENCES.drop6x14d);
-            await expect(lineOf(page, ct, drops.name).getByText(ct.groupDosing, {exact: true})).toBeVisible();
+            await expect(lineOf(page, ct, drops.name).getByText(ct.protocolDosing, {exact: true})).toBeVisible();
             await expect(sentenceIn(lineOf(page, ct, tablets.name))).toHaveText(SENTENCES.tablet3x2w);
-            await expect(lineOf(page, ct, tablets.name).getByText(ct.groupDosing, {exact: true})).toHaveCount(0);
+            await expect(lineOf(page, ct, tablets.name).getByText(ct.protocolDosing, {exact: true})).toHaveCount(0);
         });
 
-    test("editing the name and default dosing of a drug in two groups: the group cards and the pickers show the new name and sentence without a reload (no case tag: DRUG-071 also needs the editors, see the next test)",
+    test("editing the name and default dosing of a drug in two protocols: the protocol cards and the pickers show the new name and sentence without a reload (no case tag: DRUG-071 also needs the editors, see the next test)",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Before ${u}`, {dosing: DOSINGS.drop4x});
-            const g1 = await createGroup(data, clinic, `First group ${u}`, [{drug}]);
-            const g2 = await createGroup(data, clinic, `Second group ${u}`, [{drug}]);
+            const g1 = await createProtocol(data, clinic, `First protocol ${u}`, [{drug}]);
+            const g2 = await createProtocol(data, clinic, `Second protocol ${u}`, [{drug}]);
             const renamed = `After ${u}`;
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
             await markPage(page);
 
-            // Load the groups, the group editor's drug picker and the prescription's pickers first (in the app's cache)
-            await expect(groupCard(page, g1.name).locator("ol li")).toHaveText([drug.name]);
-            await page.getByRole("link", {name: t.newGroup}).click();
+            // Load the protocols, the protocol editor's drug picker and the prescription's pickers first (in the app's cache)
+            await expect(protocolCard(page, g1.name).locator("ol li")).toHaveText([drug.name]);
+            await page.getByRole("link", {name: t.newProtocol}).click();
             await search(page, page.getByPlaceholder(t.searchDrugs), u);
             await expect(sentenceIn(option(page, drug.name))).toHaveText(SENTENCES.drop4x);
             await page.getByRole("button", {name: t.cancel, exact: true}).click();
@@ -109,20 +109,20 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
                 await fillNumber(form, ct.timesPerDay, 3);
             });
 
-            // The prescription's pickers (each tab kept its search): the groups list the new name, the drug its new sentence
+            // The prescription's pickers (each tab kept its search): the protocols list the new name, the drug its new sentence
             await navTo(page, t, t.navPrescription);
             await page.getByRole("tab", {name: t.rxTabDrugs}).click();
             await search(page, page.getByPlaceholder(t.searchDrugs).filter({visible: true}), u.toUpperCase());
             await expect(sentenceIn(option(page, renamed).filter({visible: true}))).toHaveText(SENTENCES.drop3x);
             await expect(option(page, drug.name).filter({visible: true})).toHaveCount(0);
-            await page.getByRole("tab", {name: t.rxTabGroups}).click();
+            await page.getByRole("tab", {name: t.rxTabProtocols}).click();
             await expect(option(page, g1.name).filter({visible: true})).toContainText(renamed);
             await expect(option(page, g2.name).filter({visible: true})).toContainText(renamed);
 
-            // The groups' cards and the group editor's drug picker
-            await navTo(page, t, t.navGroups);
-            for (const group of [g1, g2]) await expect(groupCard(page, group.name).locator("ol li")).toHaveText([renamed]);
-            await page.getByRole("link", {name: t.newGroup}).click();
+            // The protocols' cards and the protocol editor's drug picker
+            await navTo(page, t, t.navProtocols);
+            for (const protocol of [g1, g2]) await expect(protocolCard(page, protocol.name).locator("ol li")).toHaveText([renamed]);
+            await page.getByRole("link", {name: t.newProtocol}).click();
             await search(page, page.getByPlaceholder(t.searchDrugs), u);
             await expect(sentenceIn(option(page, renamed))).toHaveText(SENTENCES.drop3x);
             await expect(option(page, drug.name)).toHaveCount(0);
@@ -130,19 +130,19 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
             await settled(page);
         });
 
-    test("editing the name and default dosing of a drug in two groups: both groups' editors, opened before, show the new name and sentence without a reload @DRUG-071",
+    test("editing the name and default dosing of a drug in two protocols: both protocols' editors, opened before, show the new name and sentence without a reload @DRUG-071",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Before ${u}`, {dosing: DOSINGS.drop4x});
-            const g1 = await createGroup(data, clinic, `First group ${u}`, [{drug}]);
-            const g2 = await createGroup(data, clinic, `Second group ${u}`, [{drug}]);
+            const g1 = await createProtocol(data, clinic, `First protocol ${u}`, [{drug}]);
+            const g2 = await createProtocol(data, clinic, `Second protocol ${u}`, [{drug}]);
             const renamed = `After ${u}`;
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
             await markPage(page);
-            for (const group of [g1, g2]) {
-                await openGroup(page, t, group.name);
+            for (const protocol of [g1, g2]) {
+                await openProtocol(page, t, protocol.name);
                 await expect(sentenceIn(lineOf(page, ct, drug.name))).toHaveText(SENTENCES.drop4x);
             }
 
@@ -152,9 +152,9 @@ test.describe("Default dosing flowing into groups and prescriptions @area:catalo
                 await fillNumber(form, ct.timesPerDay, 3);
             });
 
-            for (const group of [g1, g2]) {
-                await openGroup(page, t, group.name);
-                await expect(lineOf(page, ct, renamed), group.name).toHaveCount(1);
+            for (const protocol of [g1, g2]) {
+                await openProtocol(page, t, protocol.name);
+                await expect(lineOf(page, ct, renamed), protocol.name).toHaveCount(1);
                 await expect(sentenceIn(lineOf(page, ct, renamed))).toHaveText(SENTENCES.drop3x);
                 await expect(page.getByText(drug.name, {exact: true})).toHaveCount(0);
             }

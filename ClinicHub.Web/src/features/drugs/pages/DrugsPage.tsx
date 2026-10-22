@@ -26,7 +26,7 @@ import {ListPagination} from "../../../components/common/ListPagination.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
-import {fetchDrugGroupNames, useDeleteDrug, useDrugs} from "../api.ts";
+import {fetchDrugProtocolNames, useDeleteDrug, useDrugs} from "../api.ts";
 import {DrugFormDialog} from "../components/DrugFormDialog.tsx";
 import {DrugText} from "../components/DrugText.tsx";
 import type {Drug} from "../types.ts";
@@ -58,15 +58,15 @@ export const DrugsPage = () => {
     const openEdit = (drug: Drug) => setDialog({open: true, drug});
 
     const handleDelete = async (drug: Drug) => {
-        // Name the groups that will lose this drug (needs drug details); if the lookup fails, still allow deleting
-        const groupNames = can(PERMISSIONS.drugs.details)
-            ? await fetchDrugGroupNames(drug.id).catch(() => [] as string[])
+        // Name the protocols that will lose this drug (needs drug details); if the lookup fails, still allow deleting
+        const protocolNames = can(PERMISSIONS.drugs.details)
+            ? await fetchDrugProtocolNames(drug.id).catch(() => [] as string[])
             : [];
         const confirmed = await confirm({
             title: t("drugs.deleteTitle"),
             message: [
                 t("drugs.deleteMessage", {name: drug.name}),
-                groupNames.length ? t("drugs.usedInGroups", {names: groupNames.join("، ")}) : null,
+                protocolNames.length ? t("drugs.usedInProtocols", {names: protocolNames.join("، ")}) : null,
             ].filter(Boolean).join("\n"),
             destructive: true,
         });

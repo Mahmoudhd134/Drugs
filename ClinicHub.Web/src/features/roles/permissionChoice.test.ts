@@ -14,11 +14,11 @@ const CLOSURES: Record<string, string[]> = {
     "drugs.create": ["drugs.list", "drugs.create"],
     "drugs.update": ["drugs.list", "drugs.details", "drugs.update"],
     "drugs.delete": ["drugs.list", "drugs.details", "drugs.delete"],
-    "groups.list": ["groups.list"],
-    "groups.details": ["groups.list", "groups.details"],
-    "groups.create": ["drugs.list", "groups.list", "groups.create"],
-    "groups.update": ["drugs.list", "groups.list", "groups.details", "groups.update"],
-    "groups.delete": ["groups.list", "groups.delete"],
+    "protocols.list": ["protocols.list"],
+    "protocols.details": ["protocols.list", "protocols.details"],
+    "protocols.create": ["drugs.list", "protocols.list", "protocols.create"],
+    "protocols.update": ["drugs.list", "protocols.list", "protocols.details", "protocols.update"],
+    "protocols.delete": ["protocols.list", "protocols.delete"],
     "prescriptions.create": ["drugs.list", "prescriptions.create"],
 };
 
@@ -41,26 +41,26 @@ describe("permission choice rules @area:admin", () => {
     });
 
     test("several keys: the union of their closures, in catalog order, unknown keys dropped", () => {
-        expect(withRequirements(catalog, ["prescriptions.create", "groups.update", "nope.key"]))
-            .toEqual(["drugs.list", "groups.list", "groups.details", "groups.update", "prescriptions.create"]);
+        expect(withRequirements(catalog, ["prescriptions.create", "protocols.update", "nope.key"]))
+            .toEqual(["drugs.list", "protocols.list", "protocols.details", "protocols.update", "prescriptions.create"]);
         expect(withRequirements(catalog, [])).toEqual([]);
         expect(withRequirements(catalog, new Set(["drugs.delete", "drugs.delete"]))).toEqual(["drugs.list", "drugs.details", "drugs.delete"]);
     });
 
     test("requiredBy lists the ticked permissions that directly need the key, in catalog order", () => {
-        const ticked = new Set(withRequirements(catalog, ["drugs.update", "drugs.delete", "groups.create", "prescriptions.create"]));
+        const ticked = new Set(withRequirements(catalog, ["drugs.update", "drugs.delete", "protocols.create", "prescriptions.create"]));
         expect(requiredBy(catalog, ticked, "drugs.details").map(p => p.key)).toEqual(["drugs.update", "drugs.delete"]);
-        expect(requiredBy(catalog, ticked, "drugs.list").map(p => p.key)).toEqual(["drugs.details", "groups.create", "prescriptions.create"]);
-        expect(requiredBy(catalog, ticked, "groups.create")).toEqual([]);
+        expect(requiredBy(catalog, ticked, "drugs.list").map(p => p.key)).toEqual(["drugs.details", "protocols.create", "prescriptions.create"]);
+        expect(requiredBy(catalog, ticked, "protocols.create")).toEqual([]);
         expect(requiredBy(catalog, new Set(), "drugs.list")).toEqual([]);
     });
 
     test("ticking adds to what is ticked; unticking a free key keeps the others", () => {
-        const ticked = new Set(["drugs.list", "groups.list"]);
-        expect(toggle(catalog, ticked, "groups.delete")).toEqual(["drugs.list", "groups.list", "groups.delete"]);
-        expect(toggle(catalog, new Set(["drugs.list", "groups.list", "groups.delete"]), "groups.list"))
-            .toEqual(["drugs.list", "groups.list", "groups.delete"]);
-        expect(toggle(catalog, ticked, "groups.list")).toEqual(["drugs.list"]);
+        const ticked = new Set(["drugs.list", "protocols.list"]);
+        expect(toggle(catalog, ticked, "protocols.delete")).toEqual(["drugs.list", "protocols.list", "protocols.delete"]);
+        expect(toggle(catalog, new Set(["drugs.list", "protocols.list", "protocols.delete"]), "protocols.list"))
+            .toEqual(["drugs.list", "protocols.list", "protocols.delete"]);
+        expect(toggle(catalog, ticked, "protocols.list")).toEqual(["drugs.list"]);
     });
 
     test("groupCatalog: modules, then resources, in catalog order", () => {
@@ -68,7 +68,7 @@ describe("permission choice rules @area:admin", () => {
         expect(grouped.map(m => [m.module, m.resources.map(r => [r.resource, r.permissions.map(p => p.action)])])).toEqual([
             ["catalog", [
                 ["drugs", ["list", "details", "create", "update", "delete"]],
-                ["groups", ["list", "details", "create", "update", "delete"]],
+                ["protocols", ["list", "details", "create", "update", "delete"]],
             ]],
             ["prescription", [["prescriptions", ["create"]]]],
         ]);

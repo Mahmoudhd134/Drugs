@@ -65,7 +65,7 @@ Gates only go up; lowering one needs the user's OK ([design D5](../design/m1.6-t
   | any other `…/Access/` | `access` |
   | `Application\|Domain/…/Platform/`, `Database/Configurations/Platform/`, `Settings/PlatformSettings` | `admin`, `auth` (a clinic's state and the super admins decide who logs in) |
   | `Api\|Infrastructure/…/Platform/` | `admin` |
-  | `…/Catalog/`, `Api/Features/Drugs`, `DrugGroups`, `Database/Configurations/Catalog/` | `catalog` |
+  | `…/Catalog/`, `Api/Features/Drugs`, `Protocols`, `Database/Configurations/Catalog/` | `catalog` |
   | `Infrastructure/Database/` (other), `Application/Common/Abstractions/`, `Domain/Common/` | `isolation` |
   | `Application/Common/(Results\|Behaviors\|Validation\|Messaging)/`, `Api/(Errors\|Controllers)/` | `errors` |
   | `Application/Common/(Paging\|Search)/` | `catalog`, `admin` |
@@ -333,7 +333,7 @@ public class OtpRequestTests(AppFixture app) : IntegrationTest(app)
 | Clinic changes | `Data.SuspendClinicAsync(clinic)`, `ActivateClinicAsync`, `DeleteClinicAsync`, `RenameClinicAsync` |
 | Staff | `await Data.Staff(clinic)` (default: new phone, unique name, Doctor) `.WithPhone(p)` (same user in two clinics), `.WithRole("Assistant")`, `.WithRoles(roleId)`, `.Named(n)`, `.Inactive()` → `StaffHandle`; `Data.DeactivateStaffAsync`, `ActivateStaffAsync`, `UpdateStaffAsync`, `RemoveStaffAsync` |
 | Roles | `await Data.Role(clinic).WithPermissions(Permissions.Drugs.List, …)` → `RoleDto`; `Data.UpdateRoleAsync`, `DeleteRoleAsync` |
-| Drugs, groups (a clinic, or the template: `await App.TemplateClinicIdAsync()`) | `await Data.Drug(clinic).Named("Tobradex").WithDosing(Dosings.Drops())`; `await Data.Group(clinic).With(drug).With(other, Dosings.AskEye())` (no `With`: one line with a new drug of the clinic); `Data.UpdateDrugAsync`, `DeleteDrugAsync`, `UpdateGroupAsync`, `DeleteGroupAsync`; `Dosings.Drops/Tablets/Taper/AskEye` |
+| Drugs, protocols (a clinic, or the template: `await App.TemplateClinicIdAsync()`) | `await Data.Drug(clinic).Named("Tobradex").WithDosing(Dosings.Drops())`; `await Data.Protocol(clinic).With(drug).With(other, Dosings.AskEye())` (no `With`: one line with a new drug of the clinic); `Data.UpdateDrugAsync`, `DeleteDrugAsync`, `UpdateProtocolAsync`, `DeleteProtocolAsync`; `Dosings.Drops/Tablets/Taper/AskEye` |
 | Unique values | `Unique.Phone()` (E.164 `+2011…`), `Unique.LocalPhone(e164)` (`011…`), `Unique.Name("Drug", "دواء")` |
 | A logged-in browser (real OTP flow: request → `devCode` → verify → context) | `Login.SuperAdminAsync()` (platform), `Login.SuperAdminInTemplateAsync()`, `Login.OwnerAsync(clinic)`, `Login.StaffAsync(staff)`, `Login.WithRoleAsync(clinic, "Assistant")`, `Login.WithPermissionsAsync(clinic, keys…)`, `Login.AsAsync(phone)` (context left as the login gives it) |
 | A refused login, a code | `Login.TryAsync(browser, phone)` (raw verify response), `Login.CodeAsync(browser, phone)`, `Login.ClearCodesAsync(phone)` |
@@ -399,7 +399,7 @@ startup seeder runs (it promotes and demotes super admins there). After `variant
 ## Component and frontend unit tests (Vitest)
 
 Next to the code they test (`DrugFormDialog.tsx` → `DrugFormDialog.test.tsx`, a big one split by subject:
-`DrugGroupEditorPage.save.test.tsx`); helpers in `ClinicHub.Web/src/test`. The area tag goes on the `describe`, the
+`ProtocolEditorPage.save.test.tsx`); helpers in `ClinicHub.Web/src/test`. The area tag goes on the `describe`, the
 case IDs (and `@smoke`) on each test:
 
 ```ts
@@ -437,7 +437,7 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 |---|---|
 | Render a component in the app's providers (theme + RTL, i18n, router, auth, QueryClient, toasts) | `renderWithProviders(ui, {lang, route, path, user, auth, clipboard})`: `user.permissions` are expanded with their requirements, as `/me` returns them (so a set the API can't produce never reaches a test); a query retries a 5xx or network error once, as in the app; a query answering 403 **fails the test** (the app's 403 toast and `/me` reload exist only in `startApp`: use it for 403 flows) |
 | The whole app on a page load (real AuthProvider, session store, API client) | `startApp({route, lang, clipboard})`, `sessionIn`, `refreshSequence`, `meByContext`, `contextOfRequest`, `expectPath`; `recordPaths()` (`src/test/app.tsx`: every path the app navigates to, in order, for "never opens X" even when a guard redirects before X mounts) |
-| API answers (as the tech docs define them) | `drugsHandlers`, `drugGroupsHandlers`, `meHandler`, …, `problem(status, code)`, `networkError()`; builders `aDrug`, `aGroup`, `aMe`, … |
+| API answers (as the tech docs define them) | `drugsHandlers`, `protocolsHandlers`, `meHandler`, …, `problem(status, code)`, `networkError()`; builders `aDrug`, `aProtocol`, `aMe`, … |
 | What the SPA sent | `recordRequests()` → `requests`, `writes()` (every method but GET) |
 | Toasts | `findToast()` (newest), `toastTexts()`, `expectToasts(...texts)` (exactly these) |
 | Text longer than a few characters, when the keystrokes don't matter | `fillIn(user, input, text)` (one paste) |
@@ -451,7 +451,7 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 
 - A feature's page or dialog with its API lives in `src/test/pages/` (imported by path, so tests that don't need it
   stay light): `admin.tsx` (`renderAdmin`, `navigateInApp`; its `AdminRoutes.tsx` copies App.tsx's `/admin` routes:
-  keep them in step), `groupEditor.tsx`, `prescription.tsx`, `rolesTab.ts`, `staffTab.ts`, `EditorHarness.tsx`,
+  keep them in step), `protocolEditor.tsx`, `prescription.tsx`, `rolesTab.ts`, `staffTab.ts`, `EditorHarness.tsx`,
   `DosingHarness.tsx` + `dosing.ts`.
 
 ## End-to-end tests (Playwright, `ClinicHub.Web/e2e`)
@@ -494,7 +494,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 | Need | Use (`e2e/support/`) |
 |---|---|
 | The project's language and its expected texts | `lang`, `t` (`texts.ts`, plus `texts-catalog.ts`, `texts-rx.ts`, `texts-ux.ts`): written out from the catalog and the locale files, never imported from them, so a changed message fails a test |
-| Test data through the real API (the worker's super admin; an owner for drugs and groups) | `data.clinic()`, `data.staff(clinic, …)`, `data.role(clinic, permissions)`, `data.drug(clinic)`, `data.group(clinic, drugs)`, `data.suspend` / `deleteClinic` / `deactivate` / `removeStaff`, … (`data.ts`); every name and phone unique in the run (`unique()`, `uniquePhone()`) |
+| Test data through the real API (the worker's super admin; an owner for drugs and protocols) | `data.clinic()`, `data.staff(clinic, …)`, `data.role(clinic, permissions)`, `data.drug(clinic)`, `data.protocol(clinic, drugs)`, `data.suspend` / `deleteClinic` / `deactivate` / `removeStaff`, … (`data.ts`); every name and phone unique in the run (`unique()`, `uniquePhone()`) |
 | A logged-in page | `signIn(page, phone, target, path)` (OTP through the browser's own request context, so the cookie is the browser's; `target` = `"asIs"`, `"platform"`, `"template"`, `{clinicId}`), `signInSuperAdmin(page)`; through the login page itself: `loginViaUi(page, t, phone)` (for the login cases) |
 | Another tab (same cookies) or another browser (own cookies, a second user) | `newTab()`, `newBrowser()` |
 | Page checks | `healthy()`: `dir`/`lang` of the UI language, no horizontal scroll, axe-core (serious/critical fail); run by itself on every page left open at the end of a passing test, which also fails on any console error, uncaught exception or undeclared API error (below) |
