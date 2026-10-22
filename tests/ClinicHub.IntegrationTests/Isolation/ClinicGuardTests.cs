@@ -118,6 +118,61 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-031")]
+    public async Task Without_a_clinic_in_context_adding_changing_or_deleting_a_protocol_throws_and_writes_nothing()
+    {
+        // Drug is clinic-or-shared since M1.7 (D2): the plain clinic-owned rule is proved on a protocol
+        var clinic = await Data.Clinic();
+        var protocol = await Data.Protocol(clinic);
+        var name = Unique.Name("Orphan protocol", "بروتوكول يتيم");
+
+        await InClinicAsync(null, async db =>
+        {
+            db.Protocols.Add(new Protocol { Name = name });
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+        await InClinicAsync(null, async db =>
+        {
+            db.Protocols.Add(new Protocol { Name = name, ClinicId = clinic.Id });
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+        await InClinicAsync(null, async db =>
+        {
+            (await db.Protocols.IgnoreQueryFilters().SingleAsync(p => p.Id == protocol.Id)).Name = name;
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+        await InClinicAsync(null, async db =>
+        {
+            db.Protocols.Remove(await db.Protocols.IgnoreQueryFilters().SingleAsync(p => p.Id == protocol.Id));
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(p => p.Name == name))).ShouldBe(0);
+        var stored = await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().SingleOrDefaultAsync(p => p.Id == protocol.Id));
+        stored.ShouldNotBeNull("the protocol is not deleted");
+        stored.Name.ShouldBe(protocol.Name);
+    }
+
+    [Fact]
+    [Trait("Case", "ISO-031")]
+    public async Task Without_a_clinic_in_context_adding_a_drug_of_a_clinic_throws_even_inside_UseSharedCatalog()
+    {
+        var clinic = await Data.Clinic();
+        var name = Unique.Name("Own drug without context", "دواء بلا سياق");
+
+        foreach (var writingShared in new[] { false, true })
+        {
+            await using var scope = App.Factory.Services.CreateAsyncScope();
+            using var _ = writingShared ? scope.ServiceProvider.GetRequiredService<IClinicScope>().UseSharedCatalog() : null;
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Drugs.Add(new Drug { Name = name, ClinicId = clinic.Id, CategoryId = CategoryIds.Eye });
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        }
+
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.Name == name))).ShouldBe(0);
+    }
+
+    [Fact]
+    [Trait("Case", "ISO-031")]
     public async Task Without_a_clinic_in_context_a_synchronous_save_throws_too()
     {
         var name = Unique.Name("Orphan", "يتيم");
