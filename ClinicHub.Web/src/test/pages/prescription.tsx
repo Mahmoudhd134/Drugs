@@ -33,8 +33,8 @@ export const openPrescription = async (options: {
     server.use(...protocolsHandlers(protocols), ...drugsHandlers(drugs));
     const rendered = await renderWithProviders(<PrescriptionPage/>, {lang, clipboard});
     const texts = lang === "ar"
-        ? {selected: "الأدوية المختارة", drugsTab: "الأدوية", protocolsTab: "المجموعات"}
-        : {selected: "Selected drugs", drugsTab: "Drugs", protocolsTab: "Groups"};
+        ? {selected: "الأدوية المختارة", drugsTab: "الأدوية", protocolsTab: "البروتوكولات"}
+        : {selected: "Selected drugs", drugsTab: "Drugs", protocolsTab: "Protocols"};
     /** The «الأدوية المختارة» panel (the lines, the count, Clear all, Copy, Edit & copy). */
     const selection = () => within(screen.getByText(texts.selected).closest(".MuiPaper-root") as HTMLElement);
     const addProtocol = async (name = "Post cataract") => rendered.user.click(await screen.findByText(name));

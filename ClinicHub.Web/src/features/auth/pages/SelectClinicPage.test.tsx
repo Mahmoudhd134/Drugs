@@ -35,11 +35,11 @@ describe("clinic picker @area:auth", () => {
         server.use(contextsHandler([clinicB, template, PLATFORM_CONTEXT, clinicA]));
         await openPicker(clinicA, [clinicA, clinicB, template, PLATFORM_CONTEXT]);
         await screen.findByText("Clinic B");
-        expect(listed().map(text => text?.replace(/(العيادات وإعدادات المنصة كلها|الأدوية والمجموعات الافتراضية للعيادات الجديدة|الحالي)/g, "|$1")))
+        expect(listed().map(text => text?.replace(/(العيادات وإعدادات المنصة كلها|الأدوية والبروتوكولات الافتراضية للعيادات الجديدة|الحالي)/g, "|$1")))
             .toEqual([
                 "إدارة المنصة|العيادات وإعدادات المنصة كلها",
                 "Clinic B",
-                "العيادة النموذجية|الأدوية والمجموعات الافتراضية للعيادات الجديدة",
+                "العيادة النموذجية|الأدوية والبروتوكولات الافتراضية للعيادات الجديدة",
                 "Clinic A|الحالي",
             ]);
         const current = screen.getByRole("button", {name: /Clinic A/});
@@ -51,7 +51,7 @@ describe("clinic picker @area:auth", () => {
         server.use(contextsHandler([PLATFORM_CONTEXT, template]));
         await openPicker(null, [PLATFORM_CONTEXT, template]);
         expect(await screen.findByText("العيادة النموذجية")).toBeInTheDocument();
-        expect(screen.getByText("الأدوية والمجموعات الافتراضية للعيادات الجديدة")).toBeInTheDocument();
+        expect(screen.getByText("الأدوية والبروتوكولات الافتراضية للعيادات الجديدة")).toBeInTheDocument();
         expect(screen.getByText("إدارة المنصة")).toBeInTheDocument();
         expect(screen.getByText("العيادات وإعدادات المنصة كلها")).toBeInTheDocument();
         // The template's stored (English) name is never shown
@@ -62,7 +62,7 @@ describe("clinic picker @area:auth", () => {
         server.use(contextsHandler([PLATFORM_CONTEXT, template]));
         await openPicker(null, [PLATFORM_CONTEXT, template], "en");
         expect(await screen.findByText("Template clinic")).toBeInTheDocument();
-        expect(screen.getByText("Default drugs and groups for new clinics")).toBeInTheDocument();
+        expect(screen.getByText("Default drugs and protocols for new clinics")).toBeInTheDocument();
         expect(screen.getByText("Platform admin")).toBeInTheDocument();
         expect(screen.getByText("Clinics and settings of the whole platform")).toBeInTheDocument();
     });

@@ -5,15 +5,15 @@ import {dropDailySentence, RX_DOSINGS, RX_TEXTS} from "../support/texts-rx.ts";
 import {toast, toasts} from "../support/ui.ts";
 
 
-test.describe("Prescription: adding a group @area:prescription", () => {
-    test("a group of 3 drugs: its lines in the group's order with each merged dosing, one toast «تمت الإضافة من …: 3» @RX-015 @RX-017 @smoke",
+test.describe("Prescription: adding a protocol @area:prescription", () => {
+    test("a protocol of 3 drugs: its lines in the protocol's order with each merged dosing, one toast «تمت الإضافة من …: 3» @RX-015 @RX-017 @smoke",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
             const a = await rxDrug(data, clinic, {name: rxName("Alpha"), dosing: dropDaily(4, 1, "right")});
             const b = await rxDrug(data, clinic, {name: rxName("Beta"), dosing: dropDaily(3, 2)});
             const c = await rxDrug(data, clinic, {name: rxName("Gamma")});
-            // Order C, A, B (not by name); B: the group overrides only the times (6), the rest from the drug
+            // Order C, A, B (not by name); B: the protocol overrides only the times (6), the rest from the drug
             const protocol = await rxProtocol(data, clinic, [
                 {drug: c, dosing: RX_DOSINGS.ointmentBothBedtimeNextVisit.dosing},
                 {drug: a},
@@ -96,7 +96,7 @@ test.describe("Prescription: adding a group @area:prescription", () => {
             await expect(toasts(page)).toHaveCount(0);
         });
 
-    test("a line already there with the group's dosing is skipped without a question: «موجود مسبقًا في القائمة: 1» @RX-024",
+    test("a line already there with the protocol's dosing is skipped without a question: «موجود مسبقًا في القائمة: 1» @RX-024",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -116,7 +116,7 @@ test.describe("Prescription: adding a group @area:prescription", () => {
             await rx.expectLines([[a.name, dropDailySentence(4, 1, "right")], [b.name, dropDailySentence(2, 1)]]);
         });
 
-    test("the same group twice in a row: «تمت الإضافة من …: 0» and «موجود مسبقًا في القائمة: 2» in the neutral style @RX-027",
+    test("the same protocol twice in a row: «تمت الإضافة من …: 0» and «موجود مسبقًا في القائمة: 2» in the neutral style @RX-027",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -134,7 +134,7 @@ test.describe("Prescription: adding a group @area:prescription", () => {
             await rx.expectLines([[a.name, dropDailySentence(4, 1, "right")], [b.name, dropDailySentence(2, 1)]]);
         });
 
-    test("a double click on a group runs its flow once (one question, one toast, no drug twice); a click on it under the dialog does nothing @RX-028",
+    test("a double click on a protocol runs its flow once (one question, one toast, no drug twice); a click on it under the dialog does nothing @RX-028",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -151,8 +151,8 @@ test.describe("Prescription: adding a group @area:prescription", () => {
             const dialog = rx.dialog(rt.chooseEyeTitle);
             await expect(dialog).toBeVisible();
             await expect(page.getByRole("dialog")).toHaveCount(1);
-            // The group under the dialog's backdrop: clicking it again neither answers nor starts a second flow
-            if (!box) throw new Error("the group is not on screen");
+            // The protocol under the dialog's backdrop: clicking it again neither answers nor starts a second flow
+            if (!box) throw new Error("the protocol is not on screen");
             await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
             await page.waitForTimeout(500);
             await expect(page.getByRole("dialog")).toHaveCount(1);
@@ -173,7 +173,7 @@ test.describe("Prescription: adding a group @area:prescription", () => {
             ]);
         });
 
-    test("two lines of a saved group give one drug for one eye (its default eye changed): the first is added, «مكرر في المجموعة ولم يُضف: 1» @RX-029",
+    test("two lines of a saved protocol give one drug for one eye (its default eye changed): the first is added, «مكرر في البروتوكول ولم يُضف: 1» @RX-029",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();

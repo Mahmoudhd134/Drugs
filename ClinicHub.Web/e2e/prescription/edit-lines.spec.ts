@@ -74,7 +74,7 @@ test.describe("Prescription: editing, other eye and order of the lines @area:pre
             expect(await note.evaluate(el => getComputedStyle(el).fontStyle)).toBe("italic");
         });
 
-    test("a line edited in the prescription leaves the drug's default dosing and its group unchanged @RX-055",
+    test("a line edited in the prescription leaves the drug's default dosing and its protocol unchanged @RX-055",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();

@@ -48,7 +48,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
         test.skip(!isMobile, "the phone project");
     });
 
-    test("the drug dialog, the group line dialog and the prescription line dialog are full-screen: only the content scrolls, Save and Cancel stay visible @UX-002",
+    test("the drug dialog, the protocol line dialog and the prescription line dialog are full-screen: only the content scrolls, Save and Cancel stay visible @UX-002",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
@@ -64,9 +64,9 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
-            await open(page, `/groups/${protocol.id}`);
+            await open(page, `/protocols/${protocol.id}`);
             await page.getByRole("button", {name: u.editLine}).first().click();
-            await expectFullScreenDialog(page, [t.save, t.cancel], "group line dialog");
+            await expectFullScreenDialog(page, [t.save, t.cancel], "protocol line dialog");
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
@@ -135,7 +135,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             expect(copy.width, "full-width").toBeGreaterThanOrEqual(selection.width - 2 * 20 - 4);
         });
 
-    test("the conflict dialog stacks «الحالي» above «من المجموعة», and the eye dialog's three buttons fit @UX-005",
+    test("the conflict dialog stacks «الحالي» above «من البروتوكول», and the eye dialog's three buttons fit @UX-005",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
@@ -165,7 +165,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             const incoming = await box(dialog(page).getByText(u.conflictIncoming, {exact: true}));
             const currentText = await box(dialog(page).getByText(DOSINGS.oneDropFour.text, {exact: true}));
             expect(currentText.y, "the current sentence under «الحالي»").toBeGreaterThan(current.y);
-            expect(incoming.y, "«من المجموعة» below the current box").toBeGreaterThanOrEqual(currentText.y + currentText.height);
+            expect(incoming.y, "«من البروتوكول» below the current box").toBeGreaterThanOrEqual(currentText.y + currentText.height);
             expect(Math.abs(incoming.x - current.x), "stacked, not side by side").toBeLessThanOrEqual(Math.max(current.width, incoming.width));
             await expectNoCutOrOverlap(dialog(page), "conflict dialog");
             await noHorizontalScroll(page, "conflict dialog");
@@ -193,7 +193,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             await menu.click();
             await expect(nav).toBeVisible();
             await nav.getByRole("link", {name: t.navProtocols, exact: true}).click();
-            await expect(page).toHaveURL(/\/groups$/);
+            await expect(page).toHaveURL(/\/protocols$/);
             await expect(drawer).toBeHidden();
         });
 });

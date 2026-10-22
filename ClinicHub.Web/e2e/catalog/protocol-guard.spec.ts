@@ -7,13 +7,13 @@ import {expectToast} from "../support/ui.ts";
 import type {Texts} from "../support/texts.ts";
 import type {Data} from "../support/data.ts";
 
-/** The group editor's unsaved-changes guard (docs/features/drug-groups/business.md "تعديل أو حذف مجموعة"). */
+/** The protocol editor's unsaved-changes guard (docs/features/protocols/business.md "تعديل أو حذف بروتوكول"). */
 
 const setUp = async (data: Data, page: Page) => {
     const clinic = await data.clinic();
     const drug = await createDrug(data, clinic, `Drug ${unique()}`);
     const protocol = await createProtocol(data, clinic, `Guarded ${unique()}`, [{drug}]);
-    await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+    await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
     return {clinic, protocol};
 };
 
@@ -25,7 +25,7 @@ const change = async (page: Page, t: Texts, text: string) => {
     await name.pressSequentially(text);
 };
 
-test.describe("The group editor's unsaved-changes guard @area:catalog", () => {
+test.describe("The protocol editor's unsaved-changes guard @area:catalog", () => {
     for (const how of ["cancel", "back"] as const) {
         test(`with unsaved changes, «${how === "cancel" ? "إلغاء" : "رجوع"}» asks «تجاهل التغييرات؟» with «تجاهل» and «إلغاء»; «إلغاء» keeps the changes @GRP-087 @GRP-088${how === "cancel" ? "" : ""}`,
             async ({page, t, lang, data, healthy}) => {
@@ -44,18 +44,18 @@ test.describe("The group editor's unsaved-changes guard @area:catalog", () => {
 
                 await question.getByRole("button", {name: t.cancel, exact: true}).click();
                 await expect(question).toHaveCount(0);
-                await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+                await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
                 await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(`${protocol.name} changed`);
             });
     }
 
-    test("«تجاهل» goes back to the list and the group is unchanged @GRP-089", async ({page, t, lang, data}) => {
+    test("«تجاهل» goes back to the list and the protocol is unchanged @GRP-089", async ({page, t, lang, data}) => {
         const ct = CATALOG_TEXTS[lang];
         const {clinic, protocol} = await setUp(data, page);
         await change(page, t, " changed");
         await page.getByRole("button", {name: t.cancel, exact: true}).click();
         await dialog(page, ct.discardTitle).getByRole("button", {name: ct.discard}).click();
-        await expect(page).toHaveURL(/\/groups$/);
+        await expect(page).toHaveURL(/\/protocols$/);
         await expect(protocolCard(page, protocol.name)).toBeVisible();
         await expect(protocolCard(page, `${protocol.name} changed`)).toHaveCount(0);
         expect((await getProtocol(data, clinic, protocol.id)).name).toBe(protocol.name);
@@ -103,7 +103,7 @@ test.describe("The group editor's unsaved-changes guard @area:catalog", () => {
         await change(page, t, " saved");
         await page.getByRole("button", {name: t.save, exact: true}).click();
         await expectToast(page, t.protocolUpdated);
-        await expect(page).toHaveURL(/\/groups$/);
+        await expect(page).toHaveURL(/\/protocols$/);
         await expect(dialog(page, ct.discardTitle)).toHaveCount(0);
         await expect(protocolCard(page, `${protocol.name} saved`)).toBeVisible();
         // Nothing unsaved is left: a reload doesn't ask either

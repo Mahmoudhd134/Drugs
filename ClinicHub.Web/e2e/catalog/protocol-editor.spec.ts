@@ -21,7 +21,7 @@ import {
 import {CATALOG_TEXTS, SENTENCES} from "../support/texts-catalog.ts";
 import {expectToast, recordRequests} from "../support/ui.ts";
 
-/** The group editor: create, edit, keyboard, reorder, two eyes, clashes, delete, read-only (docs/features/drug-groups). */
+/** The protocol editor: create, edit, keyboard, reorder, two eyes, clashes, delete, read-only (docs/features/protocols). */
 
 const center = async (target: Locator) => {
     const box = await target.boundingBox();
@@ -41,17 +41,17 @@ const dragLine = async (page: Page, handle: Locator, onto: Locator) => {
     await page.mouse.up();
 };
 
-test.describe("The group editor @area:catalog", () => {
-    test("«مجموعة جديدة»: a name, 3 drugs clicked in «إضافة أدوية», Save: «تم إنشاء المجموعة» and the list shows «الأدوية: 3» @GRP-046 @smoke",
+test.describe("The protocol editor @area:catalog", () => {
+    test("«بروتوكول جديد»: a name, 3 drugs clicked in «إضافة أدوية», Save: «تم إنشاء البروتوكول» and the list shows «الأدوية: 3» @GRP-046 @smoke",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
             const drugs = await createDrugs(data, clinic, [`One ${u}`, `Two ${u}`, `Three ${u}`]);
-            const name = `New group ${u}`;
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            const name = `New protocol ${u}`;
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
             await page.getByRole("link", {name: t.newProtocol}).click();
-            await expect(page).toHaveURL(/\/groups\/new$/);
+            await expect(page).toHaveURL(/\/protocols\/new$/);
             await expect(page.getByRole("heading", {level: 1, name: t.newProtocol})).toBeVisible();
             await page.getByRole("textbox", {name: t.protocolName}).fill(name);
             for (const drug of drugs) {
@@ -65,20 +65,20 @@ test.describe("The group editor @area:catalog", () => {
             await healthy();
             await page.getByRole("button", {name: t.save, exact: true}).click();
             await expectToast(page, t.protocolCreated);
-            await expect(page).toHaveURL(/\/groups$/);
+            await expect(page).toHaveURL(/\/protocols$/);
             await expect(protocolCard(page, name).getByText(ct.drugCount(3), {exact: true})).toBeVisible();
         });
 
-    test("changing a group and saving: «تم تحديث المجموعة» and back to the list @GRP-048", async ({page, t, data}) => {
+    test("changing a protocol and saving: «تم تحديث البروتوكول» and back to the list @GRP-048", async ({page, t, data}) => {
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Drug ${unique()}`);
         const protocol = await createProtocol(data, clinic, `Before ${unique()}`, [{drug}]);
         const renamed = `After ${unique()}`;
-        await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+        await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
         await page.getByRole("textbox", {name: t.protocolName}).fill(renamed);
         await page.getByRole("button", {name: t.save, exact: true}).click();
         await expectToast(page, t.protocolUpdated);
-        await expect(page).toHaveURL(/\/groups$/);
+        await expect(page).toHaveURL(/\/protocols$/);
         await expect(protocolCard(page, renamed)).toBeVisible();
         await expect(protocolCard(page, protocol.name)).toHaveCount(0);
     });
@@ -88,7 +88,7 @@ test.describe("The group editor @area:catalog", () => {
         const u = unique();
         const clinic = await data.clinic();
         await createDrugs(data, clinic, [`Kbd ${u} A`, `Kbd ${u} B`, `Kbd ${u} C`]);
-        await signIn(page, clinic.owner.phone, "asIs", "/groups/new");
+        await signIn(page, clinic.owner.phone, "asIs", "/protocols/new");
         const search = page.getByPlaceholder(t.searchDrugs);
         await search.fill(`Kbd ${u}`);
         await expect(page.getByRole("option")).toHaveCount(3);
@@ -108,7 +108,7 @@ test.describe("The group editor @area:catalog", () => {
             const clinic = await data.clinic();
             const drugs = await createDrugs(data, clinic, [`First ${u}`, `Second ${u}`, `Third ${u}`]);
             const protocol = await createProtocol(data, clinic, `Order ${u}`, drugs.map(drug => ({drug})));
-            await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
             const lines = editorLines(page, ct);
             await expect(lines).toHaveCount(3);
             await dragLine(page, lines.nth(2).getByRole("button", {name: ct.dragToReorder}), lines.nth(0));
@@ -132,7 +132,7 @@ test.describe("The group editor @area:catalog", () => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Both eyes ${u}`, {dosing: DOSINGS.dropRight4x});
             const name = `Two eyes ${u}`;
-            await signIn(page, clinic.owner.phone, "asIs", "/groups/new");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols/new");
             await page.getByRole("textbox", {name: t.protocolName}).fill(name);
             await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
             await option(page, drug.name).click();
@@ -169,7 +169,7 @@ test.describe("The group editor @area:catalog", () => {
             const drug = await createDrug(data, clinic, `Eye moved ${u}`, {dosing: DOSINGS.dropRight4x});
             const protocol = await createProtocol(data, clinic, `Clash ${u}`, [{drug}, {drug, dosing: {eye: "left"}}]);
             await updateDrug(data, clinic, drug, {defaultDosing: {...DOSINGS.dropRight4x, eye: "left"}});
-            await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
             const lines = editorLines(page, ct);
             await expect(lines).toHaveCount(2);
             for (const i of [0, 1]) await expect(lines.nth(i).getByText(ct.eyeClash, {exact: true}), `line ${i + 1}`).toBeVisible();
@@ -188,8 +188,8 @@ test.describe("The group editor @area:catalog", () => {
             const drug = await createDrug(data, clinic, `Eye clash ${u}`, {dosing: DOSINGS.dropRight4x});
             const protocol = await createProtocol(data, clinic, `Clash ${u}`, [{drug}, {drug, dosing: {eye: "left"}}]);
             await updateDrug(data, clinic, drug, {defaultDosing: {...DOSINGS.dropRight4x, eye: "left"}});
-            const puts = recordRequests(page, "PUT", new RegExp(`/api/v1/drug-groups/${protocol.id}$`));
-            await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+            const puts = recordRequests(page, "PUT", new RegExp(`/api/v1/protocols/${protocol.id}$`));
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
             const lines = editorLines(page, ct);
             await expect(lines).toHaveCount(2);
             const chips = page.getByText(ct.eyeClash, {exact: true});
@@ -216,69 +216,69 @@ test.describe("The group editor @area:catalog", () => {
             expect(items.map(i => i.dosing?.eye ?? null), "the eyes sent").toEqual(["right", "left"]);
         });
 
-    test("saving a group after one of its drugs was deleted in another window: «أحد الأدوية لم يعد موجودًا.» and the editor keeps the changes @GRP-034",
+    test("saving a protocol after one of its drugs was deleted in another window: «أحد الأدوية لم يعد موجودًا.» and the editor keeps the changes @GRP-034",
         async ({page, t, lang, data, allowApiErrors}) => {
             // The save refused (drugNotFound): the test's subject
-            allowApiErrors({status: 400, method: "PUT", path: /^\/api\/v1\/drug-groups\/\d+$/});
+            allowApiErrors({status: 400, method: "PUT", path: /^\/api\/v1\/protocols\/\d+$/});
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
             const [kept, gone] = await createDrugs(data, clinic, [`Kept ${u}`, `Gone ${u}`]);
-            const protocol = await createProtocol(data, clinic, `Group ${u}`, [{drug: kept}, {drug: gone}]);
+            const protocol = await createProtocol(data, clinic, `Protocol ${u}`, [{drug: kept}, {drug: gone}]);
             const renamed = `Renamed ${u}`;
-            await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
             await page.getByRole("textbox", {name: t.protocolName}).fill(renamed);
             await deleteDrug(data, clinic, gone); // the other window
             await page.getByRole("button", {name: t.save, exact: true}).click();
             await expectToast(page, ct.drugNotFound);
-            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+            await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
             await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(renamed);
             await expect(editorLines(page, ct)).toHaveCount(2);
         });
 
-    test("/groups/{id} of a deleted or unknown group: «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» instead of the form @GRP-061",
+    test("/protocols/{id} of a deleted or unknown protocol: «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» instead of the form @GRP-061",
         async ({page, t, data, allowApiErrors}) => {
-            // A deleted or unknown group: the test's subject
-            allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
+            // A deleted or unknown protocol: the test's subject
+            allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/protocols\/\d+$/});
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Drug ${unique()}`);
             const protocol = await createProtocol(data, clinic, `Deleted ${unique()}`, [{drug}]);
             await deleteProtocol(data, clinic, protocol);
             await signIn(page, clinic.owner.phone);
             for (const id of [protocol.id, 987654321]) {
-                await page.goto(`/groups/${id}`);
+                await page.goto(`/protocols/${id}`);
                 const alert = page.getByRole("alert");
-                await expect(alert, `group ${id}`).toContainText(t.notFound);
+                await expect(alert, `protocol ${id}`).toContainText(t.notFound);
                 await expect(alert.getByRole("button", {name: t.retry})).toBeVisible();
                 await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveCount(0);
             }
         });
 
-    test("the editor's Delete, confirmed: «تم حذف المجموعة» and back to the list @GRP-062", async ({page, t, lang, data, allowApiErrors}) => {
-        // After the delete the editor's own query of the deleted group is fetched once more as it closes (404, answer unused)
-        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/drug-groups\/\d+$/});
+    test("the editor's Delete, confirmed: «تم حذف البروتوكول» and back to the list @GRP-062", async ({page, t, lang, data, allowApiErrors}) => {
+        // After the delete the editor's own query of the deleted protocol is fetched once more as it closes (404, answer unused)
+        allowApiErrors({status: 404, method: "GET", path: /^\/api\/v1\/protocols\/\d+$/});
         const ct = CATALOG_TEXTS[lang];
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Drug ${unique()}`);
         const protocol = await createProtocol(data, clinic, `Delete here ${unique()}`, [{drug}]);
-        await signIn(page, clinic.owner.phone, "asIs", `/groups/${protocol.id}`);
+        await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
         await page.getByRole("button", {name: t.delete}).click();
         const confirm = dialog(page, ct.protocolDeleteTitle);
         await expect(confirm.locator(".MuiDialogContentText-root")).toHaveText(ct.protocolDeleteMessage(protocol.name));
         await confirm.getByRole("button", {name: t.delete}).click();
         await expectToast(page, ct.protocolDeleted);
-        await expect(page).toHaveURL(/\/groups$/);
+        await expect(page).toHaveURL(/\/protocols$/);
         await expect(protocolCard(page, protocol.name)).toHaveCount(0);
     });
 
-    test("a read-only role opens a group: «المجموعة», a read-only name, no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle @GRP-064",
+    test("a read-only role opens a protocol: «البروتوكول», a read-only name, no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle @GRP-064",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Seen ${unique()}`, {dosing: DOSINGS.dropRight4x});
             const protocol = await createProtocol(data, clinic, `Look only ${unique()}`, [{drug}]);
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, READ_ONLY)).id]});
-            await signIn(page, viewer.phone, "asIs", "/groups");
+            await signIn(page, viewer.phone, "asIs", "/protocols");
             await protocolCard(page, protocol.name).getByText(protocol.name, {exact: true}).click();
             await expect(page.getByRole("heading", {level: 1, name: t.viewProtocol, exact: true})).toBeVisible();
             const name = page.getByRole("textbox", {name: t.protocolName});

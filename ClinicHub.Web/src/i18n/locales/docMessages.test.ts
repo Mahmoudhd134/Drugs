@@ -6,7 +6,7 @@ import accessDoc from "../../../../docs/features/access/business.md?raw";
 import authDoc from "../../../../docs/features/auth/business.md?raw";
 import scopingDoc from "../../../../docs/features/clinic-scoping/business.md?raw";
 import dosingDoc from "../../../../docs/features/dosing/business.md?raw";
-import protocolsDoc from "../../../../docs/features/drug-groups/business.md?raw";
+import protocolsDoc from "../../../../docs/features/protocols/business.md?raw";
 import drugsDoc from "../../../../docs/features/drugs/business.md?raw";
 import adminDoc from "../../../../docs/features/platform-admin/business.md?raw";
 import prescriptionDoc from "../../../../docs/features/prescription/business.md?raw";
@@ -98,16 +98,16 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
         ],
     },
     {
-        name: "drug-groups", doc: protocolsDoc, entries: [
-            ["تم إنشاء المجموعة", () => t("protocols.created")],
-            ["تم تحديث المجموعة", () => t("protocols.updated")],
-            ["تم حذف المجموعة", () => t("protocols.deleted")],
+        name: "protocols", doc: protocolsDoc, entries: [
+            ["تم إنشاء البروتوكول", () => t("protocols.created")],
+            ["تم تحديث البروتوكول", () => t("protocols.updated")],
+            ["تم حذف البروتوكول", () => t("protocols.deleted")],
             ["الاسم مطلوب.", () => t("errors.nameRequired")],
             ["أضف دواءً واحدًا على الأقل.", () => t("errors.drugsRequired")],
-            ["«اسم الدواء» موجود بالفعل في هذه المجموعة لنفس العين", () => t("protocols.alreadyInProtocolForEye", {name: "اسم الدواء"})],
+            ["«اسم الدواء» موجود بالفعل في هذا البروتوكول لنفس العين", () => t("protocols.alreadyInProtocolForEye", {name: "اسم الدواء"})],
             ["نفس الدواء والعين في سطر آخر", () => t("protocols.eyeClash")],
-            ["يوجد دواء مكرر في المجموعة لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.", () => t("protocols.eyeClashSave")],
-            ["يوجد دواء مكرر في المجموعة لنفس العين.", () => t("errors.duplicateProtocolItem")],
+            ["يوجد دواء مكرر في البروتوكول لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.", () => t("protocols.eyeClashSave")],
+            ["يوجد دواء مكرر في البروتوكول لنفس العين.", () => t("errors.duplicateProtocolItem")],
             ["تجاهل التغييرات؟", () => t("protocols.discardTitle")],
         ],
     },
@@ -156,7 +156,7 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["«اسم العيادة»: اكتب الاسم تمامًا كما يظهر", () => `«${t("admin.clinic.name")}»: ${t("admin.clinic.deleteTypeHint")}`],
             ["تم حذف «اسم العيادة»", () => t("admin.clinic.deleted", {name: "اسم العيادة"})],
             ["لا توجد عيادات بعد", () => t("admin.clinics.emptyTitle")],
-            ["أنشئ أول عيادة. يستطيع مالكها الدخول فورًا ويجد فيها الأدوية والمجموعات الافتراضية.", () => t("admin.clinics.emptyDescription")],
+            ["أنشئ أول عيادة. يستطيع مالكها الدخول فورًا ويجد فيها الأدوية والبروتوكولات الافتراضية.", () => t("admin.clinics.emptyDescription")],
             ["لا توجد عيادات مطابقة للبحث أو الفلتر.", () => t("admin.clinics.noResults")],
             ["تعذّر تحميل البيانات.", () => t("common.loadFailed")],
             ["«إعادة المحاولة»", () => `«${t("common.retry")}»`],
@@ -194,16 +194,16 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["«اسم الدواء» موجود بالفعل في القائمة لنفس العين", () => t("prescription.eyeTaken", {name: "اسم الدواء"})],
             ["أي عين؟", () => t("prescription.chooseEyeTitle")],
             ["جرعتان لنفس العين", () => t("prescription.protocolClashTitle")],
-            ["«اسم الدواء» موجود في المجموعة مرتين للعين التي اخترتها، بجرعتين مختلفتين. أي جرعة تُضاف؟",
+            ["«اسم الدواء» موجود في البروتوكول مرتين للعين التي اخترتها، بجرعتين مختلفتين. أي جرعة تُضاف؟",
                 () => t("prescription.protocolClashMessage", {name: "اسم الدواء"})],
             ["استخدام الأولى", () => t("prescription.useFirst")],
             ["استخدام الثانية", () => t("prescription.useSecond")],
             ["موجود بالفعل في الروشتة", () => t("prescription.conflictTitle")],
-            ["تمت الإضافة من «اسم المجموعة»: العدد", () => t("prescription.protocolAdded", {name: "اسم المجموعة", count: "العدد"})],
-            ["تم الاستبدال بجرعة المجموعة: العدد", () => t("prescription.protocolReplaced", {count: "العدد"})],
+            ["تمت الإضافة من «اسم البروتوكول»: العدد", () => t("prescription.protocolAdded", {name: "اسم البروتوكول", count: "العدد"})],
+            ["تم الاستبدال بجرعة البروتوكول: العدد", () => t("prescription.protocolReplaced", {count: "العدد"})],
             ["تم الإبقاء على الجرعة الحالية: العدد", () => t("prescription.protocolKept", {count: "العدد"})],
             ["موجود مسبقًا في القائمة: العدد", () => t("prescription.protocolSkipped", {count: "العدد"})],
-            ["مكرر في المجموعة ولم يُضف: العدد", () => t("prescription.protocolDuplicated", {count: "العدد"})],
+            ["مكرر في البروتوكول ولم يُضف: العدد", () => t("prescription.protocolDuplicated", {count: "العدد"})],
             ["تم النسخ", () => t("common.copied")],
             ["تعذّر النسخ. حدّد النص وانسخه يدويًا.", () => t("errors.copyFailed")],
             ["تم مسح القائمة", () => t("prescription.cleared")],

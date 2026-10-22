@@ -11,14 +11,14 @@ import {renderWithProviders} from "../render.tsx";
 import {server} from "../server.ts";
 
 /*
- * The group editor page (`/protocols/new`, `/protocols/:id`) with the API of docs/features/protocols/tech.md "API":
- * GET /drugs (the picker), GET /protocols/:id, and POST / PUT answering the saved group (`ProtocolDto`: each item
+ * The protocol editor page (`/protocols/new`, `/protocols/:id`) with the API of docs/features/protocols/tech.md "API":
+ * GET /drugs (the picker), GET /protocols/:id, and POST / PUT answering the saved protocol (`ProtocolDto`: each item
  * with its `drug`, in the sent order).
  */
 
 type SaveBody = { name: string; items: SaveProtocolItem[] };
 
-/** POST /protocols (201) and PUT /protocols/:id answering the saved group; `bodies` collects what was sent. */
+/** POST /protocols (201) and PUT /protocols/:id answering the saved protocol; `bodies` collects what was sent. */
 export const protocolSaveHandlers = (drugs: Drug[]) => {
     const bodies: SaveBody[] = [];
     const toDto = (id: number, body: SaveBody): Protocol => ({
@@ -62,15 +62,15 @@ export const openEditor = async ({protocol, drugs, lang = "ar", permissions}: Ed
         path: protocol ? "/protocols/:id" : "/protocols/new",
         user: permissions ? {permissions} : undefined,
     });
-    // A text query: role queries are slow on a big page (the 1001-line group)
-    await screen.findByText(lang === "ar" ? "أدوية هذه المجموعة" : "Drugs in this group");
+    // A text query: role queries are slow on a big page (the 1001-line protocol)
+    await screen.findByText(lang === "ar" ? "أدوية هذا البروتوكول" : "Drugs in this protocol");
     return {...rendered, bodies: saves.bodies};
 };
 
-/** The «أدوية هذه المجموعة» panel. */
-export const linesPanel = (title = "أدوية هذه المجموعة") => screen.getByText(title).closest(".MuiPaper-root") as HTMLElement;
+/** The «أدوية هذا البروتوكول» panel. */
+export const linesPanel = (title = "أدوية هذا البروتوكول") => screen.getByText(title).closest(".MuiPaper-root") as HTMLElement;
 
-/** The lines of the group, in order: each is the row holding the number, the drug, its details and actions. */
+/** The lines of the protocol, in order: each is the row holding the number, the drug, its details and actions. */
 export const lineRows = (title?: string) =>
     Array.from(linesPanel(title).querySelectorAll<HTMLElement>(".MuiAvatar-root")).map(avatar => avatar.parentElement as HTMLElement);
 

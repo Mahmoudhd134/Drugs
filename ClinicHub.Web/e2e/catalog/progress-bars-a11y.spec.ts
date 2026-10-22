@@ -10,7 +10,7 @@ import {createDrug, createProtocol} from "../support/catalog.ts";
  * here a search request is held while axe scans the page with the bar on screen.
  */
 
-/** Holds every drugs/groups list request that searches, until the returned function is called. */
+/** Holds every drugs/protocols list request that searches, until the returned function is called. */
 const holdSearches = async (page: Page) => {
     let release = () => {};
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -41,20 +41,20 @@ const scanWhileSearching = async (page: Page, placeholder: string, term: string)
 };
 
 test.describe("Loading bars of the lists @area:ux", () => {
-    test("the drugs page's, the groups page's and the pickers' loading bars have an accessible name (axe aria-progressbar-name) @UX-036",
+    test("the drugs page's, the protocols page's and the pickers' loading bars have an accessible name (axe aria-progressbar-name) @UX-036",
         async ({page, t, data}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Bar ${unique()}`);
-            await createProtocol(data, clinic, `Bar group ${unique()}`, [{drug}]);
+            await createProtocol(data, clinic, `Bar protocol ${unique()}`, [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
             expect.soft(await scanWhileSearching(page, t.searchDrugs, "bar"), "drugs page").toEqual([]);
 
-            await page.goto("/groups");
+            await page.goto("/protocols");
             await settled(page);
-            expect.soft(await scanWhileSearching(page, t.searchProtocols, "bar"), "groups page").toEqual([]);
+            expect.soft(await scanWhileSearching(page, t.searchProtocols, "bar"), "protocols page").toEqual([]);
 
-            // SearchableList: the group editor's drug picker (the prescription's pickers are the same component)
-            await page.goto("/groups/new");
+            // SearchableList: the protocol editor's drug picker (the prescription's pickers are the same component)
+            await page.goto("/protocols/new");
             await settled(page);
             expect.soft(await scanWhileSearching(page, t.searchDrugs, "bar"), "drug picker").toEqual([]);
         });

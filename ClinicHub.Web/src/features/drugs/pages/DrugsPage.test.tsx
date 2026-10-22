@@ -125,8 +125,8 @@ describe("drugs page: the edit dialog @area:catalog", () => {
     });
 });
 
-describe("drugs page: delete with the groups warning @area:catalog", () => {
-    const protocolsOf = (names: string[] | "fail" | "network") => http.get(api("/drugs/:id/groups"), () =>
+describe("drugs page: delete with the protocols warning @area:catalog", () => {
+    const protocolsOf = (names: string[] | "fail" | "network") => http.get(api("/drugs/:id/protocols"), () =>
         names === "fail" ? problem(500, "unexpected") : names === "network" ? networkError() : HttpResponse.json(names));
 
     const clickDelete = async (user: UserEvent, name: string, lang: "ar" | "en" = "ar") => {
@@ -135,38 +135,38 @@ describe("drugs page: delete with the groups warning @area:catalog", () => {
         return screen.findByRole("dialog");
     };
 
-    test("a drug in no group: only the first sentence, no groups line @DRUG-080", async () => {
+    test("a drug in no protocol: only the first sentence, no protocols line @DRUG-080", async () => {
         server.use(protocolsOf([]));
         const page = await openPage([aDrug({name: "Tobradex"})]);
         const dialog = await clickDelete(page.user, "Tobradex");
         expect(within(dialog).getByRole("heading", {name: "حذف الدواء؟"})).toBeInTheDocument();
-        expect(confirmText()).toBe(`سيتم حذف «${isolate("Tobradex")}» وإزالته من كل المجموعات. لا يمكن التراجع عن ذلك.`);
-        expect(within(dialog).queryByText(/يُستخدم في هذه المجموعات/)).not.toBeInTheDocument();
+        expect(confirmText()).toBe(`سيتم حذف «${isolate("Tobradex")}» وإزالته من كل البروتوكولات. لا يمكن التراجع عن ذلك.`);
+        expect(within(dialog).queryByText(/يُستخدم في هذه البروتوكولات/)).not.toBeInTheDocument();
     });
 
-    test("in English, a drug in no group: \"“Tobradex” will be deleted…\" only @DRUG-080", async () => {
+    test("in English, a drug in no protocol: \"“Tobradex” will be deleted…\" only @DRUG-080", async () => {
         server.use(protocolsOf([]));
         const page = await openPage([aDrug({name: "Tobradex"})], "en");
         await clickDelete(page.user, "Tobradex", "en");
-        expect(confirmText()).toBe(`“${isolate("Tobradex")}” will be deleted and removed from every group. This can't be undone.`);
+        expect(confirmText()).toBe(`“${isolate("Tobradex")}” will be deleted and removed from every protocol. This can't be undone.`);
     });
 
-    test("English UI, two groups: \"It is used in these groups: A، B\" (the Arabic comma in both languages) @DRUG-081", async () => {
+    test("English UI, two protocols: \"It is used in these protocols: A، B\" (the Arabic comma in both languages) @DRUG-081", async () => {
         server.use(protocolsOf(["Post cataract", "التهاب الملتحمة"]));
         const page = await openPage([aDrug({name: "Tobradex"})], "en");
         await clickDelete(page.user, "Tobradex", "en");
         expect(confirmText()).toBe([
-            `“${isolate("Tobradex")}” will be deleted and removed from every group. This can't be undone.`,
-            `It is used in these groups: ${isolate("Post cataract، التهاب الملتحمة")}`,
+            `“${isolate("Tobradex")}” will be deleted and removed from every protocol. This can't be undone.`,
+            `It is used in these protocols: ${isolate("Post cataract، التهاب الملتحمة")}`,
         ].join("\n"));
     });
 
-    test("the group names lookup fails (500 or network): the confirmation still opens, without the groups line @DRUG-082", async () => {
+    test("the protocol names lookup fails (500 or network): the confirmation still opens, without the protocols line @DRUG-082", async () => {
         for (const failure of ["fail", "network"] as const) {
             server.use(protocolsOf(failure));
             const page = await openPage([aDrug({name: "Tobradex"})]);
                 const dialog = await clickDelete(page.user, "Tobradex");
-            expect(confirmText()).toBe(`سيتم حذف «${isolate("Tobradex")}» وإزالته من كل المجموعات. لا يمكن التراجع عن ذلك.`);
+            expect(confirmText()).toBe(`سيتم حذف «${isolate("Tobradex")}» وإزالته من كل البروتوكولات. لا يمكن التراجع عن ذلك.`);
             expect(within(dialog).getByRole("button", {name: "حذف"})).toBeInTheDocument();
             page.unmount();
         }

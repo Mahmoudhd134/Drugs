@@ -138,7 +138,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
             await expect(sentenceIn(drugRow(page, drug.name))).toHaveText(SENTENCES.dropRight4x7d);
 
-            // The group editor's picker
+            // The protocol editor's picker
             await navTo(page, t, t.navProtocols);
             await page.getByRole("link", {name: t.newProtocol}).click();
             await search(page, page.getByPlaceholder(t.searchDrugs), drug.name);
@@ -147,14 +147,14 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             // The prescription's picker
             await navTo(page, t, t.navPrescription);
             await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-            // Another term than the group editor's (a query of its own, not the one cached there: see the report)
+            // Another term than the protocol editor's (a query of its own, not the one cached there: see the report)
             await search(page, page.getByPlaceholder(t.searchDrugs).filter({visible: true}), drug.name.toUpperCase());
             await expect(sentenceIn(option(page, drug.name).filter({visible: true}))).toHaveText(SENTENCES.dropRight4x7d);
         });
 });
 
 test.describe("Drugs: delete @area:catalog", () => {
-    test("deleting a drug used in two groups: «حذف الدواء؟» names it and the groups; «إلغاء» keeps it, «حذف» deletes it @DRUG-079 @DRUG-083 @DRUG-084 @smoke",
+    test("deleting a drug used in two protocols: «حذف الدواء؟» names it and the protocols; «إلغاء» keeps it, «حذف» deletes it @DRUG-079 @DRUG-083 @DRUG-084 @smoke",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -162,8 +162,8 @@ test.describe("Drugs: delete @area:catalog", () => {
             const drug = await createDrug(data, clinic, `Tobradex ${u}`);
             const other = await createDrug(data, clinic, `Other ${u}`);
             // Created B first: the names are listed by name, not by creation
-            await createProtocol(data, clinic, `B group ${u}`, [{drug}, {drug: other}]);
-            await createProtocol(data, clinic, `A group ${u}`, [{drug}]);
+            await createProtocol(data, clinic, `B protocol ${u}`, [{drug}, {drug: other}]);
+            await createProtocol(data, clinic, `A protocol ${u}`, [{drug}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             const askDelete = async () => {
@@ -174,7 +174,7 @@ test.describe("Drugs: delete @area:catalog", () => {
             };
             let confirm = await askDelete();
             await expect(confirm.locator(".MuiDialogContentText-root"))
-                .toHaveText(`${ct.drugDeleteMessage(drug.name)}\n${ct.drugUsedInProtocols([`A group ${u}`, `B group ${u}`])}`);
+                .toHaveText(`${ct.drugDeleteMessage(drug.name)}\n${ct.drugUsedInProtocols([`A protocol ${u}`, `B protocol ${u}`])}`);
             await healthy();
 
             // «إلغاء»: nothing is deleted (still listed after a reload)
@@ -191,7 +191,7 @@ test.describe("Drugs: delete @area:catalog", () => {
             await expect(drugRow(page, other.name)).toBeVisible();
         });
 
-    test("a group whose only drug was deleted shows «الأدوية: 0» and can't be saved («أضف دواءً واحدًا على الأقل.») until a drug is added @DRUG-086",
+    test("a protocol whose only drug was deleted shows «الأدوية: 0» and can't be saved («أضف دواءً واحدًا على الأقل.») until a drug is added @DRUG-086",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -200,17 +200,17 @@ test.describe("Drugs: delete @area:catalog", () => {
             const replacement = await createDrug(data, clinic, `Replacement ${u}`);
             const protocol = await createProtocol(data, clinic, `Emptied ${u}`, [{drug}]);
             await deleteDrug(data, clinic, drug);
-            await signIn(page, clinic.owner.phone, "asIs", "/groups");
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
 
             const card = protocolCard(page, protocol.name);
             await expect(card.getByText(ct.drugCount(0), {exact: true})).toBeVisible();
             await card.getByText(protocol.name, {exact: true}).click();
-            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+            await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
             await expect(page.getByText(ct.noDrugsInProtocol, {exact: true})).toBeVisible();
             const save = page.getByRole("button", {name: t.save, exact: true});
             await save.click();
             await expectToast(page, ct.drugsRequired);
-            await expect(page).toHaveURL(new RegExp(`/groups/${protocol.id}$`));
+            await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
 
             await page.getByPlaceholder(t.searchDrugs).fill(replacement.name);
             await option(page, replacement.name).click();

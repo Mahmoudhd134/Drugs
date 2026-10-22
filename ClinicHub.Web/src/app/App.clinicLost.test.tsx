@@ -53,7 +53,7 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
         drugsByClinic({clinic1: "A drug", clinic2: "B drug", clinic3: "C drug"}),
         contextsHandler(contexts.filter(c => c !== clinicA)),
         http.post(api("/drugs"), saveAnswer),
-        http.get(api("/drug-groups"), () => HttpResponse.json(aPage([]))),
+        http.get(api("/protocols"), () => HttpResponse.json(aPage([]))),
     );
     const app = await startApp({route: "/drugs", lang: "ar"});
     await screen.findByText("A drug");

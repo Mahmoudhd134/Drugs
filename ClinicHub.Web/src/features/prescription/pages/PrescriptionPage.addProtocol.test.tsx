@@ -19,7 +19,7 @@ import type {Protocol} from "../../protocols/types.ts";
 import type {PrescriptionLine} from "../types.ts";
 import {PrescriptionPage} from "./PrescriptionPage.tsx";
 
-// The add-group algorithm: docs/features/prescription/tech.md "Page & components" (addGroup), business.md
+// The add-protocol algorithm: docs/features/prescription/tech.md "Page & components" (addProtocol), business.md
 // "القواعد التشغيلية" and "الرسائل التي تظهر للمستخدم". Arabic UI, clinic 1.
 
 const KEY = "prescription.lines.1";
@@ -31,7 +31,7 @@ const summary = () => storedLines().map(l => [l.drug.name, l.dosing.eye ?? null]
 const right: Dosing = {doseAmount: 1, doseUnit: "drop", eye: "right", frequency: "daily", frequencyValue: 4};
 const week = {durationUnit: "weeks", durationValue: 1} as const;
 
-/** Opens the page with `lines` already in the prescription and `groups` in the picker; `addGroup(name)` clicks one. */
+/** Opens the page with `lines` already in the prescription and `protocols` in the picker; `addProtocol(name)` clicks one. */
 const openPage = async (protocols: Protocol[], lines: PrescriptionLine[] = []) => {
     localStorage.setItem(KEY, JSON.stringify(lines));
     server.use(...protocolsHandlers(protocols), ...drugsHandlers([]));
@@ -40,12 +40,12 @@ const openPage = async (protocols: Protocol[], lines: PrescriptionLine[] = []) =
     const addProtocol = async (name = "Post cataract") => rendered.user.click(await screen.findByText(name));
     const dialog = () => screen.getByRole("dialog");
     const answer = async (button: string) => rendered.user.click(within(await screen.findByRole("dialog")).getByRole("button", {name: button}));
-    /** The summary toast's lines (one toast per group added). */
+    /** The summary toast's lines (one toast per protocol added). */
     const toastLines = async () => (await findToast()).split("\n");
     return {...rendered, addProtocol, dialog, answer, toastLines, success};
 };
 
-describe("adding a group to the prescription @area:prescription", () => {
+describe("adding a protocol to the prescription @area:prescription", () => {
     test("new lines are appended after the lines already there @RX-016", async () => {
         const a = aDrug({name: "Tobradex", defaultDosing: right});
         const b = aDrug({name: "Vigamox"});
@@ -57,7 +57,7 @@ describe("adding a group to the prescription @area:prescription", () => {
         expect(storedLines()[0]).toEqual(existing);
     });
 
-    test("a group without «تُحدد عند الإضافة» lines asks no eye @RX-018", async () => {
+    test("a protocol without «تُحدد عند الإضافة» lines asks no eye @RX-018", async () => {
         const page = await openPage([aProtocol({items: [anItem(aDrug({defaultDosing: right})), anItem(aDrug({name: "Vigamox"}), {eye: "left"})]})]);
         await page.addProtocol();
         expect(await page.toastLines()).toEqual([added(2)]);
@@ -91,7 +91,7 @@ describe("adding a group to the prescription @area:prescription", () => {
         expect(screen.getByText("نقطة واحدة في العينين")).toBeInTheDocument();
     });
 
-    test("the same group added for the right eye, then the left: separate lines per eye @RX-023", async () => {
+    test("the same protocol added for the right eye, then the left: separate lines per eye @RX-023", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}}), {eye: "ask"})]});
         const page = await openPage([protocol]);
         await page.addProtocol();
@@ -102,7 +102,7 @@ describe("adding a group to the prescription @area:prescription", () => {
         await waitFor(() => expect(summary()).toEqual([["Tobradex", "right"], ["Tobradex", "left"]]));
     });
 
-    test("a line equal to the group's only after normalization counts as identical @RX-025", async () => {
+    test("a line equal to the protocol's only after normalization counts as identical @RX-025", async () => {
         const drug = aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop", frequency: "bedtime"}});
         // Stored with a leftover value of a frequency that takes none
         const existing = aLine(drug, {doseUnit: "drop", frequency: "bedtime", frequencyValue: 3});
@@ -130,17 +130,17 @@ describe("adding a group to the prescription @area:prescription", () => {
         const drug = aDrug({name: "Tobradex", defaultDosing: {eye: "right", doseUnit: "drop"}});
         const page = await openPage([aProtocol({items: [anItem(drug, {frequency: "daily", frequencyValue: 2}), anItem(drug, {eye: "right", frequency: "bedtime"})]})]);
         await page.addProtocol();
-        expect(await page.toastLines()).toEqual([added(1), "مكرر في المجموعة ولم يُضف: 1"]);
+        expect(await page.toastLines()).toEqual([added(1), "مكرر في البروتوكول ولم يُضف: 1"]);
         expect(storedLines().map(l => l.dosing)).toEqual([expect.objectContaining({eye: "right", frequency: "daily", frequencyValue: 2})]);
     });
 
-    test("in English the duplicated line reads \"Duplicated in the group, not added: 1\" @RX-029", async () => {
+    test("in English the duplicated line reads \"Duplicated in the protocol, not added: 1\" @RX-029", async () => {
         const drug = aDrug({name: "Tobradex", defaultDosing: {eye: "right"}});
         server.use(...protocolsHandlers([aProtocol({items: [anItem(drug), anItem(drug, {eye: "right", doseUnit: "drop"})]})]), ...drugsHandlers([]));
         const {user} = await renderWithProviders(<PrescriptionPage/>, {lang: "en"});
         await user.click(await screen.findByText("Post cataract"));
         expect(await findToast())
-            .toBe(`Added from “${isolate("Post cataract")}”: 1\nDuplicated in the group, not added: 1`);
+            .toBe(`Added from “${isolate("Post cataract")}”: 1\nDuplicated in the protocol, not added: 1`);
     });
 
     describe("an «ask» line and a line for the chosen eye", () => {
@@ -193,8 +193,8 @@ describe("adding a group to the prescription @area:prescription", () => {
             await page.answer("اليمنى");
             await page.answer("استخدام الثانية");
             expect(await screen.findByText("موجود بالفعل في الروشتة")).toBeInTheDocument();
-            await page.answer("استخدام جرعة المجموعة");
-            expect(await page.toastLines()).toEqual([added(0), "تم الاستبدال بجرعة المجموعة: 1"]);
+            await page.answer("استخدام جرعة البروتوكول");
+            expect(await page.toastLines()).toEqual([added(0), "تم الاستبدال بجرعة البروتوكول: 1"]);
             expect(storedLines().map(l => [l.key, l.dosing.frequency, l.dosing.frequencyValue]))
                 .toEqual([[existing.key, "daily", 2]]);
         });
@@ -225,10 +225,10 @@ describe("adding a group to the prescription @area:prescription", () => {
         ];
         const page = await openPage([aProtocol({name: "G", items: [anItem(fresh), anItem(replaced), anItem(kept), anItem(same)]})], lines);
         await page.addProtocol("G");
-        await page.answer("استخدام جرعة المجموعة");
+        await page.answer("استخدام جرعة البروتوكول");
         await page.answer("الإبقاء على الحالي");
         expect(await page.toastLines()).toEqual([
-            added(1, "G"), "تم الاستبدال بجرعة المجموعة: 1", "تم الإبقاء على الجرعة الحالية: 1", "موجود مسبقًا في القائمة: 1",
+            added(1, "G"), "تم الاستبدال بجرعة البروتوكول: 1", "تم الإبقاء على الجرعة الحالية: 1", "موجود مسبقًا في القائمة: 1",
         ]);
         expect(page.success).toHaveBeenCalledTimes(1);
         // Replaced in place, its note kept; the new line appended
@@ -243,7 +243,7 @@ describe("adding a group to the prescription @area:prescription", () => {
         expect(page.success).toHaveBeenCalledTimes(1);
     });
 
-    test("a group whose lines are all gone: nothing added, «…: 0» in the neutral style @RX-051", async () => {
+    test("a protocol whose lines are all gone: nothing added, «…: 0» in the neutral style @RX-051", async () => {
         const existing = aLine(aDrug({name: "Pred Forte"}));
         const page = await openPage([aProtocol({name: "G", items: []})], [existing]);
         await page.addProtocol("G");
@@ -265,7 +265,7 @@ describe("adding a group to the prescription @area:prescription", () => {
         expect(summary()).toEqual([["A", null], ["B", null]]);
     });
 
-    test("a line with no dosing and the group's «بدون عين» only: no conflict, counted as unchanged @RX-106", async () => {
+    test("a line with no dosing and the protocol's «بدون عين» only: no conflict, counted as unchanged @RX-106", async () => {
         const drug = aDrug({name: "Tears", description: "قطرة مرطبة"});
         const alone = aLine(drug, {});
         const page = await openPage([aProtocol({items: [anItem(drug, {eye: "none"})]})], [alone]);

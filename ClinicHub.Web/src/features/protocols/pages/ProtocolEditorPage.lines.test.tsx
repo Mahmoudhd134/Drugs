@@ -6,13 +6,13 @@ import type {Permission} from "../../access/permissions.ts";
 import {dosingPreview} from "../../../test/pages/dosing.ts";
 import {lineDetails, lineRows, lineSummary, openEditor, pickerOption} from "../../../test/pages/protocolEditor.tsx";
 
-// The group editor's lines: docs/features/drug-groups/business.md ("إنشاء مجموعة", "جرعة خاصة بالمجموعة",
+// The protocol editor's lines: docs/features/protocols/business.md ("إنشاء بروتوكول", "جرعة خاصة بالبروتوكول",
 // "نفس الدواء للعينين", "الرسائل") and tech.md "Frontend" (editor page, DosingLineList, LineDetails, chips, ⊕).
 
 const fourTimesTwoWeeks: Dosing = {doseAmount: 1, doseUnit: "drop", frequency: "daily", frequencyValue: 4, durationUnit: "weeks", durationValue: 2};
-const alreadyThere = (name: string) => `«${isolate(name)}» موجود بالفعل في هذه المجموعة لنفس العين`;
+const alreadyThere = (name: string) => `«${isolate(name)}» موجود بالفعل في هذا البروتوكول لنفس العين`;
 
-describe("group editor: adding drugs from the picker @area:catalog", () => {
+describe("protocol editor: adding drugs from the picker @area:catalog", () => {
     test("a clicked drug is appended with no override (its default sentence) and marked «مُضاف» @GRP-051 @smoke", async () => {
         const tobradex = aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks});
         const vigamox = aDrug({name: "Vigamox"});
@@ -24,13 +24,13 @@ describe("group editor: adding drugs from the picker @area:catalog", () => {
         expect(within(pickerOption("Tobradex")).getByText("مُضاف")).toBeInTheDocument();
         expect(within(pickerOption("Vigamox")).getByText("مُضاف")).toBeInTheDocument();
 
-        await user.type(screen.getByRole("textbox", {name: "اسم المجموعة"}), "Post cataract");
+        await user.type(screen.getByRole("textbox", {name: "اسم البروتوكول"}), "Post cataract");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(bodies).toHaveLength(1));
         expect(bodies[0]).toEqual({name: "Post cataract", items: [{drugId: vigamox.id, dosing: null}, {drugId: tobradex.id, dosing: null}]});
     });
 
-    test("a drug already in the group for its eye: ««Tobradex» موجود بالفعل في هذه المجموعة لنفس العين», no line added @GRP-053", async () => {
+    test("a drug already in the protocol for its eye: ««Tobradex» موجود بالفعل في هذا البروتوكول لنفس العين», no line added @GRP-053", async () => {
         const tobradex = aDrug({name: "Tobradex", defaultDosing: {eye: "right"}});
         const {user} = await openEditor({protocol: aProtocol({items: [anItem(tobradex)]})});
         await user.click(await screen.findByText("Tobradex", {selector: "[role=option] *"}));
@@ -38,11 +38,11 @@ describe("group editor: adding drugs from the picker @area:catalog", () => {
         expect(lineSummary()).toEqual([["1", "Tobradex"]]);
     });
 
-    test("in English: \"“Tobradex” is already in this group for that eye\" @GRP-053", async () => {
+    test("in English: \"“Tobradex” is already in this protocol for that eye\" @GRP-053", async () => {
         const tobradex = aDrug({name: "Tobradex"});
         const {user} = await openEditor({protocol: aProtocol({items: [anItem(tobradex)]}), lang: "en"});
         await user.click(await screen.findByText("Tobradex", {selector: "[role=option] *"}));
-        expect(await findToast()).toBe(`“${isolate("Tobradex")}” is already in this group for that eye`);
+        expect(await findToast()).toBe(`“${isolate("Tobradex")}” is already in this protocol for that eye`);
     });
 
     test("a double click on a drug adds one line and no «موجود بالفعل» toast follows @GRP-054", async () => {
@@ -66,7 +66,7 @@ describe("group editor: adding drugs from the picker @area:catalog", () => {
     });
 });
 
-describe("group editor: the lines @area:catalog", () => {
+describe("protocol editor: the lines @area:catalog", () => {
     test("✕ removes a line from the list; nothing is saved until Save @GRP-057", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex"})), anItem(aDrug({name: "Vigamox"}))]});
         const {user, bodies} = await openEditor({protocol});
@@ -89,10 +89,10 @@ describe("group editor: the lines @area:catalog", () => {
         await openEditor({protocol});
         expect(lineSummary()).toEqual([["1", "Tobradex"], ["2", "Artificial tears"], ["3", "Vigamox"], ["4", "Nevanac"]]);
         const [first, second, third, fourth] = lineRows().map(lineDetails);
-        expect(first).toBe("نقطة واحدة 6 مرات يوميًا لمدة أسبوعينجرعة خاصة بالمجموعة");
+        expect(first).toBe("نقطة واحدة 6 مرات يوميًا لمدة أسبوعينجرعة خاصة بالبروتوكول");
         expect(second).toBe("Use when needed");
-        expect(third).toBe("Antibiotic" + "في العين اليسرى" + "جرعة خاصة بالمجموعة");
-        expect(fourth).toBe("Anti-inflammatory" + "جرعة خاصة بالمجموعة" + "العين تُحدد عند إضافة المجموعة");
+        expect(third).toBe("Antibiotic" + "في العين اليسرى" + "جرعة خاصة بالبروتوكول");
+        expect(fourth).toBe("Anti-inflammatory" + "جرعة خاصة بالبروتوكول" + "العين تُحدد عند إضافة البروتوكول");
     });
 
     test("a default of only «اليمنى»: the description then «في العين اليمنى»; an override of only «تُحدد عند الإضافة»: the description and the chip @GRP-098", async () => {
@@ -105,41 +105,41 @@ describe("group editor: the lines @area:catalog", () => {
         expect(lineDetails(first)).toBe("Antibiotic + steroid" + "في العين اليمنى");
         expect(within(second).getByText("Antibiotic")).toBeInTheDocument();
         expect(within(second).queryByText(/في العين/)).not.toBeInTheDocument();
-        expect(within(second).getByText("العين تُحدد عند إضافة المجموعة")).toBeInTheDocument();
+        expect(within(second).getByText("العين تُحدد عند إضافة البروتوكول")).toBeInTheDocument();
     });
 
-    test("a saved override shows «جرعة خاصة بالمجموعة» with its tooltip @GRP-069", async () => {
+    test("a saved override shows «جرعة خاصة بالبروتوكول» with its tooltip @GRP-069", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks}), {frequency: "daily", frequencyValue: 6}), anItem(aDrug({name: "Vigamox"}))]});
         await openEditor({protocol});
         const [first, second] = lineRows();
-        const chip = within(first).getByText("جرعة خاصة بالمجموعة");
-        expect(within(second).queryByText("جرعة خاصة بالمجموعة")).not.toBeInTheDocument();
-        expect(await hoverTooltip(chip)).toBe("لهذا الدواء جرعة خاصة في هذه المجموعة بدل جرعته الافتراضية.");
+        const chip = within(first).getByText("جرعة خاصة بالبروتوكول");
+        expect(within(second).queryByText("جرعة خاصة بالبروتوكول")).not.toBeInTheDocument();
+        expect(await hoverTooltip(chip)).toBe("لهذا الدواء جرعة خاصة في هذا البروتوكول بدل جرعته الافتراضية.");
     });
 
     // In the read-only view a tap on a line does nothing else, so it shows the chip's explanation at once (in edit mode
     // a tap on the line opens its dosing dialog, as before)
     const viewOnly: Permission[] = ["protocols.list", "protocols.details"];
 
-    test("read-only on a phone: a quick tap on «جرعة خاصة بالمجموعة» shows its tooltip @GRP-069", async () => {
+    test("read-only on a phone: a quick tap on «جرعة خاصة بالبروتوكول» shows its tooltip @GRP-069", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks}), {frequency: "daily", frequencyValue: 6})]});
         await openEditor({protocol, permissions: viewOnly});
-        const chip = within(lineRows()[0]).getByText("جرعة خاصة بالمجموعة");
-        expect(await tapTooltip(chip)).toBe("لهذا الدواء جرعة خاصة في هذه المجموعة بدل جرعته الافتراضية.");
+        const chip = within(lineRows()[0]).getByText("جرعة خاصة بالبروتوكول");
+        expect(await tapTooltip(chip)).toBe("لهذا الدواء جرعة خاصة في هذا البروتوكول بدل جرعته الافتراضية.");
     });
 
-    test("read-only on a phone: a quick tap on «العين تُحدد عند إضافة المجموعة» shows its tooltip @GRP-079", async () => {
+    test("read-only on a phone: a quick tap on «العين تُحدد عند إضافة البروتوكول» shows its tooltip @GRP-079", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}}), {eye: "ask"})]});
         await openEditor({protocol, permissions: viewOnly});
-        const chip = within(lineRows()[0]).getByText("العين تُحدد عند إضافة المجموعة");
+        const chip = within(lineRows()[0]).getByText("العين تُحدد عند إضافة البروتوكول");
         expect(await tapTooltip(chip))
-            .toBe("العين غير محددة في المجموعة: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها المجموعة.");
+            .toBe("العين غير محددة في البروتوكول: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها البروتوكول.");
     });
 
-    test("in English the chip reads \"Group dosing\" @GRP-069", async () => {
+    test("in English the chip reads \"Protocol dosing\" @GRP-069", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex"}), {frequency: "bedtime"})]});
         await openEditor({protocol, lang: "en"});
-        expect(within(lineRows("Drugs in this group")[0]).getByText("Group dosing")).toBeInTheDocument();
+        expect(within(lineRows("Drugs in this protocol")[0]).getByText("Protocol dosing")).toBeInTheDocument();
     });
 
     test("«استخدام جرعة الدواء الافتراضية» + save: the override is cleared, the chip goes, the line shows the drug default @GRP-070", async () => {
@@ -157,20 +157,20 @@ describe("group editor: the lines @area:catalog", () => {
         expect(bodies[0].items).toEqual([{drugId: protocol.items[0].drug.id, dosing: null}]);
     });
 
-    test("a line with eye ask shows «العين تُحدد عند إضافة المجموعة» with the askEyeInfo tooltip @GRP-079", async () => {
+    test("a line with eye ask shows «العين تُحدد عند إضافة البروتوكول» with the askEyeInfo tooltip @GRP-079", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop"}}), {eye: "ask"})]});
         await openEditor({protocol});
-        const chip = within(lineRows()[0]).getByText("العين تُحدد عند إضافة المجموعة");
+        const chip = within(lineRows()[0]).getByText("العين تُحدد عند إضافة البروتوكول");
         expect(await hoverTooltip(chip))
-            .toBe("العين غير محددة في المجموعة: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها المجموعة.");
+            .toBe("العين غير محددة في البروتوكول: تختار اليمنى أو اليسرى أو العينين في كل مرة تضيف فيها البروتوكول.");
     });
 
-    test("in English the chip reads \"Eye is chosen when the group is added\" with its tooltip @GRP-079", async () => {
+    test("in English the chip reads \"Eye is chosen when the protocol is added\" with its tooltip @GRP-079", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex"}), {eye: "ask"})]});
         await openEditor({protocol, lang: "en"});
-        const chip = within(lineRows("Drugs in this group")[0]).getByText("Eye is chosen when the group is added");
+        const chip = within(lineRows("Drugs in this protocol")[0]).getByText("Eye is chosen when the protocol is added");
         expect(await hoverTooltip(chip))
-            .toBe("The eye isn't fixed in the group: you choose right, left or both each time you add the group.");
+            .toBe("The eye isn't fixed in the protocol: you choose right, left or both each time you add the protocol.");
     });
 
     test("the override dialog: an eye already used by another line of the drug toasts ««X» موجود بالفعل…» and stays open @GRP-076", async () => {
@@ -186,14 +186,14 @@ describe("group editor: the lines @area:catalog", () => {
     });
 });
 
-describe("group editor: ⊕ the other eye @area:catalog", () => {
+describe("protocol editor: ⊕ the other eye @area:catalog", () => {
     test("a right line with no left line of the drug: ⊕ «إضافة للعين الأخرى» inserts a left line right after it, same dosing @GRP-081", async () => {
         const tobradex = aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop", eye: "right"}});
         const protocol = aProtocol({items: [anItem(tobradex, {frequency: "daily", frequencyValue: 6}), anItem(aDrug({name: "Vigamox"}))]});
         const {user, bodies} = await openEditor({protocol});
         await user.click(within(lineRows()[0]).getByRole("button", {name: "إضافة للعين الأخرى"}));
         expect(lineSummary()).toEqual([["1", "Tobradex"], ["2", "Tobradex"], ["3", "Vigamox"]]);
-        expect(lineDetails(lineRows()[1])).toBe("نقطة واحدة في العين اليسرى 6 مرات يوميًا" + "جرعة خاصة بالمجموعة");
+        expect(lineDetails(lineRows()[1])).toBe("نقطة واحدة في العين اليسرى 6 مرات يوميًا" + "جرعة خاصة بالبروتوكول");
         // Now both eyes exist: no ⊕ on either line
         for (const row of lineRows().slice(0, 2)) expect(within(row).queryByRole("button", {name: "إضافة للعين الأخرى"})).not.toBeInTheDocument();
         await user.click(screen.getByRole("button", {name: "حفظ"}));
@@ -204,9 +204,9 @@ describe("group editor: ⊕ the other eye @area:catalog", () => {
     test("in English the ⊕ button reads \"Add for the other eye\" @GRP-081", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex"}), {eye: "left"})]});
         const {user} = await openEditor({protocol, lang: "en"});
-        const row = lineRows("Drugs in this group")[0];
+        const row = lineRows("Drugs in this protocol")[0];
         await user.click(within(row).getByRole("button", {name: "Add for the other eye"}));
-        expect(lineSummary("Drugs in this group")).toEqual([["1", "Tobradex"], ["2", "Tobradex"]]);
+        expect(lineSummary("Drugs in this protocol")).toEqual([["1", "Tobradex"], ["2", "Tobradex"]]);
     });
 
     test("no ⊕ for a drug with both right and left lines, nor for both / none / ask / no eye @GRP-082", async () => {
@@ -229,7 +229,7 @@ describe("group editor: ⊕ the other eye @area:catalog", () => {
     });
 });
 
-describe("group editor: overriding from the line @area:catalog", () => {
+describe("protocol editor: overriding from the line @area:catalog", () => {
     test("only the times overridden to 6 in the line's dialog: the preview reads «نقطة واحدة 6 مرات يوميًا لمدة أسبوعين», then the line sentence and chip follow @GRP-068", async () => {
         const protocol = aProtocol({items: [anItem(aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks}))]});
         const {user} = await openEditor({protocol});
@@ -240,6 +240,6 @@ describe("group editor: overriding from the line @area:catalog", () => {
         expect(dosingPreview()).toHaveTextContent(/^نقطة واحدة 6 مرات يوميًا لمدة أسبوعين$/);
         await user.click(dialog.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-        expect(lineDetails(lineRows()[0])).toBe("نقطة واحدة 6 مرات يوميًا لمدة أسبوعين" + "جرعة خاصة بالمجموعة");
+        expect(lineDetails(lineRows()[0])).toBe("نقطة واحدة 6 مرات يوميًا لمدة أسبوعين" + "جرعة خاصة بالبروتوكول");
     });
 });

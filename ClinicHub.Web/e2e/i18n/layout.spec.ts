@@ -69,8 +69,8 @@ test.describe("Direction and alignment @area:i18n", () => {
                 expect(center(handle), "drag handle at the left edge").toBeLessThan(center(number));
             }
 
-            // The group editor's back arrow points back (right in Arabic), at the start of the header
-            await open(page, `/groups/${protocol.id}`);
+            // The protocol editor's back arrow points back (right in Arabic), at the start of the header
+            await open(page, `/protocols/${protocol.id}`);
             const back = page.getByRole("button", {name: t.back});
             const transform = await back.locator("svg").evaluate(e => getComputedStyle(e).transform);
             expect(transform, "arrow mirrored in Arabic only").toBe(rtl ? "matrix(-1, 0, 0, 1, 0, 0)" : "none");
