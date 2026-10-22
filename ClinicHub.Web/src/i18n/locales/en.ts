@@ -562,7 +562,6 @@ const en = {
         subRenamed: "Subcategory renamed",
         subDeleted: "Subcategory deleted",
     },
-    // A clinic's roles and staff (reusable components; the platform admin's clinic page shows them today)
     // The drug catalog tree of the prescription page and the protocol editor (M1.7c)
     drugTree: {
         label: "Drug catalog",
@@ -572,6 +571,7 @@ const en = {
         open: "Open “⁨{{name}}⁩”",
         close: "Close “⁨{{name}}⁩”",
     },
+    // A clinic's roles and staff (reusable components; the platform admin's clinic page shows them today)
     roles: {
         title: "Roles",
         subtitle: "What each role lets its staff do. Someone with several roles gets all of their permissions.",

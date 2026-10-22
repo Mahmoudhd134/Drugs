@@ -1,11 +1,11 @@
 /*
  * jsdom has no IntersectionObserver (the drug tree loads the next page when the end of an open subcategory scrolls into
- * view, design M1.7 D7). `installIntersectionObserver()` puts a controllable fake on `window` for one test (restored
- * after it): the test makes an observed element enter the view with `enter(element)` (or every observed one with
- * `enterAll()`), and can check each observer's `root` (the tree's scroll panel, CAT-118).
+ * view, design M1.7 D7). `installIntersectionObserver()` puts a controllable fake on `window`; call it inside each
+ * test or in `beforeEach` (setup.ts's `vi.unstubAllGlobals()` removes it after every test). The test makes an
+ * observed element enter the view with `enter(element)` (or every observed one with `enterAll()`), and can check each observer's `root` (the tree's scroll panel, CAT-118).
  */
 import {act} from "@testing-library/react";
-import {afterEach, vi} from "vitest";
+import {vi} from "vitest";
 
 type Fake = {
     callback: IntersectionObserverCallback;
@@ -47,7 +47,6 @@ export const installIntersectionObserver = () => {
         }
     }
     vi.stubGlobal("IntersectionObserver", FakeObserver);
-    afterEach(() => void vi.unstubAllGlobals());
 
     const fire = (fake: Fake, target: Element, isIntersecting: boolean) =>
         fake.callback([{target, isIntersecting, intersectionRatio: isIntersecting ? 1 : 0} as IntersectionObserverEntry], fake.observer);
