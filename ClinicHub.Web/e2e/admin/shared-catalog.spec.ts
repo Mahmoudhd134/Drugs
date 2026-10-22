@@ -72,7 +72,9 @@ test.describe("Platform admin: the shared drugs list @area:admin", () => {
             const searched = await adminList(admin, {search: "ALEMOX"});
             await expectTotal(page, lang, searched.totalCount);
             await expect(adminDrugRow(page, IMPORTED.alemox1g)).toBeVisible();
+            // Cleared: the unfiltered list again (page 1 may come from the cache, without a request)
             await searchAdmin(page, lang, "");
+            await expectTotal(page, lang, active.totalCount);
             await settled(page);
 
             // Category, then subcategory
@@ -149,7 +151,7 @@ test.describe("Platform admin: the categories page @area:admin", () => {
             await healthy();
 
             for (const open of ["add", "rename", "add subcategory"] as const) {
-                if (open === "add") await page.getByRole("button", {name: st.addCategory}).click();
+                if (open === "add") await page.getByRole("button", {name: st.addCategory, exact: true}).click();
                 else await row.getByRole("button", {name: open === "rename" ? st.renameCategory : st.addSubCategory}).first().click();
                 const form = page.getByRole("dialog");
                 await expect(form, open).toBeVisible();

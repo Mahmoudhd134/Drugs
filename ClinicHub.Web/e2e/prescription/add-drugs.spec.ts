@@ -52,14 +52,15 @@ test.describe("Prescription: the page and adding single drugs @area:prescription
             const rx = new RxPage(page, rt);
             await rx.openDrugsTab();
             await rx.search("drugs").click();
-            await expect(rx.option(alpha.name)).toHaveAttribute("aria-selected", "true");
+            // The clinic's own drugs first, newest first (design M1.7 D7): Beta (created last), then Alpha
+            await expect(rx.option(beta.name)).toHaveAttribute("aria-selected", "true");
 
             await page.keyboard.press("ArrowDown");
-            await expect(rx.option(beta.name)).toHaveAttribute("aria-selected", "true");
-            await page.keyboard.press("ArrowDown");
+            await expect(rx.option(alpha.name)).toHaveAttribute("aria-selected", "true");
             await expect(rx.option(beta.name)).toHaveAttribute("aria-selected", "false");
             await page.keyboard.press("ArrowUp");
             await expect(rx.option(beta.name)).toHaveAttribute("aria-selected", "true");
+            await expect(rx.option(alpha.name)).toHaveAttribute("aria-selected", "false");
             await page.keyboard.press("Enter");
             await rx.expectLines([[beta.name, dropDailySentence(2, 1)]]);
 

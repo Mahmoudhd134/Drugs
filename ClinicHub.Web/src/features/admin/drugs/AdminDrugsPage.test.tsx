@@ -98,8 +98,9 @@ describe("admin drugs: disabling on «الكل» and «مفعّل» @area:admin"
         await waitFor(() => expect(screen.getAllByRole("row").slice(1)).toHaveLength(size));
         expect(screen.getByText(`${(lastPage - 2) * size + 1}–${(lastPage - 1) * size} من 100`)).toBeInTheDocument();
         const pad = (n: number) => String(n).padStart(3, "0");
-        expect(screen.getAllByRole("row")[1]).toHaveTextContent(`DRUG ${pad((lastPage - 2) * size + 1)}`);
-        expect(screen.getAllByRole("row").at(-1)).toHaveTextContent(`DRUG ${pad((lastPage - 1) * size)}`);
+        const rows = screen.getAllByRole("row");
+        expect(rows[1]).toHaveTextContent(`DRUG ${pad((lastPage - 2) * size + 1)}`);
+        expect(rows[rows.length - 1]).toHaveTextContent(`DRUG ${pad((lastPage - 1) * size)}`);
     });
 });
 
