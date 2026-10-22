@@ -2,7 +2,7 @@
 
 ## Summary
 M1.1 (Foundations) of the [multi-clinic platform](../../design/platform-hld.md). Adds the
-`Clinics` table and makes the catalog (drugs, groups, group items) belong to a clinic. Isolation is
+`Clinics` table and makes the catalog (drugs, protocols, protocol items) belong to a clinic. Isolation is
 automatic: an EF Core global query filter limits every query to the request's clinic, and a
 `SaveChanges` interceptor stamps new rows with that clinic and fills UTC timestamps. The request's
 clinic comes from the token's `clinic_id` (M1.2; the temporary middleware of M1.1 is gone). API
@@ -25,13 +25,13 @@ contracts are unchanged.
 | Table | Change |
 |---|---|
 | Drugs | + `ClinicId` (FK → `Clinics`, restrict), index `(ClinicId, Name)`, unique `(Id, ClinicId)`, timestamps |
-| DrugGroups | + `ClinicId` (FK, restrict), index `(ClinicId, Name)`, unique `(Id, ClinicId)`, timestamps |
-| DrugGroupItems | + `ClinicId` (FK, restrict), timestamps; FKs to its group and drug are **composite**: `(DrugGroupId, ClinicId)` → `DrugGroups(Id, ClinicId)` and `(DrugId, ClinicId)` → `Drugs(Id, ClinicId)` (both cascade) |
+| Protocols | + `ClinicId` (FK, restrict), index `(ClinicId, Name)`, unique `(Id, ClinicId)`, timestamps |
+| ProtocolItems | + `ClinicId` (FK, restrict), timestamps; FKs to its protocol and drug are **composite**: `(ProtocolId, ClinicId)` → `Protocols(Id, ClinicId)` and `(DrugId, ClinicId)` → `Drugs(Id, ClinicId)` (both cascade) |
 
-The composite FKs make the database itself reject an item whose group or drug is in another
+The composite FKs make the database itself reject an item whose protocol or drug is in another
 clinic (the unique `(Id, ClinicId)` alternate keys exist only as their targets).
 
-Owned `Dosing`, cascades and "one drug per group per eye" are unchanged. Migration: the single
+Owned `Dosing`, cascades and "one drug per protocol per eye" are unchanged. Migration: the single
 PostgreSQL `Initial` was regenerated (nothing in production; dev DBs reset with
 `docker compose down -v && docker compose up -d`).
 
@@ -40,10 +40,10 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 
 | Case | Result |
 |---|---|
-| List drugs / groups | only the current clinic's rows |
-| GET/PUT/DELETE another clinic's drug or group | 404 |
-| Group items with another clinic's drug | 400 `drugNotFound` |
-| `GET /drugs/{id}/groups` for another clinic's drug | `[]` |
+| List drugs / protocols | only the current clinic's rows |
+| GET/PUT/DELETE another clinic's drug or protocol | 404 |
+| Protocol items with another clinic's drug | 400 `drugNotFound` |
+| `GET /drugs/{id}/protocols` for another clinic's drug | `[]` |
 
 ## Backend
 - `IClinicOwned` (`ClinicId`), `IHasTimestamps` (`CreatedAt`, `UpdatedAt`) in `ClinicHub.Domain/Common`;
@@ -63,8 +63,8 @@ No new endpoints, no contract changes. Behavior inside a clinic:
     only (`CreatedAt` is never overwritten). A change to an owned value (e.g. only a drug's
     `DefaultDosing`) counts as a change to its owner (owners found with one key lookup, so bulk
     saves stay linear).
-- `UpdateDrugGroupCommandHandler` marks the group's `UpdatedAt` modified (`IAppDbContext.Touch`), so
-  replacing only the lines also moves the group's `UpdatedAt`.
+- `UpdateProtocolCommandHandler` marks the protocol's `UpdatedAt` modified (`IAppDbContext.Touch`), so
+  replacing only the lines also moves the protocol's `UpdatedAt`.
 - Handlers use `FirstOrDefaultAsync(x => x.Id == id)` instead of `FindAsync` (which can return
   a tracked entity without going through the filter).
 - *(Replaced in M1.2 by the token's `clinic_id`, see [login](../auth/tech.md); kept for history.)*
@@ -77,7 +77,7 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 - `StartupSeeder` (`ClinicHub.Infrastructure/Platform` since M1.4 part 3: the dev seed needs its own
   transaction and `ChangeTracker.Clear()`; resolved through Application's `IStartupSeeder`), run on every startup after migrations (idempotent):
   - ensures the template clinic ("Template clinic", `IsTemplate`) exists;
-  - Development, no non-template clinic yet: fills the template (2 eye drops + group "After cataract
+  - Development, no non-template clinic yet: fills the template (2 eye drops + protocol "After cataract
     surgery"), then creates "Demo clinic" and "Second demo clinic" through `CreateClinicCommand`, so both
     start with a copy of the template (since M1.5.2, [platform admin](../platform-admin/tech.md#dev-seed));
     "Demo clinic" also gets 10,000 "Drug number N". It enters each clinic with `IClinicScope.Use(clinicId)`
@@ -101,10 +101,10 @@ Catalog calls never send a clinic: it comes from the token. The SPA picks the cl
 - Suspension is enforced per request by the permission check (M1.3; [access](../access/tech.md)), not only at
   login and switch. *(History: in M1.1 `Status` only picked the default clinic and the dev header accepted suspended
   clinics; in M1.2 open access tokens stayed valid ≤ 15 min after a suspension.)*
-- A group PUT always moves the group's `UpdatedAt` (even with no change), and its lines are
-  re-inserted, so a line's `CreatedAt` is the last group save. A drug PUT with an identical
+- A protocol PUT always moves the protocol's `UpdatedAt` (even with no change), and its lines are
+  re-inserted, so a line's `CreatedAt` is the last protocol save. A drug PUT with an identical
   non-null dosing also moves `UpdatedAt` (the dosing is replaced). Deleting a drug removes its
-  lines (DB cascade) without moving those groups' `UpdatedAt`.
+  lines (DB cascade) without moving those protocols' `UpdatedAt`.
 - The prescription in `localStorage` is not per clinic yet (planned with login). *(Done in M1.2:
   `prescription.lines.<clinicId>`.)*
 

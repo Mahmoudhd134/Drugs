@@ -1,6 +1,6 @@
 using System.Net;
 using ClinicHub.Application.Common.Paging;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -24,22 +24,22 @@ public class TemplateClinicTests(AppFixture app) : IntegrationTest(app)
     public async Task The_super_admin_in_the_template_lists_only_the_templates_rows()
     {
         var templateId = await App.TemplateClinicIdAsync();
-        await Data.Group(templateId);
+        await Data.Protocol(templateId);
         var clinic = await Data.Clinic();
-        await Data.Group(clinic);
+        await Data.Protocol(clinic);
         var admin = await Login.SuperAdminInTemplateAsync();
         var templateDrugs = await App.QueryDbAsync(db =>
             db.Drugs.IgnoreQueryFilters().Where(d => d.ClinicId == templateId).Select(d => d.Id).ToListAsync());
-        var templateGroups = await App.QueryDbAsync(db =>
-            db.DrugGroups.IgnoreQueryFilters().Where(g => g.ClinicId == templateId).Select(g => g.Id).ToListAsync());
+        var templateProtocols = await App.QueryDbAsync(db =>
+            db.Protocols.IgnoreQueryFilters().Where(g => g.ClinicId == templateId).Select(g => g.Id).ToListAsync());
 
         var drugs = await (await admin.GetAsync("/api/v1/drugs?pageSize=100")).ReadAsync<PagedResult<DrugDto>>();
-        var groups = await (await admin.GetAsync("/api/v1/drug-groups?pageSize=100")).ReadAsync<PagedResult<DrugGroupDto>>();
+        var protocols = await (await admin.GetAsync("/api/v1/protocols?pageSize=100")).ReadAsync<PagedResult<ProtocolDto>>();
 
         drugs.Items.Select(d => d.Id).ShouldBe(templateDrugs, ignoreOrder: true);
         drugs.TotalCount.ShouldBe(templateDrugs.Count);
-        groups.Items.Select(g => g.Id).ShouldBe(templateGroups, ignoreOrder: true);
-        groups.TotalCount.ShouldBe(templateGroups.Count);
+        protocols.Items.Select(g => g.Id).ShouldBe(templateProtocols, ignoreOrder: true);
+        protocols.TotalCount.ShouldBe(templateProtocols.Count);
     }
 
     [Fact]
@@ -49,22 +49,22 @@ public class TemplateClinicTests(AppFixture app) : IntegrationTest(app)
         var templateId = await App.TemplateClinicIdAsync();
         var drug = await Data.Drug(templateId).Named(Unique.Name("Tobradex", "توبرادكس")).WithDosing(Dosings.Drops());
         var other = await Data.Drug(templateId).Named(Unique.Name("Vigamox", "فيجاموكس"));
-        var group = await Data.Group(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(drug).With(other);
+        var protocol = await Data.Protocol(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(drug).With(other);
         var clinic = await Data.Clinic();
         var copyBefore = await CatalogOfAsync(clinic.Id);
         var admin = await Login.SuperAdminInTemplateAsync();
 
         await (await admin.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = drug.Name + " edited" })).ShouldBeOkAsync();
-        await (await admin.PutAsync($"/api/v1/drug-groups/{group.Id}", new { name = group.Name + " edited", items = new[] { new { drugId = drug.Id } } }))
+        await (await admin.PutAsync($"/api/v1/protocols/{protocol.Id}", new { name = protocol.Name + " edited", items = new[] { new { drugId = drug.Id } } }))
             .ShouldBeOkAsync();
         await (await admin.DeleteAsync($"/api/v1/drugs/{other.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
         (await CatalogOfAsync(clinic.Id)).ShouldBe(copyBefore);
         copyBefore.ShouldContain(drug.Name);
         copyBefore.ShouldContain(other.Name);
-        copyBefore.ShouldContain(group.Name);
+        copyBefore.ShouldContain(protocol.Name);
 
-        await (await admin.DeleteAsync($"/api/v1/drug-groups/{group.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await admin.DeleteAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
         (await CatalogOfAsync(clinic.Id)).ShouldBe(copyBefore);
     }
@@ -77,21 +77,21 @@ public class TemplateClinicTests(AppFixture app) : IntegrationTest(app)
         var templateId = await App.TemplateClinicIdAsync();
         var drug = await Data.Drug(templateId).Named(Unique.Name("Tobradex", "توبرادكس"));
         var other = await Data.Drug(templateId).Named(Unique.Name("Vigamox", "فيجاموكس"));
-        var group = await Data.Group(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(drug).With(other);
+        var protocol = await Data.Protocol(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(drug).With(other);
         var templateBefore = await CatalogOfAsync(templateId);
         var clinic = await Data.Clinic();
         var owner = await Login.OwnerAsync(clinic);
         var copies = await (await owner.GetAsync("/api/v1/drugs?pageSize=100")).ReadAsync<PagedResult<DrugDto>>();
         var drugCopy = copies.Items.Single(d => d.Name == drug.Name);
         var otherCopy = copies.Items.Single(d => d.Name == other.Name);
-        var groupCopy = (await (await owner.GetAsync("/api/v1/drug-groups?pageSize=100")).ReadAsync<PagedResult<DrugGroupDto>>())
-            .Items.Single(g => g.Name == group.Name);
+        var protocolCopy = (await (await owner.GetAsync("/api/v1/protocols?pageSize=100")).ReadAsync<PagedResult<ProtocolDto>>())
+            .Items.Single(g => g.Name == protocol.Name);
 
         await (await owner.PutAsync($"/api/v1/drugs/{drugCopy.Id}", new { name = drug.Name + " mine" })).ShouldBeOkAsync();
-        await (await owner.PutAsync($"/api/v1/drug-groups/{groupCopy.Id}", new { name = group.Name + " mine", items = new[] { new { drugId = drugCopy.Id } } }))
+        await (await owner.PutAsync($"/api/v1/protocols/{protocolCopy.Id}", new { name = protocol.Name + " mine", items = new[] { new { drugId = drugCopy.Id } } }))
             .ShouldBeOkAsync();
         await (await owner.DeleteAsync($"/api/v1/drugs/{otherCopy.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
-        await (await owner.DeleteAsync($"/api/v1/drug-groups/{groupCopy.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await owner.DeleteAsync($"/api/v1/protocols/{protocolCopy.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
         (await CatalogOfAsync(templateId)).ShouldBe(templateBefore);
     }
@@ -102,19 +102,19 @@ public class TemplateClinicTests(AppFixture app) : IntegrationTest(app)
     {
         var templateId = await App.TemplateClinicIdAsync();
         var drug = await Data.Drug(templateId).Named(Unique.Name("Tobradex", "توبرادكس"));
-        var group = await Data.Group(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(drug);
+        var protocol = await Data.Protocol(templateId).Named(Unique.Name("Post cataract", "بعد المياه البيضاء")).With(drug);
         var admin = await Login.SuperAdminInTemplateAsync();
         var editedDrug = drug.Name + " edited";
-        var editedGroup = group.Name + " edited";
+        var editedProtocol = protocol.Name + " edited";
         await (await admin.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = editedDrug, defaultDosing = Dosings.Tablets() })).ShouldBeOkAsync();
-        await (await admin.PutAsync($"/api/v1/drug-groups/{group.Id}", new { name = editedGroup, items = new[] { new { drugId = drug.Id } } }))
+        await (await admin.PutAsync($"/api/v1/protocols/{protocol.Id}", new { name = editedProtocol, items = new[] { new { drugId = drug.Id } } }))
             .ShouldBeOkAsync();
 
         var clinic = await Data.Clinic();
 
         var catalog = await CatalogOfAsync(clinic.Id);
         catalog.ShouldContain(editedDrug);
-        catalog.ShouldContain(editedGroup);
+        catalog.ShouldContain(editedProtocol);
         catalog.ShouldNotContain(drug.Name + "|");
         var copy = await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.ClinicId == clinic.Id && d.Name == editedDrug));
         copy.DefaultDosing.ShouldNotBeNull();
@@ -143,16 +143,16 @@ public class TemplateClinicTests(AppFixture app) : IntegrationTest(app)
         await (await several.SwitchContextAsync("clinic", templateId)).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "noAccess");
     }
 
-    /// <summary>A clinic's drugs (name, description, dosing) and groups (name, line drug names), as one comparable text.</summary>
+    /// <summary>A clinic's drugs (name, description, dosing) and protocols (name, line drug names), as one comparable text.</summary>
     private Task<string> CatalogOfAsync(int clinicId) => App.QueryDbAsync(async db =>
     {
         var drugs = await db.Drugs.IgnoreQueryFilters().Where(d => d.ClinicId == clinicId).OrderBy(d => d.Id).ToListAsync();
-        var groups = await db.DrugGroups.IgnoreQueryFilters().Where(g => g.ClinicId == clinicId)
+        var protocols = await db.Protocols.IgnoreQueryFilters().Where(g => g.ClinicId == clinicId)
             .Include(g => g.Items).ThenInclude(i => i.Drug).OrderBy(g => g.Id).ToListAsync();
         return string.Join("\n", drugs.Select(d =>
                    $"{d.Id}|{d.Name}|{d.Description}|{System.Text.Json.JsonSerializer.Serialize(d.DefaultDosing)}"))
                + "\n#\n"
-               + string.Join("\n", groups.Select(g =>
+               + string.Join("\n", protocols.Select(g =>
                    $"{g.Id}|{g.Name}|{string.Join(",", g.Items.OrderBy(i => i.Order).Select(i => i.Drug.Name + ":" + System.Text.Json.JsonSerializer.Serialize(i.Dosing)))}"));
     });
 }

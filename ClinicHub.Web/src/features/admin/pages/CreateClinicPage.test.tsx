@@ -186,7 +186,7 @@ describe("create clinic: what the page explains @area:admin", () => {
     test("the owner hint and the template note @ADM-089", async () => {
         await openForm();
         expect(screen.getByText("يدخل المالك برقم الموبايل هذا. إن كان للرقم حساب من قبل يُستخدم نفس الحساب.")).toBeInTheDocument();
-        expect(screen.getByText("تبدأ العيادة بالأدوار الافتراضية (المالك، ⁨Doctor⁩، ⁨Assistant⁩) ونسخة من الأدوية والمجموعات الافتراضية."))
+        expect(screen.getByText("تبدأ العيادة بالأدوار الافتراضية (المالك، ⁨Doctor⁩، ⁨Assistant⁩) ونسخة من الأدوية والبروتوكولات الافتراضية."))
             .toBeInTheDocument();
     });
 
@@ -194,7 +194,7 @@ describe("create clinic: what the page explains @area:admin", () => {
         await openForm("en");
         expect(screen.getByText("The owner logs in with this mobile number. If this number already has an account, that account is used."))
             .toBeInTheDocument();
-        expect(screen.getByText("The clinic starts with the default roles (Owner, Doctor, Assistant) and a copy of the default drugs and groups."))
+        expect(screen.getByText("The clinic starts with the default roles (Owner, Doctor, Assistant) and a copy of the default drugs and protocols."))
             .toBeInTheDocument();
     });
 });

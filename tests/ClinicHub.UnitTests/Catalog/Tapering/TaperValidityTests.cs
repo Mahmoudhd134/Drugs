@@ -35,7 +35,7 @@ public class TaperValidityTests
         var steps = Enumerable.Range(0, count).Select(i => Step("daily", 12 - i, "days", 3)).ToArray();
 
         Accepted(Taper(steps)).ShouldBe(valid, $"{count} steps");
-        Accepted(Taper(steps), groupLine: true).ShouldBe(valid, $"{count} steps on a group line");
+        Accepted(Taper(steps), groupLine: true).ShouldBe(valid, $"{count} steps on a protocol line");
     }
 
     [Theory]
@@ -147,7 +147,7 @@ public class TaperValidityTests
     [Fact]
     public void A_later_step_dose_needs_no_unit_on_the_dosing()
     {
-        // tapering tech § Backend: "A step dose does not require the dosing's own unit, because a group line may
+        // tapering tech § Backend: "A step dose does not require the dosing's own unit, because a protocol line may
         // inherit the unit from the drug" (catalog TAPER-016 at the API level)
         var dosing = new Dosing { Eye = "ask", TaperSteps = [Daily(4), Step("daily", 3, "weeks", 1, 2)] };
 
@@ -157,21 +157,21 @@ public class TaperValidityTests
 
     [Fact]
     [Trait("Case", "TAPER-080")]
-    public void A_first_step_dose_without_a_unit_is_invalid_on_a_drug_default_and_a_group_line()
+    public void A_first_step_dose_without_a_unit_is_invalid_on_a_drug_default_and_a_protocol_line()
     {
         // tapering tech § Backend: "Step 1's dose becomes the dosing's dose (above), so it needs the unit like any dose
-        // (invalidDosing without it)"; unlike a later step's dose (TAPER-016), a group line can't inherit it
+        // (invalidDosing without it)"; unlike a later step's dose (TAPER-016), a protocol line can't inherit it
         var noUnit = new Dosing { TaperSteps = [Step("daily", 4, "weeks", 1, 2), Daily(3)] };
         var askEye = new Dosing { Eye = "ask", TaperSteps = [Step("daily", 4, "weeks", 1, 2), Daily(3)] };
 
         Accepted(noUnit).ShouldBeFalse("drug default");
-        Accepted(noUnit, groupLine: true).ShouldBeFalse("group line");
-        Accepted(askEye, groupLine: true).ShouldBeFalse("group line with the ask eye");
+        Accepted(noUnit, groupLine: true).ShouldBeFalse("protocol line");
+        Accepted(askEye, groupLine: true).ShouldBeFalse("protocol line with the ask eye");
 
         // The same schedule with the unit is accepted
         var withUnit = new Dosing { DoseUnit = "drop", TaperSteps = [Step("daily", 4, "weeks", 1, 2), Daily(3)] };
         Accepted(withUnit).ShouldBeTrue("drug default with the unit");
-        Accepted(withUnit, groupLine: true).ShouldBeTrue("group line with the unit");
+        Accepted(withUnit, groupLine: true).ShouldBeTrue("protocol line with the unit");
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class TaperValidityTests
     }
 
     [Fact]
-    public void Eye_ask_with_a_schedule_is_only_valid_on_a_group_line()
+    public void Eye_ask_with_a_schedule_is_only_valid_on_a_protocol_line()
     {
         var dosing = Taper(Daily(2, "days", 7), Daily(1, "untilNextVisit", null));
         dosing.Eye = "ask";

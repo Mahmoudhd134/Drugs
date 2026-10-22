@@ -217,7 +217,7 @@ $areaMap = @(
     # A clinic's state decides who can log in
     @{ Pattern = '^ClinicHub\.(Application|Domain)/(Features/)?Platform/'; Areas = @('admin', 'auth') },
     @{ Pattern = '^ClinicHub\.(Api|Infrastructure)/(Features/)?Platform/'; Areas = @('admin') },
-    @{ Pattern = '^ClinicHub\.(Api|Application|Domain)/(Features/)?(Catalog|Drugs|DrugGroups)/'; Areas = @('catalog') },
+    @{ Pattern = '^ClinicHub\.(Api|Application|Domain)/(Features/)?(Catalog|Drugs|Protocols)/'; Areas = @('catalog') },
     @{ Pattern = '^ClinicHub\.Application/Common/(Paging|Search)/'; Areas = @('catalog', 'admin') },
     @{ Pattern = '^ClinicHub\.Application/Common/(Results|Behaviors|Validation|Messaging)/'; Areas = @('errors') },
     @{ Pattern = '^ClinicHub\.Application/Common/Settings/PlatformSettings'; Areas = @('admin', 'auth') },

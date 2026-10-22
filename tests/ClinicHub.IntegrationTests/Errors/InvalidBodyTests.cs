@@ -55,10 +55,10 @@ public class InvalidBodyTests(AppFixture app) : IntegrationTest(app)
         var owner = await OwnerAsync();
 
         var drug = await owner.SendRawAsync(HttpMethod.Post, "/api/v1/drugs", """{"name": 123}""");
-        var group = await owner.SendRawAsync(HttpMethod.Post, "/api/v1/drug-groups", """{"name": "Post cataract", "items": "x"}""");
+        var protocol = await owner.SendRawAsync(HttpMethod.Post, "/api/v1/protocols", """{"name": "Post cataract", "items": "x"}""");
 
         (await drug.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest")).ShouldHaveError("name", "invalidRequest");
-        (await group.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest")).ShouldHaveError("items", "invalidRequest");
+        (await protocol.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest")).ShouldHaveError("items", "invalidRequest");
     }
 
     [Fact]

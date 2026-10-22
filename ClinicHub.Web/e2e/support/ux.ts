@@ -1,6 +1,6 @@
 import {expect, type Locator, type Page, test} from "@playwright/test";
 import {expectHealthyPage} from "./checks.ts";
-import type {ClinicHandle, Data, Drug, Group} from "./data.ts";
+import type {ClinicHandle, Data, Drug, Protocol} from "./data.ts";
 import {settled} from "./fixtures.ts";
 import {unique, uniqueDigits} from "./phones.ts";
 import {type Lang, TEXTS, type Texts} from "./texts.ts";
@@ -9,7 +9,7 @@ import {DOSINGS, LANGUAGE_NAMES, TEN_STEP_TAPER, UX_TEXTS, type UxTexts} from ".
 /** Helpers of the I18N and UX specs (e2e stage 2, track e2e-ux). */
 
 export type FullDrug = Drug & { description: string | null; defaultDosing: unknown };
-export type GroupItem = { drug: Drug; dosing?: unknown };
+export type ProtocolItem = { drug: Drug; dosing?: unknown };
 
 /** A drug with a description and a default dosing (the owner through the API). */
 export const drugWith = async (data: Data, clinic: ClinicHandle,
@@ -22,16 +22,16 @@ export const drugWith = async (data: Data, clinic: ClinicHandle,
     });
 };
 
-/** A group whose lines may carry dosing overrides. */
-export const groupWith = async (data: Data, clinic: ClinicHandle, name: string, items: GroupItem[]) => {
+/** A protocol whose lines may carry dosing overrides. */
+export const protocolWith = async (data: Data, clinic: ClinicHandle, name: string, items: ProtocolItem[]) => {
     const api = await data.ownerApi(clinic);
-    return api.ok<Group>("POST", "/api/v1/drug-groups", {
+    return api.ok<Protocol>("POST", "/api/v1/protocols", {
         name, items: items.map(i => ({drugId: i.drug.id, dosing: i.dosing ?? null})),
     });
 };
 
-/** How many drugs / groups of the clinic have exactly this name (through the API). */
-export const countNamed = async (data: Data, clinic: ClinicHandle, what: "drugs" | "drug-groups", name: string) => {
+/** How many drugs / protocols of the clinic have exactly this name (through the API). */
+export const countNamed = async (data: Data, clinic: ClinicHandle, what: "drugs" | "protocols", name: string) => {
     const api = await data.ownerApi(clinic);
     const page = await api.ok<{ items: { name: string }[] }>("GET", `/api/v1/${what}?search=${encodeURIComponent(name)}&pageSize=50`);
     return page.items.filter(i => i.name === name).length;
@@ -39,7 +39,7 @@ export const countNamed = async (data: Data, clinic: ClinicHandle, what: "drugs"
 
 /**
  * A clinic with the data the tours need: Latin and Arabic drug names and descriptions, a drug with a 10-step taper,
- * and a group (Arabic name) whose first line overrides the times (GRP-068) and whose second asks for the eye.
+ * and a protocol (Arabic name) whose first line overrides the times (GRP-068) and whose second asks for the eye.
  */
 export const tourClinic = async (data: Data) => {
     const clinic = await data.clinic();
@@ -50,11 +50,11 @@ export const tourClinic = async (data: Data) => {
         name: `قطرة مرطبة ${uniqueDigits()}`, description: "قطرة لترطيب العين", defaultDosing: DOSINGS.twoDropsLeft.dosing,
     });
     const taper = await drugWith(data, clinic, {name: `Pred Forte ${unique()}`, defaultDosing: TEN_STEP_TAPER});
-    const group = await groupWith(data, clinic, `بعد عملية المياه البيضاء ${uniqueDigits()}`, [
+    const protocol = await protocolWith(data, clinic, `بعد عملية المياه البيضاء ${uniqueDigits()}`, [
         {drug: latin, dosing: DOSINGS.sixTimesOverride.dosing},
         {drug: arabic, dosing: {eye: "ask"}},
     ]);
-    return {clinic, latin, arabic, taper, group};
+    return {clinic, latin, arabic, taper, protocol};
 };
 
 export type Tour = Awaited<ReturnType<typeof tourClinic>>;
@@ -237,9 +237,9 @@ export const textRect = async (element: Locator, text: string) =>
         throw new Error(`"${wanted}" not found in ${root.textContent}`);
     }, text);
 
-/** Clicks the prescription catalog's tab (Groups / Drugs). */
-export const rxTab = async (page: Page, t: Texts, tab: "drugs" | "groups") => {
-    await page.getByRole("tab", {name: tab === "drugs" ? t.rxTabDrugs : t.rxTabGroups}).click();
+/** Clicks the prescription catalog's tab (Protocols / Drugs). */
+export const rxTab = async (page: Page, t: Texts, tab: "drugs" | "protocols") => {
+    await page.getByRole("tab", {name: tab === "drugs" ? t.rxTabDrugs : t.rxTabProtocols}).click();
 };
 
 /** The visible search field of a picker (the prescription keeps both pickers mounted, one hidden). */
@@ -260,10 +260,10 @@ export const addDrugToRx = async (page: Page, t: Texts, name: string) => {
     await pick(page, t.searchDrugs, name);
 };
 
-/** Clicks a group in the prescription's Groups tab (its dialogs, if any, are left to the caller). */
-export const addGroupToRx = async (page: Page, t: Texts, name: string) => {
-    await rxTab(page, t, "groups");
-    await pick(page, t.searchGroups, name);
+/** Clicks a protocol in the prescription's Protocols tab (its dialogs, if any, are left to the caller). */
+export const addProtocolToRx = async (page: Page, t: Texts, name: string) => {
+    await rxTab(page, t, "protocols");
+    await pick(page, t.searchProtocols, name);
 };
 
 /** The prescription's lines panel («الأدوية المختارة»). */
@@ -272,7 +272,7 @@ export const linesPanel = (page: Page, u: UxTexts) => page.locator("main .MuiPap
 /** A drug name as shown in a line or list (visible copy only). */
 export const shownName = (page: Page, name: string) => page.getByText(name, {exact: true}).filter({visible: true}).first();
 
-/** The panel of a sortable list (prescription lines, group lines): the one with drag handles. */
+/** The panel of a sortable list (prescription lines, protocol lines): the one with drag handles. */
 export const sortablePanel = (page: Page, u: UxTexts) =>
     page.locator("main .MuiPaper-root").filter({has: page.getByRole("button", {name: u.dragToReorder})});
 
@@ -285,8 +285,8 @@ export const orderOnScreen = async (scope: Locator, names: string[]) => {
 /** A drugs-table row by the drug's name. */
 export const drugRow = (page: Page, name: string) => page.getByRole("row").filter({has: page.getByText(name, {exact: true})});
 
-/** A groups-list card by the group's name. */
-export const groupCard = (page: Page, name: string) =>
+/** A protocols-list card by the protocol's name. */
+export const protocolCard = (page: Page, name: string) =>
     page.locator(".MuiCard-root").filter({has: page.getByText(name, {exact: true})});
 
 /** The open dialog (MUI keeps a closing one in the DOM while it fades: the visible one). */
@@ -298,7 +298,7 @@ export const expectNoDialog = async (page: Page) => {
 
 /**
  * Each page and dialog of the catalog and prescription areas, in turn (in the UI language now): `check(what)` runs on
- * each. Leaves the prescription with the tour's lines (latin from the drug, the group's lines).
+ * each. Leaves the prescription with the tour's lines (latin from the drug, the protocol's lines).
  */
 export const tourPages = async (page: Page, tour: Tour, check: (what: string) => Promise<void>) => {
     const lang = await uiLang(page);
@@ -324,38 +324,38 @@ export const tourPages = async (page: Page, tour: Tour, check: (what: string) =>
     await dialog(page).getByRole("button", {name: t.cancel}).click();
     await expectNoDialog(page);
 
-    // Groups: the list, a delete confirmation, the editor, its line dialog, the discard question, a new group
-    await open(page, "/groups");
-    await expect(groupCard(page, tour.group.name)).toBeVisible();
-    await check("groups list");
-    await groupCard(page, tour.group.name).getByRole("button", {name: t.delete}).click();
-    await expect(dialog(page).getByText(u.deleteGroupTitle)).toBeVisible();
-    await check("delete-group confirmation");
+    // Protocols: the list, a delete confirmation, the editor, its line dialog, the discard question, a new protocol
+    await open(page, "/protocols");
+    await expect(protocolCard(page, tour.protocol.name)).toBeVisible();
+    await check("protocols list");
+    await protocolCard(page, tour.protocol.name).getByRole("button", {name: t.delete}).click();
+    await expect(dialog(page).getByText(u.deleteProtocolTitle)).toBeVisible();
+    await check("delete-protocol confirmation");
     await dialog(page).getByRole("button", {name: t.cancel}).click();
     await expectNoDialog(page);
-    await open(page, `/groups/${tour.group.id}`);
-    await expect(page.getByRole("textbox", {name: t.groupName})).toHaveValue(tour.group.name);
+    await open(page, `/protocols/${tour.protocol.id}`);
+    await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(tour.protocol.name);
     await expect(shownName(page, tour.latin.name)).toBeVisible();
-    await check("group editor");
+    await check("protocol editor");
     await page.getByRole("button", {name: u.editLine}).first().click();
     await expect(dialog(page)).toBeVisible();
-    await check("group line dialog");
+    await check("protocol line dialog");
     await dialog(page).getByRole("button", {name: t.cancel}).click();
     await expectNoDialog(page);
-    const groupName = page.getByRole("textbox", {name: t.groupName});
-    await groupName.fill(`${tour.group.name} x`);
+    const protocolName = page.getByRole("textbox", {name: t.protocolName});
+    await protocolName.fill(`${tour.protocol.name} x`);
     await page.getByRole("button", {name: t.back}).click();
     await expect(dialog(page).getByText(u.discardTitle)).toBeVisible();
     await check("discard question");
     await dialog(page).getByRole("button", {name: t.cancel}).click();
     await expectNoDialog(page);
     // Back to the saved name: nothing left to discard (no "leave the page?" prompt)
-    await groupName.fill(tour.group.name);
-    await open(page, "/groups/new");
-    await expect(page.getByRole("textbox", {name: t.groupName})).toBeVisible();
-    await check("new group editor");
+    await protocolName.fill(tour.protocol.name);
+    await open(page, "/protocols/new");
+    await expect(page.getByRole("textbox", {name: t.protocolName})).toBeVisible();
+    await check("new protocol editor");
 
-    // Prescription: empty, then a drug, then the group (eye question, conflict), the line dialog, Edit & copy
+    // Prescription: empty, then a drug, then the protocol (eye question, conflict), the line dialog, Edit & copy
     await open(page, "/");
     await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith("prescription.")).forEach(k => localStorage.removeItem(k)));
     await open(page, "/");
@@ -363,7 +363,7 @@ export const tourPages = async (page: Page, tour: Tour, check: (what: string) =>
     await check("empty prescription");
     await addDrugToRx(page, t, tour.latin.name);
     await expect(shownName(page, DOSINGS.oneDropFour.text)).toBeVisible();
-    await addGroupToRx(page, t, tour.group.name);
+    await addProtocolToRx(page, t, tour.protocol.name);
     await expect(dialog(page).getByText(u.chooseEyeTitle)).toBeVisible();
     await check("eye question");
     await dialog(page).getByRole("button", {name: u.eyeRight, exact: true}).click();

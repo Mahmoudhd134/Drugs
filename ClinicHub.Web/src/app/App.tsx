@@ -25,10 +25,10 @@ const PrescriptionPage = lazy(() => import("../features/prescription/pages/Presc
     .then(m => ({default: m.PrescriptionPage})));
 const DrugsPage = lazy(() => import("../features/drugs/pages/DrugsPage.tsx")
     .then(m => ({default: m.DrugsPage})));
-const DrugGroupsPage = lazy(() => import("../features/drugGroups/pages/DrugGroupsPage.tsx")
-    .then(m => ({default: m.DrugGroupsPage})));
-const DrugGroupEditorPage = lazy(() => import("../features/drugGroups/pages/DrugGroupEditorPage.tsx")
-    .then(m => ({default: m.DrugGroupEditorPage})));
+const ProtocolsPage = lazy(() => import("../features/protocols/pages/ProtocolsPage.tsx")
+    .then(m => ({default: m.ProtocolsPage})));
+const ProtocolEditorPage = lazy(() => import("../features/protocols/pages/ProtocolEditorPage.tsx")
+    .then(m => ({default: m.ProtocolEditorPage})));
 
 type ClinicRoute = PermissionRule & {
     /** Omit for the index route ("/") */
@@ -41,9 +41,9 @@ type ClinicRoute = PermissionRule & {
 // Pages of the clinic app, each behind its permission(s)
 const CLINIC_ROUTES: ClinicRoute[] = [
     {page: <PrescriptionPage/>, permission: PERMISSIONS.prescriptions.create, denied: <FirstAllowedPage/>},
-    {path: "groups", page: <DrugGroupsPage/>, permission: PERMISSIONS.groups.list},
-    {path: "groups/new", page: <DrugGroupEditorPage/>, permission: PERMISSIONS.groups.create},
-    {path: "groups/:id", page: <DrugGroupEditorPage/>, permission: PERMISSIONS.groups.details},
+    {path: "protocols", page: <ProtocolsPage/>, permission: PERMISSIONS.protocols.list},
+    {path: "protocols/new", page: <ProtocolEditorPage/>, permission: PERMISSIONS.protocols.create},
+    {path: "protocols/:id", page: <ProtocolEditorPage/>, permission: PERMISSIONS.protocols.details},
     {path: "drugs", page: <DrugsPage/>, permission: PERMISSIONS.drugs.list},
 ];
 

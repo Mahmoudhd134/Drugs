@@ -177,17 +177,17 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DRUG-074")]
-    public async Task The_groups_using_a_drug_are_listed_by_name()
+    public async Task The_protocols_using_a_drug_are_listed_by_name()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
         var other = await Data.Drug(clinic);
-        await Data.Group(clinic).Named("التهاب الملتحمة").With(drug).With(other);
-        await Data.Group(clinic).Named("Post cataract").With(other).With(drug);
-        await Data.Group(clinic).Named("Unrelated").With(other);
+        await Data.Protocol(clinic).Named("التهاب الملتحمة").With(drug).With(other);
+        await Data.Protocol(clinic).Named("Post cataract").With(other).With(drug);
+        await Data.Protocol(clinic).Named("Unrelated").With(other);
 
-        var response = await owner.GetAsync($"{DrugsUrl}/{drug.Id}/groups");
+        var response = await owner.GetAsync($"{DrugsUrl}/{drug.Id}/protocols");
 
         await response.ShouldBeOkAsync();
         // Latin names before Arabic ones (drugs § القواعد: the same name ordering as the lists)
@@ -196,28 +196,28 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DRUG-075")]
-    public async Task A_group_using_the_drug_twice_is_named_once()
+    public async Task A_protocol_using_the_drug_twice_is_named_once()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
-        var group = await Data.Group(clinic)
+        var protocol = await Data.Protocol(clinic)
             .With(drug, new Dosing { Eye = "right" })
             .With(drug, new Dosing { Eye = "left" });
 
-        var response = await owner.GetAsync($"{DrugsUrl}/{drug.Id}/groups");
+        var response = await owner.GetAsync($"{DrugsUrl}/{drug.Id}/protocols");
 
         await response.ShouldBeOkAsync();
-        (await response.ReadAsync<List<string>>()).ShouldBe([group.Name]);
+        (await response.ReadAsync<List<string>>()).ShouldBe([protocol.Name]);
     }
 
     [Fact]
     [Trait("Case", "DRUG-076")]
-    public async Task The_groups_of_an_unknown_drug_are_an_empty_list()
+    public async Task The_protocols_of_an_unknown_drug_are_an_empty_list()
     {
         var owner = await OwnerAsync();
 
-        var response = await owner.GetAsync($"{DrugsUrl}/{UnknownId}/groups");
+        var response = await owner.GetAsync($"{DrugsUrl}/{UnknownId}/protocols");
 
         await response.ShouldBeOkAsync();
         var body = await response.ReadNodeAsync();
@@ -227,23 +227,23 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
     [Fact]
     [Trait("Tier", "Smoke")]
     [Trait("Case", "DRUG-077")]
-    public async Task Deleting_a_drug_removes_it_and_its_group_lines_and_keeps_the_groups()
+    public async Task Deleting_a_drug_removes_it_and_its_protocol_lines_and_keeps_the_protocols()
     {
         var clinic = await SharedClinicAsync();
         var owner = await OwnerAsync();
         var drug = await Data.Drug(clinic);
         var other = await Data.Drug(clinic);
-        var shared = await Data.Group(clinic).With(other).With(drug);
-        var only = await Data.Group(clinic).With(drug);
+        var shared = await Data.Protocol(clinic).With(other).With(drug);
+        var only = await Data.Protocol(clinic).With(drug);
 
         var response = await owner.DeleteAsync($"{DrugsUrl}/{drug.Id}");
 
         await response.ShouldBeAsync(HttpStatusCode.NoContent);
         await (await owner.GetAsync($"{DrugsUrl}/{drug.Id}")).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
-        var sharedNow = await GetGroupAsync(owner, shared.Id);
+        var sharedNow = await GetProtocolAsync(owner, shared.Id);
         sharedNow.Items.Select(i => i.Drug.Id).ShouldBe([other.Id]);
-        // A group can be left with no line (drug-groups tech § Data model)
-        (await GetGroupAsync(owner, only.Id)).Items.ShouldBeEmpty();
+        // A protocol can be left with no line (protocols tech § Data model)
+        (await GetProtocolAsync(owner, only.Id)).Items.ShouldBeEmpty();
         (await GetDrugAsync(owner, other.Id)).Id.ShouldBe(other.Id);
     }
 

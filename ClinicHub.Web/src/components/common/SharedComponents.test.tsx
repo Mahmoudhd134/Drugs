@@ -2,10 +2,10 @@ import {beforeEach, describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {Link, Route, Routes} from "react-router-dom";
 import {http, HttpResponse} from "msw";
-import {aDrug, aGroup, aPage, api, drugGroupsHandlers, hoverTooltip, renderWithProviders, server, tapTooltip} from "../../test";
+import {aDrug, aProtocol, aPage, api, protocolsHandlers, hoverTooltip, renderWithProviders, server, tapTooltip} from "../../test";
 import type {Drug} from "../../features/drugs/types.ts";
 import {DrugPicker} from "../../features/drugs/components/DrugPicker.tsx";
-import {GroupPicker} from "../../features/drugGroups/components/GroupPicker.tsx";
+import {ProtocolPicker} from "../../features/protocols/components/ProtocolPicker.tsx";
 import {AppShell} from "../layout/AppShell.tsx";
 import {PageBoundary} from "./PageBoundary.tsx";
 import {useConfirm} from "./useConfirm.tsx";
@@ -86,10 +86,10 @@ describe("search lists: keyboard @area:ux", () => {
         expect(onSelect).toHaveBeenLastCalledWith(expect.objectContaining({name: "Cosopt"}));
     });
 
-    test("a double click in the group picker adds the group once @UX-027", async () => {
+    test("a double click in the protocol picker adds the protocol once @UX-027", async () => {
         const onSelect = vi.fn();
-        server.use(...drugGroupsHandlers([aGroup({name: "Post cataract"})]));
-        const {user} = await renderWithProviders(<GroupPicker onSelect={onSelect}/>, {lang: "ar"});
+        server.use(...protocolsHandlers([aProtocol({name: "Post cataract"})]));
+        const {user} = await renderWithProviders(<ProtocolPicker onSelect={onSelect}/>, {lang: "ar"});
         await user.dblClick(await screen.findByRole("option", {name: /Post cataract/}));
         expect(onSelect).toHaveBeenCalledTimes(1);
     });

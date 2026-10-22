@@ -4,6 +4,6 @@ GET {{ClinicHub.Api_HostAddress}}/api/v1/drugs?search=&page=1&pageSize=20
 
 ###
 
-GET {{ClinicHub.Api_HostAddress}}/api/v1/drug-groups?search=&page=1&pageSize=20
+GET {{ClinicHub.Api_HostAddress}}/api/v1/protocols?search=&page=1&pageSize=20
 
 ###

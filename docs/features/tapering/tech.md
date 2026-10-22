@@ -5,13 +5,13 @@ A [dosing](../dosing/tech.md) can hold an optional **tapering schedule**: 2–10
 its own frequency and duration and, optionally, its own dose. It turns into one Arabic sentence,
 e.g. «نقطتين في العين اليمنى 4 مرات يوميًا لمدة أسبوع، ثم نقطة واحدة 3 مرات يوميًا لمدة أسبوع، ثم يتوقف».
 Because it lives on the shared `Dosing` value, it works everywhere dosing does: drug defaults,
-group overrides and prescription lines, with the same inheritance and conflict rules.
+protocol overrides and prescription lines, with the same inheritance and conflict rules.
 
 ## Data model
 - `TaperStep` (`ClinicHub.Domain/Catalog/Dosing.cs`): `DoseAmount decimal?`, `Frequency`, `FrequencyValue int?`,
   `DurationValue int?`, `DurationUnit`.
 - `Dosing.TaperSteps` (`List<TaperStep>`, nullable) is stored as **one JSON text column** on the
-  owner table (`Drugs.DefaultDosing_TaperSteps`, `DrugGroupItems.Dosing_TaperSteps`), via an EF
+  owner table (`Drugs.DefaultDosing_TaperSteps`, `ProtocolItems.Dosing_TaperSteps`), via an EF
   value converter + value comparer in `DosingConfiguration.Configure` (camelCase, nulls omitted).
 - Why JSON and not a child table: steps are always read and written with their dosing, never
   queried on their own; a JSON column keeps the owned type flat, needs only one nullable column
@@ -21,7 +21,7 @@ group overrides and prescription lines, with the same inheritance and conflict r
   `Initial` ([migrations](../../tech/overview.md#migrations)).
 
 ## API
-No new endpoints. `defaultDosing` (drugs) and `items[].dosing` (groups) accept and return
+No new endpoints. `defaultDosing` (drugs) and `items[].dosing` (protocols) accept and return
 `taperSteps: [{ doseAmount, frequency, frequencyValue, durationValue, durationUnit }] | null`.
 Invalid schedules return 400 `invalidDosing`.
 
@@ -36,7 +36,7 @@ Invalid schedules return 400 `invalidDosing`.
 - `IsValid`: 2–10 steps; every step needs an allowed frequency with its value (1–24 times /
   1–72 hours) and an allowed period with its value (1–365); open-ended periods only on the
   **last** step; step dose 0 < x ≤ 1000; no dosing-level frequency/duration next to steps.
-  A step dose **from step 2 on** does not require the dosing's own unit, because a group line may
+  A step dose **from step 2 on** does not require the dosing's own unit, because a protocol line may
   inherit the unit from the drug. Step 1's dose becomes the dosing's dose (above), so it needs the
   unit like any dose (`invalidDosing` without it); the UI locks step 1's dose to the dose above.
 
@@ -67,12 +67,12 @@ Invalid schedules return 400 `invalidDosing`.
   Grid uses 14 columns on ≥ sm; on phones each step wraps onto 2–3 lines with a divider, and step 1's dose field
   is hidden (it is the dose above, already shown there).
 - `components/TaperGenerator.tsx`: "Generate…" button + popover; shows the step count or an error.
-- Dosing dialogs (drug form, group line, prescription line) are `maxWidth="md"` so a step row fits.
+- Dosing dialogs (drug form, protocol line, prescription line) are `maxWidth="md"` so a step row fits.
 - Shared `components/common/InfoTip.tsx`: ⓘ icon with a tooltip (tap-friendly). The disabled step dose field and the
   disabled «إضافة مرحلة» (at the step limit) explain why in a `TapTooltip` (a tap on a phone shows it at once, ~5 s).
 - i18n: `dosing.taper.*`, `dosing.amountInfo`, `dosing.askEyeInfo`, `dosing.inheritInfo`,
-  `prescription.quickCopyInfo/editAndCopyInfo/clearAllInfo`, `groups.customDosingInfo`.
-- Tooltips were added across the app: dose field, "Ask when adding" eye, group chips, copy and
+  `prescription.quickCopyInfo/editAndCopyInfo/clearAllInfo`, `protocols.customDosingInfo`.
+- Tooltips were added across the app: dose field, "Ask when adding" eye, protocol chips, copy and
   clear buttons, search clear button, mobile menu button.
 
 ## Edge cases & limitations
@@ -97,5 +97,5 @@ Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
 |---|---|
 | unit | `tests/ClinicHub.UnitTests/Catalog/Tapering/`, `Catalog/Parity/` (the parity fixture `tests/fixtures/dosing-cases.json`); Vitest `ClinicHub.Web/src/features/dosing/taper.test.ts` (start, add step, total, generator), `dosingText.test.ts`, `types.test.ts`, `parity.test.ts` (the parity fixture) |
 | api | `tests/ClinicHub.IntegrationTests/Catalog/Doses/TaperTests.cs` (`./test.ps1 -Area catalog`) |
-| ui | `ClinicHub.Web/src/features/dosing/components/TaperStepsEditor*.test.tsx`, `dosingDialogs.test.tsx`, the drug and group-line dialogs' tests |
+| ui | `ClinicHub.Web/src/features/dosing/components/TaperStepsEditor*.test.tsx`, `dosingDialogs.test.tsx`, the drug and protocol-line dialogs' tests |
 | e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts`, `inheritance.spec.ts` |

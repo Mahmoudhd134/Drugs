@@ -23,11 +23,11 @@ public interface IAppDbContext
     DbSet<Role> Roles { get; }
     DbSet<StaffRole> StaffRoles { get; }
     DbSet<Drug> Drugs { get; }
-    DbSet<DrugGroup> DrugGroups { get; }
-    DbSet<DrugGroupItem> DrugGroupItems { get; }
+    DbSet<Protocol> Protocols { get; }
+    DbSet<ProtocolItem> ProtocolItems { get; }
 
     /// <summary>
-    /// Marks the row as changed so its UpdatedAt moves (e.g. a group whose items changed); the
+    /// Marks the row as changed so its UpdatedAt moves (e.g. a protocol whose items changed); the
     /// interceptor sets the time on save.
     /// </summary>
     void Touch(IHasTimestamps entity);

@@ -24,7 +24,7 @@ const chooseStatus = async (page: Page, t: Texts, label: string) => {
 };
 
 test.describe("Platform admin: the clinics list @area:admin", () => {
-    test("the platform context: «إدارة المنصة» in the app bar, «العيادات» and «تعديل الأدوية والمجموعات الافتراضية» in the sidebar @ADM-010 @smoke",
+    test("the platform context: «إدارة المنصة» in the app bar, «العيادات» and «تعديل العيادة النموذجية» in the sidebar @ADM-010 @smoke",
         async ({page, t, healthy}) => {
             await signInSuperAdmin(page);
             await expectContextLabel(page, t.platform);
@@ -34,7 +34,7 @@ test.describe("Platform admin: the clinics list @area:admin", () => {
             await healthy();
         });
 
-    test("«تعديل الأدوية والمجموعات الافتراضية» (double click): one switch, the template's drugs page with its banner @ADM-142",
+    test("«تعديل العيادة النموذجية» (double click): one switch, the template's drugs page with its banner @ADM-142",
         async ({page, t}) => {
             await signInSuperAdmin(page);
             const switches = recordRequests(page, "POST", /\/api\/v1\/auth\/context$/);

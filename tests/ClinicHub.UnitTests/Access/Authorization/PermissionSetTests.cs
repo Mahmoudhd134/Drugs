@@ -13,8 +13,8 @@ public class PermissionSetTests
     public void Of_expands_the_requirements_transitively()
     {
         PermissionSet.Of(["drugs.update"]).Keys.ShouldBe(["drugs.update", "drugs.details", "drugs.list"], ignoreOrder: true);
-        PermissionSet.Of(["groups.update"]).Keys
-            .ShouldBe(["groups.update", "groups.details", "groups.list", "drugs.list"], ignoreOrder: true);
+        PermissionSet.Of(["protocols.update"]).Keys
+            .ShouldBe(["protocols.update", "protocols.details", "protocols.list", "drugs.list"], ignoreOrder: true);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class PermissionSetTests
         set.Has("drugs.update").ShouldBeTrue();
         set.Has("drugs.details").ShouldBeTrue("required by drugs.update");
         set.Has("drugs.delete").ShouldBeFalse();
-        set.Has("groups.list").ShouldBeFalse();
+        set.Has("protocols.list").ShouldBeFalse();
         set.Has("nope.x").ShouldBeFalse();
     }
 
@@ -47,7 +47,7 @@ public class PermissionSetTests
         set.HasAll("drugs.create", "drugs.delete").ShouldBeFalse();
         set.HasAll().ShouldBeTrue("nothing asked");
         set.HasAny("drugs.delete", "drugs.list").ShouldBeTrue();
-        set.HasAny("drugs.delete", "groups.list").ShouldBeFalse();
+        set.HasAny("drugs.delete", "protocols.list").ShouldBeFalse();
         set.HasAny().ShouldBeFalse("nothing asked");
     }
 
@@ -55,8 +55,8 @@ public class PermissionSetTests
     [Trait("Case", "ACC-006")]
     public void To_list_is_in_catalog_order()
     {
-        PermissionSet.Of(["prescriptions.create", "groups.delete", "drugs.update"]).ToList().ShouldBe([
-            "drugs.list", "drugs.details", "drugs.update", "groups.list", "groups.delete", "prescriptions.create",
+        PermissionSet.Of(["prescriptions.create", "protocols.delete", "drugs.update"]).ToList().ShouldBe([
+            "drugs.list", "drugs.details", "drugs.update", "protocols.list", "protocols.delete", "prescriptions.create",
         ]);
     }
 

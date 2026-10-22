@@ -80,7 +80,7 @@ describe("permissions in the app @area:access", () => {
             refreshSequence(sessionIn(clinicA)).handler,
             meByContext(),
             http.get(api("/drugs"), () => problem(403, "forbidden")),
-            http.get(api("/drug-groups"), () => problem(403, "forbidden")),
+            http.get(api("/protocols"), () => problem(403, "forbidden")),
         );
         const requests = recordRequests();
         await startApp({route: "/", lang: "ar"});
@@ -89,7 +89,7 @@ describe("permissions in the app @area:access", () => {
         await waitFor(() => expect(requests.requests.filter(r => r.path === "/me").length).toBeGreaterThanOrEqual(2));
         // Both pickers failed, still one toast
         expect(requests.requests.filter(r => r.path === "/drugs")).toHaveLength(1);
-        expect(requests.requests.filter(r => r.path === "/drug-groups")).toHaveLength(1);
+        expect(requests.requests.filter(r => r.path === "/protocols")).toHaveLength(1);
         await act(() => new Promise(resolve => setTimeout(resolve, 20)));
         expect(toastTexts()).toHaveLength(1);
     });
@@ -105,7 +105,7 @@ describe("permissions in the app @area:access", () => {
         const app = await startApp({route: "/drugs", lang: "ar"});
         await screen.findByText("Tobradex");
         const nav = () => within(screen.getAllByRole("navigation", {name: "القائمة الرئيسية"})[0]);
-        expect(nav().getAllByRole("link").map(link => link.textContent)).toEqual(["الروشتة", "المجموعات", "الأدوية"]);
+        expect(nav().getAllByRole("link").map(link => link.textContent)).toEqual(["الروشتة", "البروتوكولات", "الأدوية"]);
         expect(screen.getByRole("button", {name: "إضافة دواء"})).toBeInTheDocument();
 
         act(() => app.session.setSession(sessionIn(clinicB, [clinicA, clinicB])));

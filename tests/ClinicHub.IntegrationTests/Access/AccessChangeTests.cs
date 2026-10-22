@@ -21,7 +21,7 @@ public class AccessChangeTests(AppFixture app) : IntegrationTest(app)
     private static readonly string[] AssistantKeys =
     [
         "drugs.list", "drugs.details", "drugs.create", "drugs.update",
-        "groups.list", "groups.details", "groups.create", "groups.update",
+        "protocols.list", "protocols.details", "protocols.create", "protocols.update",
         "prescriptions.create",
     ];
 

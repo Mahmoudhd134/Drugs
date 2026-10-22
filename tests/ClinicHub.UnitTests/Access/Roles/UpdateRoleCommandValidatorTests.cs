@@ -14,7 +14,7 @@ public class UpdateRoleCommandValidatorTests
     [Fact]
     public void A_role_with_a_name_and_known_keys_is_valid()
     {
-        Validate("Doctor Plus", ["groups.update"]).IsValid.ShouldBeTrue();
+        Validate("Doctor Plus", ["protocols.update"]).IsValid.ShouldBeTrue();
         Validate("Doctor", []).IsValid.ShouldBeTrue();
     }
 

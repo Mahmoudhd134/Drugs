@@ -143,7 +143,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
 
     test("Esc on the delete confirmation closes it as Cancel: nothing deleted @UX-017", async () => {
         const drug = aDrug({name: "Tobradex"});
-        server.use(http.get(api("/drugs/:id/groups"), () => HttpResponse.json([])));
+        server.use(http.get(api("/drugs/:id/protocols"), () => HttpResponse.json([])));
         const {user} = await openDrugs([drug]);
         const requests = recordRequests();
         await user.click(screen.getByRole("button", {name: "حذف"}));
@@ -205,12 +205,12 @@ describe("drugs page in Arabic @area:i18n", () => {
         expect(await screen.findByText("21–25 من 25")).toBeInTheDocument();
     });
 
-    test("the groups using a drug are joined with the Arabic comma «، » @I18N-023", async () => {
+    test("the protocols using a drug are joined with the Arabic comma «، » @I18N-023", async () => {
         const drug = aDrug({name: "Tobradex"});
-        server.use(http.get(api("/drugs/:id/groups"), () => HttpResponse.json(["Post cataract", "Glaucoma"])));
+        server.use(http.get(api("/drugs/:id/protocols"), () => HttpResponse.json(["Post cataract", "Glaucoma"])));
         const {user} = await openDrugs([drug]);
         await user.click(screen.getByRole("button", {name: "حذف"}));
         const dialog = await screen.findByRole("dialog", {name: "حذف الدواء؟"});
-        expect(dialog).toHaveTextContent(`يُستخدم في هذه المجموعات: ${isolate("Post cataract، Glaucoma")}`);
+        expect(dialog).toHaveTextContent(`يُستخدم في هذه البروتوكولات: ${isolate("Post cataract، Glaucoma")}`);
     });
 });

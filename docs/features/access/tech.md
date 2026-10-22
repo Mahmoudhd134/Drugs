@@ -62,7 +62,7 @@ reading.
 
 **StaffRoles** (`StaffRole`, `IClinicOwned`): `StaffId`, `RoleId`, `ClinicId`; PK `(StaffId, RoleId)`.
 Composite FKs `(StaffId, ClinicId)` → `Staff(Id, ClinicId)` and `(RoleId, ClinicId)` → `Roles(Id, ClinicId)`
-(both cascade), so the database rejects a role of another clinic (same pattern as `DrugGroupItems`).
+(both cascade), so the database rejects a role of another clinic (same pattern as `ProtocolItems`).
 Like every clinic-owned table it also has the FK `ClinicId` → `Clinics` (restrict) and its index.
 `Staff` gets the unique `(Id, ClinicId)` they target (and, M1.6.1, the generated `SearchName` column for the staff
 search: [platform admin](../platform-admin/tech.md#roles-and-staff-m153)).
@@ -88,11 +88,11 @@ Catalog permissions (HLD 8.2):
 | Endpoint | Permission |
 |---|---|
 | `GET /drugs` | `drugs.list` |
-| `GET /drugs/{id}`, `GET /drugs/{id}/groups` | `drugs.details` |
+| `GET /drugs/{id}`, `GET /drugs/{id}/protocols` | `drugs.details` |
 | `POST /drugs` / `PUT /drugs/{id}` / `DELETE /drugs/{id}` | `drugs.create` / `drugs.update` / `drugs.delete` |
-| `GET /drug-groups` | `groups.list` |
-| `GET /drug-groups/{id}` | `groups.details` |
-| `POST /drug-groups` / `PUT /drug-groups/{id}` / `DELETE /drug-groups/{id}` | `groups.create` / `groups.update` / `groups.delete` |
+| `GET /protocols` | `protocols.list` |
+| `GET /protocols/{id}` | `protocols.details` |
+| `POST /protocols` / `PUT /protocols/{id}` / `DELETE /protocols/{id}` | `protocols.create` / `protocols.update` / `protocols.delete` |
 
 403 codes on every clinic request: `forbidden` (missing permission, or not a clinic token),
 `noAccess` (staff row gone or inactive, the clinic **deleted** (M1.5.1), or a staff-less token that is not the
@@ -111,9 +111,9 @@ endpoint checks in `ClinicHub.Api/Features/Access`.
 
 | Piece | Layer | Role |
 |---|---|---|
-| `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Groups`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("<module>")]` on every resource class (`catalog` for `Drugs`/`Groups`, `prescription` for `Prescriptions`). The single source of truth |
+| `Permissions` | Application | `public static class` in `Features/Access/Permissions.cs`, every resource class grouped by module (catalog: `Drugs`, `Protocols`; prescription: `Prescriptions`). Nested constants (`Permissions.Drugs.Create = "drugs.create"`); `[Requires(...)]` on a constant lists what it needs; `[PermissionModule("<module>")]` on every resource class (`catalog` for `Drugs`/`Protocols`, `prescription` for `Prescriptions`). The single source of truth |
 | `PermissionCatalog` | Application | `All` (`PermissionDefinition(Key, Module, Resource, Action, Requires)`), built once by reflection from `Permissions` in declaration order and validated (format `resource.action`, unique, requirements known, every resource class has a module, every key's prefix matches its class). Built in `AddApplication`, so a bad declaration stops the app at startup. `IsKnown`, `Keys`, `ByResource()`, `WithRequirements(keys)` (transitive closure: `PermissionSet.Of` when reading, `RoleRules.SetPermissions` when a role is saved) |
-| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `groups.delete`); names and permissions only (`Templates`). Clinic provisioning's `DefaultRolesSeeder` (M1.5.2) creates them, so every new clinic, the dev ones included, gets them |
+| `DefaultRoles` | Application | Templates Owner (`IsOwner`), Doctor (all), Assistant (all but `drugs.delete`, `protocols.delete`); names and permissions only (`Templates`). Clinic provisioning's `DefaultRolesSeeder` (M1.5.2) creates them, so every new clinic, the dev ones included, gets them |
 | `IAccessCache` / `AccessCache` | Application / Infrastructure | Singleton. The only code that knows cache keys, tags and the library (below) |
 | `IPermissionService` / `PermissionService` | Application | Scoped, computed once per request. `CheckClinicAccessAsync()` (null or the `Error`: `AccessErrors.NoAccess`, `AccessErrors.ClinicSuspended`, `CommonErrors.Forbidden`), `GetAsync()` → `PermissionSet` |
 | `PermissionSet` | Application | `Has`, `HasAll`, `HasAny`, `IsAll`, `Keys` (expanded), `ToList()` (catalog order). `Of(keys)` adds the requirements (`WithRequirements`): a role with `drugs.update` but not `drugs.details` still gets both, so the UI never offers an action whose data it can't load. `IsAll` is true only for `PermissionSet.All` (the Owner, or the super admin in the template): a role set holding every key is still not "all" (`IsAll` false, same keys). `HasAll()` with no key is true, `HasAny()` with no key false |
@@ -219,7 +219,7 @@ whatever its `Status`.
   (`app/FirstAllowedPage.tsx`): the first `NAV_ITEMS` page the user may open, or the no-permission page without its home link (`/` would loop).
 - `NAV_ITEMS` moved to `app/navigation.tsx` with a `permission`; the sidebar hides the rest.
 - Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugPicker`,
-  `useDrugGroups`, `useDrugGroupPicker`, `useDrugGroup`; `DrugPicker` / `GroupPicker` take `enabled`.
+  `useProtocols`, `useProtocolPicker`, `useProtocol`; `DrugPicker` / `ProtocolPicker` take `enabled`.
 - A 403 `noAccess`/`clinicSuspended` (the clinic itself may be lost) never reaches the pages first: the API client
   refreshes the session and either follows it (picker, the only clinic left, or login, with a message;
   [auth](../auth/tech.md), design D7) or, when the clinic is still there (e.g. re-added under a new staff record),
@@ -231,21 +231,21 @@ whatever its `Status`.
 - Pages:
   - Drugs: Add (`drugs.create`), edit icon (`drugs.update`), delete icon (`drugs.delete`); the Actions
     column is hidden when neither applies. A row opens the editor with `drugs.update`, else a read-only
-    **Drug details** dialog with `drugs.details`, else nothing (rows that open are focusable: Enter/Space). The "used in groups" lookup before
+    **Drug details** dialog with `drugs.details`, else nothing (rows that open are focusable: Enter/Space). The "used in protocols" lookup before
     deleting needs `drugs.details`.
-  - Groups: New group (`groups.create`) and edit icon (`groups.update`) are links gated with `<Can>`;
-    card opens the group (`groups.details`); delete icon (`groups.delete`); the actions bar is hidden
+  - Protocols: New protocol (`protocols.create`) and edit icon (`protocols.update`) are links gated with `<Can>`;
+    card opens the protocol (`protocols.details`); delete icon (`protocols.delete`); the actions bar is hidden
     when neither applies.
-  - Group editor: without `groups.create`/`groups.update` it is **read only** (title "Group", name
-    read-only, `DosingLineList readOnly`, no picker, no Cancel/Save). Delete: `groups.delete`, shown
+  - Protocol editor: without `protocols.create`/`protocols.update` it is **read only** (title "Protocol", name
+    read-only, `DosingLineList readOnly`, no picker, no Cancel/Save). Delete: `protocols.delete`, shown
     disabled with the tooltip to editors who lack it. The drug picker also needs `drugs.list`. Save,
-    Cancel and Back go to `/groups` (every group permission requires `groups.list`, so whoever opens the editor can
+    Cancel and Back go to `/protocols` (every protocol permission requires `protocols.list`, so whoever opens the editor can
     open the list).
-  - Prescription: `CatalogPanel` shows the Groups tab with `groups.list` and the Drugs tab with
+  - Prescription: `CatalogPanel` shows the Protocols tab with `protocols.list` and the Drugs tab with
     `drugs.list` (each picker `enabled` only then; the visible one gets the focus); neither → a short message (`access.nothingToPick`;
     unreachable today, since `prescriptions.create` requires `drugs.list`).
 - i18n: `access.*` (no-permission page, tooltip, `nothingToPick`), `permissions.<resource>.<action>`,
-  `permissionResources.*` and `permissionModules.*` (the role editor's sections), `drugs.details`, `groups.view`.
+  `permissionResources.*` and `permissionModules.*` (the role editor's sections), `drugs.details`, `protocols.view`.
 - `api.ts` (M1.5.5): `usePermissionCatalog()` reads `GET /permissions` once per context (`staleTime: Infinity`; the query cache is
   cleared on a context switch), for the role editor
   (`features/roles`: grouped by module → resource, a permission's `requires` ticked and locked with it; the same
@@ -258,7 +258,7 @@ whatever its `Status`.
 "Dev Owner" (`Platform:DevOwnerPhone`) is their owner (Owner in both). Then
 `Platform:DevAssistantPhone` (`+201000000003` in `appsettings.Development.json`): staff
 "Dev Assistant" with **Assistant** in "Demo clinic" (no deletes) and a custom **Viewer** role in
-"Second demo clinic" (`drugs.list`, `drugs.details`, `groups.list`, `groups.details`: read only, no
+"Second demo clinic" (`drugs.list`, `drugs.details`, `protocols.list`, `protocols.details`: read only, no
 prescription page).
 
 ## Edge cases & limitations
@@ -279,10 +279,10 @@ prescription page).
   permissions (M1.5 design D1; platform permission keys may come later).
 - A 403 from a page query shows both the toast and the page's own error state (accepted: the toast
   says why).
-- The disabled Delete in the group editor is not keyboard-focusable, so its tooltip is mouse/touch only.
+- The disabled Delete in the protocol editor is not keyboard-focusable, so its tooltip is mouse/touch only.
 - The sidebar is empty for a moment after a context switch, while `/me` loads.
-- (Older than M1.3) `/groups/999` shows "This item no longer exists" with a Retry that can't help,
-  and deleting from the group editor refetches the deleted group once (a 404 in the console).
+- (Older than M1.3) `/protocols/999` shows "This item no longer exists" with a Retry that can't help,
+  and deleting from the protocol editor refetches the deleted protocol once (a 404 in the console).
 
 ## Testing notes
 Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
@@ -303,7 +303,7 @@ change made directly in the database applies within about 30 s (the cache's loca
 
 ### Before M1.6: manual verification (record)
 
-Kept because test cases cite it (e.g. ACC-040, ACC-050). Verified manually, API in Development on a reset DB (`docker compose
+Kept because test cases cite it (e.g. ACC-040, ACC-050); names as they were then (groups: protocols since M1.7a). Verified manually, API in Development on a reset DB (`docker compose
 down -v`, `docker compose up -d`, `dotnet ef database update`: `Initial` + `AddRoles`; also reverted
 to `Initial` and re-applied):
 - Seed: 3 roles per demo clinic (+ Viewer in the second), Owner with 0 permission rows, Doctor 11,

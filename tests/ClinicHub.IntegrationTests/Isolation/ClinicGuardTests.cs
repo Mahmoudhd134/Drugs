@@ -24,14 +24,14 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
     public async Task Without_a_clinic_in_context_no_clinic_owned_row_is_returned()
     {
         var clinic = await Data.Clinic();
-        await Data.Group(clinic);
+        await Data.Protocol(clinic);
 
         await InClinicAsync(null, async db =>
         {
             (await db.Drugs.IgnoreQueryFilters().CountAsync()).ShouldBeGreaterThan(0);
             (await db.Drugs.CountAsync()).ShouldBe(0);
-            (await db.DrugGroups.CountAsync()).ShouldBe(0);
-            (await db.DrugGroupItems.CountAsync()).ShouldBe(0);
+            (await db.Protocols.CountAsync()).ShouldBe(0);
+            (await db.ProtocolItems.CountAsync()).ShouldBe(0);
             (await db.Staff.CountAsync()).ShouldBe(0);
             (await db.Roles.CountAsync()).ShouldBe(0);
             (await db.StaffRoles.CountAsync()).ShouldBe(0);
@@ -88,11 +88,11 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
             loaded.Name = name;
             await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         });
-        var bGroup = await Data.Group(b).With(bDrug);
+        var bProtocol = await Data.Protocol(b).With(bDrug);
         await InClinicAsync(a.Id, async db =>
         {
             // A line moved into the current clinic: refused on its original clinic
-            var line = await db.DrugGroupItems.IgnoreQueryFilters().SingleAsync(i => i.DrugGroupId == bGroup.Id);
+            var line = await db.ProtocolItems.IgnoreQueryFilters().SingleAsync(i => i.ProtocolId == bProtocol.Id);
             line.ClinicId = a.Id;
             await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         });
@@ -106,7 +106,7 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         stored.Name.ShouldBe(bDrug.Name);
         stored.ClinicId.ShouldBe(b.Id);
         (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.Name == name))).ShouldBe(0);
-        (await App.QueryDbAsync(db => db.DrugGroupItems.IgnoreQueryFilters().SingleAsync(i => i.DrugGroupId == bGroup.Id)))
+        (await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters().SingleAsync(i => i.ProtocolId == bProtocol.Id)))
             .ClinicId.ShouldBe(b.Id);
     }
 
@@ -183,32 +183,32 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ISO-033")]
-    public async Task Raw_sql_cannot_link_a_group_to_another_clinics_drug()
+    public async Task Raw_sql_cannot_link_a_protocol_to_another_clinics_drug()
     {
         var a = await Data.Clinic();
         var b = await Data.Clinic();
-        var aGroup = await Data.Group(a);
+        var aProtocol = await Data.Protocol(a);
         var bDrug = await Data.Drug(b);
 
-        var error = await InsertLineAsync(clinicId: a.Id, groupId: aGroup.Id, drugId: bDrug.Id);
+        var error = await InsertLineAsync(clinicId: a.Id, protocolId: aProtocol.Id, drugId: bDrug.Id);
 
         error.SqlState.ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
-        error.ConstraintName.ShouldBe("FK_DrugGroupItems_Drugs_DrugId_ClinicId");
+        error.ConstraintName.ShouldBe("FK_ProtocolItems_Drugs_DrugId_ClinicId");
     }
 
     [Fact]
     [Trait("Case", "ISO-034")]
-    public async Task Raw_sql_cannot_put_a_line_into_another_clinics_group()
+    public async Task Raw_sql_cannot_put_a_line_into_another_clinics_protocol()
     {
         var a = await Data.Clinic();
         var b = await Data.Clinic();
         var aDrug = await Data.Drug(a);
-        var bGroup = await Data.Group(b);
+        var bProtocol = await Data.Protocol(b);
 
-        var error = await InsertLineAsync(clinicId: a.Id, groupId: bGroup.Id, drugId: aDrug.Id);
+        var error = await InsertLineAsync(clinicId: a.Id, protocolId: bProtocol.Id, drugId: aDrug.Id);
 
         error.SqlState.ShouldBe(PostgresErrorCodes.ForeignKeyViolation);
-        error.ConstraintName.ShouldBe("FK_DrugGroupItems_DrugGroups_DrugGroupId_ClinicId");
+        error.ConstraintName.ShouldBe("FK_ProtocolItems_Protocols_ProtocolId_ClinicId");
     }
 
     [Fact]
@@ -250,10 +250,10 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         await work(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
-    private Task<PostgresException> InsertLineAsync(int clinicId, int groupId, int drugId) =>
+    private Task<PostgresException> InsertLineAsync(int clinicId, int protocolId, int drugId) =>
         Should.ThrowAsync<PostgresException>(() => App.OutsideTheApp.ExecuteAsync(
             """
-            INSERT INTO "DrugGroupItems" ("ClinicId", "DrugGroupId", "DrugId", "Order", "CreatedAt", "UpdatedAt")
+            INSERT INTO "ProtocolItems" ("ClinicId", "ProtocolId", "DrugId", "Order", "CreatedAt", "UpdatedAt")
             VALUES (@p0, @p1, @p2, 99, now(), now())
-            """, clinicId, groupId, drugId));
+            """, clinicId, protocolId, drugId));
 }

@@ -25,15 +25,15 @@ describe("gated controls @area:access", () => {
                 <PermissionButton permission="drugs.create">Add drug</PermissionButton>
                 <PermissionButton permission="drugs.list">List drugs</PermissionButton>
                 <PermissionIconButton permission="drugs.delete" aria-label="Delete drug"><AddIcon/></PermissionIconButton>
-                <PermissionFab permission="groups.create" aria-label="New group"><AddIcon/></PermissionFab>
-                <GatedChip permission="groups.delete" label="Gated chip"/>
+                <PermissionFab permission="protocols.create" aria-label="New protocol"><AddIcon/></PermissionFab>
+                <GatedChip permission="protocols.delete" label="Gated chip"/>
                 <GatedChip permission="drugs.list" label="Allowed chip"/>
             </>,
             {lang: "ar", user: {permissions: ["drugs.list"]}},
         );
         expect(screen.queryByRole("button", {name: "Add drug"})).not.toBeInTheDocument();
         expect(screen.queryByRole("button", {name: "Delete drug"})).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", {name: "New group"})).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", {name: "New protocol"})).not.toBeInTheDocument();
         expect(screen.queryByText("Gated chip")).not.toBeInTheDocument();
         expect(screen.getByRole("button", {name: "List drugs"})).toBeEnabled();
         expect(screen.getByText("Allowed chip")).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe("gated controls @area:access", () => {
                 <Tooltip title="Delete">
                     <PermissionIconButton permission="drugs.delete" whenDenied="disable" aria-label="Delete drug"><AddIcon/></PermissionIconButton>
                 </Tooltip>
-                <PermissionFab permission="groups.create" whenDenied="disable" aria-label="New group"><AddIcon/></PermissionFab>
+                <PermissionFab permission="protocols.create" whenDenied="disable" aria-label="New protocol"><AddIcon/></PermissionFab>
             </>,
             {lang: "ar", user: {permissions: ["drugs.list"]}},
         );
@@ -62,7 +62,7 @@ describe("gated controls @area:access", () => {
         expect(await hoverTooltip(remove.parentElement!)).toBe(NO_PERMISSION);
         expect(screen.getAllByRole("tooltip")).toHaveLength(1);
 
-        expect(screen.getByRole("button", {name: "New group"})).toBeDisabled();
+        expect(screen.getByRole("button", {name: "New protocol"})).toBeDisabled();
     });
 
     test("PermissionMenuItem: hidden, or disabled with whenDenied=\"disable\" @ACC-070", async () => {
@@ -83,12 +83,12 @@ describe("gated controls @area:access", () => {
         await renderWithProviders(
             <>
                 <PermissionButton anyOf={["drugs.update", "drugs.delete"]}>anyOf one held</PermissionButton>
-                <PermissionButton anyOf={["drugs.create", "groups.create"]}>anyOf none held</PermissionButton>
+                <PermissionButton anyOf={["drugs.create", "protocols.create"]}>anyOf none held</PermissionButton>
                 <PermissionButton allOf={["drugs.list", "drugs.update"]}>allOf all held</PermissionButton>
                 <PermissionButton allOf={["drugs.list", "drugs.delete"]}>allOf one missing</PermissionButton>
-                <PermissionButton permission="drugs.list" anyOf={["groups.list"]}>permission and anyOf, anyOf fails</PermissionButton>
-                <Can anyOf={["groups.list", "drugs.update"]}><span>Can anyOf</span></Can>
-                <Can allOf={["drugs.update", "groups.list"]} fallback={<span>Can fallback</span>}><span>Can allOf</span></Can>
+                <PermissionButton permission="drugs.list" anyOf={["protocols.list"]}>permission and anyOf, anyOf fails</PermissionButton>
+                <Can anyOf={["protocols.list", "drugs.update"]}><span>Can anyOf</span></Can>
+                <Can allOf={["drugs.update", "protocols.list"]} fallback={<span>Can fallback</span>}><span>Can allOf</span></Can>
                 <Can permission="drugs.update"><span>Can permission</span></Can>
             </>,
             {lang: "ar", user: {permissions: ["drugs.list", "drugs.details", "drugs.update"]}},
@@ -120,10 +120,10 @@ describe("gated controls @area:access", () => {
 
         test("a quick tap on the disabled control shows «ليست لديك صلاحية» at once, and it hides again ~5 s later @ACC-066", async () => {
             await renderWithProviders(
-                <PermissionIconButton permission="groups.delete" whenDenied="disable" aria-label="Delete group"><AddIcon/></PermissionIconButton>,
-                {lang: "ar", user: {permissions: ["groups.list"]}},
+                <PermissionIconButton permission="protocols.delete" whenDenied="disable" aria-label="Delete protocol"><AddIcon/></PermissionIconButton>,
+                {lang: "ar", user: {permissions: ["protocols.list"]}},
             );
-            const wrapper = screen.getByRole("button", {name: "Delete group"}).parentElement!;
+            const wrapper = screen.getByRole("button", {name: "Delete protocol"}).parentElement!;
             vi.useFakeTimers({toFake: ["setTimeout", "clearTimeout"]});
 
             // A quick finger tap: touchend right after touchstart, before any timer runs (MUI's default needs a 700 ms long press)

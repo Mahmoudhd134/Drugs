@@ -255,7 +255,7 @@ describe("sameDosing, eyeKey, otherEye, hasDosingInstructions @area:catalog", ()
     });
 });
 
-describe("mergeDosing (drug default → group override) @area:catalog", () => {
+describe("mergeDosing (drug default → protocol override) @area:catalog", () => {
     const base: Dosing = {
         doseAmount: 2, doseUnit: "drop", eye: "right", frequency: "daily", frequencyValue: 4,
         durationUnit: "weeks", durationValue: 2,

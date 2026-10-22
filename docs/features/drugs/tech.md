@@ -1,7 +1,7 @@
 # Drug catalog: technical
 
 ## Summary
-CRUD for drugs (name + optional description + optional **default dosing**). Drugs are referenced by groups and selected into
+CRUD for drugs (name + optional description + optional **default dosing**). Drugs are referenced by protocols and selected into
 prescriptions. Content is stored once, as typed (not translated).
 
 ## Data model
@@ -20,8 +20,8 @@ prescriptions. Content is stored once, as typed (not translated).
 Every query is scoped to the current clinic: another clinic's drug is 404 (see
 [clinic scoping](../clinic-scoping/tech.md)).
 
-Relationship: `Drug.GroupItems` → `DrugGroupItems.DrugId` with **cascade delete** (deleting a drug
-removes it from all groups).
+Relationship: `Drug.ProtocolItems` → `ProtocolItems.DrugId` with **cascade delete** (deleting a drug
+removes it from all protocols).
 
 ## API (`ClinicHub.Api/Features/Drugs/DrugsController.cs`, route `api/v1/drugs`)
 
@@ -34,13 +34,13 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 | GET | `/drugs/{id}` | | `DrugDto` | 404 `notFound` |
 | POST | `/drugs` | `SaveDrugRequest { name, description, defaultDosing }` | 201 `DrugDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `invalidText`, `invalidDosing` (all that apply, in this order) |
 | PUT | `/drugs/{id}` | `SaveDrugRequest` | `DrugDto` | 400 (as above, checked first), 404 `notFound` |
-| GET | `/drugs/{id}/groups` | | `string[]` group names using the drug (empty for an unknown drug) | |
+| GET | `/drugs/{id}/protocols` | | `string[]` protocol names using the drug (empty for an unknown drug) | |
 | DELETE | `/drugs/{id}` | | 204 | 404 `notFound` |
 
 `DrugDto = { id, name, description, defaultDosing }` (`defaultDosing` is null when not set).
 
 Every action needs a clinic token (`ClinicContext` policy) and its permission: `drugs.list` (`GET /drugs`),
-`drugs.details` (`GET /drugs/{id}`, `GET /drugs/{id}/groups`), `drugs.create` / `drugs.update` / `drugs.delete`;
+`drugs.details` (`GET /drugs/{id}`, `GET /drugs/{id}/protocols`), `drugs.create` / `drugs.update` / `drugs.delete`;
 else 401 / 403 ([access](../access/tech.md#api)).
 
 ## Backend (`ClinicHub.Application/Features/Catalog/Drugs/`)
@@ -49,10 +49,10 @@ else 401 / 403 ([access](../access/tech.md#api)).
 |---|---|---|
 | `GetDrugsQuery(search, page, pageSize)` | `Queries/GetDrugs` | → `PagedResult<DrugDto>` |
 | `GetDrugQuery(id)` | `Queries/GetDrug` | → `DrugDto` or `DrugErrors.NotFound` |
-| `GetDrugGroupNamesQuery(drugId)` | `Queries/GetDrugGroupNames` | → `List<string>` (distinct, by name) |
+| `GetDrugProtocolNamesQuery(drugId)` | `Queries/GetDrugProtocolNames` | → `List<string>` (distinct, by name) |
 | `CreateDrugCommand(name, description, defaultDosing)` | `Commands/CreateDrug` | + validator → `DrugDto` |
 | `UpdateDrugCommand(id, name, description, defaultDosing)` | `Commands/UpdateDrug` | + validator → `DrugDto` or `NotFound` |
-| `DeleteDrugCommand(id)` | `Commands/DeleteDrug` | → `NotFound` or success (cascade removes its group lines) |
+| `DeleteDrugCommand(id)` | `Commands/DeleteDrug` | → `NotFound` or success (cascade removes its protocol lines) |
 
 - `DrugDto` (+ `ToDto()`) and `DrugErrors` (`NotFound` = `notFound`, `InvalidDosing`) at the feature root;
   `nameRequired`/`nameInvalid`/`nameTooLong` (shared `ValidName()` rule) and `invalidText` (`ValidText()`) are
@@ -93,13 +93,13 @@ else 401 / 403 ([access](../access/tech.md#api)).
     `selectedIds` shows an "Added" chip. Clears search after selecting.
   - `DrugText`: name (bold), optional dosing sentence (`showDosing`), description (`pre-line`,
     optional line clamp). The table and the picker show the dosing sentence; the description is always shown here
-    (also when the default dosing has only an eye: the sentence is then just the eye part). Prescription and group
+    (also when the default dosing has only an eye: the sentence is then just the eye part). Prescription and protocol
     lines follow another rule (`LineDetails`, [prescription](../prescription/tech.md#text-formats-prescriptiontextts)).
 - **`api.ts`**: `drugKeys` (`all`, `list`, `picker`); hooks `useDrugs`, `useDrugPicker`,
   `useSaveDrug` (POST/PUT by `id === null`), `useDeleteDrug`. Both mutations invalidate
-  `drugKeys.all` **and** `drugGroupKeys.all` (groups embed drug data).
-- Delete confirmation first calls `fetchDrugGroupNames` and lists the groups that will lose the
-  drug (`drugs.usedInGroups`), joined with the Arabic comma «، » in both languages (group names are content, often
+  `drugKeys.all` **and** `protocolKeys.all` (protocols embed drug data).
+- Delete confirmation first calls `fetchDrugProtocolNames` and lists the protocols that will lose the
+  drug (`drugs.usedInProtocols`), joined with the Arabic comma «، » in both languages (protocol names are content, often
   Arabic; kept by choice, M1.6.1, Q5); if the lookup fails the dialog still opens.
 - i18n namespace: `drugs.*` (+ `dosing.*`, `errors.nameRequired`, `errors.nameInvalid`, `errors.nameTooLong`, `errors.invalidText`,
   `errors.invalidDosing`).

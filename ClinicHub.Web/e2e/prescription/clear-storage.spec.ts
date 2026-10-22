@@ -1,5 +1,5 @@
 import {expect, settled, signIn, test} from "../support/fixtures.ts";
-import {RxPage, dropDaily, readClipboard, markClipboard, rxDeleteDrug, rxDrug, rxGroup, rxName, rxUpdateDrug, rxUpdateGroup} from "../support/rx.ts";
+import {RxPage, dropDaily, readClipboard, markClipboard, rxDeleteDrug, rxDrug, rxProtocol, rxName, rxUpdateDrug, rxUpdateProtocol} from "../support/rx.ts";
 import {dropDailySentence, RX_TEXTS} from "../support/texts-rx.ts";
 import {expectToast, focusBack, recordRequests, toast} from "../support/ui.ts";
 
@@ -137,31 +137,31 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
         expect((await readClipboard(page)).text).toBe(`${a.name}\n${dropDailySentence(4, 1, "right")}`);
     });
 
-    test("a group and a drug changed elsewhere while the page is open: the pickers add the old version until reloaded, not on focus @RX-102",
+    test("a protocol and a drug changed elsewhere while the page is open: the pickers add the old version until reloaded, not on focus @RX-102",
         async ({page, lang, data}) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
             const a = await rxDrug(data, clinic, {name: rxName("Alpha"), dosing: dropDaily(4, 1, "right")});
             const b = await rxDrug(data, clinic, {name: rxName("Beta"), dosing: dropDaily(2, 1)});
-            const group = await rxGroup(data, clinic, [{drug: a, dosing: {frequency: "daily", frequencyValue: 3}}]);
+            const protocol = await rxProtocol(data, clinic, [{drug: a, dosing: {frequency: "daily", frequencyValue: 3}}]);
             // The page's clock, to make its data older than the 30 s after which a focus could reload it
             await page.clock.install();
             await signIn(page, clinic.owner.phone);
             const rx = new RxPage(page, rt);
-            await expect(rx.option(group.name)).toBeVisible();
+            await expect(rx.option(protocol.name)).toBeVisible();
 
-            // Another window changes them: the group's line, the drug's default
-            const newGroupName = rxName("Renamed");
-            await rxUpdateGroup(data, clinic, group, [{drug: a, dosing: {frequency: "daily", frequencyValue: 6}}], newGroupName);
+            // Another window changes them: the protocol's line, the drug's default
+            const newProtocolName = rxName("Renamed");
+            await rxUpdateProtocol(data, clinic, protocol, [{drug: a, dosing: {frequency: "daily", frequencyValue: 6}}], newProtocolName);
             await rxUpdateDrug(data, clinic, b, {dosing: dropDaily(5, 1)});
             // The pickers' data is now stale (older than 30 s): a picker that reloaded on focus would load the new versions
             await page.clock.fastForward("00:31");
-            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|drug-groups)$/);
+            const reloads = recordRequests(page, "GET", /^\/api\/v1\/(drugs|protocols)$/);
             await focusBack(page);
             await page.waitForTimeout(1000);
             expect(reloads, "no reload on focus").toHaveLength(0);
 
-            await rx.addGroup(group.name);
+            await rx.addProtocol(protocol.name);
             await rx.expectLines([[a.name, dropDailySentence(3, 1, "right")]]);
             await rx.openDrugsTab();
             await rx.addDrug(b.name);
@@ -171,8 +171,8 @@ test.describe("Prescription: clear, undo and what the browser keeps @area:prescr
             await expect(rx.lines).toHaveCount(0);
             await page.reload();
             await settled(page);
-            await expect(rx.option(group.name)).toHaveCount(0);
-            await rx.addGroup(newGroupName);
+            await expect(rx.option(protocol.name)).toHaveCount(0);
+            await rx.addProtocol(newProtocolName);
             await rx.expectLines([[a.name, dropDailySentence(6, 1, "right")]]);
             await rx.addAlone([b]);
             await rx.expectLines([[a.name, dropDailySentence(6, 1, "right")], [b.name, dropDailySentence(5, 1)]]);

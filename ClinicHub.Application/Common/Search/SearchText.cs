@@ -5,7 +5,7 @@ using PagingRules = ClinicHub.Application.Common.Paging.Paging;
 namespace ClinicHub.Application.Common.Search;
 
 /// <summary>
-/// Arabic-normalized name search (M1.6.1, Q6). The searched tables (drugs, groups, clinics, staff) have a stored
+/// Arabic-normalized name search (M1.6.1, Q6). The searched tables (drugs, protocols, clinics, staff) have a stored
 /// generated column <see cref="Column"/>: the name lower-cased and folded by the database with the same table as
 /// <see cref="Fold"/> (built from <see cref="Replacements"/> and <see cref="Removed"/> by Infrastructure's
 /// <c>SearchNameConfiguration</c>). A search term is folded here the same way, so «اسبرين» finds «أسبرين» and back.

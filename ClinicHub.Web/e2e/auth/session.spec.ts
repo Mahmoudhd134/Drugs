@@ -143,7 +143,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
     });
 
     test("anonymous: every app route opens /login @AUTH-168 @smoke", async ({page, t}) => {
-        for (const path of ["/", "/drugs", "/groups/1", "/admin", "/select-clinic"]) {
+        for (const path of ["/", "/drugs", "/protocols/1", "/admin", "/select-clinic"]) {
             await page.goto(path);
             await expect(page, path).toHaveURL(/\/login$/);
             await expect(page.getByRole("textbox", {name: t.phone})).toBeVisible();

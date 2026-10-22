@@ -1,6 +1,6 @@
 using System.Net;
 using ClinicHub.Application.Common.Paging;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -14,12 +14,12 @@ namespace ClinicHub.IntegrationTests.Catalog;
 
 /// <summary>
 /// The catalog tests' local helpers: a clinic (and its owner, who holds every permission) shared by the class, an
-/// empty clinic for exact lists, and the drug and group API calls.
+/// empty clinic for exact lists, and the drug and protocol API calls.
 /// </summary>
 public abstract class CatalogTest(AppFixture app) : IntegrationTest(app)
 {
     protected const string DrugsUrl = "/api/v1/drugs";
-    protected const string GroupsUrl = "/api/v1/drug-groups";
+    protected const string ProtocolsUrl = "/api/v1/protocols";
 
     /// <summary>An id no row has (ids are positive and grow from 1 inside a run).</summary>
     protected const int UnknownId = int.MaxValue;
@@ -35,16 +35,16 @@ public abstract class CatalogTest(AppFixture app) : IntegrationTest(app)
     }
 
     /// <summary>
-    /// A new clinic without the template's copied drugs and groups (deleted through the use cases), and its owner:
+    /// A new clinic without the template's copied drugs and protocols (deleted through the use cases), and its owner:
     /// its lists hold exactly what the test adds.
     /// </summary>
     protected async Task<(ClinicHandle Clinic, ApiClient Owner)> EmptyClinicAsync()
     {
         var clinic = await Data.Clinic();
-        var groupIds = await App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters()
+        var protocolIds = await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters()
             .Where(g => g.ClinicId == clinic.Id).Select(g => g.Id).ToListAsync());
-        foreach (var id in groupIds)
-            await Data.DeleteGroupAsync(clinic.Id, id);
+        foreach (var id in protocolIds)
+            await Data.DeleteProtocolAsync(clinic.Id, id);
         var drugIds = await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters()
             .Where(d => d.ClinicId == clinic.Id).Select(d => d.Id).ToListAsync());
         foreach (var id in drugIds)
@@ -92,45 +92,45 @@ public abstract class CatalogTest(AppFixture app) : IntegrationTest(app)
     protected static async Task<List<string>> SearchDrugNamesAsync(ApiClient client, string search) =>
         (await ListDrugsAsync(client, $"search={Uri.EscapeDataString(search)}&pageSize=100")).Items.Select(d => d.Name).ToList();
 
-    // ---- Groups ----
+    // ---- Protocols ----
 
     protected static object Item(int drugId, object dosing = null) => new { drugId, dosing };
 
-    protected static object GroupBody(string name, params object[] items) => new { name, items };
+    protected static object ProtocolBody(string name, params object[] items) => new { name, items };
 
-    protected static Task<HttpResponseMessage> PostGroupAsync(ApiClient client, string name, params object[] items) =>
-        client.PostAsync(GroupsUrl, GroupBody(name, items));
+    protected static Task<HttpResponseMessage> PostProtocolAsync(ApiClient client, string name, params object[] items) =>
+        client.PostAsync(ProtocolsUrl, ProtocolBody(name, items));
 
-    protected static Task<HttpResponseMessage> PutGroupAsync(ApiClient client, int id, string name, params object[] items) =>
-        client.PutAsync($"{GroupsUrl}/{id}", GroupBody(name, items));
+    protected static Task<HttpResponseMessage> PutProtocolAsync(ApiClient client, int id, string name, params object[] items) =>
+        client.PutAsync($"{ProtocolsUrl}/{id}", ProtocolBody(name, items));
 
-    /// <summary>POST /drug-groups, asserting 201.</summary>
-    protected static async Task<DrugGroupDto> CreateGroupAsync(ApiClient client, string name, params object[] items)
+    /// <summary>POST /protocols, asserting 201.</summary>
+    protected static async Task<ProtocolDto> CreateProtocolAsync(ApiClient client, string name, params object[] items)
     {
-        var response = await PostGroupAsync(client, name, items);
+        var response = await PostProtocolAsync(client, name, items);
         await response.ShouldBeAsync(HttpStatusCode.Created);
-        return await response.ReadAsync<DrugGroupDto>();
+        return await response.ReadAsync<ProtocolDto>();
     }
 
-    /// <summary>GET /drug-groups/{id}, asserting 200.</summary>
-    protected static async Task<DrugGroupDto> GetGroupAsync(ApiClient client, int id)
+    /// <summary>GET /protocols/{id}, asserting 200.</summary>
+    protected static async Task<ProtocolDto> GetProtocolAsync(ApiClient client, int id)
     {
-        var response = await client.GetAsync($"{GroupsUrl}/{id}");
+        var response = await client.GetAsync($"{ProtocolsUrl}/{id}");
         await response.ShouldBeOkAsync();
-        return await response.ReadAsync<DrugGroupDto>();
+        return await response.ReadAsync<ProtocolDto>();
     }
 
-    /// <summary>GET /drug-groups?{query}, asserting 200.</summary>
-    protected static async Task<PagedResult<DrugGroupDto>> ListGroupsAsync(ApiClient client, string query = "")
+    /// <summary>GET /protocols?{query}, asserting 200.</summary>
+    protected static async Task<PagedResult<ProtocolDto>> ListProtocolsAsync(ApiClient client, string query = "")
     {
-        var response = await client.GetAsync(query == "" ? GroupsUrl : $"{GroupsUrl}?{query}");
+        var response = await client.GetAsync(query == "" ? ProtocolsUrl : $"{ProtocolsUrl}?{query}");
         await response.ShouldBeOkAsync();
-        return await response.ReadAsync<PagedResult<DrugGroupDto>>();
+        return await response.ReadAsync<PagedResult<ProtocolDto>>();
     }
 
-    /// <summary>The names found by a group search (first 100, in the answered order).</summary>
-    protected static async Task<List<string>> SearchGroupNamesAsync(ApiClient client, string search) =>
-        (await ListGroupsAsync(client, $"search={Uri.EscapeDataString(search)}&pageSize=100")).Items.Select(g => g.Name).ToList();
+    /// <summary>The names found by a protocol search (first 100, in the answered order).</summary>
+    protected static async Task<List<string>> SearchProtocolNamesAsync(ApiClient client, string search) =>
+        (await ListProtocolsAsync(client, $"search={Uri.EscapeDataString(search)}&pageSize=100")).Items.Select(g => g.Name).ToList();
 
     // ---- Assertions ----
 

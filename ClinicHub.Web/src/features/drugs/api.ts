@@ -2,7 +2,7 @@ import {keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClien
 import {api} from "../../api/client.ts";
 import {hasNextPage, type PagedResult, type QueryOptions} from "../../api/types.ts";
 import type {Drug, SaveDrug} from "./types.ts";
-import {drugGroupKeys} from "../drugGroups/api.ts";
+import {protocolKeys} from "../protocols/api.ts";
 
 const PICKER_PAGE_SIZE = 30;
 
@@ -15,9 +15,9 @@ export const drugKeys = {
 const fetchDrugs = async (search: string, page: number, pageSize: number) =>
     (await api.get<PagedResult<Drug>>("/drugs", {params: {search, page, pageSize}})).data;
 
-/** Names of the groups that contain the drug. */
-export const fetchDrugGroupNames = async (id: number) =>
-    (await api.get<string[]>(`/drugs/${id}/groups`)).data;
+/** Names of the protocols that contain the drug. */
+export const fetchDrugProtocolNames = async (id: number) =>
+    (await api.get<string[]>(`/drugs/${id}/protocols`)).data;
 
 /** One page of drugs, for tables. */
 export const useDrugs = (search: string, page: number, pageSize: number, {enabled = true}: QueryOptions = {}) =>
@@ -48,8 +48,8 @@ export const useSaveDrug = () => {
                 : (await api.put<Drug>(`/drugs/${id}`, body)).data,
         onSuccess: () => {
             void queryClient.invalidateQueries({queryKey: drugKeys.all});
-            // Groups embed drug names
-            void queryClient.invalidateQueries({queryKey: drugGroupKeys.all});
+            // Protocols embed drug names
+            void queryClient.invalidateQueries({queryKey: protocolKeys.all});
         },
     });
 };
@@ -60,7 +60,7 @@ export const useDeleteDrug = () => {
         mutationFn: (id: number) => api.delete(`/drugs/${id}`),
         onSuccess: () => {
             void queryClient.invalidateQueries({queryKey: drugKeys.all});
-            void queryClient.invalidateQueries({queryKey: drugGroupKeys.all});
+            void queryClient.invalidateQueries({queryKey: protocolKeys.all});
         },
     });
 };

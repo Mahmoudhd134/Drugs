@@ -18,7 +18,7 @@ public class MeTests(AppFixture app) : IntegrationTest(app)
     public async Task A_clinic_token_gets_the_user_context_staff_and_the_expanded_keys_in_catalog_order()
     {
         var clinic = await Data.Clinic();
-        var role = await Data.Role(clinic).WithPermissions(Permissions.Groups.Create, Permissions.Drugs.Update);
+        var role = await Data.Role(clinic).WithPermissions(Permissions.Protocols.Create, Permissions.Drugs.Update);
         var staff = await Data.Staff(clinic).WithRoles(role.Id);
         var user = await Login.StaffAsync(staff);
 
@@ -43,7 +43,7 @@ public class MeTests(AppFixture app) : IntegrationTest(app)
         me["permissions"]!.AsArray().Select(p => (string)p).ShouldBe(
         [
             Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Drugs.Update,
-            Permissions.Groups.List, Permissions.Groups.Create,
+            Permissions.Protocols.List, Permissions.Protocols.Create,
         ]);
     }
 

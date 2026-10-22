@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using ClinicHub.Application.Features.Access.StaffMembers;
-using ClinicHub.Application.Features.Catalog.DrugGroups;
+using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Platform.Clinics;
@@ -42,7 +42,7 @@ public static class CreateClinicApi
 
 /// <summary>
 /// Provisioning a new clinic from the template (platform-admin business "سيناريوهات الاستخدام" 1; tech "Provisioning";
-/// design M1.5 D5): default roles, the owner, a snapshot copy of the template's drugs and groups, all or nothing.
+/// design M1.5 D5): default roles, the owner, a snapshot copy of the template's drugs and protocols, all or nothing.
 /// </summary>
 [Collection(AdminCollection3.Name)]
 [Trait("Area", "admin")]
@@ -56,8 +56,8 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
 
     private static string DrugContent(DrugDto drug) => Json(new { drug.Name, drug.Description, drug.DefaultDosing });
 
-    private static string GroupContent(DrugGroupDto group) =>
-        Json(new { group.Name, Items = group.Items.Select(i => new { Drug = i.Drug.Name, i.Dosing }) });
+    private static string ProtocolContent(ProtocolDto protocol) =>
+        Json(new { protocol.Name, Items = protocol.Items.Select(i => new { Drug = i.Drug.Name, i.Dosing }) });
 
     [Fact]
     [Trait("Case", "ADM-066")]
@@ -122,7 +122,7 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var after = await App.RowCountsAsync();
         (after.Clinics - before.Clinics, after.Users - before.Users, after.Staff - before.Staff, after.Roles - before.Roles,
             after.RolePermissions - before.RolePermissions, after.StaffRoles - before.StaffRoles, after.Drugs - before.Drugs,
-            after.Groups - before.Groups, after.GroupItems - before.GroupItems).ShouldBe((1, 1, 1, 3, 11 + 9, 1, 2, 1, 2));
+            after.Protocols - before.Protocols, after.ProtocolItems - before.ProtocolItems).ShouldBe((1, 1, 1, 3, 11 + 9, 1, 2, 1, 2));
         (await App.QueryDbAsync(db => db.Set<RolePermission>().CountAsync(p =>
             db.Roles.IgnoreQueryFilters().Any(r => r.Id == p.RoleId && r.ClinicId == clinic.Id && r.IsOwner)))).ShouldBe(0);
     }
@@ -147,7 +147,7 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
     [Fact]
     [Trait("Case", "ADM-070")]
     [Trait("Case", "ADM-071")]
-    public async Task The_new_clinic_gets_a_copy_of_the_templates_drugs_and_group_with_the_line_override()
+    public async Task The_new_clinic_gets_a_copy_of_the_templates_drugs_and_protocol_with_the_line_override()
     {
         var template = await TemplateAsync();
         var admin = await Login.SharedSuperAdminAsync();
@@ -157,21 +157,21 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var owner = await Login.AsAsync(phone);
 
         var drugs = (await owner.DrugsAsync()).Items;
-        var groups = await owner.GroupsAsync();
+        var protocols = await owner.ProtocolsAsync();
 
         drugs.Select(DrugContent).ShouldBe((await inTemplate.DrugsAsync()).Items.Select(DrugContent), ignoreOrder: true);
         drugs.Select(DrugContent).ShouldBe([DrugContent(template.First), DrugContent(template.Second)], ignoreOrder: true);
         drugs.Single(d => d.Name == template.Second.Name).DefaultDosing.TaperSteps.Count.ShouldBe(3);
-        var group = groups.ShouldHaveSingleItem();
-        GroupContent(group).ShouldBe(GroupContent(template.Group));
-        group.Items.Select(i => i.Drug.Name).ShouldBe([template.First.Name, template.Second.Name]);
-        group.Items[0].Dosing.ShouldBeNull();
-        var line2 = group.Items[1].Dosing;
+        var protocol = protocols.ShouldHaveSingleItem();
+        ProtocolContent(protocol).ShouldBe(ProtocolContent(template.Protocol));
+        protocol.Items.Select(i => i.Drug.Name).ShouldBe([template.First.Name, template.Second.Name]);
+        protocol.Items[0].Dosing.ShouldBeNull();
+        var line2 = protocol.Items[1].Dosing;
         line2.ShouldNotBeNull();
         line2.Eye.ShouldBe("ask");
         line2.DoseAmount.ShouldBeNull("the dose comes from the drug");
         line2.TaperSteps.Select(s => s.FrequencyValue).ShouldBe([4, 3, 2, 1]);
-        Json(line2).ShouldBe(Json(template.Group.Items[1].Dosing));
+        Json(line2).ShouldBe(Json(template.Protocol.Items[1].Dosing));
     }
 
     [Fact]
@@ -182,19 +182,19 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var admin = await Login.SharedSuperAdminAsync();
         var inTemplate = await InTemplateAsync();
         var templateDrugsBefore = (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var templateGroupsBefore = (await inTemplate.GroupsAsync()).Select(g => Json(g)).ToList();
+        var templateProtocolsBefore = (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var phone = Unique.Phone();
         await admin.CreateClinicAsync(phone);
         var owner = await Login.AsAsync(phone);
 
         var ownDrugIds = (await owner.DrugsAsync()).Items.Select(d => d.Id).ToList();
-        var group = (await owner.GroupsAsync()).Single();
+        var protocol = (await owner.ProtocolsAsync()).Single();
 
-        group.Id.ShouldNotBe(template.Group.Id);
-        group.Items.ShouldAllBe(i => ownDrugIds.Contains(i.Drug.Id));
-        group.Items.ShouldAllBe(i => i.Drug.Id != template.First.Id && i.Drug.Id != template.Second.Id);
+        protocol.Id.ShouldNotBe(template.Protocol.Id);
+        protocol.Items.ShouldAllBe(i => ownDrugIds.Contains(i.Drug.Id));
+        protocol.Items.ShouldAllBe(i => i.Drug.Id != template.First.Id && i.Drug.Id != template.Second.Id);
         (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugsBefore);
-        (await inTemplate.GroupsAsync()).Select(g => Json(g)).ShouldBe(templateGroupsBefore);
+        (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(templateProtocolsBefore);
     }
 
     [Fact]
@@ -211,27 +211,27 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
         var ownerA = await Login.AsAsync(phoneA);
         var ownerB = await Login.AsAsync(phoneB);
         var templateDrugs = (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var templateGroups = (await inTemplate.GroupsAsync()).Select(g => Json(g)).ToList();
+        var templateProtocols = (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var otherDrugs = (await ownerB.DrugsAsync()).Items.Select(d => Json(d)).ToList();
-        var otherGroups = (await ownerB.GroupsAsync()).Select(g => Json(g)).ToList();
+        var otherProtocols = (await ownerB.ProtocolsAsync()).Select(g => Json(g)).ToList();
         var drugs = (await ownerA.DrugsAsync()).Items;
-        var group = (await ownerA.GroupsAsync()).Single();
+        var protocol = (await ownerA.ProtocolsAsync()).Single();
 
         await (await ownerA.PutAsync($"/api/v1/drugs/{drugs[0].Id}", new
         {
             name = drugs[0].Name + " CLINIC", description = "Edited", defaultDosing = drugs[0].DefaultDosing,
         })).ShouldBeOkAsync();
-        await (await ownerA.PutAsync($"/api/v1/drug-groups/{group.Id}", new
+        await (await ownerA.PutAsync($"/api/v1/protocols/{protocol.Id}", new
         {
-            name = group.Name + " CLINIC", items = group.Items.Take(1).Select(i => new { drugId = i.Drug.Id, dosing = i.Dosing }),
+            name = protocol.Name + " CLINIC", items = protocol.Items.Take(1).Select(i => new { drugId = i.Drug.Id, dosing = i.Dosing }),
         })).ShouldBeOkAsync();
-        await (await ownerA.DeleteAsync($"/api/v1/drug-groups/{group.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
+        await (await ownerA.DeleteAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
         await (await ownerA.DeleteAsync($"/api/v1/drugs/{drugs[1].Id}")).ShouldBeAsync(HttpStatusCode.NoContent);
 
         (await inTemplate.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(templateDrugs);
-        (await inTemplate.GroupsAsync()).Select(g => Json(g)).ShouldBe(templateGroups);
+        (await inTemplate.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(templateProtocols);
         (await ownerB.DrugsAsync()).Items.Select(d => Json(d)).ShouldBe(otherDrugs);
-        (await ownerB.GroupsAsync()).Select(g => Json(g)).ShouldBe(otherGroups);
+        (await ownerB.ProtocolsAsync()).Select(g => Json(g)).ShouldBe(otherProtocols);
     }
 
     [Fact]
@@ -407,14 +407,14 @@ public class TemplateSnapshotTests(AppFixture app) : IntegrationTest(app)
     }
 }
 
-/// <summary>An empty template (the class starts on a fresh template: no drugs, no groups).</summary>
+/// <summary>An empty template (the class starts on a fresh template: no drugs, no protocols).</summary>
 [Collection(AdminCollection3.Name)]
 [Trait("Area", "admin")]
 public class CreateClinicFromAnEmptyTemplateTests(AppFixture app) : IntegrationTest(app)
 {
     [Fact]
     [Trait("Case", "ADM-076")]
-    public async Task An_empty_template_gives_a_clinic_with_roles_and_owner_and_no_drugs_or_groups()
+    public async Task An_empty_template_gives_a_clinic_with_roles_and_owner_and_no_drugs_or_protocols()
     {
         var admin = await Login.SuperAdminAsync();
         var templateId = await App.TemplateClinicIdAsync();
@@ -427,33 +427,33 @@ public class CreateClinicFromAnEmptyTemplateTests(AppFixture app) : IntegrationT
         (await admin.RolesAsync(clinic.Id)).Select(r => r.Name).ShouldBe(["Owner", "Assistant", "Doctor"]);
         var owner = await Login.AsAsync(phone);
         (await owner.DrugsAsync()).TotalCount.ShouldBe(0);
-        (await owner.GroupsAsync()).ShouldBeEmpty();
+        (await owner.ProtocolsAsync()).ShouldBeEmpty();
     }
 }
 
-/// <summary>A template with drugs but no group (the class starts on a fresh template: no drugs, no groups).</summary>
+/// <summary>A template with drugs but no protocol (the class starts on a fresh template: no drugs, no protocols).</summary>
 [Collection(AdminCollection3.Name)]
 [Trait("Area", "admin")]
-public class CreateClinicFromATemplateWithoutGroupsTests(AppFixture app) : IntegrationTest(app)
+public class CreateClinicFromATemplateWithoutProtocolsTests(AppFixture app) : IntegrationTest(app)
 {
     private static string DrugContent(DrugDto drug) =>
         JsonSerializer.Serialize(new { drug.Name, drug.Description, drug.DefaultDosing }, Harness.Assertions.Json.Options);
 
     [Fact]
-    public async Task The_clinic_gets_a_copy_of_the_templates_drugs_and_no_groups()
+    public async Task The_clinic_gets_a_copy_of_the_templates_drugs_and_no_protocols()
     {
-        // Provisioning copies the template's drugs, then its groups (platform-admin tech "Provisioning"): none to copy
+        // Provisioning copies the template's drugs, then its protocols (platform-admin tech "Provisioning"): none to copy
         var admin = await Login.SuperAdminAsync();
         var templateId = await App.TemplateClinicIdAsync();
         var drug = await Data.Drug(templateId).Named(Unique.Name("Only drug", "دواء وحيد")).WithDosing(Dosings.Drops());
-        (await App.QueryDbAsync(db => db.DrugGroups.IgnoreQueryFilters().CountAsync(g => g.ClinicId == templateId))).ShouldBe(0);
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(g => g.ClinicId == templateId))).ShouldBe(0);
         var phone = Unique.Phone();
 
         await admin.CreateClinicAsync(phone);
 
         var owner = await Login.AsAsync(phone);
         DrugContent((await owner.DrugsAsync()).Items.ShouldHaveSingleItem()).ShouldBe(DrugContent(drug));
-        (await owner.GroupsAsync()).ShouldBeEmpty();
+        (await owner.ProtocolsAsync()).ShouldBeEmpty();
     }
 }
 

@@ -80,8 +80,8 @@ public sealed class StartupSeeder(
     }
 
     /// <summary>
-    /// The smallest content that proves the copy (design D6): two drugs with default dosings and one group using
-    /// both, one line overriding its drug's dosing (a tapering schedule, the eye asked when the group is added).
+    /// The smallest content that proves the copy (design D6): two drugs with default dosings and one protocol using
+    /// both, one line overriding its drug's dosing (a tapering schedule, the eye asked when the protocol is added).
     /// Skipped (false) when the template already has drugs (e.g. added by hand, or seeded on an earlier start
     /// while <c>DevOwnerPhone</c> was empty).
     /// </summary>
@@ -116,15 +116,15 @@ public sealed class StartupSeeder(
             db.Drugs.AddRange(antibiotic, steroid);
             await db.SaveChangesAsync();
 
-            db.DrugGroups.Add(new DrugGroup
+            db.Protocols.Add(new Protocol
             {
                 Name = "After cataract surgery",
                 Items =
                 [
                     // The drug's default dosing as is
-                    new DrugGroupItem { DrugId = antibiotic.Id, Order = 0 },
+                    new ProtocolItem { DrugId = antibiotic.Id, Order = 0 },
                     // Override: taper 4 → 1 times a day over 4 weeks; the dose comes from the drug
-                    new DrugGroupItem
+                    new ProtocolItem
                     {
                         DrugId = steroid.Id,
                         Order = 1,
@@ -175,7 +175,7 @@ public sealed class StartupSeeder(
             var viewer = new Role
             {
                 Name = DevViewerRoleName,
-                Permissions = new[] { Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Groups.List, Permissions.Groups.Details }
+                Permissions = new[] { Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Protocols.List, Permissions.Protocols.Details }
                     .Select(p => new RolePermission { Permission = p }).ToList(),
             };
             db.Roles.Add(viewer);

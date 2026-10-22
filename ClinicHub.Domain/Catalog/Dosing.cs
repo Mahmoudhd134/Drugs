@@ -3,7 +3,7 @@ namespace ClinicHub.Domain.Catalog;
 /// <summary>
 /// How a drug is taken: dose, frequency, duration and eye. Every field is optional.
 /// Stored as an owned value (columns on the owning table), so the same shape can be reused
-/// by drug defaults, group lines and saved prescription lines. Allowed codes: <see cref="DosingCodes"/>.
+/// by drug defaults, protocol lines and saved prescription lines. Allowed codes: <see cref="DosingCodes"/>.
 /// </summary>
 public class Dosing
 {
@@ -49,7 +49,7 @@ public static class DosingCodes
     public static readonly string[] DurationUnits = ["days", "weeks", "months", "continuous", "untilNextVisit"];
     public static readonly string[] Eyes = ["right", "left", "both", "none"];
 
-    /// <summary>Group lines only: the eye is chosen when the group is added to a prescription.</summary>
+    /// <summary>Protocol lines only: the eye is chosen when the protocol is added to a prescription.</summary>
     public const string AskEye = "ask";
-    public static readonly string[] GroupEyes = [.. Eyes, AskEye];
+    public static readonly string[] ProtocolEyes = [.. Eyes, AskEye];
 }

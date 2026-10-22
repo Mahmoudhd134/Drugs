@@ -17,7 +17,7 @@ public class CreateRoleCommandValidatorTests
     [Fact]
     public void A_role_with_a_name_and_known_keys_is_valid()
     {
-        Validate("Editors", ["drugs.update", "groups.list"]).IsValid.ShouldBeTrue();
+        Validate("Editors", ["drugs.update", "protocols.list"]).IsValid.ShouldBeTrue();
         Validate("قراءة فقط", ["drugs.list"]).IsValid.ShouldBeTrue();
     }
 

@@ -5,7 +5,7 @@ export const DOSE_UNITS = ["drop", "tablet", "capsule", "ml", "application"] as 
 export const FREQUENCIES = ["daily", "everyHours", "bedtime", "asNeeded", "custom"] as const;
 export const DURATION_UNITS = ["days", "weeks", "months", "continuous", "untilNextVisit"] as const;
 export const EYES = ["right", "left", "both", "none"] as const;
-/** Group lines only: the eye is chosen when the group is added to a prescription. */
+/** Protocol lines only: the eye is chosen when the protocol is added to a prescription. */
 export const ASK_EYE = "ask";
 
 export type DoseUnit = (typeof DOSE_UNITS)[number];
@@ -151,7 +151,7 @@ export const dosingErrors = (d: Dosing): DosingField[] => {
     return errors;
 };
 
-/** A drug can appear once per eye in a prescription or group; this is the eye part of that key. */
+/** A drug can appear once per eye in a prescription or protocol; this is the eye part of that key. */
 export const eyeKey = (d: Dosing | null | undefined): DosingEye => blank(d?.eye) ?? "none";
 
 export const otherEye = (eye: DosingEye | null | undefined): Eye | null =>

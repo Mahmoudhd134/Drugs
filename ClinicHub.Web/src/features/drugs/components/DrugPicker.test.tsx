@@ -4,7 +4,7 @@ import {aDrug, drugsHandlers, recordRequests, renderWithProviders, server} from 
 import type {Drug} from "../types.ts";
 import {DrugPicker} from "./DrugPicker.tsx";
 
-// The drug picker (groups editor, prescription): docs/features/drugs/tech.md "Frontend" (DrugPicker, DrugText) and
+// The drug picker (protocols editor, prescription): docs/features/drugs/tech.md "Frontend" (DrugPicker, DrugText) and
 // docs/tech/overview.md "Data fetching" (pickers: "load more", 30 per page).
 
 const renderPicker = async (drugs: Drug[], selectedIds?: Set<number>, lang: "ar" | "en" = "ar") => {

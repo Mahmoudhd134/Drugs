@@ -44,11 +44,11 @@ type Props = {
     /** Highlight invalid fields (e.g. after a save attempt) */
     showErrors?: boolean;
     /**
-     * Inherit mode (group lines): the value is an override of this base dosing. Empty fields
+     * Inherit mode (protocol lines): the value is an override of this base dosing. Empty fields
      * show as "Drug default" and the preview shows the merged result.
      */
     inheritFrom?: Dosing | null;
-    /** Offer the "ask when adding" eye (group lines only) */
+    /** Offer the "ask when adding" eye (protocol lines only) */
     allowAskEye?: boolean;
 };
 

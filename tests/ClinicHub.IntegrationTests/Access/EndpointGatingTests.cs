@@ -23,11 +23,11 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
         [Permissions.Drugs.Create] = [Permissions.Drugs.List],
         [Permissions.Drugs.Update] = [Permissions.Drugs.Details, Permissions.Drugs.List],
         [Permissions.Drugs.Delete] = [Permissions.Drugs.Details, Permissions.Drugs.List],
-        [Permissions.Groups.List] = [],
-        [Permissions.Groups.Details] = [Permissions.Groups.List],
-        [Permissions.Groups.Create] = [Permissions.Groups.List, Permissions.Drugs.List],
-        [Permissions.Groups.Update] = [Permissions.Groups.Details, Permissions.Groups.List, Permissions.Drugs.List],
-        [Permissions.Groups.Delete] = [Permissions.Groups.List],
+        [Permissions.Protocols.List] = [],
+        [Permissions.Protocols.Details] = [Permissions.Protocols.List],
+        [Permissions.Protocols.Create] = [Permissions.Protocols.List, Permissions.Drugs.List],
+        [Permissions.Protocols.Update] = [Permissions.Protocols.Details, Permissions.Protocols.List, Permissions.Drugs.List],
+        [Permissions.Protocols.Delete] = [Permissions.Protocols.List],
     };
 
     [Fact]
@@ -40,7 +40,7 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ACC-024")]
-    public Task A_drugs_groups_need_drugs_details() => ShouldBeGatedAsync("GET /drugs/{id}/groups");
+    public Task A_drugs_protocols_need_drugs_details() => ShouldBeGatedAsync("GET /drugs/{id}/protocols");
 
     [Fact]
     [Trait("Case", "ACC-025")]
@@ -57,23 +57,23 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ACC-028")]
-    public Task Listing_groups_needs_groups_list() => ShouldBeGatedAsync("GET /drug-groups");
+    public Task Listing_protocols_needs_protocols_list() => ShouldBeGatedAsync("GET /protocols");
 
     [Fact]
     [Trait("Case", "ACC-029")]
-    public Task Opening_a_group_needs_groups_details() => ShouldBeGatedAsync("GET /drug-groups/{id}");
+    public Task Opening_a_protocol_needs_protocols_details() => ShouldBeGatedAsync("GET /protocols/{id}");
 
     [Fact]
     [Trait("Case", "ACC-030")]
-    public Task Creating_a_group_needs_groups_create() => ShouldBeGatedAsync("POST /drug-groups");
+    public Task Creating_a_protocol_needs_protocols_create() => ShouldBeGatedAsync("POST /protocols");
 
     [Fact]
     [Trait("Case", "ACC-031")]
-    public Task Updating_a_group_needs_groups_update() => ShouldBeGatedAsync("PUT /drug-groups/{id}");
+    public Task Updating_a_protocol_needs_protocols_update() => ShouldBeGatedAsync("PUT /protocols/{id}");
 
     [Fact]
     [Trait("Case", "ACC-032")]
-    public Task Deleting_a_group_needs_groups_delete() => ShouldBeGatedAsync("DELETE /drug-groups/{id}");
+    public Task Deleting_a_protocol_needs_protocols_delete() => ShouldBeGatedAsync("DELETE /protocols/{id}");
 
     [Fact]
     [Trait("Case", "ACC-033")]
@@ -82,13 +82,13 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
         var clinic = await Data.Clinic();
         var assistant = await Login.WithRoleAsync(clinic, "Assistant");
         var viewer = await Login.WithPermissionsAsync(clinic,
-            Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Groups.List, Permissions.Groups.Details);
+            Permissions.Drugs.List, Permissions.Drugs.Details, Permissions.Protocols.List, Permissions.Protocols.Details);
 
         await (await assistant.DeleteAsync("/api/v1/drugs/2147483000")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
-        await (await assistant.DeleteAsync("/api/v1/drug-groups/2147483000")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
+        await (await assistant.DeleteAsync("/api/v1/protocols/2147483000")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
         await (await viewer.PostAsync("/api/v1/drugs", new { name = "" })).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
         await (await viewer.SendRawAsync(HttpMethod.Post, "/api/v1/drugs", "{bad json")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
-        await (await viewer.PostAsync("/api/v1/drug-groups", new { name = "", items = Array.Empty<object>() }))
+        await (await viewer.PostAsync("/api/v1/protocols", new { name = "", items = Array.Empty<object>() }))
             .ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }
 
@@ -115,15 +115,15 @@ public class EndpointGatingTests(AppFixture app) : IntegrationTest(app)
         (await SnapshotAsync(clinic.Id, target)).ShouldNotBe(before, "the allowed request did its change");
     }
 
-    /// <summary>What a write could change: the clinic's drug and group counts, the target's names and lines.</summary>
+    /// <summary>What a write could change: the clinic's drug and protocol counts, the target's names and lines.</summary>
     private Task<string> SnapshotAsync(int clinicId, CatalogTarget target) => App.QueryDbAsync(async db =>
     {
         var drugs = await db.Drugs.IgnoreQueryFilters().Where(d => d.ClinicId == clinicId)
             .OrderBy(d => d.Id).Select(d => d.Id + ":" + d.Name).ToListAsync();
-        var groups = await db.DrugGroups.IgnoreQueryFilters().Where(g => g.ClinicId == clinicId)
+        var protocols = await db.Protocols.IgnoreQueryFilters().Where(g => g.ClinicId == clinicId)
             .OrderBy(g => g.Id).Select(g => g.Id + ":" + g.Name).ToListAsync();
-        var lines = await db.DrugGroupItems.IgnoreQueryFilters().Where(i => i.DrugGroupId == target.GroupId)
+        var lines = await db.ProtocolItems.IgnoreQueryFilters().Where(i => i.ProtocolId == target.ProtocolId)
             .OrderBy(i => i.Id).Select(i => i.Id + ":" + i.DrugId).ToListAsync();
-        return string.Join("|", drugs) + "#" + string.Join("|", groups) + "#" + string.Join("|", lines);
+        return string.Join("|", drugs) + "#" + string.Join("|", protocols) + "#" + string.Join("|", lines);
     });
 }

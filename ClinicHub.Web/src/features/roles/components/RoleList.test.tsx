@@ -52,17 +52,17 @@ describe("roles list @area:admin", () => {
             anOwnerRole(),
             aRole({name: "Doctor", permissions: [...ALL_PERMISSIONS]}),
             aRole({name: "Assistant", permissions: [...ROLE_KEYS.assistant]}),
-            aRole({name: "Group editors", permissions: [...ROLE_KEYS.groupEditors]}),
+            aRole({name: "Protocol editors", permissions: [...ROLE_KEYS.protocolEditors]}),
             aRole({name: "Nothing", permissions: []}),
             aRole({name: "One", permissions: ["drugs.list"]}),
-            aRole({name: "Two", permissions: ["drugs.list", "groups.list"]}),
+            aRole({name: "Two", permissions: ["drugs.list", "protocols.list"]}),
         ], {lang: "ar"});
         await waitFor(() => expect(summaryOf(roleRow("Doctor"))).toBe("كل الصلاحيات"));
-        expect(summaryOf(roleRow("Assistant"))).toBe("9 صلاحيات: الأدوية، المجموعات، الروشتة");
-        expect(summaryOf(roleRow("Group editors"))).toBe("6 صلاحيات: الأدوية، المجموعات");
+        expect(summaryOf(roleRow("Assistant"))).toBe("9 صلاحيات: الأدوية، البروتوكولات، الروشتة");
+        expect(summaryOf(roleRow("Protocol editors"))).toBe("6 صلاحيات: الأدوية، البروتوكولات");
         expect(summaryOf(roleRow("Nothing"))).toBe("بلا صلاحيات");
         expect(summaryOf(roleRow("One"))).toBe("صلاحية واحدة: الأدوية");
-        expect(summaryOf(roleRow("Two"))).toBe("صلاحيتان: الأدوية، المجموعات");
+        expect(summaryOf(roleRow("Two"))).toBe("صلاحيتان: الأدوية، البروتوكولات");
     });
 
     test("the summaries in English @ADM-174", async () => {
@@ -73,7 +73,7 @@ describe("roles list @area:admin", () => {
             aRole({name: "Nothing", permissions: []}),
         ]);
         await waitFor(() => expect(summaryOf(roleRow("Doctor"))).toBe("All permissions"));
-        expect(summaryOf(roleRow("Assistant"))).toBe("9 permissions: Drugs, Groups, Prescription");
+        expect(summaryOf(roleRow("Assistant"))).toBe("9 permissions: Drugs, Protocols, Prescription");
         expect(summaryOf(roleRow("Nothing"))).toBe("No permissions");
     });
 
@@ -82,7 +82,7 @@ describe("roles list @area:admin", () => {
         const catalog = [...PERMISSION_CATALOG,
             {key: "prescriptions.print", module: "prescription", resource: "prescriptions", action: "print", requires: []}];
         await openRolesTab([anOwnerRole(), aRole({name: "Doctor", permissions: [...ALL_PERMISSIONS]})], {lang: "ar", catalog});
-        await waitFor(() => expect(summaryOf(roleRow("Doctor"))).toBe("11 صلاحية: الأدوية، المجموعات، الروشتة"));
+        await waitFor(() => expect(summaryOf(roleRow("Doctor"))).toBe("11 صلاحية: الأدوية، البروتوكولات، الروشتة"));
     });
 
     test("the staff column shows every holder the API counts (active or not) @ADM-175", async () => {

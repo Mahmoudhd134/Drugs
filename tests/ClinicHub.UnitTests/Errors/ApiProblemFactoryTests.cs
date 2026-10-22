@@ -174,7 +174,7 @@ public class ApiProblemFactoryTests
     {
         var problem = ApiProblemFactory.Create(Request(), [
             CommonErrors.NameRequired with { Field = "Name" },
-            new Error("invalidDosing", "The dosing of a group line is not valid.", ErrorType.Validation, "Items[0].Dosing"),
+            new Error("invalidDosing", "The dosing of a protocol line is not valid.", ErrorType.Validation, "Items[0].Dosing"),
             new Error("invalidPhone", "The phone number is not valid.", ErrorType.Validation, "Owner.Phone"),
             CommonErrors.InvalidRequest with { Field = "$.items" },
             CommonErrors.InvalidRequest with { Field = "$" },

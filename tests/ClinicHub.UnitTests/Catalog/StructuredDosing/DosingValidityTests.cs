@@ -185,16 +185,16 @@ public class DosingValidityTests
     [InlineData("left")]
     [InlineData("both")]
     [InlineData("none")]
-    public void Every_eye_is_valid_on_a_drug_and_a_group_line(string eye)
+    public void Every_eye_is_valid_on_a_drug_and_a_protocol_line(string eye)
     {
         Accepted(new Dosing { Eye = eye }).ShouldBeTrue();
         Accepted(new Dosing { Eye = eye }, groupLine: true).ShouldBeTrue();
     }
 
     [Fact]
-    public void Ask_eye_is_only_valid_on_a_group_line()
+    public void Ask_eye_is_only_valid_on_a_protocol_line()
     {
-        // dosing tech § Backend: allowAskEye, only group lines (catalog DOSE-058 at the API level)
+        // dosing tech § Backend: allowAskEye, only protocol lines (catalog DOSE-058 at the API level)
         Accepted(new Dosing { Eye = "ask" }).ShouldBeFalse("a drug's default dosing can't ask");
         Accepted(new Dosing { Eye = "ask" }, groupLine: true).ShouldBeTrue();
     }
@@ -209,7 +209,7 @@ public class DosingValidityTests
         DosingCodes.Frequencies.ShouldBe(["daily", "everyHours", "bedtime", "asNeeded", "custom"]);
         DosingCodes.DurationUnits.ShouldBe(["days", "weeks", "months", "continuous", "untilNextVisit"]);
         DosingCodes.Eyes.ShouldBe(["right", "left", "both", "none"]);
-        DosingCodes.GroupEyes.ShouldBe(["right", "left", "both", "none", "ask"]);
+        DosingCodes.ProtocolEyes.ShouldBe(["right", "left", "both", "none", "ask"]);
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aGroup, aLine, fillIn, findToast, hoverTooltip, toastTexts} from "../../../test";
+import {aDrug, aProtocol, aLine, fillIn, findToast, hoverTooltip, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
 import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
 
@@ -11,13 +11,13 @@ import {openPrescription, storedLines} from "../../../test/pages/prescription.ts
 const isBefore = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
 describe("the prescription page @area:prescription", () => {
-    test("a search in Groups, then Drugs and back: each tab keeps its own search @RX-003", async () => {
-        const {user} = await openPrescription({groups: [aGroup()], drugs: [aDrug()]});
+    test("a search in Protocols, then Drugs and back: each tab keeps its own search @RX-003", async () => {
+        const {user} = await openPrescription({protocols: [aProtocol()], drugs: [aDrug()]});
         await fillIn(user, screen.getByRole("searchbox"), "post");
         await user.click(screen.getByRole("tab", {name: "الأدوية"}));
         expect(screen.getByRole("searchbox")).toHaveValue("");
         await user.type(screen.getByRole("searchbox"), "tob");
-        await user.click(screen.getByRole("tab", {name: "المجموعات"}));
+        await user.click(screen.getByRole("tab", {name: "البروتوكولات"}));
         expect(screen.getByRole("searchbox")).toHaveValue("post");
         await user.click(screen.getByRole("tab", {name: "الأدوية"}));
         expect(screen.getByRole("searchbox")).toHaveValue("tob");
@@ -26,7 +26,7 @@ describe("the prescription page @area:prescription", () => {
     test("empty: «لم يتم اختيار شيء بعد» and its hint, the count 0, «مسح الكل», «نسخ», «تعديل ونسخ» disabled @RX-004", async () => {
         const {selection} = await openPrescription();
         expect(selection().getByText("لم يتم اختيار شيء بعد")).toBeInTheDocument();
-        expect(selection().getByText("ابحث عن مجموعة أو دواء واضغط عليه لإضافته هنا.")).toBeInTheDocument();
+        expect(selection().getByText("ابحث عن بروتوكول أو دواء واضغط عليه لإضافته هنا.")).toBeInTheDocument();
         expect(selection().getByText("0")).toHaveClass("MuiChip-label");
         expect(selection().getByRole("button", {name: "مسح الكل"})).toBeDisabled();
         expect(selection().getByRole("button", {name: "نسخ"})).toBeDisabled();
@@ -36,7 +36,7 @@ describe("the prescription page @area:prescription", () => {
     test("empty, in English: \"Nothing selected yet\" @RX-004", async () => {
         const {selection} = await openPrescription({lang: "en"});
         expect(selection().getByText("Nothing selected yet")).toBeInTheDocument();
-        expect(selection().getByText("Search for a group or a drug and click it to add it here.")).toBeInTheDocument();
+        expect(selection().getByText("Search for a protocol or a drug and click it to add it here.")).toBeInTheDocument();
         expect(selection().getByRole("button", {name: "Clear all"})).toBeDisabled();
         expect(selection().getByRole("button", {name: "Copy"})).toBeDisabled();
         expect(selection().getByRole("button", {name: "Edit & copy"})).toBeDisabled();

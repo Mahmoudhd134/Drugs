@@ -58,8 +58,8 @@ public class RoutingTests(AppFixture app) : IntegrationTest(app)
     [Theory]
     [Trait("Case", "ERR-018")]
     [InlineData("/api/v1/drugs/abc", "GET PUT DELETE", "POST PATCH")]
-    [InlineData("/api/v1/drugs/abc/groups", "GET", "POST PUT DELETE PATCH")]
-    [InlineData("/api/v1/drug-groups/abc", "GET PUT DELETE", "POST PATCH")]
+    [InlineData("/api/v1/drugs/abc/protocols", "GET", "POST PUT DELETE PATCH")]
+    [InlineData("/api/v1/protocols/abc", "GET PUT DELETE", "POST PATCH")]
     [InlineData("/api/v1/admin/clinics/abc", "GET PUT DELETE", "POST PATCH")]
     [InlineData("/api/v1/admin/clinics/abc/suspend", "POST GET", "PUT DELETE PATCH")]
     [InlineData("/api/v1/admin/clinics/abc/activate", "POST GET", "PUT DELETE PATCH")]
@@ -108,7 +108,7 @@ public class RoutingTests(AppFixture app) : IntegrationTest(app)
             variant.Start();
             using var browser = new ApiClient(variant);
 
-            foreach (var path in new[] { "/drugs", "/groups/5", "/admin/clinics/3" })
+            foreach (var path in new[] { "/drugs", "/protocols/5", "/admin/clinics/3" })
             {
                 var page = await browser.GetAsync(path);
                 var html = await page.ShouldBeOkAsync();

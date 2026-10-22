@@ -1,9 +1,9 @@
 import type {Lang} from "./texts.ts";
 
 /**
- * The expected texts of the catalog journeys (drugs, groups, dosing, tapering), written out like `texts.ts` (never
+ * The expected texts of the catalog journeys (drugs, protocols, dosing, tapering), written out like `texts.ts` (never
  * imported from the locale files, so a changed message fails a test). Sources: the messages quoted by the business
- * docs and the test catalog (docs/features/{drugs,drug-groups,dosing,tapering}/business.md, docs/testing/test-catalog.md
+ * docs and the test catalog (docs/features/{drugs,protocols,dosing,tapering}/business.md, docs/testing/test-catalog.md
  * DRUG/GRP/DOSE/TAPER), which quote `ar.ts` / `en.ts`; plain labels (fields, buttons) as the locale files have them.
  * A name inside a message sits in the bidi isolates U+2068/U+2069 (catalog "How to read it").
  */
@@ -14,9 +14,9 @@ const ar = {
     drugsNoResults: "لا توجد أدوية مطابقة للبحث.",
     drugDeleted: "تم حذف الدواء",
     drugDeleteTitle: "حذف الدواء؟",
-    drugDeleteMessage: (name: string) => `سيتم حذف «${iso(name)}» وإزالته من كل المجموعات. لا يمكن التراجع عن ذلك.`,
-    /** The groups using a drug, joined with the Arabic comma «، » in both languages (drugs tech, Q5) */
-    drugUsedInGroups: (names: string[]) => `يُستخدم في هذه المجموعات: ${iso(names.join("، "))}`,
+    drugDeleteMessage: (name: string) => `سيتم حذف «${iso(name)}» وإزالته من كل البروتوكولات. لا يمكن التراجع عن ذلك.`,
+    /** The protocols using a drug, joined with the Arabic comma «، » in both languages (drugs tech, Q5) */
+    drugUsedInProtocols: (names: string[]) => `يُستخدم في هذه البروتوكولات: ${iso(names.join("، "))}`,
     drugDescription: "الوصف",
     displayedRows: (from: number, to: number, count: number) => `${from}–${to} من ${count}`,
     firstPage: "الذهاب إلى الصفحة الأولى",
@@ -34,29 +34,31 @@ const ar = {
     taper: "تقليل تدريجي",
     taperStep: (n: number) => `المرحلة ${n}`,
     drugDefault: "افتراضي الدواء",
-    // Groups (docs/features/drug-groups/business.md "الرسائل")
-    groupDeleted: "تم حذف المجموعة",
-    groupDeleteTitle: "حذف المجموعة؟",
-    groupDeleteMessage: (name: string) => `سيتم حذف «${iso(name)}». الأدوية نفسها لن تُحذف.`,
-    groupsNoResults: "لا توجد مجموعات مطابقة للبحث.",
+    // Protocols (docs/features/protocols/business.md "الرسائل")
+    protocolDeleted: "تم حذف البروتوكول",
+    protocolDeleteTitle: "حذف البروتوكول؟",
+    protocolDeleteMessage: (name: string) => `سيتم حذف «${iso(name)}». الأدوية نفسها لن تُحذف.`,
+    protocolsNoResults: "لا توجد بروتوكولات مطابقة للبحث.",
+    protocolsEmptyTitle: "لا توجد بروتوكولات بعد",
+    protocolsPickerEmpty: "لا توجد بروتوكولات في هذه العيادة بعد.",
     drugCount: (n: number) => `الأدوية: ${n}`,
     moreDrugs: (n: number) => `+${n} أخرى`,
     drugsRequired: "أضف دواءً واحدًا على الأقل.",
     drugNotFound: "أحد الأدوية لم يعد موجودًا.",
     nameRequired: "الاسم مطلوب.",
     discardTitle: "تجاهل التغييرات؟",
-    discardMessage: "ستفقد التغييرات غير المحفوظة على هذه المجموعة.",
+    discardMessage: "ستفقد التغييرات غير المحفوظة على هذا البروتوكول.",
     discard: "تجاهل",
     eyeClash: "نفس الدواء والعين في سطر آخر",
-    eyeClashSave: "يوجد دواء مكرر في المجموعة لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.",
-    groupDosing: "جرعة خاصة بالمجموعة",
-    itemDosing: "الجرعة في هذه المجموعة",
+    eyeClashSave: "يوجد دواء مكرر في البروتوكول لنفس العين (مُعلَّم بالأسفل). احذف أحد السطرين أو غيّر العين، ثم احفظ.",
+    protocolDosing: "جرعة خاصة بالبروتوكول",
+    itemDosing: "الجرعة في هذا البروتوكول",
     editLine: "تعديل الجرعة",
     addOtherEye: "إضافة للعين الأخرى",
     removeLine: "إزالة",
     dragToReorder: "اسحب لتغيير الترتيب",
     added: "مُضاف",
-    noDrugsInGroup: "لا توجد أدوية في هذه المجموعة",
+    noDrugsInProtocol: "لا توجد أدوية في هذا البروتوكول",
     addDrugs: "إضافة أدوية",
     pageN: (n: number) => `الصفحة ${n}`,
     goToPageN: (n: number) => `الذهاب إلى الصفحة ${n}`,
@@ -68,8 +70,8 @@ const en: CatalogTexts = {
     drugsNoResults: "No drugs match your search.",
     drugDeleted: "Drug deleted",
     drugDeleteTitle: "Delete drug?",
-    drugDeleteMessage: name => `“${iso(name)}” will be deleted and removed from every group. This can't be undone.`,
-    drugUsedInGroups: names => `It is used in these groups: ${iso(names.join("، "))}`,
+    drugDeleteMessage: name => `“${iso(name)}” will be deleted and removed from every protocol. This can't be undone.`,
+    drugUsedInProtocols: names => `It is used in these protocols: ${iso(names.join("، "))}`,
     drugDescription: "Description",
     displayedRows: (from, to, count) => `${from}–${to} of ${count}`,
     firstPage: "Go to first page",
@@ -86,28 +88,30 @@ const en: CatalogTexts = {
     taper: "Tapering schedule",
     taperStep: n => `Step ${n}`,
     drugDefault: "Drug default",
-    groupDeleted: "Group deleted",
-    groupDeleteTitle: "Delete group?",
-    groupDeleteMessage: name => `“${iso(name)}” will be deleted. The drugs themselves are kept.`,
-    groupsNoResults: "No groups match your search.",
+    protocolDeleted: "Protocol deleted",
+    protocolDeleteTitle: "Delete protocol?",
+    protocolDeleteMessage: name => `“${iso(name)}” will be deleted. The drugs themselves are kept.`,
+    protocolsNoResults: "No protocols match your search.",
+    protocolsEmptyTitle: "No protocols yet",
+    protocolsPickerEmpty: "This clinic has no protocols yet.",
     drugCount: n => `Drugs: ${n}`,
     moreDrugs: n => `+${n} more`,
     drugsRequired: "Add at least one drug.",
     drugNotFound: "One of the drugs no longer exists.",
     nameRequired: "Name is required.",
     discardTitle: "Discard changes?",
-    discardMessage: "Your unsaved changes to this group will be lost.",
+    discardMessage: "Your unsaved changes to this protocol will be lost.",
     discard: "Discard",
     eyeClash: "Same drug and eye as another line",
-    eyeClashSave: "A drug is in the group twice for the same eye (marked below). Remove a line or change its eye, then save.",
-    groupDosing: "Group dosing",
-    itemDosing: "Dosing in this group",
+    eyeClashSave: "A drug is in the protocol twice for the same eye (marked below). Remove a line or change its eye, then save.",
+    protocolDosing: "Protocol dosing",
+    itemDosing: "Dosing in this protocol",
     editLine: "Edit dosing",
     addOtherEye: "Add for the other eye",
     removeLine: "Remove",
     dragToReorder: "Drag to reorder",
     added: "Added",
-    noDrugsInGroup: "No drugs in this group",
+    noDrugsInProtocol: "No drugs in this protocol",
     addDrugs: "Add drugs",
     pageN: n => `Page ${n}`,
     goToPageN: n => `Go to page ${n}`,
@@ -124,11 +128,11 @@ export const SENTENCES = {
     dropRight4x7d: "نقطة واحدة في العين اليمنى 4 مرات يوميًا لمدة 7 أيام",
     /** drop 1, 4 times a day, 7 days */
     drop4x7d: "نقطة واحدة 4 مرات يوميًا لمدة 7 أيام",
-    /** the same with the group's 6 times a day */
+    /** the same with the protocol's 6 times a day */
     drop6x7d: "نقطة واحدة 6 مرات يوميًا لمدة 7 أيام",
     /** the drug's default after its duration became 14 days */
     drop4x14d: "نقطة واحدة 4 مرات يوميًا لمدة 14 يومًا",
-    /** the group's frequency with the drug's new duration */
+    /** the protocol's frequency with the drug's new duration */
     drop6x14d: "نقطة واحدة 6 مرات يوميًا لمدة 14 يومًا",
     /** tablet 1, twice a day, 1 week */
     tablet2x1w: "قرص واحد مرتين يوميًا لمدة أسبوع",

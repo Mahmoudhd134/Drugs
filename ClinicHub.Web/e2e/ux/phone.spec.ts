@@ -4,13 +4,15 @@ import {unique} from "../support/phones.ts";
 import {DOSINGS, TEN_STEP_TAPER} from "../support/texts-ux.ts";
 import {
     addDrugToRx,
-    addGroupToRx,
+    addProtocolToRx,
     dialog,
     drugRow,
     drugWith,
     expectNoCutOrOverlap,
     expectNoDialog,
-    groupWith,
+    expectNotCut,
+    fitsTheScreen,
+    protocolWith,
     noHorizontalScroll,
     open,
     shownName,
@@ -48,12 +50,12 @@ test.describe("Phone layout (375 px) @area:ux", () => {
         test.skip(!isMobile, "the phone project");
     });
 
-    test("the drug dialog, the group line dialog and the prescription line dialog are full-screen: only the content scrolls, Save and Cancel stay visible @UX-002",
+    test("the drug dialog, the protocol line dialog and the prescription line dialog are full-screen: only the content scrolls, Save and Cancel stay visible @UX-002",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
             const taper = await drugWith(data, clinic, {name: `Pred Forte ${unique()}`, defaultDosing: TEN_STEP_TAPER});
-            const group = await groupWith(data, clinic, `G ${unique()}`, [{drug: taper}]);
+            const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug: taper}]);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
 
             await drugRow(page, taper.name).click();
@@ -64,9 +66,9 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
-            await open(page, `/groups/${group.id}`);
+            await open(page, `/protocols/${protocol.id}`);
             await page.getByRole("button", {name: u.editLine}).first().click();
-            await expectFullScreenDialog(page, [t.save, t.cancel], "group line dialog");
+            await expectFullScreenDialog(page, [t.save, t.cancel], "protocol line dialog");
             await dialog(page).getByRole("button", {name: t.cancel}).click();
             await expectNoDialog(page);
 
@@ -121,7 +123,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             await addDrugToRx(page, t, drug.name);
             await expect(shownName(page, drug.name)).toBeVisible();
 
-            const catalog = await box(page.locator("main .MuiPaper-root").filter({has: page.getByRole("tab", {name: t.rxTabGroups})}));
+            const catalog = await box(page.locator("main .MuiPaper-root").filter({has: page.getByRole("tab", {name: t.rxTabProtocols})}));
             const selection = await box(page.locator("main .MuiPaper-root").filter({hasText: u.rxSelected}));
             expect(catalog.y + catalog.height, "catalog above the lines").toBeLessThanOrEqual(selection.y);
             expect(Math.abs(catalog.x - selection.x), "same column").toBeLessThanOrEqual(1);
@@ -135,18 +137,18 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             expect(copy.width, "full-width").toBeGreaterThanOrEqual(selection.width - 2 * 20 - 4);
         });
 
-    test("the conflict dialog stacks «الحالي» above «من المجموعة», and the eye dialog's three buttons fit @UX-005",
+    test("the conflict dialog stacks «الحالي» above «من البروتوكول», and the eye dialog's three buttons fit @UX-005",
         async ({page, data, lang}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: DOSINGS.oneDropFour.dosing});
             const other = await drugWith(data, clinic, {name: `Vigamox ${unique()}`});
-            const group = await groupWith(data, clinic, `G ${unique()}`, [
+            const protocol = await protocolWith(data, clinic, `G ${unique()}`, [
                 {drug, dosing: DOSINGS.sixTimesOverride.dosing}, {drug: other, dosing: {eye: "ask"}},
             ]);
             await signIn(page, clinic.owner.phone);
             await addDrugToRx(page, t, drug.name);
-            await addGroupToRx(page, t, group.name);
+            await addProtocolToRx(page, t, protocol.name);
 
             await expect(dialog(page).getByText(u.chooseEyeTitle)).toBeVisible();
             const paper = await box(page.locator(".MuiDialog-paper").filter({visible: true}));
@@ -165,12 +167,44 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             const incoming = await box(dialog(page).getByText(u.conflictIncoming, {exact: true}));
             const currentText = await box(dialog(page).getByText(DOSINGS.oneDropFour.text, {exact: true}));
             expect(currentText.y, "the current sentence under «الحالي»").toBeGreaterThan(current.y);
-            expect(incoming.y, "«من المجموعة» below the current box").toBeGreaterThanOrEqual(currentText.y + currentText.height);
+            expect(incoming.y, "«من البروتوكول» below the current box").toBeGreaterThanOrEqual(currentText.y + currentText.height);
             expect(Math.abs(incoming.x - current.x), "stacked, not side by side").toBeLessThanOrEqual(Math.max(current.width, incoming.width));
             await expectNoCutOrOverlap(dialog(page), "conflict dialog");
             await noHorizontalScroll(page, "conflict dialog");
             await dialog(page).getByRole("button", {name: u.keepCurrent}).click();
             await expectNoDialog(page);
+        });
+
+    test("the protocol-line chips «جرعة خاصة بالبروتوكول» and «العين تُحدد عند إضافة البروتوكول» wrap on the line instead of being cut @UX-006",
+        async ({page, data, lang}) => {
+            const {u} = textsOf(lang);
+            const clinic = await data.clinic();
+            const long = `Tobradexdexamethasonetobramycinophthalmicsuspension${unique()}`;
+            const drug = await drugWith(data, clinic, {name: long, defaultDosing: DOSINGS.oneDropFour.dosing});
+            const other = await drugWith(data, clinic, {name: `Vigamoxmoxifloxacinophthalmicsolution${unique()}`, defaultDosing: DOSINGS.oneDropFour.dosing});
+            const third = await drugWith(data, clinic, {name: `Systanehydroxypropylguarlubricant${unique()}`, defaultDosing: DOSINGS.oneDropFour.dosing});
+            // One line with both chips (an override that also asks for the eye), one with each chip alone
+            const protocol = await protocolWith(data, clinic, `Chips ${unique()}`, [
+                {drug, dosing: {...DOSINGS.sixTimesOverride.dosing, eye: "ask"}},
+                {drug: other, dosing: DOSINGS.sixTimesOverride.dosing},
+                {drug: third, dosing: {eye: "ask"}},
+            ]);
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
+            const main = page.locator("main");
+            const custom = main.locator(".MuiChip-label").filter({hasText: u.customDosingChip});
+            const ask = main.locator(".MuiChip-label").filter({hasText: u.askEyeChip});
+            await expect(custom.first()).toBeVisible();
+            await expect(ask.first()).toBeVisible();
+            await expect(ask, "«العين تُحدد عند إضافة البروتوكول» on the 2 lines that ask for the eye").toHaveCount(2);
+            for (const chip of [...await custom.all(), ...await ask.all()]) {
+                await chip.scrollIntoViewIfNeeded();
+                await expect(chip).toBeVisible();
+            }
+            await expectNotCut(custom, "protocol dosing chip");
+            await expectNotCut(ask, "eye chosen when added chip");
+            await fitsTheScreen(page, main.locator(".MuiChip-root"), "protocol-line chip");
+            await expectNoCutOrOverlap(main, "protocol editor at 375 px");
+            await noHorizontalScroll(page, "protocol editor at 375 px");
         });
 
     test("the menu button (tooltip «فتح القائمة») opens the navigation drawer, and choosing an entry closes it @UX-008",
@@ -192,8 +226,8 @@ test.describe("Phone layout (375 px) @area:ux", () => {
 
             await menu.click();
             await expect(nav).toBeVisible();
-            await nav.getByRole("link", {name: t.navGroups, exact: true}).click();
-            await expect(page).toHaveURL(/\/groups$/);
+            await nav.getByRole("link", {name: t.navProtocols, exact: true}).click();
+            await expect(page).toHaveURL(/\/protocols$/);
             await expect(drawer).toBeHidden();
         });
 });

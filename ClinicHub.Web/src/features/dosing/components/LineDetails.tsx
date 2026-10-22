@@ -9,7 +9,7 @@ type Props = {
 };
 
 /**
- * What a prescription or group line shows under the drug name: the dosing sentence; when the dosing has no dose,
+ * What a prescription or protocol line shows under the drug name: the dosing sentence; when the dosing has no dose,
  * frequency, duration or tapering (empty, or only an eye), the drug's description followed by the eye part
  * («في العين اليمنى»; nothing for «بدون عين»). The copied text follows the same rule (`prescriptionText.ts`).
  */
