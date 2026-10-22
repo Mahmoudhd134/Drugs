@@ -236,7 +236,7 @@ const en = {
         new: "New drug",
         edit: "Edit drug",
         details: "Drug details",
-        searchPlaceholder: "Search drugs by name…",
+        searchPlaceholder: "Search by name, active ingredient or category…",
         name: "Name",
         description: "Description",
         actions: "Actions",

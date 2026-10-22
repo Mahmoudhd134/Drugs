@@ -220,7 +220,7 @@ const ar: Translations = {
         new: "دواء جديد",
         edit: "تعديل الدواء",
         details: "تفاصيل الدواء",
-        searchPlaceholder: "ابحث عن دواء بالاسم…",
+        searchPlaceholder: "ابحث بالاسم أو المادة الفعالة أو التصنيف…",
         name: "الاسم",
         description: "الوصف",
         actions: "الإجراءات",
