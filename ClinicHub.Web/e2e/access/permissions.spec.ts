@@ -1,4 +1,5 @@
 import type {Page, Response} from "@playwright/test";
+import {IMPORTED} from "../support/shared.ts";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {type ClinicHandle, type Data, type PermissionKey, READ_ONLY} from "../support/data.ts";
 import {expectContextLabel, expectToast, focusBack, navTo, recordRequests, sidebarEntries, toasts} from "../support/ui.ts";
@@ -89,9 +90,10 @@ test.describe("Permissions in the UI @area:access", () => {
             }
         });
 
-    test("an Assistant on Drugs: Add and the edit icon show, the delete icon doesn't, and a row opens the editor @ACC-062", async ({page, t, data}) => {
+    test("an Assistant on Drugs: Add and the edit icon on own rows, no delete icon, an own row opens the editor; shared rows have no edit icon and open the read-only details @ACC-062", async ({page, t, data}) => {
         const {drug, staff} = await setUp(data, "Assistant");
         await signIn(page, staff.phone, "asIs", "/drugs");
+        await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
         const row = page.getByRole("row").filter({hasText: drug.name});
         await expect(row).toBeVisible();
         await expect(page.getByRole("button", {name: t.addDrug})).toBeVisible();
@@ -102,6 +104,20 @@ test.describe("Permissions in the UI @area:access", () => {
         const editor = page.getByRole("dialog", {name: t.editDrug});
         await expect(editor).toBeVisible();
         await expect(editor.getByRole("textbox", {name: t.drugName})).toHaveValue(drug.name);
+        await editor.getByRole("button", {name: t.cancel}).click();
+        await expect(editor).toHaveCount(0);
+
+        // A shared row (design M1.7 D9)
+        await page.getByPlaceholder(t.searchDrugs).fill(IMPORTED.vigamox);
+        const shared = page.getByRole("row").filter({has: page.getByText(IMPORTED.vigamox, {exact: true})});
+        await expect(shared).toBeVisible();
+        await shared.hover();
+        await expect(shared.getByRole("button", {name: t.edit})).toHaveCount(0);
+        await expect(shared.getByRole("button", {name: t.delete})).toHaveCount(0);
+        await shared.getByRole("cell").first().click();
+        await expect(page.getByRole("dialog", {name: t.drugDetails})).toBeVisible();
+        await expect(page.getByRole("dialog", {name: t.editDrug})).toHaveCount(0);
+        await page.getByRole("dialog", {name: t.drugDetails}).getByRole("button", {name: t.close}).click();
     });
 
     test("an Assistant in the protocol editor: Delete is shown disabled, and hovering it says «ليست لديك صلاحية» @ACC-066",

@@ -5,6 +5,7 @@ import {settled} from "./fixtures.ts";
 import {unique, uniqueDigits} from "./phones.ts";
 import {type Lang, TEXTS, type Texts} from "./texts.ts";
 import {DOSINGS, LANGUAGE_NAMES, TEN_STEP_TAPER, UX_TEXTS, type UxTexts} from "./texts-ux.ts";
+import {ownDrugBody} from "./shared.ts";
 
 /** Helpers of the I18N and UX specs (e2e stage 2, track e2e-ux). */
 
@@ -15,11 +16,11 @@ export type ProtocolItem = { drug: Drug; dosing?: unknown };
 export const drugWith = async (data: Data, clinic: ClinicHandle,
                                options: { name?: string; description?: string | null; defaultDosing?: unknown } = {}) => {
     const api = await data.ownerApi(clinic);
-    return api.ok<FullDrug>("POST", "/api/v1/drugs", {
+    return api.ok<FullDrug>("POST", "/api/v1/drugs", await ownDrugBody(api, {
         name: options.name ?? `Drug ${unique()}`,
         description: options.description ?? null,
         defaultDosing: options.defaultDosing ?? null,
-    });
+    }));
 };
 
 /** A protocol whose lines may carry dosing overrides. */

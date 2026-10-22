@@ -2,6 +2,7 @@ import type {Page} from "@playwright/test";
 import {expect, loginViaUi, signIn, test} from "../support/fixtures.ts";
 import type {Texts} from "../support/texts.ts";
 import {unique} from "../support/phones.ts";
+import {pickCategory} from "../support/shared.ts";
 import {expectContextLabel, expectPicker, expectToast, focusBack, navTo, pickerEntries, recordRequests, toasts} from "../support/ui.ts";
 
 /** The user does something that asks the API (opens the drugs page). */
@@ -123,7 +124,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
     });
 
     test("removed and added again (a new staff record): the refused save is replayed once and succeeds quietly @AUTH-190",
-        async ({page, t, data, allowApiErrors}) => {
+        async ({page, t, lang, data, allowApiErrors}) => {
             // The save refused once (the old staff record): the test's subject
             allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/drugs$/});
             const clinic = await data.clinic();
@@ -139,6 +140,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
             await page.getByRole("button", {name: t.addDrug}).click();
             const dialog = page.getByRole("dialog");
             await dialog.getByRole("textbox", {name: t.drugName}).fill(name);
+            await pickCategory(page, dialog, lang);
             await dialog.getByRole("button", {name: t.save}).click();
 
             await expectToast(page, t.drugAdded);

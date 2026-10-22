@@ -1,6 +1,7 @@
 import {expect, type Locator, type Page} from "@playwright/test";
 import type {ClinicHandle, Data} from "./data.ts";
 import type {CatalogTexts} from "./texts-catalog.ts";
+import {ownDrugBody} from "./shared.ts";
 
 /**
  * Helpers of the catalog journeys (drugs, protocols, dosing, tapering): data through the API as an owner (with
@@ -41,7 +42,7 @@ export const createDrug = async (data: Data, clinic: ClinicHandle, name: string,
                                  options: { description?: string | null; dosing?: Dosing | null } = {}) => {
     const api = await data.ownerApi(clinic);
     return api.ok<CatalogDrug>("POST", "/api/v1/drugs",
-        {name, description: options.description ?? null, defaultDosing: options.dosing ?? null});
+        await ownDrugBody(api, {name, description: options.description ?? null, defaultDosing: options.dosing ?? null}));
 };
 
 /** Many drugs at once (a few requests in parallel, after the owner's one login: 5 codes per phone per hour). */
@@ -57,7 +58,7 @@ export const createDrugs = async (data: Data, clinic: ClinicHandle, names: strin
 export const updateDrug = async (data: Data, clinic: ClinicHandle, drug: CatalogDrug, changes: Partial<Omit<CatalogDrug, "id">>) => {
     const api = await data.ownerApi(clinic);
     const body = {name: drug.name, description: drug.description, defaultDosing: drug.defaultDosing, ...changes};
-    return api.ok<CatalogDrug>("PUT", `/api/v1/drugs/${drug.id}`, body);
+    return api.ok<CatalogDrug>("PUT", `/api/v1/drugs/${drug.id}`, await ownDrugBody(api, body));
 };
 
 export const deleteDrug = async (data: Data, clinic: ClinicHandle, drug: { id: number }) => {

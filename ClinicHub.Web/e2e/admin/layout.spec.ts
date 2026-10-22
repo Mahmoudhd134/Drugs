@@ -4,6 +4,7 @@ import type {ClinicHandle, Data} from "../support/data.ts";
 import {localPhone, uniqueDigits, uniquePhone} from "../support/phones.ts";
 import {type Lang, TEXTS, type Texts} from "../support/texts.ts";
 import {expectToast, toast} from "../support/ui.ts";
+import {visitCatalogAdmin} from "../support/admin-catalog.ts";
 
 /** Each admin page and dialog of a clinic, in turn: `check` runs on each one. */
 const visitAdmin = async (page: Page, t: Texts, clinic: ClinicHandle, staffName: string, check: (what: string) => Promise<void>) => {
@@ -109,7 +110,7 @@ const noHorizontalScroll = async (page: Page, what: string) => {
 };
 
 test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
-    test("Arabic UI: every admin page and dialog is RTL in Arabic, with no English UI string, and phones stay LTR @ADM-282",
+    test("Arabic UI: every admin page and dialog (the shared drugs and categories too) is RTL in Arabic, with no English UI string, and phones stay LTR @ADM-282",
         async ({page, t, lang, data, healthy}) => {
             // Many pages, scans or clinics: three times the usual time
             test.slow();
@@ -126,6 +127,16 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
                     expect(latin, `${what}: English UI strings`).toEqual([]);
                 });
             });
+            // The shared catalog screens (M1.7b): drug names and ingredients are catalog data (English), the rest Arabic
+            await visitCatalogAdmin(page, t, "ar", async (what, shownData) => {
+                await test.step(what, async () => {
+                    await healthy();
+                    let text = await page.evaluate(() => document.body.innerText);
+                    for (const piece of [...shownData].sort((x, y) => y.length - x.length)) text = text.split(piece).join(" ");
+                    const latin = text.match(/[A-Za-z]+/g) ?? [];
+                    expect(latin, `${what}: English UI strings`).toEqual([]);
+                });
+            });
 
             // Phones left to right: the Overview's owner, the staff list
             await page.goto(`/admin/clinics/${clinic.id}`);
@@ -136,7 +147,7 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
             expect(await phone.evaluate(e => getComputedStyle(e).direction)).toBe("ltr");
         });
 
-    test("a 375 px phone in both languages: no horizontal scroll on the admin pages and dialogs; a 157-character name wraps in dialogs and toasts @ADM-283",
+    test("a 375 px phone in both languages: no horizontal scroll on the admin pages and dialogs (the shared drugs and categories too); a 157-character name wraps in dialogs and toasts @ADM-283",
         async ({page, data, isMobile}) => {
             // Many pages, scans or clinics: three times the usual time
             test.slow();
@@ -162,6 +173,12 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
                         const showsName = what === "disable confirm" || what === "delete dialog";
                         // The pages have no dialog open: only the dialogs' own checks must find one
                         if (/dialog|confirm|editor/.test(what)) await dialogWraps(page, `${lang} ${what}`, showsName ? name.trim() : undefined);
+                    });
+                    // The shared catalog screens (M1.7b) and their dialogs
+                    await visitCatalogAdmin(page, t, lang, async what => {
+                        await noHorizontalScroll(page, `${lang} ${what}`);
+                        await fitsTheScreen(page, page.getByRole("dialog"), `${lang} ${what} dialog`);
+                        if (/dialog|confirmation/.test(what)) await dialogWraps(page, `${lang} ${what}`);
                     });
 
                     // Toasts with the long name: created, then deleted
