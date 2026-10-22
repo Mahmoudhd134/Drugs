@@ -1,0 +1,482 @@
+# Every test tier on GitHub Actions (docs/testing/README.md "Continuous integration"); the laptop only builds, type
+# checks, lints and runs the one test being written.
+# Runs on: every pull request (the full tier; "Gates" is the required check) and by hand, any tier, on any pushed branch
+# (./ci.ps1 -Tier step|full|release, or Actions -> CI -> Run workflow, or gh workflow run CI --ref <branch> -f tier=...).
+# No push trigger: on a PR's branch it would add a second, skipped run to the PR's checks.
+#   step     unit + integration tests, Vitest, the e2e smoke tests, the traceability report    (≈ 5 min, 4 jobs)
+#   full     the same with coverage gates, the whole e2e suite in 7 parts, the traceability gate (≈ 8 min, 11 jobs)
+#   release  full + Stryker.NET on the critical files (one job per file) + StrykerJS
+#   mutate   (any tier) Stryker.NET on the files named, scored by the integration tests of `areas` when given
+# Jobs never stop each other (report mode); Gates merges the reports and fails when any job failed.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "step, full or release"
+        type: choice
+        options: [full, step, release]
+        default: full
+      mutate:
+        description: "Backend files to mutate with Stryker.NET (repo-relative, comma separated); empty: none (release: the critical files)"
+        type: string
+        default: ""
+      areas:
+        description: "With mutate: the integration areas whose tests score the mutants (comma separated); empty: every .NET test"
+        type: string
+        default: ""
+
+# A newer run of the same PR or branch cancels the older one
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  # The clinic's (and the laptop's) time zone: dates in the UI and the tests read as at home
+  TZ: Africa/Cairo
+  # Integration and e2e databases: drags_it_<run>_*, drags_e2e_<run>* on the job's own compose PostgreSQL
+  CLINICHUB_TEST_RUN: ci${{ github.run_id }}${{ github.run_attempt }}
+  # docker-compose.yml's PostgreSQL from Google's Docker Hub mirror (no Docker Hub rate limit or slow pull)
+  CLINICHUB_POSTGRES_IMAGE: mirror.gcr.io/library/postgres:17
+
+jobs:
+  start:
+    name: Start
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.plan.outputs.tier }}
+      seed: ${{ steps.plan.outputs.seed }}
+      parts: ${{ steps.plan.outputs.parts }}
+      mutants: ${{ steps.plan.outputs.mutants }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: tests/stryker-config.json
+          sparse-checkout-cone-mode: false
+      - id: plan
+        env:
+          TIER: ${{ inputs.tier || 'full' }}
+          MUTATE: ${{ inputs.mutate }}
+          AREAS: ${{ inputs.areas }}
+        run: |
+          seed=$(( (RANDOM * 32768 + RANDOM) % 1000000 + 1 ))
+          # e2e: the smoke tests in one job (step), or the three main projects in 6 shards + the template edits alone
+          # (they depend on the others in playwright.config.ts, so Playwright would keep the whole chain in one shard)
+          parts='["1/6","2/6","3/6","4/6","5/6","6/6","template"]'
+          [ "$TIER" = step ] && parts='["smoke"]'
+          # Backend mutation: the files named, else on release the critical files of tests/stryker-config.json
+          if [ -n "$MUTATE" ]; then
+            mutants=$(echo "$MUTATE" | tr ',' '\n' | sed 's/^ *//;s/ *$//;s#\\#/#g;s#^\*\*/##' | grep . | jq -R . | jq -sc .)
+          elif [ "$TIER" = release ]; then
+            mutants=$(jq -c '[."stryker-config".mutate[] | sub("^\\*\\*/"; "")]' tests/stryker-config.json)
+          else
+            mutants='[]'
+          fi
+          {
+            echo "tier=$TIER"; echo "seed=$seed"; echo "parts=$parts"; echo "mutants=$mutants"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "Tier **$TIER**. Seed of the random test order: \`$seed\` (reproduce: \`./test.ps1 -Seed $seed\`)."
+            [ "$mutants" != '[]' ] && echo "Mutated: \`$mutants\`${AREAS:+, scored by the integration tests of $AREAS}."
+            true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  backend:
+    name: Backend
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CLINICHUB_TEST_SEED: ${{ needs.start.outputs.seed }}
+      # Coverage (and its gates) on full and release; step only runs the tests
+      COVERAGE: ${{ needs.start.outputs.tier != 'step' && '--collect "XPlat Code Coverage" --settings tests/coverage.runsettings' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: PostgreSQL (docker compose)
+        run: &postgres |
+          # A slow pull or start fails in 2 minutes and is tried again (seen: a runner stuck on it for 6+ minutes)
+          for attempt in 1 2 3; do
+            timeout 120 docker compose up -d --wait && exit 0
+            echo "::warning::PostgreSQL not up after attempt $attempt"
+            docker compose down || true
+          done
+          exit 1
+      - name: Tools
+        run: dotnet tool restore
+      - name: Build (Release)
+        run: dotnet build ClinicHub.sln -c Release -nologo
+      # $COVERAGE splits into its arguments on purpose
+      - name: Unit tests
+        run: |
+          # shellcheck disable=SC2086
+          eval dotnet test tests/ClinicHub.UnitTests -c Release --no-build --nologo \
+            --logger "'trx;LogFileName=unit.trx'" --results-directory artifacts/test-results/unit $COVERAGE
+      - name: Integration tests
+        if: ${{ !cancelled() }}
+        run: |
+          # shellcheck disable=SC2086
+          eval dotnet test tests/ClinicHub.IntegrationTests -c Release --no-build --nologo \
+            --logger "'trx;LogFileName=integration.trx'" --results-directory artifacts/test-results/integration $COVERAGE
+      - name: Coverage gates (90% lines, 85% branches, 95% branches per critical module)
+        if: ${{ !cancelled() && needs.start.outputs.tier != 'step' }}
+        run: |
+          dotnet reportgenerator "-reports:artifacts/test-results/**/coverage.cobertura.xml" \
+            -targetdir:artifacts/coverage/backend "-reporttypes:Cobertura;HtmlSummary;Html;JsonSummary" -verbosity:Warning
+          pwsh -NoProfile -File tests/tools/coverage/coverage-gates.ps1 \
+            -Cobertura artifacts/coverage/backend/Cobertura.xml -OutDir artifacts/coverage/backend
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Backend"
+            for f in artifacts/test-results/*/*.trx; do
+              [ -f "$f" ] || continue
+              counters=$(grep -o '<Counters [^>]*>' "$f")
+              count() { echo "$counters" | grep -oE " $1=\"[0-9]+\"" | grep -oE '[0-9]+'; }
+              echo "- $(basename "$f" .trx): $(count passed) passed, $(count failed) failed, $(count notExecuted) skipped of $(count total)"
+            done
+            [ -f artifacts/coverage/backend/gates.md ] && { echo; cat artifacts/coverage/backend/gates.md; }
+            true
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: backend
+          path: |
+            artifacts/test-results
+            artifacts/coverage/backend
+          if-no-files-found: ignore
+          retention-days: 14
+
+  frontend:
+    name: Frontend
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Type check (app)
+        run: npx tsc -b
+      - name: Lint (app)
+        if: ${{ !cancelled() }}
+        run: npx eslint src
+      - name: Type check and lint (e2e specs)
+        if: ${{ !cancelled() }}
+        run: npx tsc -p e2e && npx eslint e2e playwright.config.ts
+      - name: Vitest (with its coverage gates on full and release)
+        if: ${{ !cancelled() }}
+        run: npm run ${{ needs.start.outputs.tier == 'step' && 'test' || 'test:coverage' }}
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          f=../artifacts/coverage/frontend/coverage-summary.json
+          [ -f "$f" ] && echo "## Frontend coverage: lines $(jq .total.lines.pct "$f")%, branches $(jq .total.branches.pct "$f")%" >> "$GITHUB_STEP_SUMMARY"
+          true
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: frontend
+          path: artifacts/coverage/frontend
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e:
+    name: E2E (${{ matrix.part }})
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(needs.start.outputs.parts) }}
+    env:
+      CLINICHUB_E2E_BROWSERS: chromium
+      CLINICHUB_E2E_WORKERS: "3"
+      PLAYWRIGHT_BLOB_OUTPUT_DIR: ${{ github.workspace }}/artifacts/e2e/blob
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - name: PostgreSQL (docker compose)
+        working-directory: .
+        run: *postgres
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ClinicHub.Web/package-lock.json') }}
+      # The browser only: the runner image already has Chrome's system libraries, and --with-deps (mostly fonts the
+      # app doesn't use: its fonts come from Google Fonts) took 10 minutes on a slow apt mirror
+      - name: Chromium
+        run: npx playwright install chromium
+      # Built here rather than in global setup, so the Playwright step's time is the tests' own
+      - name: Build the SPA and the Release API
+        run: |
+          npm run build
+          dotnet build ../ClinicHub.Api/ClinicHub.Api.csproj -c Release -nologo -v q -nodeReuse:false -p:UseSharedCompilation=false
+      # Global setup reuses that build, starts the API on its own database (e2e/global-setup.ts)
+      - name: Playwright (${{ matrix.part }})
+        timeout-minutes: 20
+        env:
+          CLINICHUB_E2E_NO_BUILD: "1"
+          PART: ${{ matrix.part }}
+        run: |
+          case "$PART" in
+            smoke) args=(--grep @smoke) ;;
+            template) args=(--project=ar-desktop-template --no-deps) ;;
+            *) args=(--project=ar-desktop --project=en-desktop --project=ar-phone "--shard=$PART") ;;
+          esac
+          npx playwright test "${args[@]}" --reporter=list,blob
+      - name: Artifact name
+        id: part
+        if: ${{ !cancelled() }}
+        run: echo "name=${MATRIX_PART//\//-of-}" >> "$GITHUB_OUTPUT"
+        env:
+          MATRIX_PART: ${{ matrix.part }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-blob-${{ steps.part.outputs.name }}
+          path: artifacts/e2e/blob
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: e2e-failures-${{ steps.part.outputs.name }}
+          path: |
+            artifacts/e2e/test-results
+            artifacts/e2e/*/api.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mutation-backend:
+    name: Mutation (${{ matrix.file }})
+    needs: start
+    if: ${{ needs.start.outputs.mutants != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJSON(needs.start.outputs.mutants) }}
+    env:
+      # Each Stryker test process makes its own test run (own databases): no shared run id
+      CLINICHUB_TEST_RUN: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: PostgreSQL (docker compose)
+        run: *postgres
+      - name: Tools
+        run: dotnet tool restore
+      # tests/stryker-config.json with this file only, in its own project (Stryker otherwise runs the initial tests and
+      # creates mutants for every project of the solution), 4 test sessions (the runner's cores); with areas, only those
+      # areas' integration tests score it
+      - name: Stryker.NET (gate 85%)
+        env:
+          FILE: ${{ matrix.file }}
+          AREAS: ${{ inputs.areas }}
+        run: |
+          out=artifacts/mutation/backend
+          mkdir -p "$out"
+          filter=''
+          if [ -n "$AREAS" ]; then
+            filter="($(echo "$AREAS" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep . | sed 's/^/Area=/' | paste -sd'|'))&FullyQualifiedName~ClinicHub.IntegrationTests"
+          fi
+          project="${FILE%%/*}.csproj"
+          jq --arg file "**/$FILE" --arg sln "$GITHUB_WORKSPACE/ClinicHub.sln" --arg project "$project" --arg filter "$filter" \
+            '."stryker-config".mutate = [$file] | ."stryker-config".solution = $sln
+             | ."stryker-config".project = $project | ."stryker-config".concurrency = 4
+             | if $filter != "" then ."stryker-config"."test-case-filter" = $filter else . end' \
+            tests/stryker-config.json > artifacts/mutation/stryker-config.chosen.json
+          dotnet stryker -f artifacts/mutation/stryker-config.chosen.json -O "$out" | tee "$out/stryker.log"
+          [ -f "$out/reports/mutation-report.json" ] || { echo "::error::Stryker failed before scoring (see its log)"; exit 1; }
+          pwsh -NoProfile -File tests/tools/mutation/mutation-score.ps1 -Report "$out/reports/mutation-report.json" -OutDir "$out" -Gate 85
+          # Tests that already fail without any mutant make the score meaningless (Stryker only warns)
+          if grep -qE '[0-9]+ tests? (is|are) failing' "$out/stryker.log"; then
+            echo "::error::tests failed in Stryker's initial run: the score is not trustworthy"; exit 1
+          fi
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          f=artifacts/mutation/backend/mutation.md
+          [ -f "$f" ] && { echo "## Mutation: ${{ matrix.file }}"; cat "$f"; } >> "$GITHUB_STEP_SUMMARY"
+          true
+      - name: Artifact name
+        id: name
+        if: ${{ !cancelled() }}
+        run: echo "name=$(basename "$FILE" .cs)" >> "$GITHUB_OUTPUT"
+        env:
+          FILE: ${{ matrix.file }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mutation-${{ steps.name.outputs.name }}
+          path: artifacts/mutation
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mutation-frontend:
+    name: Mutation (frontend pure logic)
+    needs: start
+    if: ${{ needs.start.outputs.tier == 'release' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: StrykerJS (gate 85% overall)
+        run: npm run test:mutation
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mutation-frontend
+          path: artifacts/mutation/frontend
+          if-no-files-found: ignore
+          retention-days: 14
+
+  gates:
+    name: Gates
+    needs: [start, backend, frontend, e2e, mutation-backend, mutation-frontend]
+    # Always reports (the required check), whatever the other jobs did
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TIER: ${{ needs.start.outputs.tier }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      # step: the report (unknown IDs, skips without a bug ID and known-bug tests that never run fail);
+      # full and release: the self-test, then the gate of 100% P0 and P1
+      - name: Traceability
+        id: traceability
+        run: |
+          if [ "$TIER" = step ]; then
+            pwsh -NoProfile -File tests/tools/traceability/traceability.ps1 -Root "$GITHUB_WORKSPACE"
+          else
+            pwsh -NoProfile -File tests/tools/traceability/selftest.ps1
+            pwsh -NoProfile -File tests/tools/traceability/traceability.ps1 -Root "$GITHUB_WORKSPACE" -Gate
+          fi
+      - uses: actions/download-artifact@v8
+        if: ${{ !cancelled() }}
+        with:
+          pattern: e2e-blob-*
+          merge-multiple: true
+          path: all-blob
+      - name: Merge the e2e reports
+        id: e2e
+        if: ${{ !cancelled() && hashFiles('all-blob/**') != '' }}
+        working-directory: ClinicHub.Web
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright merge-reports --config playwright.config.ts ../all-blob
+          jq -r '"## E2E: \(.stats.expected) passed, \(.stats.unexpected) failed, \(.stats.flaky) flaky, \(.stats.skipped) skipped"' \
+            ../artifacts/e2e/results.json >> "$GITHUB_STEP_SUMMARY"
+          # Every planned test ran in some part (a lost shard or a bad split would pass with fewer tests)
+          grep=(); [ "$TIER" = step ] && grep=(--grep @smoke)
+          planned=$(npx playwright test --list "${grep[@]}" | tail -1 | grep -oE '[0-9]+' | head -1)
+          ran=$(jq '.stats.expected + .stats.unexpected + .stats.flaky + .stats.skipped' ../artifacts/e2e/results.json)
+          echo "E2E tests planned: $planned, reported: $ran"
+          if [ "$planned" != "$ran" ]; then echo "::error::E2E reported $ran tests, $planned were planned"; exit 1; fi
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-report
+          path: |
+            artifacts/e2e/report
+            artifacts/e2e/results.json
+            artifacts/traceability.md
+            artifacts/traceability.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Traceability summary
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f artifacts/traceability.json ] && jq -r '"## Traceability", "| Priority | Covered | Known bug | Missing | % |", "|---|---:|---:|---:|---:|",
+            (.gate[] | "| \(.Priority) | \(.Covered) | \(.KnownBug) | \(.Missing) | \(.Percent)% |")' artifacts/traceability.json >> "$GITHUB_STEP_SUMMARY"
+          true
+      # Mutation jobs are skipped when the run has none; every other job must succeed
+      - name: Verdict
+        if: ${{ always() }}
+        env:
+          RESULTS: >-
+            backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} e2e=${{ needs.e2e.result }}
+            e2e-report=${{ steps.e2e.outcome }} traceability=${{ steps.traceability.outcome }}
+            mutation-backend=${{ needs.mutation-backend.result }} mutation-frontend=${{ needs.mutation-frontend.result }}
+        run: |
+          echo "$RESULTS"
+          ok=true
+          for pair in $RESULTS; do
+            name=${pair%%=*}; result=${pair#*=}
+            case "$name:$result" in
+              *:success) ;;
+              mutation-*:skipped) ;;
+              *) echo "::error::$name: $result"; ok=false ;;
+            esac
+          done
+          $ok
