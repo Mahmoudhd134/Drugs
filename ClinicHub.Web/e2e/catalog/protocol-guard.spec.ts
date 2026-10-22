@@ -92,6 +92,38 @@ test.describe("The protocol editor's unsaved-changes guard @area:catalog", () =>
             await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(protocol.name);
         });
 
+    test("with unsaved changes, a sidebar link leaves without asking and the changes are gone when coming back (documented limitation) @GRP-094",
+        async ({page, t, lang, data, isMobile}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const {clinic, protocol} = await setUp(data, page);
+            const prompts: string[] = [];
+            page.on("dialog", d => {
+                prompts.push(d.type());
+                void d.accept();
+            });
+            const nav = page.getByRole("navigation", {name: t.navMain}).filter({visible: true});
+            const goTo = async (name: string) => {
+                if (isMobile) await page.getByRole("button", {name: t.navMenu}).click();
+                await nav.getByRole("link", {name, exact: true}).click();
+            };
+
+            await change(page, t, " changed");
+            await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(`${protocol.name} changed`);
+            await goTo(t.navDrugs);
+            await expect(page).toHaveURL(/\/drugs$/);
+            await expect(page.getByRole("heading", {level: 1, name: t.drugsTitle})).toBeVisible();
+            await expect(dialog(page, ct.discardTitle)).toHaveCount(0);
+            expect(prompts, "no browser leave prompt either").toEqual([]);
+
+            // Back to the protocol: the edit was discarded, the saved name is shown
+            await goTo(t.navProtocols);
+            await expect(page).toHaveURL(/\/protocols$/);
+            await protocolCard(page, protocol.name).getByText(protocol.name, {exact: true}).click();
+            await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
+            await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(protocol.name);
+            expect((await getProtocol(data, clinic, protocol.id)).name).toBe(protocol.name);
+        });
+
     test("after a successful save the editor leaves without the discard question @GRP-095", async ({page, t, lang, data}) => {
         const ct = CATALOG_TEXTS[lang];
         const {protocol} = await setUp(data, page);

@@ -10,6 +10,8 @@ import {
     drugWith,
     expectNoCutOrOverlap,
     expectNoDialog,
+    expectNotCut,
+    fitsTheScreen,
     protocolWith,
     noHorizontalScroll,
     open,
@@ -171,6 +173,38 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             await noHorizontalScroll(page, "conflict dialog");
             await dialog(page).getByRole("button", {name: u.keepCurrent}).click();
             await expectNoDialog(page);
+        });
+
+    test("the protocol-line chips «جرعة خاصة بالبروتوكول» and «العين تُحدد عند إضافة البروتوكول» wrap on the line instead of being cut @UX-006",
+        async ({page, data, lang}) => {
+            const {u} = textsOf(lang);
+            const clinic = await data.clinic();
+            const long = `Tobradexdexamethasonetobramycinophthalmicsuspension${unique()}`;
+            const drug = await drugWith(data, clinic, {name: long, defaultDosing: DOSINGS.oneDropFour.dosing});
+            const other = await drugWith(data, clinic, {name: `Vigamoxmoxifloxacinophthalmicsolution${unique()}`, defaultDosing: DOSINGS.oneDropFour.dosing});
+            const third = await drugWith(data, clinic, {name: `Systanehydroxypropylguarlubricant${unique()}`, defaultDosing: DOSINGS.oneDropFour.dosing});
+            // One line with both chips (an override that also asks for the eye), one with each chip alone
+            const protocol = await protocolWith(data, clinic, `Chips ${unique()}`, [
+                {drug, dosing: {...DOSINGS.sixTimesOverride.dosing, eye: "ask"}},
+                {drug: other, dosing: DOSINGS.sixTimesOverride.dosing},
+                {drug: third, dosing: {eye: "ask"}},
+            ]);
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
+            const main = page.locator("main");
+            const custom = main.locator(".MuiChip-label").filter({hasText: u.customDosingChip});
+            const ask = main.locator(".MuiChip-label").filter({hasText: u.askEyeChip});
+            await expect(custom.first()).toBeVisible();
+            await expect(ask.first()).toBeVisible();
+            await expect(ask, "«العين تُحدد عند إضافة البروتوكول» on the 2 lines that ask for the eye").toHaveCount(2);
+            for (const chip of [...await custom.all(), ...await ask.all()]) {
+                await chip.scrollIntoViewIfNeeded();
+                await expect(chip).toBeVisible();
+            }
+            await expectNotCut(custom, "protocol dosing chip");
+            await expectNotCut(ask, "eye chosen when added chip");
+            await fitsTheScreen(page, main.locator(".MuiChip-root"), "protocol-line chip");
+            await expectNoCutOrOverlap(main, "protocol editor at 375 px");
+            await noHorizontalScroll(page, "protocol editor at 375 px");
         });
 
     test("the menu button (tooltip «فتح القائمة») opens the navigation drawer, and choosing an entry closes it @UX-008",
