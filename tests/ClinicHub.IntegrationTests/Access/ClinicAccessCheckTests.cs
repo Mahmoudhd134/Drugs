@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.Application.Features.Access;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -141,11 +142,11 @@ public class ClinicAccessCheckTests(AppFixture app) : IntegrationTest(app)
         var role = await Data.Role(clinic).WithPermissions(Permissions.Drugs.List);
         var staff = await Data.Staff(clinic).WithRoles(role.Id);
         var user = await Login.StaffAsync(staff);
-        await (await user.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() }))
+        await (await user.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() }))
             .ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
         await Data.SuspendClinicAsync(clinic);
 
-        var response = await user.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() });
+        var response = await user.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() });
 
         await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "clinicSuspended");
     }
@@ -160,7 +161,7 @@ public class ClinicAccessCheckTests(AppFixture app) : IntegrationTest(app)
         var user = await Login.StaffAsync(staff);
         await Data.DeactivateStaffAsync(staff);
 
-        var response = await user.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() });
+        var response = await user.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() });
 
         await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "noAccess");
     }

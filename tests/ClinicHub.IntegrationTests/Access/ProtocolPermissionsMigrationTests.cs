@@ -2,6 +2,7 @@ using System.Net;
 using ClinicHub.Application.Features.Access;
 using ClinicHub.Application.Features.Identity.Users.Queries.GetMe;
 using ClinicHub.IntegrationTests.Catalog;
+using ClinicHub.IntegrationTests.Catalog.Migrations;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
 using ClinicHub.IntegrationTests.Harness.Clients;
@@ -18,20 +19,25 @@ namespace ClinicHub.IntegrationTests.Access;
 /// </summary>
 [Collection(CatalogMigrationCollection.Name)]
 [Trait("Area", "access")]
-public class ProtocolPermissionsMigrationTests(AppFixture app) : IntegrationTest(app)
+public class ProtocolPermissionsMigrationTests(BareAppFixture app) : IntegrationTest(app)
 {
     [Fact]
     [Trait("Case", "ACC-085")]
     public async Task A_role_holding_groups_update_holds_protocols_update_after_it_and_its_staff_keep_their_rights_without_a_new_login()
     {
+        // The bare template has no imported category (design M1.7 D12)
+        var category = await MigrationData.TestCategoryAsync(App);
         var clinic = await Data.Clinic();
-        var protocol = await Data.Protocol(clinic).With(await Data.Drug(clinic));
+        var protocol = await Data.Protocol(clinic).With(await Data.Drug(clinic).InCategory(category));
         var role = await Data.Role(clinic).WithPermissions(Permissions.Protocols.Update);
         var staff = await Data.Staff(clinic).WithRoles(role.Id);
         // Logged in before the deploy: the same access token is sent after it
         var before = await Login.StaffAsync(staff);
         try
         {
+            // The deploy migrates up through AddSharedCatalog, which needs an empty Drugs table (design M1.7 § 5): the
+            // protocol keeps no line, and the drug for the protocol bodies is created after the deploy
+            await MigrationData.DeleteDrugsAsync(App);
             await MigrateAsync(App, Before);
             // As the role editor stored it before M1.7a: the key and its requirements
             await SetRoleKeysAsync(App, role.Id, "drugs.list", "groups.details", "groups.list", "groups.update");
@@ -40,6 +46,7 @@ public class ProtocolPermissionsMigrationTests(AppFixture app) : IntegrationTest
             await using var deployed = App.CreateVariant();
             deployed.Start();
             var next = new ApiClient(deployed) { AccessToken = before.AccessToken };
+            var drug = await Data.Drug(clinic).InCategory(await MigrationData.TestCategoryAsync(App));
 
             (await RoleKeysAsync(App, role.Id)).ShouldBe(["drugs.list", "protocols.details", "protocols.list", "protocols.update"]);
             var me = await next.GetAsync("/api/v1/me");
@@ -47,16 +54,16 @@ public class ProtocolPermissionsMigrationTests(AppFixture app) : IntegrationTest
             (await me.ReadAsync<MeDto>()).Permissions.ShouldBe(["drugs.list", "protocols.list", "protocols.details", "protocols.update"]);
             await (await next.GetAsync("/api/v1/protocols")).ShouldBeOkAsync();
             await (await next.GetAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeOkAsync();
-            await (await next.PutAsync($"/api/v1/protocols/{protocol.Id}", CatalogRoutes.ProtocolBody(protocol.Items[0].Drug.Id)))
+            await (await next.PutAsync($"/api/v1/protocols/{protocol.Id}", CatalogRoutes.ProtocolBody(drug.Id)))
                 .ShouldBeOkAsync();
             // Only the same rights: nothing gained
-            await (await next.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(protocol.Items[0].Drug.Id)))
+            await (await next.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(drug.Id)))
                 .ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
             await (await next.DeleteAsync($"/api/v1/protocols/{protocol.Id}")).ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
         }
         finally
         {
-            await MigrateAsync(App, null);
+            await MigrationData.MigrateToLatestAsync(App);
         }
     }
 
@@ -97,7 +104,7 @@ public class ProtocolPermissionsMigrationTests(AppFixture app) : IntegrationTest
         }
         finally
         {
-            await MigrateAsync(App, null);
+            await MigrationData.MigrateToLatestAsync(App);
         }
     }
 }

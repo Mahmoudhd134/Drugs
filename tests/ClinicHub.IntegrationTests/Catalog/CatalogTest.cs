@@ -1,5 +1,6 @@
 using System.Net;
 using ClinicHub.Application.Common.Paging;
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Domain.Catalog;
@@ -36,7 +37,8 @@ public abstract class CatalogTest(AppFixture app) : IntegrationTest(app)
 
     /// <summary>
     /// A new clinic without the template's copied drugs and protocols (deleted through the use cases), and its owner:
-    /// its lists hold exactly what the test adds.
+    /// its own drugs (<c>source=own</c>, <see cref="ListOwnDrugsAsync"/>) and its protocols are exactly what the test
+    /// adds; its full drug list also holds the shared catalog (design M1.7 D1, D12).
     /// </summary>
     protected async Task<(ClinicHandle Clinic, ApiClient Owner)> EmptyClinicAsync()
     {
@@ -54,8 +56,13 @@ public abstract class CatalogTest(AppFixture app) : IntegrationTest(app)
 
     // ---- Drugs ----
 
-    protected static object DrugBody(string name, string description = null, object defaultDosing = null) =>
-        new { name, description, defaultDosing };
+    /// <summary>
+    /// A drug body (<c>SaveDrugRequest</c>); the category defaults to the builders' «العيون › المياه الزرقاء» (Eye ›
+    /// Glaucoma, design M1.7 D12): a category is required on create and update (D3).
+    /// </summary>
+    protected static object DrugBody(string name, string description = null, object defaultDosing = null,
+        string activeIngredients = null, int? categoryId = CategoryIds.Eye, int? subCategoryId = SubCategoryIds.Glaucoma) =>
+        new { name, activeIngredients, description, defaultDosing, categoryId, subCategoryId };
 
     protected static Task<HttpResponseMessage> PostDrugAsync(ApiClient client, string name, string description = null,
         object defaultDosing = null) => client.PostAsync(DrugsUrl, DrugBody(name, description, defaultDosing));
@@ -88,9 +95,74 @@ public abstract class CatalogTest(AppFixture app) : IntegrationTest(app)
         return await response.ReadAsync<PagedResult<DrugDto>>();
     }
 
+    /// <summary>GET /drugs?source=own&amp;{query}: the clinic's own drugs only (design M1.7 D8), asserting 200.</summary>
+    protected static Task<PagedResult<DrugDto>> ListOwnDrugsAsync(ApiClient client, string query = "") =>
+        ListDrugsAsync(client, query == "" ? "source=own" : $"source=own&{query}");
+
     /// <summary>The names found by a drug search (first 100, in the answered order).</summary>
     protected static async Task<List<string>> SearchDrugNamesAsync(ApiClient client, string search) =>
         (await ListDrugsAsync(client, $"search={Uri.EscapeDataString(search)}&pageSize=100")).Items.Select(d => d.Name).ToList();
+
+    /// <summary>The names of the clinic's own drugs found by a search (<c>source=own</c>, first 100, in the answered order).</summary>
+    protected static async Task<List<string>> SearchOwnDrugNamesAsync(ApiClient client, string search) =>
+        (await ListOwnDrugsAsync(client, $"search={Uri.EscapeDataString(search)}&pageSize=100")).Items.Select(d => d.Name).ToList();
+
+    // ---- Shared catalog and categories (design M1.7) ----
+
+    protected const string CategoriesUrl = "/api/v1/drug-categories";
+
+    /// <summary>The imported shared drugs (the run's baseline, 23,414: read from the harness, D12).</summary>
+    protected static int BaselineSharedCount => Harness.Databases.TestRun.Baseline.SharedCount;
+
+    /// <summary>GET /drug-categories, asserting 200.</summary>
+    protected static async Task<List<CategoryDto>> CategoriesAsync(ApiClient client)
+    {
+        var response = await client.GetAsync(CategoriesUrl);
+        await response.ShouldBeOkAsync();
+        return await response.ReadAsync<List<CategoryDto>>();
+    }
+
+    /// <summary>The id of the category with this Arabic name (one only).</summary>
+    protected static async Task<int> CategoryIdAsync(ApiClient client, string nameAr) =>
+        (await CategoriesAsync(client)).Where(c => c.NameAr == nameAr).ShouldHaveSingleItem($"category «{nameAr}»").Id;
+
+    /// <summary>The id of the subcategory with this Arabic name in the category with that Arabic name.</summary>
+    protected static async Task<int> SubCategoryIdAsync(ApiClient client, string categoryNameAr, string nameAr) =>
+        (await CategoriesAsync(client)).Where(c => c.NameAr == categoryNameAr).ShouldHaveSingleItem($"category «{categoryNameAr}»")
+            .SubCategories.Where(s => s.NameAr == nameAr).ShouldHaveSingleItem($"subcategory «{nameAr}»").Id;
+
+    /// <summary>Every page of GET /drugs?{query} (100 per page), in the answered order.</summary>
+    protected static async Task<List<DrugDto>> AllPagesAsync(ApiClient client, string query)
+    {
+        var all = new List<DrugDto>();
+        for (var page = 1; ; page++)
+        {
+            var result = await ListDrugsAsync(client, $"{query}&pageSize=100&page={page}");
+            all.AddRange(result.Items);
+            if (result.Items.Count < 100 || all.Count >= result.TotalCount)
+                return all;
+        }
+    }
+
+    /// <summary>
+    /// The names sorted by the database's default collation (the oracle for "by name": design M1.7 D7, "Name A→Z,
+    /// database collation"); equal names keep their given order.
+    /// </summary>
+    protected Task<List<string>> InDatabaseCollationAsync(IEnumerable<string> names)
+    {
+        var array = names.ToArray();
+        return App.QueryDbAsync(db => db.Database
+            .SqlQuery<string>($"SELECT n AS \"Value\" FROM unnest({array}) WITH ORDINALITY AS t(n, i) ORDER BY n, i")
+            .ToListAsync());
+    }
+
+    /// <summary>A drug's stored search columns (read by SQL: shadow properties).</summary>
+    protected async Task<(string SearchName, string SearchOther)> StoredSearchColumnsAsync(int drugId)
+    {
+        var name = await App.OutsideTheApp.ScalarAsync<string>("""SELECT "SearchName" FROM "Drugs" WHERE "Id" = @p0""", drugId);
+        var other = await App.OutsideTheApp.ScalarAsync<string>("""SELECT "SearchOther" FROM "Drugs" WHERE "Id" = @p0""", drugId);
+        return (name, other);
+    }
 
     // ---- Protocols ----
 

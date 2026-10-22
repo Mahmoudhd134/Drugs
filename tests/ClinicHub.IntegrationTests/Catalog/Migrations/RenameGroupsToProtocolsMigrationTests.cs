@@ -13,7 +13,7 @@ namespace ClinicHub.IntegrationTests.Catalog.Migrations;
 /// </summary>
 [Collection(CatalogMigrationCollection.Name)]
 [Trait("Area", "catalog")]
-public class RenameGroupsToProtocolsMigrationTests(AppFixture app) : IntegrationTest(app)
+public class RenameGroupsToProtocolsMigrationTests(BareAppFixture app) : IntegrationTest(app)
 {
     [Fact]
     [Trait("Case", "CAT-003")]
@@ -47,7 +47,7 @@ public class RenameGroupsToProtocolsMigrationTests(AppFixture app) : Integration
         }
         finally
         {
-            await MigrateAsync(App, null);
+            await MigrationData.MigrateToLatestAsync(App);
         }
     }
 
@@ -81,7 +81,7 @@ public class RenameGroupsToProtocolsMigrationTests(AppFixture app) : Integration
         }
         finally
         {
-            await MigrateAsync(App, null);
+            await MigrationData.MigrateToLatestAsync(App);
         }
     }
 
@@ -93,20 +93,22 @@ public class RenameGroupsToProtocolsMigrationTests(AppFixture app) : Integration
     /// </summary>
     private async Task<CatalogData> CatalogDataAsync()
     {
+        // The bare template has no imported category (design M1.7 D12)
+        var category = await MigrationData.TestCategoryAsync(App);
         var clinic = await Data.Clinic();
-        var first = await Data.Drug(clinic).WithDosing(Dosings.Drops());
-        var second = await Data.Drug(clinic).WithDosing(Dosings.Tablets());
-        var third = await Data.Drug(clinic);
+        var first = await Data.Drug(clinic).InCategory(category).WithDosing(Dosings.Drops());
+        var second = await Data.Drug(clinic).InCategory(category).WithDosing(Dosings.Tablets());
+        var third = await Data.Drug(clinic).InCategory(category);
         await Data.Protocol(clinic).Named(Unique.Name("Post cataract", "بعد المياه البيضاء"))
             .With(third, Dosings.Taper()).With(first).With(second, Dosings.Drops(2, 6, 2, "right"));
         await Data.Protocol(clinic).With(first, Dosings.AskEye()).With(second, Dosings.Drops(eye: "left"));
 
         var deleted = await Data.Clinic();
-        await Data.Protocol(deleted).With(await Data.Drug(deleted), Dosings.Tablets(2));
+        await Data.Protocol(deleted).With(await Data.Drug(deleted).InCategory(category), Dosings.Tablets(2));
         await Data.DeleteClinicAsync(deleted);
 
         var templateId = await App.TemplateClinicIdAsync();
-        await Data.Protocol(templateId).With(await Data.Drug(templateId), Dosings.AskEye());
+        await Data.Protocol(templateId).With(await Data.Drug(templateId).InCategory(category), Dosings.AskEye());
 
         var editor = await Data.Role(clinic).WithPermissions(Permissions.Protocols.Update);
         return new CatalogData(editor.Id);
