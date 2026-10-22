@@ -98,9 +98,9 @@ subcategory), then every template protocol, even when the template has no own dr
 rolled back; only in the accepted race).
 
 **Dev seed** (`Infrastructure/Platform/StartupSeeder`, Development, empty database): the template sample is skipped when
-the template has own drugs (`AnyAsync(d => d.ClinicId != null)`), and with a warning naming
-`data/drug-catalog/tools/load_catalog.py` when the catalog isn't loaded (no «العيون» category or no
-"VIGAMOX 0.5% EYE DROPS 5 ML"). Else: two own drugs in «العيون» and the protocol "After cataract surgery" = VIGAMOX (line
+the template has own drugs (`AnyAsync(d => d.ClinicId != null)`). When the catalog isn't loaded (no «العيون» category or
+no "VIGAMOX 0.5% EYE DROPS 5 ML") the dev seed stores nothing (no demo clinic either) and warns naming
+`data/drug-catalog/tools/load_catalog.py`, so the first start after the load seeds everything (CAT-230). Else: two own drugs in «العيون» and the protocol "After cataract surgery" = VIGAMOX (line
 dosing) + the own steroid (taper, eye asked). The demo clinics get no bulk drugs.
 
 **Import** (design D11): `data/drug-catalog/tools/load_catalog.py --connection "<conninfo>"`, once per database, in one
