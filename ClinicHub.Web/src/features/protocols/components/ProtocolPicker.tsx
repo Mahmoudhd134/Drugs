@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {Fragment, useState} from "react";
 import {Box, Chip, Stack, Typography} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import {useTranslation} from "react-i18next";
@@ -57,7 +57,10 @@ export const ProtocolPicker = ({onSelect, autoFocus, maxHeight, enabled = true}:
                             color="text.secondary"
                             sx={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere"}}
                         >
-                            {protocol.items.map(i => i.drug.name).join(" · ")}
+                            {/* Each name with its own direction (a Latin name inside Arabic text, design M1.7b D27) */}
+                            {protocol.items.map((i, index) => (
+                                <Fragment key={index}>{index > 0 && " · "}<bdi>{i.drug.name}</bdi></Fragment>
+                            ))}
                         </Typography>
                     </Box>
                     <AddIcon color="action" fontSize="small" sx={{mt: 0.5}}/>

@@ -268,7 +268,7 @@ export const AdminDrugsPage = () => {
                                                 sx={{cursor: "pointer", "& td": {py: 1.25}, verticalAlign: "top"}}
                                             >
                                                 <TableCell>
-                                                    <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{drug.name}</Typography>
+                                                    <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{drug.name}</bdi></Typography>
                                                     {/* On a phone the ingredients and the category go under the name */}
                                                     {drug.activeIngredients && (
                                                         <Typography variant="body2" color="text.secondary" dir="auto"
