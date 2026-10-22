@@ -76,8 +76,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [RX](#rx--prescription-builder) | 40 | 45 | 24 | 109 | 38 | 0 | 25 | 49 | 3 |
 | [I18N](#i18n--languages-and-direction) | 10 | 7 | 6 | 23 | 6 | 0 | 4 | 13 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 21 | 16 | 43 | 4 | 0 | 19 | 21 | 2 |
-| [CAT](#cat--shared-catalog-and-categories) | 55 | 69 | 37 | 161 | 9 | 116 | 17 | 27 | 1 |
-| **All** | **416** | **598** | **364** | **1378** | **205** | **659** | **321** | **267** | **8** |
+| [CAT](#cat--shared-catalog-and-categories) | 55 | 69 | 38 | 162 | 9 | 117 | 17 | 27 | 1 |
+| **All** | **416** | **598** | **365** | **1379** | **205** | **660** | **321** | **267** | **8** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2099,3 +2099,5 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 | CAT-227 | Given a scratch copy where an imported category was renamed or an imported subcategory deleted, when `BaselineGuard.CheckAsync` runs, then it reports the violation (categories are in the checksum) | P1 | api | [design D12](../design/m1.7-shared-catalog.md#d12-tests-carry-the-full-catalog) |
 | CAT-228 | Given the collection fixture disposed, then it calls the same baseline check once more (a change made by the last class is reported) | P2 | api | [design D12](../design/m1.7-shared-catalog.md#d12-tests-carry-the-full-catalog) |
 | CAT-229 | Given the e2e specs, then no spec holds a literal count of the imported catalog (the global total 23,414, the number of categories, or a search's, category's or subcategory's count such as 219, 203, 91 or 1,469): a lint over `e2e/**/*.spec.ts` rejects these literals in count assertions (count specs compare with the API's answer of the same run) | P1 | unit | [design D12](../design/m1.7-shared-catalog.md#d12-tests-carry-the-full-catalog) |
+| CAT-230 | Given a Development start on a database where the shared catalog is not loaded yet, then the dev seed stores nothing (no demo clinic, no template sample, no own drug or protocol) and warns naming `load_catalog.py`; given the script run, then the next Development start seeds everything (the demo clinics and the template's sample protocol with VIGAMOX and one own drug) | P2 | api | [design § 9 M1.7b](../design/m1.7-shared-catalog.md#9-sub-features), [design D5](../design/m1.7-shared-catalog.md#d5-categories) |
+
