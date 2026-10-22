@@ -1,6 +1,18 @@
 import {describe, expect, test} from "vitest";
 import {screen} from "@testing-library/react";
-import {aDrug, aProtocol, anItem, protocolsHandlers, recordRequests, renderWithProviders, server} from "../../../test";
+import {
+    aDrug,
+    anItem,
+    aProtocol,
+    ARABIC_DRUG_NAME,
+    aSharedDrug,
+    DIGITS_FIRST_NAME,
+    expectOwnDirection,
+    protocolsHandlers,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Protocol} from "../types.ts";
 import {ProtocolsPage} from "./ProtocolsPage.tsx";
 
@@ -58,4 +70,15 @@ describe("protocols list @area:catalog", () => {
         await openPage(manyProtocols(3), "en");
         expect(await screen.findByText("Total protocols: 3")).toBeInTheDocument();
     });
+});
+
+describe("protocols list: each drug name keeps its own direction @area:i18n", () => {
+    test("in Arabic, a card's drug names «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction @CAT-233",
+        async () => {
+            await openPage([aProtocol({name: "Post cataract", items: [anItem(aSharedDrug({name: DIGITS_FIRST_NAME})), anItem(aDrug({name: ARABIC_DRUG_NAME}))]})]);
+            await screen.findByText("Post cataract");
+            const card = screen.getByText("Post cataract").closest(".MuiCard-root") as HTMLElement;
+            expectOwnDirection(card, DIGITS_FIRST_NAME);
+            expectOwnDirection(card, ARABIC_DRUG_NAME);
+        });
 });

@@ -7,6 +7,12 @@ import type {Lang} from "./texts.ts";
  * bidi isolates U+2068/U+2069; counts are grouped Latin digits (design M1.7 D9 "Numbers").
  */
 const iso = (name: string) => `⁨${name}⁩`;
+/**
+ * A row button's accessible name that ends with its row's name (decision D30, CAT-236): the action, then the name in
+ * quotes («…» / “…”, bidi isolates allowed), e.g. «تعديل «⁨الاسم⁩»» / "Edit “⁨name⁩”".
+ */
+const rowAction = (verb: string, open: string, close: string) => (name: string) =>
+    new RegExp(`^${verb}[^${open}]*${open}\u2068?${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\u2069?${close}$`);
 const group = (n: number) => new Intl.NumberFormat("en-US").format(n);
 
 /** Arabic plural forms (CLDR: zero, one, two, few = 3–10, many = 11–99, other; by n mod 100). */
@@ -62,6 +68,12 @@ const ar = {
     statusAll: "الكل",
     withdraw: "تعطيل الدواء",
     restore: "تفعيل الدواء",
+    // The row buttons (D30): each ends with its row's name
+    editRow: rowAction("تعديل", "«", "»"),
+    withdrawRow: rowAction("تعطيل", "«", "»"),
+    restoreRow: rowAction("تفعيل", "«", "»"),
+    renameRow: rowAction("تعديل", "«", "»"),
+    deleteRow: rowAction("حذف", "«", "»"),
     withdrawTitle: (name: string) => `تعطيل «${iso(name)}»؟`,
     withdrawMessage: "سيختفي من البحث في كل العيادات ويبقى في البروتوكولات التي تستخدمه. يمكنك تفعيله لاحقًا.",
     withdrawnToast: "تم تعطيل الدواء",
@@ -133,6 +145,11 @@ const en: SharedTexts = {
     statusAll: "All",
     withdraw: "Disable drug",
     restore: "Enable drug",
+    editRow: rowAction("Edit", "“", "”"),
+    withdrawRow: rowAction("Disable", "“", "”"),
+    restoreRow: rowAction("Enable", "“", "”"),
+    renameRow: rowAction("(?:Rename|Edit)", "“", "”"),
+    deleteRow: rowAction("Delete", "“", "”"),
     withdrawTitle: name => `Disable “${iso(name)}”?`,
     withdrawMessage: "It disappears from search in every clinic and stays in the protocols that use it. You can enable it later.",
     withdrawnToast: "Drug disabled",

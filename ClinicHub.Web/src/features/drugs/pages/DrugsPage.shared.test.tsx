@@ -4,8 +4,11 @@ import {http, HttpResponse} from "msw";
 import {
     aDrug,
     api,
+    ARABIC_DRUG_NAME,
     aSharedDrug,
+    DIGITS_FIRST_NAME,
     drugsHandlers,
+    expectOwnDirection,
     recordRequests,
     renderWithProviders,
     server,
@@ -100,5 +103,29 @@ describe("drugs page: no delete on shared rows @area:access", () => {
             await user.click(within(details).getByRole("button", {name: "إغلاق"}));
             await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
             expect(recorded.requests.filter(r => r.path === `/drugs/${shared.id}/protocols`)).toEqual([]);
+        });
+});
+
+describe("drugs page: each name keeps its own direction @area:i18n", () => {
+    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an own drug typed in Arabic are each isolated with their own direction (<bdi> / dir=\"auto\") in their row @CAT-233",
+        async () => {
+            const shared = aSharedDrug({name: DIGITS_FIRST_NAME});
+            const own = aDrug({name: ARABIC_DRUG_NAME});
+            await openDrugs([own, shared]);
+            await screen.findByText(DIGITS_FIRST_NAME);
+            expectOwnDirection(rowOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
+            expectOwnDirection(rowOf(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+        });
+});
+
+describe("drugs page: search placeholder @area:catalog", () => {
+    test("the drugs page's search says what it matches: «ابحث بالاسم أو المادة الفعالة أو التصنيف…» / \"Search by name, active ingredient or category…\" @CAT-235",
+        async () => {
+            server.use(...drugsHandlers([aDrug()]));
+            const {unmount} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs"});
+            expect(await screen.findByRole("searchbox")).toHaveAttribute("placeholder", "ابحث بالاسم أو المادة الفعالة أو التصنيف…");
+            unmount();
+            await renderWithProviders(<DrugsPage/>, {lang: "en", route: "/drugs"});
+            expect(await screen.findByRole("searchbox")).toHaveAttribute("placeholder", "Search by name, active ingredient or category…");
         });
 });

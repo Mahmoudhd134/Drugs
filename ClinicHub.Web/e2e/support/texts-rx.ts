@@ -16,7 +16,7 @@ const ar = {
     tabProtocols: "البروتوكولات",
     tabDrugs: "الأدوية",
     searchProtocols: "ابحث عن بروتوكول بالاسم…",
-    searchDrugs: "ابحث عن دواء بالاسم…",
+    searchDrugs: "ابحث بالاسم أو المادة الفعالة أو التصنيف…",
     emptyTitle: "لم يتم اختيار شيء بعد",
     /** The drug picker's mark on a drug in the prescription (RX-005) */
     added: "مُضاف",
@@ -82,7 +82,7 @@ const en: RxTexts = {
     tabProtocols: "Protocols",
     tabDrugs: "Drugs",
     searchProtocols: "Search protocols by name…",
-    searchDrugs: "Search drugs by name…",
+    searchDrugs: "Search by name, active ingredient or category…",
     emptyTitle: "Nothing selected yet",
     added: "Added",
     alreadyAdded: name => `“${iso(name)}” is already in the list`,

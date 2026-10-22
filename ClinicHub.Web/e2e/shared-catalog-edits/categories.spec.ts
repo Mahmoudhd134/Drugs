@@ -27,14 +27,14 @@ test.describe("The super admin's categories @area:admin", () => {
             await settled(page);
 
             const usedRow = categoryRow(page, used.nameAr, "ar");
-            const deleteUsed = usedRow.getByRole("button", {name: st.deleteCategory}).first();
+            const deleteUsed = usedRow.getByRole("button", {name: st.deleteRow(used.nameAr)});
             await expect(deleteUsed).toHaveAttribute("aria-disabled", "true");
             await deleteUsed.focus();
             await expect(deleteUsed).toBeFocused();
             await deleteUsed.hover();
             await expect(page.getByRole("tooltip")).toHaveText(st.categoryInUse(3));
             await page.mouse.move(1, 1);
-            const deleteSub = categoryRow(page, usedSub.nameAr, "ar").getByRole("button", {name: st.deleteSubCategory});
+            const deleteSub = categoryRow(page, usedSub.nameAr, "ar").getByRole("button", {name: st.deleteRow(usedSub.nameAr)});
             await expect(deleteSub).toHaveAttribute("aria-disabled", "true");
             await deleteSub.hover();
             await expect(page.getByRole("tooltip")).toHaveText(st.subCategoryInUse(3));
@@ -42,7 +42,7 @@ test.describe("The super admin's categories @area:admin", () => {
             await healthy();
 
             const deletes = recordRequests(page, "DELETE", /^\/api\/v1\/admin\/drug-categories\/\d+$/);
-            await categoryRow(page, empty.nameAr, "ar").getByRole("button", {name: st.deleteCategory}).first().click();
+            await categoryRow(page, empty.nameAr, "ar").getByRole("button", {name: st.deleteRow(empty.nameAr)}).click();
             const confirm = dialog(page, st.deleteCategoryTitle(empty.nameAr));
             await expect(confirm).toBeVisible();
             await expect(confirm).toContainText(st.deleteCategoryMessage);
@@ -60,7 +60,7 @@ test.describe("The super admin's categories @area:admin", () => {
         await signInSuperAdmin(page, "/admin/categories");
         await settled(page);
         const deletes = recordRequests(page, "DELETE", /^\/api\/v1\/admin\/drug-categories\/\d+$/);
-        await categoryRow(page, empty.nameAr, "ar").getByRole("button", {name: st.deleteCategory}).first().click();
+        await categoryRow(page, empty.nameAr, "ar").getByRole("button", {name: st.deleteRow(empty.nameAr)}).click();
         await dialog(page, st.deleteCategoryTitle(empty.nameAr)).getByRole("button").filter({hasNotText: t.cancel}).dblclick();
         await expectToast(page, st.categoryDeleted);
         expect(deletes).toHaveLength(1);

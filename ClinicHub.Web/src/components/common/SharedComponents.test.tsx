@@ -37,7 +37,7 @@ const openPicker = async (onSelect = vi.fn(), drugs = DRUGS) => {
     server.use(drugsApi(drugs));
     const rendered = await renderWithProviders(<DrugPicker onSelect={onSelect} autoFocus/>, {lang: "ar"});
     await screen.findByText("Cosopt");
-    const search = screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"});
+    const search = screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"});
     const highlighted = () => screen.getAllByRole("option").find(o => o.getAttribute("aria-selected") === "true")?.textContent;
     return {...rendered, onSelect, search, highlighted};
 };

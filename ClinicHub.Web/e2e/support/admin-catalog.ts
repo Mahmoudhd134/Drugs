@@ -72,7 +72,7 @@ export const visitCatalogAdmin = async (page: Page, t: Texts, lang: Lang, check:
 
     await searchAdmin(page, lang, IMPORTED.vigamox);
     const row = adminDrugRow(page, IMPORTED.vigamox);
-    await row.getByRole("button", {name: /^(تعديل|Edit)/}).click();
+    await row.getByRole("button", {name: st.editRow(IMPORTED.vigamox)}).click();
     const edit = page.getByRole("dialog", {name: st.adminEdit});
     await expect(edit).toBeVisible();
     const searchedData = await shownData();
@@ -80,7 +80,7 @@ export const visitCatalogAdmin = async (page: Page, t: Texts, lang: Lang, check:
     await check("edit shared drug dialog", editData);
     await edit.getByRole("button", {name: t.cancel}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await row.getByRole("button", {name: st.withdraw}).click();
+    await row.getByRole("button", {name: st.withdrawRow(IMPORTED.vigamox)}).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await check("disable confirmation", [...searchedData, IMPORTED.vigamox]);
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();
@@ -100,7 +100,7 @@ export const visitCatalogAdmin = async (page: Page, t: Texts, lang: Lang, check:
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const eye = categoryRow(page, lang === "ar" ? "العيون" : "Eye", lang);
-    await eye.getByRole("button", {name: st.renameCategory}).first().click();
+    await eye.getByRole("button", {name: st.renameRow(lang === "ar" ? "العيون" : "Eye")}).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await check("rename category dialog", categoryNames);
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();

@@ -177,7 +177,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
             expect(await hoverTooltip(button)).toBe(name);
             await leaveTooltip(button);
         }
-        await user.type(screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"}), "x");
+        await user.type(screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"}), "x");
         expect(await hoverTooltip(screen.getByRole("button", {name: "مسح"}))).toBe("مسح");
     });
 

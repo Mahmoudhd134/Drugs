@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {aDrug, aLine, aProtocolDrug, aSharedDrug} from "../../test";
+import {aDrug, aLine, aProtocolDrug, ARABIC_DRUG_NAME, aSharedDrug, DIGITS_FIRST_NAME, expectOwnDirection} from "../../test";
 import type {Dosing} from "../dosing/types.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml, linesToPlainText} from "./prescriptionText.ts";
 
@@ -134,4 +134,16 @@ describe("shared drugs in the copied text @area:prescription", () => {
         const line = aLine(aProtocolDrug(aSharedDrug({name: "NAILNER NAIL FUNGUS PEN 4 ML", activeIngredients: null})), {});
         expect(linesToPlainText([line])).toBe("NAILNER NAIL FUNGUS PEN 4 ML");
     });
+});
+
+describe("the copied HTML gives each drug name its own direction @area:i18n", () => {
+    test("«1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name: inside the RTL paragraphs, each name is isolated with its own direction (<bdi> / dir=\"auto\"), so Word keeps the Latin order @CAT-234",
+        () => {
+            const html = htmlForPaste(linesToHtml([aLine(aSharedDrug({name: DIGITS_FIRST_NAME}), twoDropsLeft), aLine(aDrug({name: ARABIC_DRUG_NAME}))]));
+            const body = new DOMParser().parseFromString(html, "text/html").body;
+            expectOwnDirection(body, DIGITS_FIRST_NAME);
+            expectOwnDirection(body, ARABIC_DRUG_NAME);
+            // The paragraphs stay right to left (the prescription is Arabic, RX-069)
+            expect(Array.from(body.querySelectorAll("p")).every(p => p.getAttribute("dir") === "rtl")).toBe(true);
+        });
 });

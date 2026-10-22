@@ -1,6 +1,16 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, within} from "@testing-library/react";
-import {aDrug, drugsHandlers, recordRequests, renderWithProviders, server} from "../../../test";
+import {
+    aDrug,
+    ARABIC_DRUG_NAME,
+    aSharedDrug,
+    DIGITS_FIRST_NAME,
+    drugsHandlers,
+    expectOwnDirection,
+    recordRequests,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Drug} from "../types.ts";
 import {DrugPicker} from "./DrugPicker.tsx";
 
@@ -72,10 +82,30 @@ describe("drug picker @area:catalog", () => {
     test("selecting a drug with a search typed clears the search box @DRUG-060", async () => {
         const tobradex = aDrug({name: "Tobradex"});
         const {user, onSelect} = await renderPicker([tobradex, aDrug({name: "Vigamox"})]);
-        const search = screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"});
+        const search = screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"});
         await user.type(search, "Tob");
         await user.click(optionOf("Tobradex"));
         expect(onSelect).toHaveBeenCalledWith(tobradex);
         expect(search).toHaveValue("");
     });
+});
+
+describe("drug picker: each name keeps its own direction @area:i18n", () => {
+    test("in Arabic (protocol editor and prescription), «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in their option @CAT-233",
+        async () => {
+            await renderPicker([aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})]);
+            expectOwnDirection(optionOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
+            expectOwnDirection(optionOf(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+        });
+});
+
+describe("drug search placeholder @area:catalog", () => {
+    test("the picker's search (protocol editor, prescription) says what it matches: «ابحث بالاسم أو المادة الفعالة أو التصنيف…» / \"Search by name, active ingredient or category…\" @CAT-235",
+        async () => {
+            const {unmount} = await renderPicker([aDrug()]);
+            expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "ابحث بالاسم أو المادة الفعالة أو التصنيف…");
+            unmount();
+            await renderPicker([aDrug()], undefined, "en");
+            expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "Search by name, active ingredient or category…");
+        });
 });

@@ -12,12 +12,13 @@ import {
     expectToasts,
     fillIn,
     findToast,
-    hoverTooltip,
     holdTimers,
+    hoverTooltip,
     OTHER,
     pastExitTransition,
     problem,
     recordRequests,
+    rowAction,
     server,
     toastTexts,
     UNCLASSIFIED,
@@ -83,7 +84,7 @@ describe("admin categories: delete blocked by drugs @area:admin", () => {
         async () => {
             const sub = anAdminSubCategory({nameAr: "تصنيف فرعي قديم", nameEn: "Old subcategory", drugCount: 1, deletedClinicsDrugCount: 1});
             await openPage([anAdminCategory({nameAr: "تصنيف تجريبي", drugCount: 1, subCategories: [sub]})]);
-            const button = within(rowOf("تصنيف فرعي قديم")).getByRole("button", {name: "حذف التصنيف الفرعي"});
+            const button = within(rowOf("تصنيف فرعي قديم")).getByRole("button", {name: rowAction("حذف", "تصنيف فرعي قديم")});
             expect(button).toHaveAttribute("aria-disabled", "true");
             button.focus();
             expect(button).toHaveFocus();
@@ -95,7 +96,7 @@ describe("admin categories: delete blocked by drugs @area:admin", () => {
     test("no deleted clinic's drug: the tooltip is the counted message alone @CAT-213", async () => {
         const sub = anAdminSubCategory({nameAr: "تصنيف فرعي", drugCount: 3});
         await openPage([anAdminCategory({nameAr: "تصنيف تجريبي", drugCount: 3, subCategories: [sub]})]);
-        const tooltip = await hoverTooltip(within(rowOf("تصنيف فرعي")).getByRole("button", {name: "حذف التصنيف الفرعي"}));
+        const tooltip = await hoverTooltip(within(rowOf("تصنيف فرعي")).getByRole("button", {name: rowAction("حذف", "تصنيف فرعي")}));
         expect(tooltip).toBe("لا يمكن حذف هذا التصنيف الفرعي: يستخدمه 3 أدوية.");
     });
 });
@@ -110,7 +111,7 @@ describe("admin categories: a delete refused meanwhile @area:admin", () => {
             server.use(adminCategoriesHandler(reloaded));
             return problem(409, "subCategoryInUse", {drugCount: 1});
         }));
-        await user.click(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: "حذف التصنيف الفرعي"}));
+        await user.click(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: rowAction("حذف", "تصنيف فرعي فارغ")}));
         // The destructive confirmation names the subcategory (contract § 3.5 deleteSubCategoryTitle / Message)
         const confirmation = await screen.findByRole("dialog");
         expect(within(confirmation).getByRole("heading")).toHaveTextContent(/^حذف التصنيف الفرعي «\u2068?تصنيف فرعي فارغ\u2069?»؟$/);
@@ -121,14 +122,14 @@ describe("admin categories: a delete refused meanwhile @area:admin", () => {
         await waitFor(() => expect(within(rowOf("تصنيف فرعي فارغ")).getByText("الأدوية: 1")).toBeInTheDocument());
         // The confirmation is gone (while it closes, the page behind it is aria-hidden)
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-        expect(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: "حذف التصنيف الفرعي"})).toHaveAttribute("aria-disabled", "true");
+        expect(within(rowOf("تصنيف فرعي فارغ")).getByRole("button", {name: rowAction("حذف", "تصنيف فرعي فارغ")})).toHaveAttribute("aria-disabled", "true");
     });
 
     test("a category's 409: «لا يمكن حذف هذا التصنيف: يستخدمه 3 أدوية.» @CAT-215", async () => {
         const category = anAdminCategory({nameAr: "تصنيف فارغ", drugCount: 0});
         const {user} = await openPage([category]);
         server.use(http.delete(api("/admin/drug-categories/:id"), () => problem(409, "categoryInUse", {drugCount: 3})));
-        await user.click(within(rowOf("تصنيف فارغ")).getByRole("button", {name: "حذف التصنيف"}));
+        await user.click(within(rowOf("تصنيف فارغ")).getByRole("button", {name: rowAction("حذف", "تصنيف فارغ")}));
         await user.click(confirmButton(await screen.findByRole("dialog")));
         expect(await findToast()).toBe("لا يمكن حذف هذا التصنيف: يستخدمه 3 أدوية.");
     });
@@ -187,7 +188,7 @@ describe("admin categories: the dialogs locked while saving, fresh on each openi
         const eye = anAdminCategory({nameAr: "العيون", nameEn: "Eye"});
         const {user} = await openPage([eye]);
         const save = holdSave("put", `/admin/drug-categories/${eye.id}`, {...eye, nameEn: "Eyes", subCategories: []});
-        await user.click(within(rowOf("العيون")).getAllByRole("button", {name: "تعديل التصنيف"})[0]);
+        await user.click(within(rowOf("العيون")).getByRole("button", {name: rowAction("تعديل", "العيون")}));
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getByRole("textbox", {name: "الاسم بالإنجليزية"})).toHaveValue("Eye");
         expect(within(dialog).getByRole("textbox", {name: "الاسم بالعربية"})).toHaveValue("العيون");
@@ -220,7 +221,7 @@ describe("admin categories: the dialogs locked while saving, fresh on each openi
         const eye = anAdminCategory({nameAr: "العيون", nameEn: "Eye", subCategories: [glaucoma]});
         const {user} = await openPage([eye]);
         const save = holdSave("put", `/admin/drug-subcategories/${glaucoma.id}`, {...glaucoma, nameEn: "Glaucoma drops"});
-        await user.click(within(rowOf("المياه الزرقاء")).getByRole("button", {name: "تعديل التصنيف الفرعي"}));
+        await user.click(within(rowOf("المياه الزرقاء")).getByRole("button", {name: rowAction("تعديل", "المياه الزرقاء")}));
         const dialog = await screen.findByRole("dialog");
         expect(within(dialog).getByRole("textbox", {name: "الاسم بالإنجليزية"})).toHaveValue("Glaucoma");
         expect(within(dialog).getByRole("textbox", {name: "الاسم بالعربية"})).toHaveValue("المياه الزرقاء");
@@ -245,11 +246,11 @@ describe("admin categories: the toasts can be dismissed @area:ux", () => {
                 http.delete(api("/admin/drug-subcategories/:id"), () => new HttpResponse(null, {status: 204})),
                 http.delete(api("/admin/drug-categories/:id"), () => new HttpResponse(null, {status: 204})),
             );
-            await user.click(within(rowOf("فرعي فارغ")).getByRole("button", {name: "حذف التصنيف الفرعي"}));
+            await user.click(within(rowOf("فرعي فارغ")).getByRole("button", {name: rowAction("حذف", "فرعي فارغ")}));
             await user.click(confirmButton(await screen.findByRole("dialog")));
             await waitFor(() => expect(toastTexts()).toContain("تم حذف التصنيف الفرعي"));
             await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-            await user.click(within(rowOf("تصنيف فارغ")).getByRole("button", {name: "حذف التصنيف"}));
+            await user.click(within(rowOf("تصنيف فارغ")).getByRole("button", {name: rowAction("حذف", "تصنيف فارغ")}));
             await user.click(confirmButton(await screen.findByRole("dialog")));
             await expectToasts("تم حذف التصنيف", "تم حذف التصنيف الفرعي");
             await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -258,5 +259,29 @@ describe("admin categories: the toasts can be dismissed @area:ux", () => {
             const first = screen.getByText("تم حذف التصنيف الفرعي").closest("[role=status]")!.parentElement!;
             await act(async () => within(first).getByRole("button", {name: "إغلاق"}).click());
             await waitFor(() => expect(toastTexts()).toEqual(["تم حذف التصنيف"]), {timeout: 1000});
+        });
+});
+
+describe("admin categories: row buttons name their row @area:admin", () => {
+    test("rename and delete of each category and subcategory end with that row's name, so no two rows share a button name (ar, en) @CAT-236",
+        async () => {
+            const glaucoma = anAdminSubCategory({nameAr: "المياه الزرقاء", nameEn: "Glaucoma", drugCount: 2});
+            const dry = anAdminSubCategory({nameAr: "جفاف العين", nameEn: "Dry eye", drugCount: 0});
+            const eye = anAdminCategory({nameAr: "العيون", nameEn: "Eye", drugCount: 2, subCategories: [glaucoma, dry]});
+            const skin = anAdminCategory({nameAr: "الجلدية", nameEn: "Dermatology", drugCount: 0, subCategories: []});
+            const rows = (lang: "ar" | "en") => [eye, glaucoma, dry, skin].map(r => lang === "ar" ? r.nameAr : r.nameEn);
+            const {unmount} = await openPage([eye, skin]);
+            for (const name of rows("ar")) {
+                // One button on the whole page answers to each name, and it is in that row (a blocked delete included)
+                expect(rowOf(name)).toContainElement(screen.getByRole("button", {name: rowAction("تعديل", name)}));
+                expect(rowOf(name)).toContainElement(screen.getByRole("button", {name: rowAction("حذف", name)}));
+            }
+            unmount();
+
+            await openPage([eye, skin], "en");
+            for (const name of rows("en")) {
+                expect(rowOf(name, "Drugs:")).toContainElement(screen.getByRole("button", {name: rowAction("(?:Rename|Edit)", name, "en")}));
+                expect(rowOf(name, "Drugs:")).toContainElement(screen.getByRole("button", {name: rowAction("Delete", name, "en")}));
+            }
         });
 });

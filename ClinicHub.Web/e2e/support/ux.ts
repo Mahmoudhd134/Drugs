@@ -386,3 +386,22 @@ export const tourPages = async (page: Page, tour: Tour, check: (what: string) =>
     await dialog(page).getByRole("button", {name: t.close}).click();
     await expectNoDialog(page);
 };
+
+/**
+ * The placeholder of an empty `input` is shown whole: its text, measured in the placeholder's own font, fits the field's
+ * content box (the cut-text check above reads an element's content, which an input's placeholder is not; CAT-237).
+ */
+export const expectPlaceholderNotCut = async (input: Locator, what: string) => {
+    await expect(input, `${what}: empty, so its placeholder shows`).toHaveValue("");
+    const fit = await input.evaluate((e: HTMLInputElement) => {
+        const own = getComputedStyle(e);
+        const shown = getComputedStyle(e, "::placeholder");
+        const context = document.createElement("canvas").getContext("2d")!;
+        context.font = `${shown.fontStyle} ${shown.fontWeight} ${shown.fontSize} ${shown.fontFamily}`;
+        const text = context.measureText(e.placeholder).width;
+        const box = e.clientWidth - parseFloat(own.paddingLeft) - parseFloat(own.paddingRight);
+        return {placeholder: e.placeholder, text: Math.ceil(text), box: Math.floor(box)};
+    });
+    expect(fit.placeholder, `${what}: has a placeholder`).not.toBe("");
+    expect(fit.text, `${what}: the placeholder «${fit.placeholder}» (${fit.text} px) fits its ${fit.box} px field`).toBeLessThanOrEqual(fit.box);
+};

@@ -3,8 +3,12 @@ import {screen, waitFor} from "@testing-library/react";
 import {
     aDrug,
     aProtocol,
-    protocolsHandlers,
+    ARABIC_DRUG_NAME,
+    aSharedDrug,
+    DIGITS_FIRST_NAME,
     drugsHandlers,
+    expectOwnDirection,
+    protocolsHandlers,
     recordRequests,
     renderWithProviders,
     server,
@@ -34,7 +38,7 @@ describe("catalog panel by permission @area:access", () => {
         const requests = recordRequests();
         await openPanel(["drugs.list", "prescriptions.create"]);
         expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["الأدوية"]);
-        expect(screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"})).toHaveFocus();
+        expect(screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"})).toHaveFocus();
         expect(await screen.findByText("Tobradex")).toBeInTheDocument();
         expect(requests.requests.some(r => r.path === "/protocols")).toBe(false);
     });
@@ -62,4 +66,16 @@ describe("catalog panel by permission @area:access", () => {
         await renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectProtocol={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "en", user: {permissions: []}});
         expect(screen.getByText("You don't have permission to search drugs or protocols.")).toBeInTheDocument();
     });
+});
+
+describe("prescription drugs tab: each name keeps its own direction @area:i18n", () => {
+    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in the drugs tab @CAT-233",
+        async () => {
+            server.use(...drugsHandlers([aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})]));
+            await openPanel(["drugs.list", "prescriptions.create"]);
+            await screen.findByText(DIGITS_FIRST_NAME);
+            const optionOf = (name: string) => screen.getByText(name).closest("[role=option]") as HTMLElement;
+            expectOwnDirection(optionOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
+            expectOwnDirection(optionOf(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+        });
 });
