@@ -54,12 +54,23 @@ function Get-Gh {
     throw 'GitHub CLI (gh) not found: winget install GitHub.cli, then gh auth login'
 }
 
-# A native command's output as text; a failure stops the script with its output
-function Invoke-Git([string[]] $arguments) {
-    $text = & git -C $root @arguments 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) { throw "git $($arguments -join ' ') failed: $text" }
+# A native command's output (stdout and stderr) as text; a failure stops the script with its output. Windows
+# PowerShell turns a native command's stderr line into an error under 'Stop' (git push writes its progress there)
+function Invoke-Native([string] $exe, [string[]] $arguments) {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $text = & $exe @arguments 2>&1 | ForEach-Object { "$_" } | Out-String
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $saved
+    }
+    if ($code -ne 0) { throw "$(Split-Path $exe -Leaf) $($arguments -join ' ') failed ($code): $text" }
     return $text.Trim()
 }
+
+function Invoke-Git([string[]] $arguments) { Invoke-Native 'git' (@('-C', $root) + $arguments) }
 
 $gh = Get-Gh
 $Mutate = @($Mutate | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim().Replace('\', '/') } | Where-Object { $_ })
@@ -72,8 +83,7 @@ $dirty = Invoke-Git @('status', '--porcelain', '--untracked-files=no')
 if ($dirty) { throw "Uncommitted changes (CI tests the pushed commit): commit them first`n$dirty" }
 
 Write-Host "Pushing $branch" -ForegroundColor Cyan
-& git -C $root push -u origin HEAD 2>&1 | Out-Host
-if ($LASTEXITCODE -ne 0) { throw "git push failed ($LASTEXITCODE)" }
+Write-Host (Invoke-Git @('push', '-u', 'origin', 'HEAD'))
 $sha = Invoke-Git @('rev-parse', 'HEAD')
 
 $started = (Get-Date).ToUniversalTime().AddSeconds(-5)
@@ -81,8 +91,7 @@ $arguments = @('workflow', 'run', 'ci.yml', '--ref', $branch, '-f', "tier=$Tier"
 if ($Mutate.Count -gt 0) { $arguments += @('-f', "mutate=$($Mutate -join ',')") }
 if ($Area.Count -gt 0) { $arguments += @('-f', "areas=$($Area -join ',')") }
 Write-Host "Starting CI: tier $Tier on $branch @ $($sha.Substring(0, 7))$(if ($Mutate.Count) { ", mutating $($Mutate -join ', ')" })" -ForegroundColor Cyan
-& $gh @arguments | Out-Host
-if ($LASTEXITCODE -ne 0) { throw "gh workflow run failed ($LASTEXITCODE)" }
+Write-Host (Invoke-Native $gh $arguments)
 
 # The run just started: the newest manual run of this commit created after the request
 $run = $null
@@ -101,6 +110,8 @@ if ($NoWait) { exit 0 }
 $passed = $LASTEXITCODE -eq 0
 
 # ---------------------------------------------------------------- summary
+# Best effort from here (gh writes progress to stderr): a missing log or artifact must not hide the verdict
+$ErrorActionPreference = 'Continue'
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $view = & $gh run view $run.databaseId --json 'jobs,conclusion,url' | Out-String | ConvertFrom-Json
