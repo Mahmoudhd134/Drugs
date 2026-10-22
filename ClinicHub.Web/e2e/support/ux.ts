@@ -6,6 +6,8 @@ import {unique, uniqueDigits} from "./phones.ts";
 import {type Lang, TEXTS, type Texts} from "./texts.ts";
 import {DOSINGS, LANGUAGE_NAMES, TEN_STEP_TAPER, UX_TEXTS, type UxTexts} from "./texts-ux.ts";
 import {ownDrugBody} from "./shared.ts";
+import {TREE_TEXTS} from "./texts-rx.ts";
+import {DrugTreeUi} from "./tree.ts";
 
 /** Helpers of the I18N and UX specs (e2e stage 2, track e2e-ux). */
 
@@ -255,10 +257,10 @@ export const pick = async (page: Page, placeholder: string, name: string) => {
     await option.click();
 };
 
-/** Adds a drug to the prescription from the Drugs tab. */
+/** Adds a drug to the prescription from the Drugs tab's tree (contract M1.7c § 4: search, its bucket, its row). */
 export const addDrugToRx = async (page: Page, t: Texts, name: string) => {
     await rxTab(page, t, "drugs");
-    await pick(page, t.searchDrugs, name);
+    await new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[t.dir === "rtl" ? "ar" : "en"]).addDrug(name);
 };
 
 /** Clicks a protocol in the prescription's Protocols tab (its dialogs, if any, are left to the caller). */

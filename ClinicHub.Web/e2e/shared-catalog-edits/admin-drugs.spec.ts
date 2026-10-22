@@ -168,11 +168,10 @@ test.describe("Shared drugs reach every clinic's prescription @area:prescription
         await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     });
 
-    /** Adds a drug alone from the Drugs tab after searching its exact name. */
+    /** Adds a drug alone from the Drugs tab's tree after searching its exact name. */
     const addAlone = async (rx: RxPage, name: string) => {
         await rx.openDrugsTab();
-        await rx.search("drugs").fill(name);
-        await rx.catalog.getByRole("option").filter({has: rx.page.getByText(name, {exact: true})}).click();
+        await rx.addDrug(name);
         await expect(rx.linesOf(name)).toHaveCount(1);
     };
 
