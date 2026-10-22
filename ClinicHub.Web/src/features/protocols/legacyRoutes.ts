@@ -13,13 +13,15 @@ const LEGACY_PATH = /^\/groups(?:\/([^/]+))?\/?$/i;
 
 /**
  * Maps an old bookmark of the protocols screens to its new address: `/groups` → `/protocols`,
- * `/groups/new` → `/protocols/new`, `/groups/{id}` → `/protocols/{id}` (any segment, kept as written: the editor
+ * `/groups/new` (any case) → `/protocols/new`, `/groups/{id}` → `/protocols/{id}` (any segment, kept as written: the editor
  * applies its own rules to it), with the query string and hash kept. Null for any other path.
  */
 export const protocolPathOf = ({pathname, search, hash}: LegacyLocation): string | null => {
     const match = LEGACY_PATH.exec(pathname);
     if (!match) return null;
     const segment = match[1];
-    const path = segment === undefined ? "/protocols" : `/protocols/${segment}`;
+    // "new" matches in any case, like the route, and maps to the lowercase route; an id is kept as written
+    const target = segment?.toLowerCase() === "new" ? "new" : segment;
+    const path = target === undefined ? "/protocols" : `/protocols/${target}`;
     return `${path}${search}${hash}`;
 };
