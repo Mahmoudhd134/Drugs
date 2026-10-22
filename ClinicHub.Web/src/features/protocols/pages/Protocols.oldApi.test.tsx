@@ -1,7 +1,9 @@
 import {describe, expect, test} from "vitest";
 import {screen, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aDrug, aProtocol, anItem, api, drugsHandlers, findToast, problem, renderWithProviders, server} from "../../../test";
+import {aDrug, aProtocol, anItem, api, drugsHandlers, drugTreeHandler, findToast, problem, renderWithProviders, server} from "../../../test";
+import {installIntersectionObserver} from "../../../test/intersection.ts";
+import {findDrugRow} from "../../../test/pages/drugTree.tsx";
 import {ProtocolsPage} from "./ProtocolsPage.tsx";
 import {ProtocolEditorPage} from "./ProtocolEditorPage.tsx";
 
@@ -27,7 +29,8 @@ describe("protocols: the old API routes answering 404 / 405 @area:errors", () =>
     });
 
     test("the editor's GET answers 404 notFound: «هذا العنصر لم يعد موجودًا.» with «إعادة المحاولة» instead of the form @GRP-105", async () => {
-        server.use(...drugsHandlers([tobradex]), http.get(api("/protocols/:id"), gone));
+        server.use(drugTreeHandler([tobradex]), ...drugsHandlers([tobradex]), http.get(api("/protocols/:id"), gone));
+        installIntersectionObserver();
         await renderWithProviders(<ProtocolEditorPage/>, {lang: "ar", route: `/protocols/${protocol.id}`, path: "/protocols/:id"});
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent("هذا العنصر لم يعد موجودًا.");
@@ -36,9 +39,10 @@ describe("protocols: the old API routes answering 404 / 405 @area:errors", () =>
     });
 
     test("a new protocol's POST answers 405 methodNotAllowed: «حدث خطأ ما. حاول مرة أخرى.» and the form keeps what was typed @GRP-105", async () => {
-        server.use(...drugsHandlers([tobradex]), http.post(api("/protocols"), refused));
+        server.use(drugTreeHandler([tobradex]), ...drugsHandlers([tobradex]), http.post(api("/protocols"), refused));
+        installIntersectionObserver();
         const {user, location} = await renderWithProviders(<ProtocolEditorPage/>, {lang: "ar", route: "/protocols/new", path: "/protocols/new"});
-        await user.click(await screen.findByText("Tobradex", {selector: "[role=option] *"}));
+        await user.click(await findDrugRow("Tobradex"));
         await user.type(screen.getByRole("textbox", {name: "اسم البروتوكول"}), "Post cataract");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         expect(await findToast()).toBe("حدث خطأ ما. حاول مرة أخرى.");
@@ -48,10 +52,12 @@ describe("protocols: the old API routes answering 404 / 405 @area:errors", () =>
 
     test("in English an edited protocol's PUT answering 405: \"Something went wrong. Please try again.\", the editor stays @GRP-105", async () => {
         server.use(
+            drugTreeHandler([tobradex]),
             ...drugsHandlers([tobradex]),
             http.get(api("/protocols/:id"), () => HttpResponse.json(protocol)),
             http.put(api("/protocols/:id"), refused),
         );
+        installIntersectionObserver();
         const {user, location} = await renderWithProviders(<ProtocolEditorPage/>, {lang: "en", route: `/protocols/${protocol.id}`, path: "/protocols/:id"});
         const name = await screen.findByRole("textbox", {name: "Protocol name"});
         await user.type(name, " 2");

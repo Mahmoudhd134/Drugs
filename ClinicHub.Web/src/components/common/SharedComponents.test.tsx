@@ -2,9 +2,8 @@ import {beforeEach, describe, expect, test, vi} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {Link, Route, Routes} from "react-router-dom";
 import {http, HttpResponse} from "msw";
-import {aDrug, aProtocol, aPage, api, protocolsHandlers, hoverTooltip, renderWithProviders, server, tapTooltip} from "../../test";
-import type {Drug} from "../../features/drugs/types.ts";
-import {DrugPicker} from "../../features/drugs/components/DrugPicker.tsx";
+import {aProtocol, aPage, api, protocolsHandlers, hoverTooltip, renderWithProviders, server, tapTooltip} from "../../test";
+import type {Protocol} from "../../features/protocols/types.ts";
 import {ProtocolPicker} from "../../features/protocols/components/ProtocolPicker.tsx";
 import {AppShell} from "../layout/AppShell.tsx";
 import {PageBoundary} from "./PageBoundary.tsx";
@@ -14,13 +13,15 @@ import {InfoTip} from "./InfoTip.tsx";
 // Shared components: docs/tech/overview.md "Shared components (components/common)" (SearchableList, PageBoundary,
 // useConfirm), "App shell", "Data fetching" (loading states), "Code conventions" (icon-only buttons).
 
-const DRUGS = ["Atropine", "Betoptic", "Cosopt"].map(name => aDrug({name}));
+// The search lists (`SearchableList`) since M1.7c: the protocol picker (the drug picker became the drug tree, whose
+// keyboard and loading have their own tests: DrugTree.keyboard / DrugTree.search, UX-018, UX-019, UX-035)
+const PROTOCOLS = ["Cataract", "Glaucoma", "Uveitis"].map(name => aProtocol({name}));
 
-/** `GET /drugs` for the picker: `drugs` matched by name, optionally waiting for `gate` when a search is typed. */
-const drugsApi = (drugs: Drug[], gate?: Promise<void>) => http.get(api("/drugs"), async ({request}) => {
+/** `GET /protocols` for the picker: `protocols` matched by name, optionally waiting for `gate` when a search is typed. */
+const protocolsApi = (protocols: Protocol[], gate?: Promise<void>) => http.get(api("/protocols"), async ({request}) => {
     const search = (new URL(request.url).searchParams.get("search") ?? "").toLowerCase();
     if (search && gate) await gate;
-    const items = drugs.filter(d => d.name.toLowerCase().includes(search));
+    const items = protocols.filter(g => g.name.toLowerCase().includes(search));
     return HttpResponse.json(aPage(items, {pageSize: 30}));
 });
 
@@ -33,12 +34,15 @@ beforeEach(() => {
     });
 });
 
-const openPicker = async (onSelect = vi.fn(), drugs = DRUGS) => {
-    server.use(drugsApi(drugs));
-    const rendered = await renderWithProviders(<DrugPicker onSelect={onSelect} autoFocus/>, {lang: "ar"});
-    await screen.findByText("Cosopt");
-    const search = screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"});
-    const highlighted = () => screen.getAllByRole("option").find(o => o.getAttribute("aria-selected") === "true")?.textContent;
+/** The protocol name an option shows first (its line count and drug names follow). */
+const nameOf = (option: Element | undefined) => PROTOCOLS.map(g => g.name).find(name => option?.textContent?.startsWith(name));
+
+const openPicker = async (onSelect = vi.fn(), protocols = PROTOCOLS) => {
+    server.use(protocolsApi(protocols));
+    const rendered = await renderWithProviders(<ProtocolPicker onSelect={onSelect} autoFocus/>, {lang: "ar"});
+    await screen.findByText("Uveitis");
+    const search = screen.getByRole("searchbox", {name: "ابحث عن بروتوكول بالاسم…"});
+    const highlighted = () => nameOf(screen.getAllByRole("option").find(o => o.getAttribute("aria-selected") === "true"));
     return {...rendered, onSelect, search, highlighted};
 };
 
@@ -46,44 +50,44 @@ describe("search lists: keyboard @area:ux", () => {
     test("↓ past the last result and ↑ before the first keep the highlight on the edge; the highlighted row scrolls into view @UX-018 @smoke", async () => {
         const {user, search, highlighted} = await openPicker();
         await user.click(search);
-        expect(highlighted()).toBe("Atropine");
+        expect(highlighted()).toBe("Cataract");
         await user.keyboard("{ArrowUp}");
-        expect(highlighted()).toBe("Atropine");
+        expect(highlighted()).toBe("Cataract");
         await user.keyboard("{ArrowDown}{ArrowDown}");
-        expect(highlighted()).toBe("Cosopt");
-        expect(scrolledTo[scrolledTo.length - 1]?.textContent).toBe("Cosopt");
+        expect(highlighted()).toBe("Uveitis");
+        expect(nameOf(scrolledTo[scrolledTo.length - 1])).toBe("Uveitis");
         await user.keyboard("{ArrowDown}{ArrowDown}");
-        expect(highlighted()).toBe("Cosopt");
+        expect(highlighted()).toBe("Uveitis");
         await user.keyboard("{ArrowUp}");
-        expect(highlighted()).toBe("Betoptic");
-        expect(scrolledTo[scrolledTo.length - 1]?.textContent).toBe("Betoptic");
+        expect(highlighted()).toBe("Glaucoma");
+        expect(nameOf(scrolledTo[scrolledTo.length - 1])).toBe("Glaucoma");
     });
 
     test("Esc clears the typed search; a new search puts the highlight back on the first result @UX-019", async () => {
         const {user, search, highlighted} = await openPicker();
         await user.click(search);
         await user.keyboard("{ArrowDown}{ArrowDown}");
-        expect(highlighted()).toBe("Cosopt");
+        expect(highlighted()).toBe("Uveitis");
 
-        await user.type(search, "o");
-        // Every name has an "o": the list is the same, the highlight is back on the first one
-        await waitFor(() => expect(highlighted()).toBe("Atropine"));
+        await user.type(search, "a");
+        // Every name has an "a"… except Uveitis: the list is Cataract, Glaucoma, the highlight back on the first one
+        await waitFor(() => expect(highlighted()).toBe("Cataract"));
         await user.keyboard("{ArrowDown}");
         await user.keyboard("{Escape}");
         expect(search).toHaveValue("");
-        await waitFor(() => expect(highlighted()).toBe("Atropine"));
+        await waitFor(() => expect(highlighted()).toBe("Cataract"));
     });
 
     test("a double click on an item selects it once; Enter on a focused item still selects it @UX-027", async () => {
         const {user, onSelect} = await openPicker();
-        await user.dblClick(screen.getByRole("option", {name: "Betoptic"}));
+        await user.dblClick(screen.getByRole("option", {name: /^Glaucoma/}));
         expect(onSelect).toHaveBeenCalledTimes(1);
-        expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({name: "Betoptic"}));
+        expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({name: "Glaucoma"}));
 
-        screen.getByRole("option", {name: "Cosopt"}).focus();
+        screen.getByRole("option", {name: /^Uveitis/}).focus();
         await user.keyboard("{Enter}");
         expect(onSelect).toHaveBeenCalledTimes(2);
-        expect(onSelect).toHaveBeenLastCalledWith(expect.objectContaining({name: "Cosopt"}));
+        expect(onSelect).toHaveBeenLastCalledWith(expect.objectContaining({name: "Uveitis"}));
     });
 
     test("a double click in the protocol picker adds the protocol once @UX-027", async () => {
@@ -99,18 +103,18 @@ describe("search lists: loading @area:ux", () => {
     test("loading shows a progress indicator; a new search keeps the previous results with a thin progress bar @UX-035", async () => {
         let release!: () => void;
         const gate = new Promise<void>(resolve => (release = resolve));
-        server.use(drugsApi(DRUGS, gate));
-        const {user} = await renderWithProviders(<DrugPicker onSelect={vi.fn()}/>, {lang: "ar"});
+        server.use(protocolsApi(PROTOCOLS, gate));
+        const {user} = await renderWithProviders(<ProtocolPicker onSelect={vi.fn()}/>, {lang: "ar"});
         expect(screen.getByRole("progressbar")).toHaveClass("MuiCircularProgress-root");
-        await screen.findByText("Cosopt");
+        await screen.findByText("Uveitis");
 
-        await user.type(screen.getByRole("searchbox"), "Cos");
+        await user.type(screen.getByRole("searchbox"), "Uve");
         const bar = await screen.findByRole("progressbar");
         expect(bar).toHaveClass("MuiLinearProgress-root");
-        expect(screen.getByRole("option", {name: "Atropine"})).toBeInTheDocument();
+        expect(screen.getByRole("option", {name: /^Cataract/})).toBeInTheDocument();
         release();
-        await waitFor(() => expect(screen.queryByRole("option", {name: "Atropine"})).not.toBeInTheDocument());
-        expect(screen.getByRole("option", {name: "Cosopt"})).toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByRole("option", {name: /^Cataract/})).not.toBeInTheDocument());
+        expect(screen.getByRole("option", {name: /^Uveitis/})).toBeInTheDocument();
         expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 });
