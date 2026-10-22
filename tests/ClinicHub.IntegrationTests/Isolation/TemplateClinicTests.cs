@@ -159,8 +159,11 @@ public class TemplateClinicTests(AppFixture app) : IntegrationTest(app)
         copy.DefaultDosing.ShouldNotBeNull();
         copy.DefaultDosing.DoseUnit.ShouldBe("tablet");
         (copy.ActiveIngredients, copy.CategoryId, copy.SubCategoryId).ShouldBe(("EDITED INGREDIENT", CategoryIds.Other, (int?)SubCategoryIds.Unclassified));
+        // The lines of the edited protocol's copy only (other tests of the class may leave template protocols, copied too)
+        var protocolCopyId = await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters()
+            .Where(g => g.ClinicId == clinic.Id && g.Name == editedProtocol).Select(g => g.Id).SingleAsync());
         var lines = await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters()
-            .Where(i => i.ClinicId == clinic.Id).OrderBy(i => i.Order).Select(i => i.DrugId).ToListAsync());
+            .Where(i => i.ClinicId == clinic.Id && i.ProtocolId == protocolCopyId).OrderBy(i => i.Order).Select(i => i.DrugId).ToListAsync());
         lines.ShouldBe([copy.Id, shared.Id], "the own line points to the clinic's copy, the shared line keeps the shared id");
     }
 

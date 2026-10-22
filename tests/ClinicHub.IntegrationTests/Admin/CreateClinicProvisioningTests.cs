@@ -392,9 +392,39 @@ public class CreateClinicProvisioningTests(AppFixture app) : IntegrationTest(app
 [Trait("Area", "admin")]
 public class TemplateSnapshotTests(AppFixture app) : IntegrationTest(app)
 {
-    private static string Json(object value) => JsonSerializer.Serialize(value, Harness.Assertions.Json.Options);
-
     private static string DrugContent(DrugDto drug) => CreateClinicProvisioningTests.DrugContent(drug);
+
+    private Task<TemplateCatalog> TemplateAsync() => CreateClinicProvisioningTests.WithCategoriesAsync(App);
+
+    [Fact]
+    [Trait("Case", "ADM-075")]
+    public async Task A_clinic_created_after_a_template_edit_gets_the_template_as_it_is_then()
+    {
+        var template = await TemplateAsync();
+        var admin = await Login.SharedSuperAdminAsync();
+        var earlierPhone = Unique.Phone();
+        await admin.CreateClinicAsync(earlierPhone);
+        var added = await Data.Drug(template.TemplateId).Named(Unique.Name("Added later", "أضيف لاحقًا")).WithDosing(Dosings.Tablets());
+        var laterPhone = Unique.Phone();
+        await admin.CreateClinicAsync(laterPhone);
+
+        var later = (await (await Login.AsAsync(laterPhone)).OwnDrugsAsync()).Items;
+        var earlier = (await (await Login.AsAsync(earlierPhone)).OwnDrugsAsync()).Items;
+
+        later.Select(DrugContent).ShouldContain(DrugContent(added));
+        earlier.Select(d => d.Name).ShouldNotContain(added.Name);
+    }
+}
+
+/// <summary>
+/// ADM-073 alone: its class starts on a fresh template, so the copy holds exactly the 2 own drugs of
+/// <see cref="CreateClinicProvisioningTests.WithCategoriesAsync"/> whatever order the template-editing tests run in.
+/// </summary>
+[Collection(AdminCollection3.Name)]
+[Trait("Area", "admin")]
+public class TemplateDrugRenameSnapshotTests(AppFixture app) : IntegrationTest(app)
+{
+    private static string Json(object value) => JsonSerializer.Serialize(value, Harness.Assertions.Json.Options);
 
     private Task<TemplateCatalog> TemplateAsync() => CreateClinicProvisioningTests.WithCategoriesAsync(App);
 
@@ -420,25 +450,6 @@ public class TemplateSnapshotTests(AppFixture app) : IntegrationTest(app)
         })).ShouldBeOkAsync();
 
         (await owner.OwnDrugsAsync()).Items.Select(d => Json(d)).ShouldBe(copyBefore);
-    }
-
-    [Fact]
-    [Trait("Case", "ADM-075")]
-    public async Task A_clinic_created_after_a_template_edit_gets_the_template_as_it_is_then()
-    {
-        var template = await TemplateAsync();
-        var admin = await Login.SharedSuperAdminAsync();
-        var earlierPhone = Unique.Phone();
-        await admin.CreateClinicAsync(earlierPhone);
-        var added = await Data.Drug(template.TemplateId).Named(Unique.Name("Added later", "أضيف لاحقًا")).WithDosing(Dosings.Tablets());
-        var laterPhone = Unique.Phone();
-        await admin.CreateClinicAsync(laterPhone);
-
-        var later = (await (await Login.AsAsync(laterPhone)).OwnDrugsAsync()).Items;
-        var earlier = (await (await Login.AsAsync(earlierPhone)).OwnDrugsAsync()).Items;
-
-        later.Select(DrugContent).ShouldContain(DrugContent(added));
-        earlier.Select(d => d.Name).ShouldNotContain(added.Name);
     }
 }
 
