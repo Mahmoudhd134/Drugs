@@ -25,9 +25,12 @@ void i18n
         },
     });
 
-// `{{count, count}}`: grouped Latin digits in both languages (design M1.7 D9)
+// `{{count, count}}`: grouped Latin digits in both languages (design M1.7 D9); a value that isn't a number (a
+// placeholder such as «العدد») is shown as given
 i18n.services.formatter?.add("count", (value: unknown, lng: string | undefined) =>
-    formatCount(Number(value), lng ?? DEFAULT_LANGUAGE));
+    typeof value === "number" || (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)))
+        ? formatCount(Number(value), lng ?? DEFAULT_LANGUAGE)
+        : String(value));
 
 // Keep <html lang/dir> in sync so the browser, fonts and screen readers follow the language
 const applyToDocument = (code: string | undefined) => {
