@@ -17,25 +17,90 @@ frontend); `prescription`, `i18n`, `ux` (frontend only); `infra` (the integratio
 
 ## When to run what
 
-| Tier | When | Time (measured at the end of M1.6) |
+**Every tier runs on GitHub Actions, never on the laptop** (the user's choice, 2026-10-23: fresh machines, parallel
+jobs, the laptop stays free). The laptop only builds, type checks and lints (seconds: a typo should not cost a CI
+round) and, at most, runs the one test being written ([below](#running-a-single-test)).
+
+| Tier | When | On CI | ≈ |
+|---|---|---|---|
+| `step` | after every implementation or fix round: `./ci.ps1` | all backend unit and integration tests, all Vitest, the e2e **smoke** tests, the traceability report | 5 min, 4 jobs |
+| `full` | a step's report run (T2), every pull request (step → feature, feature → `main`), before the dress rehearsal: `./ci.ps1 -Tier full` | everything with coverage, the whole e2e suite (Chromium), every gate | 8 min, 11 jobs |
+| `release` | at the end of a milestone, before launch: `./ci.ps1 -Tier release` | `full` + Stryker.NET on the 6 critical backend files (one job each) + StrykerJS | the slowest file |
+
+The tiers don't replace the other checks (`npx tsc -b`, `npx eslint src`, `dotnet build ClinicHub.sln`:
+[CLAUDE.md](../../CLAUDE.md), [tech overview](../tech/overview.md#development-workflow)).
+
+## Continuous integration (GitHub Actions)
+
+`.github/workflows/ci.yml` runs on Linux runners (the repository is public: minutes are free). It runs on every **pull
+request** (`full`) and **by hand**, any tier, on any pushed branch. A push alone runs nothing. A newer run of the same
+pull request or branch cancels the older one.
+
+### `ci.ps1`: a tier from the laptop
+
+```powershell
+./ci.ps1                        # step tier on the current branch (commit first)
+./ci.ps1 -Tier full             # what every pull request runs
+./ci.ps1 -Tier release          # + mutation of the critical files
+./ci.ps1 -Mutate 'ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs' -Area auth   # + Stryker.NET, scored by the auth tests
+./ci.ps1 -Tier full -NoWait     # start it and return (the link is printed)
+```
+
+It refuses on `main` and with uncommitted changes to tracked files (CI tests the pushed commit), pushes the branch
+(`git push -u origin HEAD`: allowed for every branch but `main`), starts the workflow (`gh workflow run ci.yml -f
+tier=…`), waits (a check every 30 s) and writes `artifacts/ci/summary.md`: the run's link, every job's result and, when
+it failed, the failed steps' log tails; a failed e2e part's traces, screenshots and `api.log` are downloaded to
+`artifacts/ci/e2e-failures-<part>/` (`npx playwright show-trace <trace.zip>`). Exit code 0 when the run passed. Needs
+the GitHub CLI signed in (`gh auth login`). The same by hand: Actions → CI → Run workflow, or `gh workflow run CI --ref
+<branch> -f tier=step`.
+
+### Merge levels
+
+| Merge | CI |
+|---|---|
+| track → step branch | the track's own `step` runs while it works; the merge itself: none |
+| step branch ready, and each fix round | `./ci.ps1 -Tier full` as a **report run**: every job runs to the end, a failure report, not a gate |
+| step → feature (pull request) | `full`, **required** green |
+| feature → `main` (pull request, after rebasing on `main`) | `full`, **required** green, + the user's merge OK |
+
+### Jobs
+
+All at once; none stops the others (so one run reports every failure).
+
+| Job | Runs | ≈ (`full`) |
 |---|---|---|
-| `step` | after every implementation or fix round | ≈ 6 min without e2e; + ≈ 3.5 min of e2e smoke when files under `ClinicHub.Web/` changed |
-| `full` | at the end of a feature or milestone, before merging to `main`, before the dress rehearsal | every unit, integration and Vitest test with coverage, + the whole e2e suite: ≈ 13 min on a quiet machine, 25–30 min when it is loaded (another run, a build) |
-| `release` | at the end of a milestone, before launch | `full` + mutation: Stryker.NET takes minutes per critical file |
+| Start | picks the tier's jobs, the random seed | 5 s |
+| Backend | Release build, unit + integration tests (compose PostgreSQL in the job); with coverage and its gates on `full`/`release` | 2 min |
+| Frontend | `tsc -b`, `eslint src`, the e2e specs' `tsc` and eslint, Vitest (`npm run test:coverage` and its gates on `full`/`release`) | 4 min |
+| E2E (smoke) | `step`: the `@smoke` tests of every project in one job | 4 min |
+| E2E (1/6 … 6/6) | `full`/`release`: the three main Playwright projects (`ar-desktop`, `en-desktop`, `ar-phone`) in 6 shards, each with its own API and database | 5 min each |
+| E2E (template) | `full`/`release`: `ar-desktop-template` alone (`--no-deps`): its `dependencies` in `playwright.config.ts` would keep the whole suite in one shard | 1.5 min |
+| Mutation (`<file>`) | `release` (the 6 critical files) or `-Mutate`: Stryker.NET on one file per job, 85% gate (`tests/tools/mutation/mutation-score.ps1`) | minutes per file |
+| Mutation (frontend pure logic) | `release`: StrykerJS (`npm run test:mutation`), 85% overall | |
+| Gates | merges the e2e reports (fails if fewer tests reported than planned), traceability (`step`: the report; `full`/`release`: the self-test and the gate); fails when any job failed. **The one required check** | 1 min |
 
-Vitest takes ≈ 3 min in every tier. The tiers don't replace the other checks (`npx tsc -b`, `npx eslint src`,
-`dotnet build ClinicHub.sln`: [CLAUDE.md](../../CLAUDE.md), [tech overview](../tech/overview.md#development-workflow)).
-While working on one test, run it alone ([below](#running-a-single-test)) and the tier at the end of the round.
+- The run's summary page shows the tier, the seed, the counts, the coverage gates, the e2e totals, the mutation scores
+  and the traceability table; the artifacts (14 days): `backend`, `frontend` (results and coverage), `e2e-report` (the
+  merged Playwright report, traceability), `e2e-failures-<part>`, `mutation-<file>`, `mutation-frontend`.
+- Same as the laptop: random test order (the seed is on the summary page; `./test.ps1 -Seed <seed>` reproduces it),
+  time zone `Africa/Cairo`, no retries. Different: Linux (file names are case sensitive), PostgreSQL pulled from
+  `mirror.gcr.io` (`CLINICHUB_POSTGRES_IMAGE`; locally `postgres:17`), Chromium without Playwright's extra fonts (the
+  app's fonts come from Google Fonts), 3 Playwright workers per job.
+- `step` on CI runs **every** integration test (they take ≈ 30 s there), not the areas `test.ps1` picks from the diff.
+- The free plan runs 20 jobs at once: a `full` run takes 11, so runs of several sessions at the same moment queue a
+  few minutes; `step` (4 jobs) is the one to use while working.
 
-## Running the tests: `test.ps1`
+## Running the tests locally: `test.ps1`
 
-One runner at the repo root (PowerShell 5.1+). Docker must be running: it starts the compose PostgreSQL itself.
+The same tiers on the laptop (PowerShell 5.1+, Docker running: it starts the compose PostgreSQL itself): only to debug
+the runner or a test that fails on CI and not in its own run; `full` takes 25–30 min here. The tiers' contents and gates
+below are the same on CI.
 
 ```powershell
 ./test.ps1                          # step tier, integration areas from your changes
 ./test.ps1 -Tier step -Area auth,access
-./test.ps1 -Tier full               # before merging to main, at the end of a feature or milestone
-./test.ps1 -Tier release            # milestone ends, before launch
+./test.ps1 -Tier full               # 25–30 min here: CI's job
+./test.ps1 -Tier release            # CI's job too
 ./test.ps1 -Tier step -Seed 1234    # same random order as a previous run (its seed is in the summary)
 ./test.ps1 -NoBuild                 # reuse the Release build
 ./test.ps1 -Base main               # areas from the changes since main (default: see below)
@@ -133,7 +198,8 @@ user's trim, 2026-10-15; the list is `tests/stryker-config.json`):
 | `ClinicHub.Application/Features/Access/StaffMembers/MembershipService.cs` | entry refusals, enterable clinics | `auth` |
 
 After changing one of these files or its tests, prove the area's tests on it:
-`./test.ps1 -Tier step -Area auth -Mutate '<file>'[,'<file>']`.
+`./ci.ps1 -Mutate '<file>'[,'<file>'] -Area auth` (one CI job per file; `./test.ps1 -Tier step -Area auth -Mutate …` runs
+the same on the laptop).
 - `-Mutate` takes repo-relative paths or globs (or starting with `**`), comma separated or repeated (also under
   `powershell -File`); they replace the config's list for that run. The stage lists the files actually mutated with
   their scores, and it **fails** when the list matched no code ("no mutant in …") or a file scores below 85%.
@@ -195,8 +261,8 @@ the expected values of the docs, never from what the app does today.
 2. Add the new behaviors to the catalog (the area's next free number; IDs are never reused; a new area only for a new
    feature) and fix the cases whose behavior changed; update the catalog's summary counts.
 3. Write a test at each case's level ([Adding a test](#adding-a-test)), tagged with the case IDs.
-4. Run `./test.ps1 -Tier step` after each round, `./test.ps1 -Tier full` at the end of the feature and before merging
-   to `main`.
+4. Run `./ci.ps1` (the `step` tier on CI) after each round; `./ci.ps1 -Tier full` at the end of the step, and the pull
+   requests before merging ([Continuous integration](#continuous-integration-github-actions)).
 
 ## Adding a test
 
