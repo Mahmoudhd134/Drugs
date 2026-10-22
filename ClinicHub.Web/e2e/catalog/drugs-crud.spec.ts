@@ -1,18 +1,21 @@
 import type {Locator} from "@playwright/test";
+import {RxPage} from "../support/rx.ts";
+import {RX_TEXTS} from "../support/texts-rx.ts";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
 import {unique} from "../support/phones.ts";
 import {
+    addToProtocol,
     choose,
     createDrug,
     createProtocol,
     deleteDrug,
     dialog,
     DOSINGS,
+    editorTree,
     drugRow,
     fillNumber,
     protocolCard,
-    option,
     search,
     sentenceIn,
 } from "../support/catalog.ts";
@@ -148,25 +151,22 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             await expect(details).toHaveCount(0);
         });
 
-    test("a default dosing's sentence shows under the drug's name in the drugs table and the drug pickers @DOSE-087",
-        async ({page, t, data}) => {
+    test("a default dosing's sentence shows under the drug's name in the drugs table and the drug tree (protocol editor, prescription) @DOSE-087",
+        async ({page, t, lang, data}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Sentence ${unique()}`, {dosing: DOSINGS.dropRight4x7d});
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
             await expect(sentenceIn(drugRow(page, drug.name))).toHaveText(SENTENCES.dropRight4x7d);
 
-            // The protocol editor's picker
+            // The protocol editor's tree: a unique name matches one subcategory, which opens by itself (design M1.7 D7)
             await navTo(page, t, t.navProtocols);
             await page.getByRole("link", {name: t.newProtocol}).click();
-            await search(page, page.getByPlaceholder(t.searchDrugs), drug.name);
-            await expect(sentenceIn(option(page, drug.name))).toHaveText(SENTENCES.dropRight4x7d);
+            await expect(sentenceIn(await editorTree(page, lang).show(drug.name))).toHaveText(SENTENCES.dropRight4x7d);
 
-            // The prescription's picker
+            // The prescription's tree
             await navTo(page, t, t.navPrescription);
             await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-            // Another term than the protocol editor's (a query of its own, not the one cached there: see the report)
-            await search(page, page.getByPlaceholder(t.searchDrugs).filter({visible: true}), drug.name.toUpperCase());
-            await expect(sentenceIn(option(page, drug.name).filter({visible: true}))).toHaveText(SENTENCES.dropRight4x7d);
+            await expect(sentenceIn(await new RxPage(page, RX_TEXTS[lang]).tree.show(drug.name))).toHaveText(SENTENCES.dropRight4x7d);
         });
 });
 
@@ -229,8 +229,7 @@ test.describe("Drugs: delete @area:catalog", () => {
             await expectToast(page, ct.drugsRequired);
             await expect(page).toHaveURL(new RegExp(`/protocols/${protocol.id}$`));
 
-            await page.getByPlaceholder(t.searchDrugs).fill(replacement.name);
-            await option(page, replacement.name).click();
+            await addToProtocol(page, lang, replacement.name);
             await save.click();
             await expectToast(page, t.protocolUpdated);
             await expect(protocolCard(page, protocol.name).getByText(ct.drugCount(1), {exact: true})).toBeVisible();

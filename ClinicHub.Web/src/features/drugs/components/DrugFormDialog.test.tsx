@@ -32,6 +32,7 @@ import {
     pickCategory,
     subCategoryField,
 } from "../../../test/pages/drugDialog.ts";
+import {LONG_CATEGORY_NAME, ORDER_CATEGORIES, sortedNames} from "../../../test/pages/drugsPage.tsx";
 
 // The drug dialog: docs/features/drugs/business.md "إضافة دواء", "الرسائل", tech.md "Frontend" (DrugFormDialog) and
 // "API"; error messages: docs/tech/overview.md "Data fetching" (errors.<code>), ar.ts / en.ts.
@@ -618,5 +619,26 @@ describe("drug dialog with the category fields: locked while saving, fresh on ea
         expect(ingredientsField()).toHaveValue("TOBRAMYCIN + DEXAMETHASONE");
         await waitFor(() => expect(categoryField()).toHaveTextContent("العيون"));
         expect(subCategoryField()).toHaveTextContent("المياه الزرقاء");
+    });
+});
+
+describe("drug dialog: the order of the category selects @area:catalog", () => {
+    test.each(["ar", "en"] as const)("(%s) categories by Intl.Collator with «أخرى» last; subcategories the same after «بدون تصنيف فرعي», «غير مصنف» last @CAT-145",
+        async (lang) => {
+            server.use(drugCategoriesHandler(ORDER_CATEGORIES));
+            const {user} = await renderWithProviders(<DrugFormDialog open drug={null} onClose={vi.fn()}/>, {lang});
+            expect(await optionsOf(user, categoryField(document.body, lang))).toEqual(sortedNames(ORDER_CATEGORIES, lang));
+            await pickCategory(user, {lang, category: lang === "ar" ? EYE.nameAr : EYE.nameEn});
+            expect(await optionsOf(user, subCategoryField(document.body, lang)))
+                .toEqual([lang === "ar" ? "بدون تصنيف فرعي" : "No subcategory", ...sortedNames(ORDER_CATEGORIES[3].subCategories, lang)]);
+        });
+
+    test("the 37-character «مكافحة الشيخوخة وشد البشرة وحول العين» is offered whole (never cut) @CAT-145", async () => {
+        server.use(drugCategoriesHandler(ORDER_CATEGORIES));
+        const {user} = await renderWithProviders(<DrugFormDialog open drug={null} onClose={vi.fn()}/>, {lang: "ar"});
+        await user.click(categoryField());
+        const option = within(await screen.findByRole("listbox")).getByRole("option", {name: LONG_CATEGORY_NAME});
+        expect(option).toHaveTextContent(LONG_CATEGORY_NAME);
+        expect(getComputedStyle(option).textOverflow).not.toBe("ellipsis");
     });
 });

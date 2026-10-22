@@ -5,7 +5,9 @@ import {IMPORTED, pickCategory} from "../support/shared.ts";
 import {unique, uniqueDigits} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
 import {dropDaily} from "../support/rx.ts";
-import {RX_TEXTS} from "../support/texts-rx.ts";
+import {RX_TEXTS, TREE_TEXTS} from "../support/texts-rx.ts";
+import {DrugTreeUi} from "../support/tree.ts";
+import {addToProtocol} from "../support/catalog.ts";
 import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
@@ -23,7 +25,6 @@ import {
     noHorizontalScroll,
     open,
     orderOnScreen,
-    pick,
     rxTab,
     searchBox,
     shownName,
@@ -289,7 +290,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
 
         const name = `Double ${unique()}`;
         await page.getByRole("textbox", {name: t.protocolName}).fill(name);
-        await pick(page, t.searchDrugs, drug.name);
+        await addToProtocol(page, lang, drug.name);
         await expect(shownName(page, drug.name)).toBeVisible();
         await page.getByRole("button", {name: t.save, exact: true}).dblclick();
         await expectToast(page, t.protocolCreated);
@@ -377,7 +378,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await addDrugToRx(page, t, name);
             await expect(shownName(page, DOSINGS.oneDropFour.text)).toBeVisible();
             await fits("prescription line", linesPanel(page, u).getByText(name, {exact: true}));
-            await fits("drug picker", page.getByRole("option").filter({visible: true}).getByText(name, {exact: true}));
+            await fits("drug tree", new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]).drug(name).getByText(name, {exact: true}));
             await addDrugToRx(page, t, name);
             await expectToast(page, u.alreadyAdded(name));
             await fits("already-added toast", toast(page, u.alreadyAdded(name)));
