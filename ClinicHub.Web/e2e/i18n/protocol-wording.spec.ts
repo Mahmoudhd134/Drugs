@@ -1,7 +1,11 @@
 import type {Page} from "@playwright/test";
-import {expect, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
-import {sidebarEntries} from "../support/ui.ts";
-import {dialog, pageChecks, tourClinic, tourPages} from "../support/ux.ts";
+import {createDrug, createProtocol, deleteProtocol, option, search} from "../support/catalog.ts";
+import type {ClinicHandle, Data} from "../support/data.ts";
+import {expect, settled, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
+import {unique} from "../support/phones.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
+import {expectToast, sidebarEntries} from "../support/ui.ts";
+import {dialog, open, pageChecks, rxTab, tourClinic, tourPages} from "../support/ux.ts";
 
 /**
  * Groups renamed to protocols (design M1.7 D10, "Texts"): on every screen no «مجموعة» / «المجموعات» is left, nor
@@ -15,6 +19,16 @@ const expectNoGroupWord = async (page: Page, what: string) => {
     const shown = await page.locator("body").innerText();
     expect(shown.match(LEFTOVER)?.[0], `${what}: «${shown.match(new RegExp(`.{0,30}(?:${LEFTOVER.source}).{0,30}`, "i"))?.[0]}»`).toBeUndefined();
     expect(await page.title(), `${what}: the page title`).not.toMatch(LEFTOVER);
+};
+
+/** Deletes every protocol of the clinic (a new clinic starts with a copy of the template's), through the API. */
+const withoutProtocols = async (data: Data, clinic: ClinicHandle) => {
+    const api = await data.ownerApi(clinic);
+    for (;;) {
+        const {items} = await api.ok<{ items: { id: number }[] }>("GET", "/api/v1/protocols?pageSize=50");
+        if (items.length === 0) return;
+        for (const protocol of items) await deleteProtocol(data, clinic, protocol);
+    }
 };
 
 test.describe("No «مجموعة» or \"group\" left on the screens @area:i18n", () => {
@@ -46,4 +60,54 @@ test.describe("No «مجموعة» or \"group\" left on the screens @area:i18n",
         await expectNoGroupWord(page, "role editor");
         await pageChecks(page, "role editor");
     });
+    test("the protocol editor's save toasts: an edited protocol «تم تحديث البروتوكول», a new one «تم إنشاء البروتوكول» @GRP-102",
+        async ({page, t, data}) => {
+            const clinic = await data.clinic();
+            const drug = await createDrug(data, clinic, `Tobradex ${unique()}`);
+            const protocol = await createProtocol(data, clinic, `Before ${unique()}`, [{drug}]);
+            await signIn(page, clinic.owner.phone, "asIs", `/protocols/${protocol.id}`);
+
+            await page.getByRole("textbox", {name: t.protocolName}).fill(`After ${unique()}`);
+            await page.getByRole("button", {name: t.save, exact: true}).click();
+            await expectToast(page, t.protocolUpdated);
+            await expectNoGroupWord(page, "protocol updated toast");
+
+            await page.getByRole("link", {name: t.newProtocol}).click();
+            await expect(page).toHaveURL(/\/protocols\/new$/);
+            await page.getByRole("textbox", {name: t.protocolName}).fill(`New ${unique()}`);
+            await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
+            await option(page, drug.name).click();
+            await page.getByRole("button", {name: t.save, exact: true}).click();
+            await expectToast(page, t.protocolCreated);
+            await expectNoGroupWord(page, "protocol created toast");
+            await pageChecks(page, "protocols list after the created toast");
+        });
+
+    test("the protocols list's no-results and empty states, the prescription's Protocols tab in a clinic without protocols @GRP-102",
+        async ({page, t, lang, data}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const clinic = await data.clinic();
+            await withoutProtocols(data, clinic);
+            const drug = await createDrug(data, clinic, `Tobradex ${unique()}`);
+            const protocol = await createProtocol(data, clinic, `Only ${unique()}`, [{drug}]);
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols");
+
+            await search(page, page.getByPlaceholder(t.searchProtocols).filter({visible: true}), `missing ${unique()}`);
+            await expect(page.getByText(ct.protocolsNoResults, {exact: true})).toBeVisible();
+            await expectNoGroupWord(page, "protocols list without search results");
+            await pageChecks(page, "protocols list without search results");
+
+            await deleteProtocol(data, clinic, protocol);
+            await open(page, "/protocols");
+            await expect(page.getByText(ct.protocolsEmptyTitle, {exact: true})).toBeVisible();
+            await expectNoGroupWord(page, "empty protocols list");
+            await pageChecks(page, "empty protocols list");
+
+            await open(page, "/");
+            await rxTab(page, t, "protocols");
+            await expect(page.getByText(ct.protocolsPickerEmpty, {exact: true}).filter({visible: true})).toBeVisible();
+            await settled(page);
+            await expectNoGroupWord(page, "prescription's empty Protocols tab");
+            await pageChecks(page, "prescription's empty Protocols tab");
+        });
 });
