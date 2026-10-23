@@ -153,13 +153,14 @@ export class DrugTreeUi {
     }
 
     /**
-     * Waits for the page's tree request of (search, source) after a change: always when its answer isn't known yet; when
-     * it is (the term came back), the SPA may answer from its cache, so at most a moment (its debounce and a refetch).
+     * Waits for the page's tree request of (search, source) after a change when its answer isn't known yet. When it is
+     * (the term came back), the SPA may answer from its cache without any request: nothing to wait for here, the
+     * callers' web-first wait (`expectLatest`: the screen shows the page's latest answer for the key, polled) covers the
+     * debounce and a refetch (README: never `waitForTimeout`).
      */
     private nextAnswer(key: string): Promise<unknown> {
-        const response = this.page.waitForResponse(r => isTreeResponse(r) && keyOf(r.url()) === key, {timeout: 20_000});
-        if (!this.answers.has(key)) return response;
-        return Promise.race([response.catch(() => null), this.page.waitForTimeout(1_500)]);
+        if (this.answers.has(key)) return Promise.resolve();
+        return this.page.waitForResponse(r => isTreeResponse(r) && keyOf(r.url()) === key, {timeout: 20_000});
     }
 
     /** `role="tree"` named «كتالوج الأدوية» */
@@ -181,9 +182,9 @@ export class DrugTreeUi {
         return this.sourceToggle.getByRole("button", {name: label, exact: true});
     }
 
-    /** «النتائج: N» above the tree */
+    /** «النتائج: N» above the tree (the visible one: the hidden «البروتوكولات» tab of the prescription has its own) */
     get total(): Locator {
-        return this.scope.getByText(new RegExp(`^${escape(this.tt.resultsPrefix)}[\\d,]+$`));
+        return this.scope.getByText(new RegExp(`^${escape(this.tt.resultsPrefix)}[\\d,]+$`)).filter({visible: true});
     }
 
     /** The thin progress bar over the old tree / the spinners («جارٍ التحميل…») */
@@ -286,6 +287,16 @@ export class DrugTreeUi {
     /** Waits until the tree finished loading (no progress bar, no spinner). */
     async settle() {
         await expect(this.loading.filter({visible: true}), "the tree finished loading").toHaveCount(0, {timeout: 20_000});
+    }
+
+    /**
+     * Moves the mouse off the tree (the page's top corner: the app bar's gutter, no tooltip there) and waits until no
+     * tooltip shows: a chevron's «فتح …» tooltip fades in under a pointer left over it after a click, and an axe scan
+     * that catches it mid-fade reads its half-transparent text as low contrast.
+     */
+    async restMouse() {
+        await this.page.mouse.move(0, 0);
+        await expect(this.page.getByRole("tooltip"), "no tooltip shows").toHaveCount(0);
     }
 
     /** The source the toggle shows. */
