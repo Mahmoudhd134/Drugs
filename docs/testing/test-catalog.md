@@ -76,8 +76,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [RX](#rx--prescription-builder) | 40 | 46 | 24 | 110 | 38 | 0 | 25 | 50 | 3 |
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
-| [CAT](#cat--shared-catalog-and-categories) | 72 | 103 | 66 | 241 | 12 | 132 | 52 | 55 | 2 |
-| **All** | **434** | **639** | **395** | **1468** | **208** | **675** | **358** | **302** | **10** |
+| [CAT](#cat--shared-catalog-and-categories) | 72 | 104 | 68 | 244 | 12 | 132 | 55 | 57 | 2 |
+| **All** | **434** | **640** | **397** | **1471** | **208** | **675** | **361** | **304** | **10** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2062,7 +2062,7 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 | CAT-134 | Given toggle, category, subcategory, search and page set, when a drug's details are opened and closed, or the user goes to Protocols and Back, then all the filters are kept (URL query) | P1 | e2e | [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
 | CAT-135 | Given a URL with `source=bogus`, a deleted category id, `subCategoryId` without `categoryId`, `subCategoryId=none` alone, or a subcategory of another category, then the invalid values are dropped and the list loads («الكل», no category), with no error page and no 400 toast | P2 | ui | [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
 | CAT-136 | Given «أدوية العيادة» and a clinic with no own drug, then the empty state «لا توجد أدوية خاصة بالعيادة بعد.» with «إضافة دواء» (not «لا توجد أدوية بعد») | P1 | ui | [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
-| CAT-137 | 👁 Given «المشتركة» selected, when an own drug is added, then after the toast the toggle shows «أدوية العيادة» and the new drug is in the list | P1 | e2e | [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
+| CAT-137 | 👁 Given «المشتركة» selected with a search typed (on page 2 of its results), when an own drug is added, then after the toast the toggle shows «أدوية العيادة», the search is cleared (the box empty, no `search` in the URL), the list is on page 1 and the new drug is in the list | P1 | ui+e2e | [design D9](../design/m1.7-shared-catalog.md#d9-frontend), [contract M1.7c § 3.4](../design/m1.7c-contract.md) "Saving an own drug", decision C35 (T5 acceptance round 3, AC-5) |
 | CAT-138 | 👁 Given the Arabic UI, then each row shows the category and subcategory in Arabic («العيون › المياه الزرقاء»), never the English names; the separator flips in RTL | P0 | e2e | [design D5](../design/m1.7-shared-catalog.md#d5-categories) |
 | CAT-139 | Given an own drug without a subcategory, then its row reads «العيون» alone (no dangling « › ») | P2 | ui | [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
 | CAT-140 | Given a user with only `drugs.list` (no create), then the toggle and filters work and no «إضافة دواء» button shows | P1 | e2e | ACC |
@@ -2214,6 +2214,14 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 |---|---|---|---|---|
 | CAT-260 | Given an open subcategory of the drug tree with more pages, when «تحميل المزيد» is pressed (a click, or Enter after Tab), then once the page loads the focus is on its first new drug; when a failed next page's «إعادة المحاولة» is pressed, the focus goes to that subcategory's last loaded drug and stays there when the page arrives (never its first new drug); when a failed first page's «إعادة المحاولة» is pressed, the focus goes to the subcategory's row; the focus is never lost to `<body>` | P1 | ui | [contract M1.7c § 3.3](../design/m1.7c-contract.md) "Keyboard" (never to `<body>`, CAT-104), T3 R3-1, decision C33 |
 | CAT-261 | Given ↓ on a bucket's last loaded drug started its next page, when before it arrives the user presses another key, changes the search, or the page fails (and its «إعادة المحاولة» is pressed), then that page's first new drug never takes the focus later (it stays where the user put it; after the retry, on the subcategory's last loaded drug) | P1 | ui | [contract M1.7c § 3.3](../design/m1.7c-contract.md) "Keyboard", T3 R3-4 / R1-1, decision C33 |
-| CAT-262 | 👁 Given drug rows in the tree whose active ingredients are Latin («TIMOLOL 0.5%.») or typed in Arabic («كلوريد الصوديوم 0.9٪.»), Arabic and English, then each keeps its own direction (`<bdi>` or `dir="auto"` around exactly the text) and starts at the interface's start side (the right in Arabic, the left in English) | P2 | ui+e2e | [decisions M1.7b D27](../design/m1.7b-decisions-pending-user.md), T3 R3-3 |
+| CAT-262 | 👁 Given drug rows in the tree whose active ingredients are Latin («TIMOLOL 0.5%.», or a long Latin text cut on one line) or typed in Arabic («كلوريد الصوديوم 0.9٪.»), Arabic and English, then each ingredients line runs in its own text's direction (the line itself, not only a `<bdi>` inside it: a Latin line is left to right in the Arabic UI too), so its beginning is visible and a cut line's ellipsis is at its end; a line short enough to fit is aligned to the interface's start side (the right in Arabic, the left in English) | P2 | ui+e2e | [decisions M1.7b D27](../design/m1.7b-decisions-pending-user.md), T3 R3-3, decision C34 (T5 acceptance round 3, AC-3) |
 | CAT-263 | Given the URL `/drugs?search=amox%20&page=3` opened as is, then the search box shows «amox » as typed, page 3 of its results shows and the URL is not rewritten on load (no page 1, no trimmed search) | P2 | ui | [contract M1.7c § 3.4](../design/m1.7c-contract.md) (URL, C2; only invalid values are dropped), T3 R1-2 |
+
+### T5 acceptance (M1.7c)
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| CAT-264 | Given the drug tree's panel scrolled down inside a big open subcategory, when a new search is typed or the source is changed, then once the new tree replaces the old one the panel is at its top (scrollTop 0) and the subcategory that opened by itself is in view | P1 | ui+e2e | [contract M1.7c § 3.3](../design/m1.7c-contract.md) "New search or source", business step 8 «ثم تظهر الشجرة الجديدة مغلقة بالكامل», decision C36 (T5 acceptance round 3, AC-1) |
+| CAT-265 | Given the prescription's «الأدوية» tab with a drug deep in a big subcategory (its 4th page) scrolled to the panel's top, when switching to «البروتوكولات» and back, then the same drug is still at the panel's top, within one row's height (tightens CAT-124; the subcategory and its count from the API's tree, D12) | P2 | e2e | [design D9](../design/m1.7-shared-catalog.md#d9-frontend), CAT-124, T5 acceptance round 3, AC-2 |
+| CAT-266 | Given the Arabic UI, then the drug names of the prescription's protocol cards («A · B», a Latin name first) and the name in a shared drug's read-only details dialog are each isolated with their own direction (`<bdi>` or `dir="auto"` around exactly the name) and aligned to the interface's start side (the right) | P2 | ui | [decisions M1.7b D27](../design/m1.7b-decisions-pending-user.md), decision C37 (T5 acceptance round 3, AC-4) |
 
