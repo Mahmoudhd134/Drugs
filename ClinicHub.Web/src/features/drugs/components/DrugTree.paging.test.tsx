@@ -8,6 +8,7 @@ import {
     closeNode,
     drugNamesUnder,
     drugRow,
+    failRequests,
     findDrugRow,
     findNodeRow,
     holdRequests,
@@ -287,5 +288,141 @@ describe("drug tree: ↓ on the last loaded drug @area:catalog", () => {
         await user.keyboard("{ArrowDown}");
         expect(nodeRow("المياه الزرقاء")).toHaveFocus();
         expect(pagesRequested(recorded.requests)).toEqual([`${CATARACT.id}:1`]);
+    });
+});
+
+describe("drug tree: the focus after «تحميل المزيد» and a retry @area:catalog", () => {
+    /** The focused element is a row of the tree (never `<body>`, never a button gone from the page). */
+    const focusedRow = () => {
+        const focused = document.activeElement as HTMLElement | null;
+        expect(focused, "the focus is not lost to <body>").not.toBe(document.body);
+        expect(focused?.getAttribute("role"), "the focus is on a tree row").toBe("treeitem");
+        return focused as HTMLElement;
+    };
+
+    test("«تحميل المزيد» pressed with Enter (reached by Tab): once the page loads, the focus is on its first new drug @CAT-260", async () => {
+        const {user} = await renderTree({drugs: manyDrugs(65)});
+        await findDrugRow("Drug 030");
+        await user.click(treeSearch());
+        await user.keyboard("{ArrowDown}");
+        await user.tab();
+        expect(within(childrenOf(glaucomaRow())).getByRole("button", {name: ar.loadMore})).toHaveFocus();
+        await user.keyboard("{Enter}");
+        await findDrugRow("Drug 060");
+        await waitFor(() => expect(drugRow("Drug 031")).toHaveFocus());
+    });
+
+    test("«تحميل المزيد» clicked: once the page loads, the focus is on its first new drug, never on <body> @CAT-260", async () => {
+        const {user} = await renderTree({drugs: manyDrugs(65)});
+        await findDrugRow("Drug 030");
+        const nextPage = holdRequests("/drugs", p => p.get("page") === "2");
+        await user.click(within(childrenOf(glaucomaRow())).getByRole("button", {name: ar.loadMore}));
+        await waitFor(() => expect(nextPage.held()).toBe(1));
+        nextPage.release();
+        await findDrugRow("Drug 060");
+        await waitFor(() => expect(focusedRow()).toBe(drugRow("Drug 031")));
+    });
+
+    test("a failed next page's «إعادة المحاولة»: the focus goes back into that subcategory (its last loaded drug or its row), never to <body> @CAT-260 @CAT-109", async () => {
+        let failing!: ReturnType<typeof failRequests>;
+        const {user} = await renderTree({
+            drugs: manyDrugs(65),
+            beforeRender: () => (failing = failRequests("/drugs", p => p.get("page") === "2")),
+        });
+        await findDrugRow("Drug 030");
+        await user.click(within(childrenOf(glaucomaRow())).getByRole("button", {name: ar.loadMore}));
+        const retry = await within(childrenOf(glaucomaRow())).findByRole("button", {name: ar.retry});
+
+        failing.stop();
+        await user.click(retry);
+        await waitFor(() => expect([glaucomaRow(), drugRow("Drug 030")]).toContain(focusedRow()));
+        await findDrugRow("Drug 060");
+        expect([glaucomaRow(), drugRow("Drug 030"), drugRow("Drug 031")]).toContain(focusedRow());
+    });
+
+    test("a failed first page's «إعادة المحاولة»: the focus goes to that subcategory's row, never to <body> @CAT-260 @CAT-109", async () => {
+        let failing!: ReturnType<typeof failRequests>;
+        const {user} = await renderTree({
+            drugs: [aDrug({name: "Timolol"}), aDrug({name: "Tiopex", subCategory: CATARACT})],
+            beforeRender: () => (failing = failRequests("/drugs", p => p.get("subCategoryId") === String(GLAUCOMA.id))),
+        });
+        // Opened with a click on their names (this case is about the focus after the retry, not the row's click)
+        await user.click(within(await findNodeRow("العيون")).getByText("العيون"));
+        await user.click(await screen.findByText("المياه الزرقاء"));
+        const glaucoma = nodeRow("المياه الزرقاء");
+        await waitFor(() => expect(glaucoma).toHaveAttribute("aria-expanded", "true"));
+        const retry = await within(childrenOf(glaucoma)).findByRole("button", {name: ar.retry});
+
+        failing.stop();
+        await user.click(retry);
+        await waitFor(() => expect(focusedRow()).toBe(nodeRow("المياه الزرقاء")));
+        await findDrugRow("Timolol");
+        expect(document.activeElement).not.toBe(document.body);
+    });
+});
+
+describe("drug tree: a page load asked with ↓ never takes the focus later @area:catalog", () => {
+    /** The focus on Drug 030 (the last loaded of «المياه الزرقاء», 65 drugs), then ↓ with page 2 held: returns the gate. */
+    const downOnTheLastDrug = async (user: Awaited<ReturnType<typeof renderTree>>["user"]) => {
+        await findDrugRow("Drug 030");
+        await user.click(treeSearch());
+        await user.keyboard("{ArrowDown}");
+        await user.keyboard("{ArrowDown}".repeat(31));
+        expect(drugRow("Drug 030")).toHaveFocus();
+        const nextPage = holdRequests("/drugs", p => p.get("page") === "2");
+        await user.keyboard("{ArrowDown}");
+        await waitFor(() => expect(nextPage.held()).toBe(1));
+        return nextPage;
+    };
+
+    test("another key before the page arrives (↑): the focus stays where the user put it @CAT-261", async () => {
+        const {user} = await renderTree({drugs: manyDrugs(65)});
+        const nextPage = await downOnTheLastDrug(user);
+        await user.keyboard("{ArrowUp}");
+        expect(drugRow("Drug 029")).toHaveFocus();
+
+        nextPage.release();
+        await findDrugRow("Drug 031");
+        await pastDebounce();
+        expect(drugRow("Drug 029")).toHaveFocus();
+    });
+
+    test("the search changed before the page arrives: a later page of the new search never takes the focus from the search box @CAT-261", async () => {
+        const {user, io} = await renderTree({drugs: manyDrugs(65)});
+        const nextPage = await downOnTheLastDrug(user);
+        // Every drug matches "Drug": the same subcategory opens by itself for the new search
+        await user.click(treeSearch());
+        await user.paste("Drug");
+        nextPage.release();
+        await waitFor(() => expect(nodeRow("المياه الزرقاء")).toHaveAttribute("aria-expanded", "true"));
+        await findDrugRow("Drug 030");
+        expect(treeSearch()).toHaveFocus();
+
+        // Scrolling (not ↓) loads the next page of the new search
+        io.enter(sentinelOf(glaucomaRow()));
+        await findDrugRow("Drug 031");
+        await pastDebounce();
+        expect(treeSearch()).toHaveFocus();
+    });
+
+    test("the page failed: its retry loads it, and its first new drug does not take the focus @CAT-261", async () => {
+        let failing!: ReturnType<typeof failRequests>;
+        const {user} = await renderTree({
+            drugs: manyDrugs(65),
+            beforeRender: () => (failing = failRequests("/drugs", p => p.get("page") === "2")),
+        });
+        await findDrugRow("Drug 030");
+        await user.click(treeSearch());
+        await user.keyboard("{ArrowDown}");
+        await user.keyboard("{ArrowDown}".repeat(31));
+        expect(drugRow("Drug 030")).toHaveFocus();
+        await user.keyboard("{ArrowDown}");
+        const retry = await within(childrenOf(glaucomaRow())).findByRole("button", {name: ar.retry});
+
+        failing.stop();
+        await user.click(retry);
+        await findDrugRow("Drug 031");
+        await pastDebounce();
+        expect(drugRow("Drug 031")).not.toHaveFocus();
     });
 });
