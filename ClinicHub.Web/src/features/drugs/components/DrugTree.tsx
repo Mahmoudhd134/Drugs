@@ -76,6 +76,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
 
     const [view, setView] = useState<View | null>(null);
     const [activeId, setActiveId] = useState<string>();
+    const [pendingFocus, setPendingFocus] = useState<{ bucket: BucketKey; index: number } | null>(null);
     // The first answer of a new search or source: everything closes, then the lone bucket opens by itself (D7). A
     // refetch of the same search and source (a drug saved) changes nothing (C12)
     if (data && !tree.isPlaceholderData && view?.key !== key) {
@@ -88,6 +89,8 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
             openBuckets: new Set(auto ? [auto.bucket] : []),
         });
         setActiveId(undefined);
+        // Nothing of the old tree takes the focus later (R3-4)
+        setPendingFocus(null);
     } else if (!data && view) {
         // The cache was cleared (context switch): nothing of the old tree stays
         setView(null);
@@ -122,6 +125,8 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
             else next.delete(bucket);
             return next;
         });
+        // A failed or closed bucket never takes the focus later
+        if (!state || state.isError) setPendingFocus(pending => (pending?.bucket === bucket ? null : pending));
     }, []);
 
     const rows = useMemo(() => visibleRows(categories, openCategories, openBuckets, bucketDrugs),
@@ -136,8 +141,9 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
     }, []);
     const nav: TreeNav = useMemo(() => ({activeId: tabStop, rowRef}), [tabStop, rowRef]);
 
-    // A row that isn't rendered yet gets the focus once it is (an open bucket's first drug, the first drug of a new page)
-    const [pendingFocus, setPendingFocus] = useState<{ bucket: BucketKey; index: number } | null>(null);
+    // A row that isn't rendered yet gets the focus once it is (an open bucket's first drug, the first drug of a new page).
+    // Dropped by anything else the user does: another key, another row focused, a new tree, a failed or closed bucket, the
+    // focus leaving the tree (R3-4)
     useEffect(() => {
         if (!pendingFocus) return;
         const drug = bucketDrugs.get(pendingFocus.bucket)?.[pendingFocus.index];
@@ -150,6 +156,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
     }, [pendingFocus, bucketDrugs, rows]);
 
     const focusRow = (id: string) => {
+        setPendingFocus(null);
         setActiveId(id);
         rowElements.current.get(id)?.focus();
     };
@@ -197,6 +204,8 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
         if (!action) return;
         event.preventDefault();
         event.stopPropagation();
+        // Any other key action drops a focus still waiting for its row ("next" and "firstChild" may set a new one)
+        setPendingFocus(null);
         const next = rows[index + 1];
         switch (action) {
             case "next": {
@@ -239,7 +248,31 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
 
     const onTreeFocus = (event: FocusEvent<HTMLElement>) => {
         const id = event.target.getAttribute("role") === "treeitem" ? event.target.dataset.rowId : undefined;
-        if (id) setActiveId(id);
+        if (!id) return;
+        setActiveId(id);
+        // Another row focused (a click, a moved focus): no waiting focus takes it away later
+        setPendingFocus(null);
+    };
+
+    const onTreeBlur = (event: FocusEvent<HTMLElement>) => {
+        // The focus left the tree (another field, a button, the page): a waiting focus never comes back to steal it
+        const to = event.relatedTarget;
+        if (event.target.isConnected && !(to instanceof Node && panelRef.current?.contains(to))) setPendingFocus(null);
+    };
+
+    /** «تحميل المزيد» / a retry: the focus stays in the bucket while its button is replaced by the spinner (R3-1). */
+    const holdFocus = (bucket: BucketKey, nextIndex: number | null) => {
+        const drugs = loaders.current.get(bucket)?.drugs ?? [];
+        const last = drugs[drugs.length - 1] as Drug | undefined;
+        focusRow(last ? `d${bucket}:${last.id}` : `s${bucket}`);
+        if (nextIndex !== null) setPendingFocus({bucket, index: nextIndex});
+    };
+
+    const searchRef = useRef<HTMLInputElement>(null);
+    const retryTree = () => {
+        // The retry button goes away while the tree loads: the focus waits in the search field, not on <body> (R3-1)
+        searchRef.current?.focus();
+        void tree.refetch();
     };
 
     const onSearchKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -270,6 +303,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                 onChange={setSearch}
                 placeholder={t("drugTree.searchPlaceholder")}
                 autoFocus={autoFocus}
+                inputRef={searchRef}
                 onKeyDown={onSearchKeyDown}
                 controls={hasTree ? treeId : undefined}
             />
@@ -299,7 +333,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                 tree.isError ? (
                     <Alert
                         severity="error"
-                        action={<Button color="inherit" size="small" onClick={() => void tree.refetch()}>{t("common.retry")}</Button>}
+                        action={<Button color="inherit" size="small" onClick={retryTree}>{t("common.retry")}</Button>}
                     >
                         {t("common.loadFailed")}
                     </Alert>
@@ -315,6 +349,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
             ) : (
                 <Box ref={panelRef} sx={{maxHeight, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 2}}>
                     <Box role="tree" id={treeId} aria-label={t("drugTree.label")} onKeyDown={onTreeKeyDown} onFocus={onTreeFocus}
+                         onBlur={onTreeBlur}
                          sx={{py: 0.5}}>
                         {categories.map(category => (
                             <DrugTreeNode
@@ -354,6 +389,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                                                         selectedIds={selectedIds}
                                                         onPick={pick}
                                                         onState={onBucketState}
+                                                        onHoldFocus={holdFocus}
                                                     />
                                                 )}
                                             </DrugTreeNode>

@@ -11,6 +11,8 @@ export type BucketState = {
     drugs: Drug[];
     hasNextPage: boolean;
     loadMore: () => void;
+    /** Its last page request failed */
+    isError: boolean;
 };
 
 type Props = {
@@ -26,13 +28,18 @@ type Props = {
     onPick: (drug: Drug, rowId: string) => void;
     /** Its loaded drugs and loader, null once it closes */
     onState: (bucket: BucketKey, state: BucketState | null) => void;
+    /**
+     * Before «تحميل المزيد» or a retry (whose button goes away while it loads): the focus moves to the bucket's last loaded
+     * drug (else its subcategory row), then to the first new drug at `nextIndex` once it shows (null: stays there)
+     */
+    onHoldFocus: (bucket: BucketKey, nextIndex: number | null) => void;
 };
 
 /**
  * An open subcategory's `role="group"`: its drugs 30 at a time (the next page when the sentinel after the last loaded
  * drug scrolls into the panel's view, or with «تحميل المزيد»), a spinner while a page loads, a retry for a failed page.
  */
-export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucket, panelRef, nav, selectedIds, onPick, onState}: Props) => {
+export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucket, panelRef, nav, selectedIds, onPick, onState, onHoldFocus}: Props) => {
     const {t} = useTranslation();
     const query = useDrugBucket(search, source, categoryId, subCategoryFilterOf(subCategoryId));
     const {data, hasNextPage, isFetchingNextPage, isPending, isError, isFetchNextPageError, fetchNextPage, refetch} = query;
@@ -40,7 +47,7 @@ export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucke
     // An in-flight page is never asked for again (CAT-119)
     const loadMore = useCallback(() => void fetchNextPage({cancelRefetch: false}), [fetchNextPage]);
 
-    useEffect(() => onState(bucket, {drugs, hasNextPage, loadMore}), [bucket, drugs, hasNextPage, loadMore, onState]);
+    useEffect(() => onState(bucket, {drugs, hasNextPage, loadMore, isError}), [bucket, drugs, hasNextPage, loadMore, isError, onState]);
     useEffect(() => () => onState(bucket, null), [bucket, onState]);
 
     const sentinelRef = useRef<HTMLDivElement>(null);
@@ -76,7 +83,15 @@ export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucke
                     sx={{my: 1, ml: 7, mr: 1.5}}
                     action={
                         <Button color="inherit" size="small"
-                                onClick={() => void (isFetchNextPageError ? fetchNextPage({cancelRefetch: false}) : refetch())}>
+                                onClick={() => {
+                                    if (isFetchNextPageError) {
+                                        onHoldFocus(bucket, drugs.length);
+                                        void fetchNextPage({cancelRefetch: false});
+                                    } else {
+                                        onHoldFocus(bucket, null);
+                                        void refetch();
+                                    }
+                                }}>
                             {t("common.retry")}
                         </Button>
                     }
@@ -85,7 +100,11 @@ export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucke
                 </Alert>
             ) : hasNextPage ? (
                 <Box sx={{py: 1, textAlign: "center"}}>
-                    <Button size="small" onClick={loadMore}>{t("common.loadMore")}</Button>
+                    <Button size="small" onClick={() => {
+                        // As ↓ on the last loaded drug: the focus goes to the first new drug (R3-1)
+                        onHoldFocus(bucket, drugs.length);
+                        loadMore();
+                    }}>{t("common.loadMore")}</Button>
                 </Box>
             ) : null}
         </Box>
