@@ -50,7 +50,7 @@ describe("the prescription's drug tree @area:prescription", () => {
         expect(recorded.requests.filter(r => r.path.startsWith("/drugs"))).toEqual([]);
     });
 
-    test("a drug picked keeps the tree's search, its open nodes and its loaded rows @CAT-124", async () => {
+    test("a drug picked keeps the tree's search, its open nodes and its loaded rows @CAT-117", async () => {
         // Xalatan doesn't match "ti": the search's tree («العيون، 2») is told apart from the full one («العيون، 3»)
         const drugs = [aDrug({name: "Timolol"}), aDrug({name: "Tiopex", subCategory: CATARACT}), aDrug({name: "Xalatan"})];
         const {user} = await openPrescription({drugs});
