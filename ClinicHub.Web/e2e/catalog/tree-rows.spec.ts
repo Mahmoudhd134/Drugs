@@ -23,6 +23,17 @@ const openDrugsTab = async (page: Page, lang: Lang, phone: string) => {
     return rx;
 };
 
+/**
+ * The chevron icons by their drawing (Material icons' svg path `d`): MUI's `data-testid` on icons exists only in
+ * development builds, never in the production build e2e runs against (T4 A-G4).
+ */
+const ICON_PATHS = {
+    chevronLeft: "M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z",
+    chevronRight: "M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
+    expandMore: "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z",
+} as const;
+const iconPath = (icon: keyof typeof ICON_PATHS) => `svg:has(path[d="${ICON_PATHS[icon]}"])`;
+
 /** Lines of a row as read (its visible text, top to bottom). */
 const linesOf = async (row: import("@playwright/test").Locator) =>
     (await row.innerText()).split("\n").map(part => part.trim()).filter(Boolean);
@@ -149,13 +160,13 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             // A closed category's chevron points the reading direction («فتح «العيون»»); open, it points down
             const chevron = (name: string, open: boolean) => eye.getByRole("button", {name: open ? tt.close(name) : tt.open(name), exact: true});
             await expect(chevron(EYE[lang], false)).toBeVisible();
-            await expect(chevron(EYE[lang], false).getByTestId(lang === "ar" ? "ChevronLeftIcon" : "ChevronRightIcon")).toBeVisible();
+            await expect(chevron(EYE[lang], false).locator(iconPath(lang === "ar" ? "chevronLeft" : "chevronRight"))).toBeVisible();
 
             await rx.tree.searchBox.press("ArrowDown");
             await expect(eye).toBeFocused();
             await page.keyboard.press(opening);
             await rx.tree.expectOpen(eye);
-            await expect(chevron(EYE[lang], true).getByTestId("ExpandMoreIcon")).toBeVisible();
+            await expect(chevron(EYE[lang], true).locator(iconPath("expandMore"))).toBeVisible();
             await page.keyboard.press("ArrowDown");
             const glaucoma = rx.tree.subCategory(EYE[lang], GLAUCOMA[lang]);
             await expect(glaucoma).toBeFocused();
