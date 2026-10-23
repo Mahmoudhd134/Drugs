@@ -185,15 +185,20 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             await expectKept("after Back");
         });
 
-    test("«المشتركة» selected, an own drug added: after the toast the toggle shows «أدوية العيادة» and the new drug is listed @CAT-137",
+    test("«المشتركة» selected with a search on page 2, an own drug added: after the toast the toggle shows «أدوية العيادة», the search is cleared, page 1, and the new drug is listed (decision C35) @CAT-137",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const st = SHARED_TEXTS[lang];
             const clinic = await data.clinic();
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
-            await sourceButton(page, ct, "shared").click();
+            // A search with more than one page of shared drugs (the API's answer, never a literal count: D12)
+            const term = "tab";
+            const shared = await listDrugs(await data.ownerApi(clinic), {search: term, source: "shared", pageSize: 100});
+            expect(shared.totalCount, `more than 100 shared drugs match "${term}"`).toBeGreaterThan(100);
+            await signIn(page, clinic.owner.phone, "asIs", `/drugs?source=shared&search=${term}&page=2`);
             await expectPressed(page, ct, "shared");
-            await expect(page).toHaveURL(/source=shared/);
+            const searchField = page.getByPlaceholder(t.searchDrugs);
+            await expect(searchField).toHaveValue(term);
+            await expect(page).toHaveURL(/page=2/);
 
             const name = `Added ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).first().click();
@@ -203,11 +208,14 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             await form.getByRole("button", {name: t.save}).click();
             await expectToast(page, t.drugAdded);
             await expectPressed(page, ct, "own");
+            await expect(searchField, "the search is cleared").toHaveValue("");
             const row = drugRow(page, name);
             await expect(row).toBeVisible();
             await expect(row.getByText(st.chipOwn, {exact: true})).toBeVisible();
             await expect(page).toHaveURL(/source=own/);
-            expect(new URL(page.url()).searchParams.get("page")).toBeNull();
+            const params = new URL(page.url()).searchParams;
+            expect(params.get("search"), "no search in the URL").toBeNull();
+            expect(params.get("page"), "page 1").toBeNull();
             await healthy();
         });
 

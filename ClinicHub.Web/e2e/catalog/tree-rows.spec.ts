@@ -102,36 +102,56 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             await expect(sentenceIn(shared)).toHaveCount(0);
         });
 
-    test("Latin and Arabic active ingredients each keep their own direction and start at the interface's start (the right in Arabic, the left in English) @CAT-262",
+    test("each ingredients line runs in its own text's direction: a short one starts at the interface's start (the right in Arabic, the left in English); a long Latin one shows its first word, the ellipsis at its end (decision C34) @CAT-262",
         async ({page, lang, data}) => {
             const u = unique();
             const clinic = await data.clinic();
             const latin = `TIMOLOL 0.5% ${u}.`;
             const arabic = `كلوريد الصوديوم 0.9٪ ${u}.`;
+            const long = `BEGINNING${u} AMOXICILLIN TRIHYDRATE 875 MG + CLAVULANATE POTASSIUM 125 MG + LACTOBACILLUS ACIDOPHILUS 60 MILLION SPORES + ZINC SULPHATE MONOHYDRATE 10 MG + VITAMIN C 500 MG + VITAMIN D3 1000 IU ENDING${u}`;
             const timolol = await ownDrugIn(data, clinic, {name: `Latin ${u}`, activeIngredients: latin});
             const saline = await ownDrugIn(data, clinic, {name: `Arabic ${u}`, activeIngredients: arabic});
+            const augmentin = await ownDrugIn(data, clinic, {name: `Long ${u}`, activeIngredients: long});
             const rx = await openDrugsTab(page, lang, clinic.owner.phone);
-            // Both in «العيون › المياه الزرقاء»: the one subcategory opens by itself
+            // All in «العيون › المياه الزرقاء»: the one subcategory opens by itself
             await rx.tree.search(u);
-            for (const [drug, text] of [[timolol, latin], [saline, arabic]] as const) {
+            /** The line holding the text (the block around it, past any inline <bdi>): its box, direction and cut. */
+            const lineOf = (row: import("@playwright/test").Locator, text: string) => row.getByText(text, {exact: true}).evaluate(found => {
+                let el: HTMLElement = found as HTMLElement;
+                while (getComputedStyle(el).display.startsWith("inline")) el = el.parentElement!;
+                const box = el.getBoundingClientRect();
+                const style = getComputedStyle(el);
+                return {
+                    left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight),
+                    direction: style.direction, cut: el.scrollWidth > el.clientWidth, ellipsis: style.textOverflow === "ellipsis",
+                    isolated: !!found.closest("bdi") || found.closest("[dir]")?.getAttribute("dir") === "auto",
+                };
+            });
+            for (const [drug, text, direction] of [[timolol, latin, "ltr"], [saline, arabic, "rtl"]] as const) {
                 const row = rx.drug(drug.name);
                 await expect(row.getByText(text, {exact: true})).toBeVisible();
-                // The line holding the text (the block around it, past any inline <bdi>) and where the text itself sits
-                const line = await row.getByText(text, {exact: true}).evaluate(found => {
-                    let el: HTMLElement = found as HTMLElement;
-                    while (getComputedStyle(el).display.startsWith("inline")) el = el.parentElement!;
-                    const box = el.getBoundingClientRect();
-                    const style = getComputedStyle(el);
-                    return {
-                        left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight),
-                        isolated: !!found.closest("bdi") || found.closest("[dir]")?.getAttribute("dir") === "auto",
-                    };
-                });
+                const line = await lineOf(row, text);
                 const shown = await textRect(row, text);
                 expect(line.isolated, `${text}: in a <bdi> or dir="auto"`).toBe(true);
+                expect(line.direction, `${text}: the line runs in its text's direction`).toBe(direction);
                 expect(shown.width, `${text}: shorter than its line`).toBeLessThan(line.right - line.left - 20);
                 if (lang === "ar") expect(Math.abs(line.right - shown.right), `${text}: starts at the right`).toBeLessThanOrEqual(2);
                 else expect(Math.abs(shown.left - line.left), `${text}: starts at the left`).toBeLessThanOrEqual(2);
+            }
+
+            // The long Latin line: left to right in both languages, its first word inside the line's box
+            const row = rx.drug(augmentin.name);
+            await expect(row.getByText(long, {exact: true})).toBeVisible();
+            const line = await lineOf(row, long);
+            expect(line.direction, "the long Latin line runs left to right").toBe("ltr");
+            const first = await textRect(row, `BEGINNING${u}`);
+            expect(first.left, "its first word starts inside the line").toBeGreaterThanOrEqual(line.left - 1);
+            expect(first.right, "its first word ends inside the line").toBeLessThanOrEqual(line.right + 1);
+            if ((page.viewportSize()?.width ?? 1280) >= 600) {
+                // From `sm` it is one cut line: the cut (and its ellipsis) at the end, the last word past the line's right
+                expect(line.cut && line.ellipsis, "one cut line with an ellipsis").toBe(true);
+                const last = await textRect(row, `ENDING${u}`);
+                expect(last.left, "the end is what is cut").toBeGreaterThan(line.right);
             }
         });
 

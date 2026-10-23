@@ -12,6 +12,8 @@ import {
     type TreeAnswer,
     treeOf,
 } from "../support/tree.ts";
+import {EYE, GLAUCOMA, ownDrugIn} from "../support/shared.ts";
+import {unique} from "../support/phones.ts";
 import {expectNoCutOrOverlap} from "../support/ux.ts";
 
 /*
@@ -161,5 +163,77 @@ test.describe("The drug tree: pages while scrolling @area:catalog", () => {
             expect(requested, "no page loaded while the page scrolled").toEqual([]);
             await rx.tree.restMouse();
             await healthy();
+        });
+    test("scrolled deep into \"Multivitamins\", a new search or source: once its tree replaces the old one, the panel is at its top and the subcategory that opened by itself is in view @CAT-264",
+        async ({page, lang, data}) => {
+            const u = unique();
+            const clinic = await data.clinic();
+            // One own drug in «العيون › المياه الزرقاء»: searched, its subcategory is the one that opens by itself
+            const own = await ownDrugIn(data, clinic, {name: `Top ${u}`});
+            const answer = await treeOf(await data.ownerApi(clinic));
+            const multivitamins = bucketNamed(answer, "Multivitamins");
+            const {rx, subRow} = await openBucket(page, lang, clinic.owner.phone, multivitamins);
+            for (let n = 2; n <= 3; n++) {
+                await scrollToEnd(rx.tree, subRow);
+                await expect(rx.tree.drugsIn(subRow)).toHaveCount(n * TREE_PAGE_SIZE);
+            }
+            await scrollToEnd(rx.tree, subRow);
+            await rx.tree.settle();
+            expect((await rx.tree.panelState()).scrollTop, "scrolled down before the search").toBeGreaterThan(0);
+
+            await rx.tree.search(u);
+            const glaucoma = rx.tree.subCategory(EYE[lang], GLAUCOMA[lang]);
+            await rx.tree.expectOpen(glaucoma);
+            await expect.poll(async () => (await rx.tree.panelState()).scrollTop, {message: "the new tree starts at the panel's top"}).toBe(0);
+            await expect(rx.tree.nameOf(glaucoma, GLAUCOMA[lang])).toBeInViewport();
+            await expect(rx.tree.drug(own.name)).toBeInViewport();
+
+            // The same after a source change: scrolled down the cleared search's tree, then «المشتركة»
+            await rx.tree.search("");
+            const again = await rx.tree.openPath(categoryName(multivitamins.category, lang), subCategoryName(multivitamins.sub, rx.tree.tt));
+            await scrollToEnd(rx.tree, again);
+            await rx.tree.settle();
+            expect((await rx.tree.panelState()).scrollTop, "scrolled down before the source change").toBeGreaterThan(0);
+            await rx.tree.setSource("shared");
+            await expect.poll(async () => (await rx.tree.panelState()).scrollTop, {message: "the new source's tree starts at the panel's top"}).toBe(0);
+        });
+
+    test("in the prescription's «الأدوية» tab, a drug deep in \"Multivitamins\" at the panel's top: after «البروتوكولات» and back the same drug is at the top, within one row's height @CAT-265",
+        async ({page, lang, data}) => {
+            const clinic = await data.clinic();
+            const answer = await treeOf(await data.ownerApi(clinic));
+            const {category, sub} = bucketNamed(answer, "Multivitamins");
+            expect(sub.count, "Multivitamins has more than 4 pages").toBeGreaterThan(4 * TREE_PAGE_SIZE);
+            const {rx, subRow} = await openBucket(page, lang, clinic.owner.phone, {category, sub});
+            for (let n = 2; n <= 4; n++) {
+                await scrollToEnd(rx.tree, subRow);
+                await expect(rx.tree.drugsIn(subRow)).toHaveCount(n * TREE_PAGE_SIZE);
+            }
+            // A drug of the 4th page brought to the panel's top (the panel scrolls, not the page)
+            const target = rx.tree.drugsIn(subRow).nth(3 * TREE_PAGE_SIZE + 5);
+            const name = await target.getAttribute("aria-label") ?? "";
+            expect(name, "the drug's name").not.toBe("");
+            await target.evaluate(el => {
+                let panel = el.parentElement;
+                while (panel && !["auto", "scroll"].includes(getComputedStyle(panel).overflowY)) panel = panel.parentElement;
+                if (!panel) throw new Error("no scroll panel around the tree");
+                panel.scrollTop += el.getBoundingClientRect().top - panel.getBoundingClientRect().top;
+            });
+            await rx.tree.settle();
+            const offset = async () => {
+                const panel = await rx.tree.panelState();
+                const box = (await target.boundingBox())!;
+                return {top: box.y - panel.top, height: box.height};
+            };
+            const before = await offset();
+            expect(Math.abs(before.top), "the drug at the panel's top").toBeLessThanOrEqual(before.height);
+
+            await rx.openProtocolsTab();
+            await rx.openDrugsTab();
+            await rx.tree.expectOpen(subRow);
+            await expect(target).toHaveAttribute("aria-label", name);
+            await expect(target).toBeVisible();
+            const after = await offset();
+            expect(Math.abs(after.top - before.top), `«${name}» still at the panel's top (moved ${after.top - before.top} px)`).toBeLessThanOrEqual(before.height);
         });
 });

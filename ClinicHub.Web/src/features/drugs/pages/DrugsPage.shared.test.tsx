@@ -3,12 +3,15 @@ import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aDrug,
+    alignedSide,
     api,
     ARABIC_DRUG_NAME,
     aSharedDrug,
     DIGITS_FIRST_NAME,
     drugsHandlers,
+    blockOf,
     expectOwnDirection,
+    lineOf,
     recordRequests,
     renderWithProviders,
     server,
@@ -115,6 +118,16 @@ describe("drugs page: each name keeps its own direction @area:i18n", () => {
             await screen.findByText(DIGITS_FIRST_NAME);
             expectOwnDirection(rowOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
             expectOwnDirection(rowOf(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+        });
+
+    test("in Arabic, the read-only details of «1 2 3 (ONE TWO THREE) 20 F.C.TABS.»: its name is isolated with its own direction and aligned to the right, the interface's start side (decision C37) @CAT-266",
+        async () => {
+            const shared = aSharedDrug({name: DIGITS_FIRST_NAME});
+            const {user} = await openDrugs([shared], ["drugs.list", "drugs.details"]);
+            await user.click(rowOf(DIGITS_FIRST_NAME));
+            const details = await screen.findByRole("dialog", {name: "تفاصيل الدواء"});
+            expectOwnDirection(details, DIGITS_FIRST_NAME);
+            expect(alignedSide(blockOf(lineOf(details, DIGITS_FIRST_NAME))), "the name aligned to the right").toBe("right");
         });
 });
 

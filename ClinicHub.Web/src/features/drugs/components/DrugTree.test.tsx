@@ -3,20 +3,24 @@ import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aDrug,
+    alignedSide,
     ARABIC_DRUG_NAME,
     aSharedDrug,
     aTreeCategory,
     aTreeSubCategory,
     api,
     DIGITS_FIRST_NAME,
+    directionOf,
     drugsHandlers,
     expectOwnDirection,
     EYE,
     GLAUCOMA,
     hoverTooltip,
     leaveTooltip,
+    lineOf,
     OTHER,
     server,
+    startSide,
     UNCLASSIFIED,
 } from "../../../test";
 import {
@@ -341,6 +345,22 @@ describe("drug tree: each name keeps its own direction @area:i18n", () => {
             expectOwnDirection(await findDrugRow("Timolol"), latin);
             expectOwnDirection(await findDrugRow("Saline"), arabic);
         });
+
+    // Decision C34: the line itself runs in its text's direction (an RTL line around a Latin text shows its end and puts
+    // the ellipsis at its beginning), and is aligned to the interface's start side
+    for (const lang of ["ar", "en"] as const) {
+        test(`in ${lang === "ar" ? "Arabic" : "English"}, the ingredients line runs in its own text's direction (a long Latin one from its first word, the ellipsis at its end) and is aligned to the interface's start side @CAT-262`,
+            async () => {
+                const longLatin = "AMOXICILLIN TRIHYDRATE 875 MG + CLAVULANATE POTASSIUM 125 MG + LACTOBACILLUS ACIDOPHILUS 60 MILLION SPORES + ZINC SULPHATE MONOHYDRATE 10 MG";
+                const arabic = "كلوريد الصوديوم 0.9٪.";
+                await renderTree({lang, drugs: [aDrug({name: "Augmentin", activeIngredients: longLatin}), aDrug({name: "Saline", activeIngredients: arabic})]});
+                for (const [name, text, direction] of [["Augmentin", longLatin, "ltr"], ["Saline", arabic, "rtl"]] as const) {
+                    const line = lineOf(await findDrugRow(name), text);
+                    expect(directionOf(line), `${name}: the ingredients line itself runs ${direction}`).toBe(direction);
+                    expect(alignedSide(line), `${name}: aligned to the interface's start side`).toBe(startSide(lang));
+                }
+            });
+    }
 });
 
 describe("drug tree: the search's placeholder @area:catalog", () => {
