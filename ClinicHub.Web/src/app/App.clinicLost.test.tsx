@@ -1,4 +1,4 @@
-import {describe, expect, test, vi} from "vitest";
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import toast from "react-hot-toast";
@@ -75,6 +75,9 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
     };
     return {...app, refresh, addDrug};
 };
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("losing the clinic while working in it @area:auth", () => {
     test("suspended, with other places left: the clinic-lost message and the picker, never «هذه العيادة موقوفة.» / «العيادة «A» موقوفة.» @AUTH-185", async () => {

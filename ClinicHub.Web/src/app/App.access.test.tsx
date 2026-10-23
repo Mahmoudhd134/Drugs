@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
@@ -17,6 +17,7 @@ import {
     sessionIn,
     startApp,
     toastTexts,
+    drugCategoriesHandler,
 } from "../test";
 import {installIntersectionObserver} from "../test/intersection.ts";
 
@@ -27,6 +28,9 @@ const clinicA = aClinicContext({clinicId: 1, clinicName: "A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "B"});
 
 const drugsOk = () => http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})])));
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("permissions in the app @area:access", () => {
     /** /drugs while /me fails; `retry()` makes /me answer (held until `release()`) and presses «إعادة المحاولة». */
