@@ -8,6 +8,7 @@ using ClinicHub.IntegrationTests.Harness.Builders;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 
 namespace ClinicHub.IntegrationTests.Catalog.DevSeed;
@@ -29,10 +30,13 @@ public class DevSeedContentTests(AppFixture app) : IntegrationTest(app)
     [Trait("Case", "CAT-238")]
     public async Task A_fresh_dev_database_gets_the_documented_template_sample_demo_clinics_and_staff_and_a_restart_adds_nothing()
     {
-        await using var dev = DevApp(Unique.Phone(), Unique.Phone());
+        var logs = new CapturedLogs();
+        await using var dev = DevApp(Unique.Phone(), Unique.Phone(), logs);
 
         await SeedAsync(dev);
 
+        Seeded(logs).ShouldHaveSingleItem().ShouldStartWith("Development data seeded in ");
+        logs.Of<StartupSeeder>(LogLevel.Warning).ShouldBeEmpty();
         var templateId = await App.TemplateClinicIdAsync();
         var drugs = await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().Where(d => d.ClinicId == templateId).OrderBy(d => d.Id).ToListAsync());
         drugs.Select(d => d.Name).ShouldBe(["Prednisolone acetate 1%", "Timolol 0.5%"]);
@@ -72,8 +76,45 @@ public class DevSeedContentTests(AppFixture app) : IntegrationTest(app)
 
         // A restart seeds nothing again
         var before = await App.RowCountsAsync();
+        logs.Clear();
         await SeedAsync(dev);
         (await App.RowCountsAsync()).ShouldBe(before);
+        Seeded(logs).ShouldBeEmpty("nothing seeded, nothing logged");
+    }
+
+    [Fact]
+    [Trait("Case", "CAT-238")]
+    public async Task An_empty_DevOwnerPhone_fills_the_template_only_warning_on_every_start_until_the_setting_is_filled()
+    {
+        var logs = new CapturedLogs();
+        await using (var withoutOwner = DevApp("", Unique.Phone(), logs))
+        {
+            await SeedAsync(withoutOwner);
+
+            (await TemplateContentAsync()).ShouldBe((2, 1), "the template sample is filled");
+            (await App.QueryDbAsync(db => db.Clinics.CountAsync(c => !c.IsTemplate))).ShouldBe(0, "no demo clinic: a clinic needs an owner");
+            logs.Of<StartupSeeder>(LogLevel.Warning).ShouldBe([OwnerPhoneEmpty]);
+            Seeded(logs).ShouldHaveSingleItem("the template sample was seeded");
+
+            // The next start: the template already has its own drugs (kept as is), still no owner
+            logs.Clear();
+            await SeedAsync(withoutOwner);
+
+            (await TemplateContentAsync()).ShouldBe((2, 1));
+            logs.Of<StartupSeeder>(LogLevel.Warning).ShouldBe([OwnerPhoneEmpty], "warned on every start");
+            Seeded(logs).ShouldBeEmpty("nothing was seeded");
+        }
+
+        // The setting filled: the demo clinics are seeded, the template is not filled twice
+        logs.Clear();
+        await using var withOwner = DevApp(Unique.Phone(), Unique.Phone(), logs);
+        await SeedAsync(withOwner);
+
+        (await TemplateContentAsync()).ShouldBe((2, 1));
+        (await App.QueryDbAsync(db => db.Clinics.Where(c => !c.IsTemplate).Select(c => c.Name).ToListAsync()))
+            .ShouldBe([StartupSeeder.DemoClinicName, StartupSeeder.SecondDemoClinicName], ignoreOrder: true);
+        logs.Of<StartupSeeder>(LogLevel.Warning).ShouldBeEmpty();
+        Seeded(logs).ShouldHaveSingleItem("the demo clinics were seeded");
     }
 
     [Fact]
@@ -111,15 +152,33 @@ public class DevSeedContentTests(AppFixture app) : IntegrationTest(app)
     }
 
     /// <summary>The app as in Development (its dev phones set); its own startup doesn't run the dev seed.</summary>
-    private ClinicHubFactory DevApp(string ownerPhone, string assistantPhone)
+    private ClinicHubFactory DevApp(string ownerPhone, string assistantPhone, CapturedLogs logs = null)
     {
-        var dev = App.CreateVariant(new Dictionary<string, string>
+        var settings = new Dictionary<string, string>
         {
             ["Platform:DevOwnerPhone"] = ownerPhone,
             ["Platform:DevAssistantPhone"] = assistantPhone,
-        });
+        };
+        var level = CapturedLogs.LevelSetting<StartupSeeder>();
+        settings[level.Key] = level.Value;
+        var dev = App.CreateVariant(settings, logs is null ? null : (Action<IServiceCollection>)logs.Register);
         dev.Start();
         return dev;
+    }
+
+    /// <summary>The warning of an empty <c>DevOwnerPhone</c> (platform-admin tech § Dev seed).</summary>
+    private const string OwnerPhoneEmpty = "Platform:DevOwnerPhone is empty: the demo clinics are not seeded (a clinic needs an owner)";
+
+    /// <summary>"Logged when something was seeded" (platform-admin tech § Dev seed).</summary>
+    private static List<string> Seeded(CapturedLogs logs) =>
+        logs.Of<StartupSeeder>(LogLevel.Information).Where(m => m.StartsWith("Development data seeded in ")).ToList();
+
+    /// <summary>The template's own drugs and protocols.</summary>
+    private async Task<(int Drugs, int Protocols)> TemplateContentAsync()
+    {
+        var templateId = await App.TemplateClinicIdAsync();
+        return (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.ClinicId == templateId)),
+            await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(g => g.ClinicId == templateId)));
     }
 
     private static async Task SeedAsync(ClinicHubFactory dev)
