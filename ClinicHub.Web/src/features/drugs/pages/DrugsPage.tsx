@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useSearchParams} from "react-router-dom";
-import {useQueryClient} from "@tanstack/react-query";
 import {
     Alert,
     Box,
@@ -17,7 +16,9 @@ import {
     TableRow,
     Tooltip,
     Typography,
+    useMediaQuery,
 } from "@mui/material";
+import {useTheme} from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
@@ -51,10 +52,6 @@ import {PermissionButton, PermissionIconButton} from "../../access/components/Pe
 /** The largest page sent to the API (an edited link's huge `page` is cut to it, then to the last page) */
 const MAX_PAGE = 999_999;
 
-/** The variables of `useSaveDrug`'s create (`id: null` + an own drug's body), as the mutation cache holds them */
-const isOwnDrugCreate = (variables: unknown) =>
-    typeof variables === "object" && variables !== null && "id" in variables && variables.id === null && "categoryId" in variables;
-
 /**
  * `/drugs` (design M1.7 D9): the clinic's own drugs and the shared catalog in one table. Search, the source toggle, the
  * category and subcategory filters and the page live in the URL (`replace: true`, M1.7c C2); the page size is local.
@@ -73,6 +70,8 @@ export const DrugsPage = () => {
     // Without edit permission an own row opens read-only details; a shared row (read-only for clinics, design M1.7
     // D9) always opens them, with `drugs.details`
     const canOpen = (drug: Drug) => (drug.isShared ? canDetails : canUpdate || canDetails);
+    // Below `sm` the category path goes under the name instead of its own column: one copy per row (M1.7c C14, C26)
+    const phone = useMediaQuery(useTheme().breakpoints.down("sm"));
 
     const categories = useDrugCategories({enabled: canList});
     const params = readDrugListParams(searchParams, categories.data);
@@ -89,8 +88,9 @@ export const DrugsPage = () => {
 
     const [search, setSearch] = useState(params.search);
     const debouncedSearch = useDebouncedValue(search.trim());
-    // The search in the URL as this page last wrote it, or last took it from the URL
-    const lastSearch = useRef(params.search);
+    // The search in the URL as this page last wrote it, or last took it from the URL, trimmed: a link's `search=amox%20`
+    // is the same search as the typed "amox" (no rewrite, no jump to page 1)
+    const lastSearch = useRef(params.search.trim());
     // The typed search reaches the URL (and the query) once typing pauses, back on the first page
     useEffect(() => {
         if (debouncedSearch === lastSearch.current) return;
@@ -99,8 +99,8 @@ export const DrugsPage = () => {
     }, [debouncedSearch, setFilters]);
     // A search changed from outside (Back, a link, «مسح الفلاتر») wins over the typed one
     useEffect(() => {
-        if (params.search === lastSearch.current) return;
-        lastSearch.current = params.search;
+        if (params.search.trim() === lastSearch.current) return;
+        lastSearch.current = params.search.trim();
         setSearch(params.search);
     }, [params.search]);
 
@@ -128,16 +128,15 @@ export const DrugsPage = () => {
         if (pastTheEnd) setPage(lastPage);
     }, [pastTheEnd, lastPage, setPage]);
 
-    // Saving a new own drug while «المشتركة» is chosen switches to «أدوية العيادة», page 1, so the drug shows (CAT-137).
-    // The dialog's save is `useSaveDrug`: a create is its success with `id: null`
-    const queryClient = useQueryClient();
-    useEffect(() => queryClient.getMutationCache().subscribe(event => {
-        if (event.type !== "updated" || event.action.type !== "success") return;
-        const variables: unknown = event.mutation.state.variables;
-        const created = event.action.data as Partial<Drug> | undefined;
-        if (!isOwnDrugCreate(variables) || created?.isShared !== false) return;
-        update(current => (current.source === "shared" ? {...current, source: "own", page: 1} : current));
-    }), [queryClient, update]);
+    // Until the clamped page arrives, a page past the end shows no rows (an older page's, or none) and no range (CAT-143):
+    // a page beyond the known total, or an empty page of a non-empty list
+    const awaitingClamp = drugs.data !== undefined && totalCount > 0 && (page > lastPage || items.length === 0);
+
+    // Saving a new own drug while «المشتركة» is chosen switches to «أدوية العيادة», page 1, so the drug shows (CAT-137)
+    const onSaved = (saved: Drug, created: boolean) => {
+        if (created && !saved.isShared)
+            update(current => (current.source === "shared" ? {...current, source: "own", page: 1} : current));
+    };
 
     const openCreate = () => setDialog({open: true, drug: null});
     const openEdit = (drug: Drug) => setDialog({open: true, drug});
@@ -226,14 +225,14 @@ export const DrugsPage = () => {
                     />
                 ) : emptyState === "noResults" ? (
                     <EmptyState compact title={t("drugs.noResults")}/>
-                ) : (
+                ) : awaitingClamp ? null : (
                     <>
                         <TableContainer>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow>
                                         <TableCell>{t("drugs.name")}</TableCell>
-                                        <TableCell sx={{display: {xs: "none", sm: "table-cell"}, width: "32%"}}>{t("drugs.category")}</TableCell>
+                                        {!phone && <TableCell sx={{width: "32%"}}>{t("drugs.category")}</TableCell>}
                                         {showActions && <TableCell align="right" sx={{width: 110}}>{t("drugs.actions")}</TableCell>}
                                     </TableRow>
                                 </TableHead>
@@ -263,10 +262,11 @@ export const DrugsPage = () => {
                                                             {/* Shared drugs have no dosing: DosingText renders nothing for them */}
                                                             <DrugText drug={drug} descriptionLines={2} showDosing/>
                                                             {/* On a phone the category goes under the name */}
-                                                            <Typography variant="body2" color="text.secondary"
-                                                                        sx={{display: {sm: "none"}, overflowWrap: "anywhere"}}>
-                                                                {path}
-                                                            </Typography>
+                                                            {phone && (
+                                                                <Typography variant="body2" color="text.secondary" sx={{overflowWrap: "anywhere"}}>
+                                                                    {path}
+                                                                </Typography>
+                                                            )}
                                                         </Box>
                                                         {/* From the platform's shared catalog (read-only) or the clinic's own (design M1.7 D12) */}
                                                         <Chip
@@ -278,7 +278,7 @@ export const DrugsPage = () => {
                                                         />
                                                     </Stack>
                                                 </TableCell>
-                                                <TableCell sx={{display: {xs: "none", sm: "table-cell"}, overflowWrap: "anywhere"}}>{path}</TableCell>
+                                                {!phone && <TableCell sx={{overflowWrap: "anywhere"}}>{path}</TableCell>}
                                                 {showActions && <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{whiteSpace: "nowrap"}}>
                                                     {/* A clinic can't edit or delete a shared drug: no buttons at all (design M1.7 D9) */}
                                                     {!drug.isShared && <>
@@ -321,6 +321,7 @@ export const DrugsPage = () => {
                 drug={dialog.drug}
                 readOnly={dialog.drug !== null && (dialog.drug.isShared || !canUpdate)}
                 onClose={() => setDialog(d => ({...d, open: false}))}
+                onSaved={onSaved}
             />
             {confirmDialog}
         </>

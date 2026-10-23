@@ -15,9 +15,11 @@ type Props = {
     /** Show the drug's details without editing (no edit permission; always for a shared drug) */
     readOnly?: boolean;
     onClose: () => void;
+    /** After a successful save: the saved drug, and whether it was created (else edited) */
+    onSaved?: (drug: Drug, created: boolean) => void;
 };
 
-export const DrugFormDialog = ({open, drug, readOnly, onClose}: Props) => {
+export const DrugFormDialog = ({open, drug, readOnly, onClose, onSaved}: Props) => {
     const {t} = useTranslation();
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
     const opening = useOpeningKey(open);
@@ -39,13 +41,13 @@ export const DrugFormDialog = ({open, drug, readOnly, onClose}: Props) => {
                 </>
             ) : (
                 // Each opening starts from the given drug, also when reopened during the closing animation
-                <OwnDrugForm key={opening} drug={drug} onClose={onClose}/>
+                <OwnDrugForm key={opening} drug={drug} onClose={onClose} onSaved={onSaved}/>
             )}
         </FormDialog>
     );
 };
 
-const OwnDrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }) => {
+const OwnDrugForm = ({drug, onClose, onSaved}: Pick<Props, "drug" | "onClose" | "onSaved">) => {
     const {t} = useTranslation();
     const saveDrug = useSaveDrug();
     // Fetched again on each opening: a category the super admin just created is listed (design M1.7 D5)
@@ -57,7 +59,11 @@ const OwnDrugForm = ({drug, onClose}: { drug: Drug | null; onClose: () => void }
             categories={categories.data ?? []}
             onReloadCategories={() => void categories.refetch()}
             withDosing
-            save={(body) => saveDrug.mutateAsync({id: drug?.id ?? null, ...body})}
+            save={async (body) => {
+                const saved = await saveDrug.mutateAsync({id: drug?.id ?? null, ...body});
+                onSaved?.(saved, drug === null);
+                return saved;
+            }}
             isPending={saveDrug.isPending}
             savedText={drug === null ? t("drugs.created") : t("drugs.updated")}
             onClose={onClose}
