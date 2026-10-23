@@ -116,8 +116,11 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   invalid fields; shows
   `prescription.eyeTaken` on a drug+eye clash and stays open. Full-screen on small screens. The drug name under its
   title wraps (`overflow-wrap: anywhere`).
-- `components/EditorDialog.tsx` + `EditorContent.tsx`: lazy-loaded Quill editor, rebuilt from the
+- `components/EditorDialog.tsx` + `EditorContent.tsx` + `QuillEditor.tsx`: lazy-loaded Quill 1 editor, rebuilt from the
   current lines on every open (`useOpeningKey`: also when reopened during the closing animation). Edits are not saved.
+  `QuillEditor` is our wrapper (react-quill 2 relied on `findDOMNode`, removed in React 19) and keeps react-quill's behavior:
+  Quill is created once, `value` is pasted in on mount and when it differs from the editor's last HTML, and each text change
+  reports `root.innerHTML` through `onChange` when it differs. Quill 2 is not used: it renders bullet lists as `<ol>`.
   Quill builds its toolbar without names: after it mounts,
   `EditorContent` sets an `aria-label` on each control (`TOOLBAR_NAMES`: the icon buttons, the alignment picker's label
   and its 4 options) from `prescription.toolbar.*`, in the UI language («عريض», «المحاذاة», … / "Bold", "Alignment", …).

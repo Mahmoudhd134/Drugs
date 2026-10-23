@@ -1,13 +1,12 @@
 import {useEffect, useRef, useState} from "react";
 import {Box, Button, DialogActions, DialogContent, DialogTitle, Typography} from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {copyRichText} from "../../../utils/clipboard.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml} from "../prescriptionText.ts";
 import type {PrescriptionLine} from "../types.ts";
+import {QuillEditor, type QuillEditorHandle} from "./QuillEditor.tsx";
 
 const QUILL_MODULES = {
     toolbar: [
@@ -37,7 +36,7 @@ const TOOLBAR_NAMES: [selector: string, key: string][] = [
 const EditorContent = ({lines, onClose}: { lines: PrescriptionLine[]; onClose: () => void }) => {
     const {t} = useTranslation();
     const [html, setHtml] = useState(() => linesToHtml(lines));
-    const quillRef = useRef<ReactQuill>(null);
+    const quillRef = useRef<QuillEditorHandle>(null);
 
     // Names the toolbar's icon buttons and alignment picker for screen readers (in the UI language)
     useEffect(() => {
@@ -71,7 +70,7 @@ const EditorContent = ({lines, onClose}: { lines: PrescriptionLine[]; onClose: (
                         },
                     }}
                 >
-                    <ReactQuill ref={quillRef} theme="snow" value={html} onChange={setHtml} modules={QUILL_MODULES}/>
+                    <QuillEditor ref={quillRef} theme="snow" value={html} onChange={setHtml} modules={QUILL_MODULES}/>
                 </Box>
             </DialogContent>
             <DialogActions sx={{px: 3, pb: 2}}>

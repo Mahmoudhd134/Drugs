@@ -18,9 +18,9 @@ Drug and protocol **content is not translated**: it is stored once, as typed.
 | Layer | Tech |
 |---|---|
 | Backend | ASP.NET Core 9 (controllers), MediatR 13, FluentValidation 12, EF Core 9, PostgreSQL (Npgsql), JWT bearer auth, HybridCache, libphonenumber-csharp |
-| Frontend | React 18, TypeScript 5.8, Vite 6, MUI 7 (+ icons), TanStack Query 5, React Router 6 |
+| Frontend | React 19, TypeScript 5.8, Vite 6, MUI 7 (+ icons), TanStack Query 5, React Router 6 |
 | i18n | i18next + react-i18next + browser language detector; MUI RTL via emotion + `@mui/stylis-plugin-rtl` |
-| Other UI libs | dnd-kit (drag-to-reorder), react-quill (rich-text editor), react-hot-toast |
+| Other UI libs | dnd-kit (drag-to-reorder), Quill 1 (rich-text editor, through our own `QuillEditor` wrapper), react-hot-toast |
 | Hosting | One IIS site: the API serves the built SPA from `wwwroot` (see `DEPLOY.md`) |
 
 ## Repository layout
