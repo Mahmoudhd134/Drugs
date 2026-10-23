@@ -47,7 +47,7 @@ describe("permissions in the app @area:access", () => {
                 return HttpResponse.json(aMe({context: clinicA}));
             }),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         expect(await screen.findByText("تعذّر تحميل البيانات.")).toBeInTheDocument();
         expect(screen.queryByText("لا توجد صلاحية")).not.toBeInTheDocument();
         const button = screen.getByRole("button", {name: "إعادة المحاولة"});
@@ -108,7 +108,7 @@ describe("permissions in the app @area:access", () => {
                 ? aMe({context: clinicB, permissions: ["drugs.list"]})
                 : aMe({context: clinicA})),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Tobradex");
         const nav = () => within(screen.getAllByRole("navigation", {name: "القائمة الرئيسية"})[0]);
         expect(nav().getAllByRole("link").map(link => link.textContent)).toEqual(["الروشتة", "البروتوكولات", "الأدوية"]);
@@ -135,7 +135,7 @@ describe("query retries @area:errors", () => {
                 return answer();
             }),
         );
-        await startApp({route: "/drugs", lang: "ar"});
+        await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("تعذّر تحميل البيانات.");
         return calls;
     };

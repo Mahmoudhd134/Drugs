@@ -51,7 +51,7 @@ test.describe("Category names in the UI language @area:i18n", () => {
             const categories = await api.ok<CategoryRow[]>("GET", "/api/v1/drug-categories");
             const alemox = await sharedByName(api, IMPORTED.alemox1g);
             const alemoxCategory = categories.find(c => c.id === alemox.category.id)!;
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             // The filters
             expect(await optionLabels(page, categoryFilter(page, "ar"))).toEqual([st.allCategories, ...sortedNames(categories, "ar")]);
@@ -122,7 +122,7 @@ test.describe("A shared drug's name @area:catalog", () => {
             const noArabicName = async (where: string, scope: Page = page) =>
                 expect(scope.getByText(ALEMOX_AR), `${where}: no «${ALEMOX_AR}»`).toHaveCount(0);
 
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await search(page, page.getByPlaceholder(t.searchDrugs), "ALEMOX 1 GM");
             await expect(drugRow(page, name).getByText(name, {exact: true})).toBeVisible();
             await noArabicName("drugs list");

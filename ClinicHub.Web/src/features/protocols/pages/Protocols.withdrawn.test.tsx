@@ -82,3 +82,16 @@ describe("protocol cards with a disabled drug @area:catalog", () => {
         expect(screen.getAllByText(WITHDRAWN.ar.count(1))).toHaveLength(1);
     });
 });
+
+describe("protocol cards: no «مشترك» chip @area:catalog", () => {
+    test.each([["ar", "مشترك"], ["en", "Shared"]] as const)("(%s) a card with shared drugs shows no «%s» chip, on the protocols page and in the picker @CAT-278",
+        async (lang, chip) => {
+            const {unmount} = await openPage([threeLines()], lang);
+            await cardOf("Post cataract");
+            expect(screen.queryByText(chip)).not.toBeInTheDocument();
+            unmount();
+            await openPicker([threeLines()], lang);
+            await cardOf("Post cataract");
+            expect(screen.queryByText(chip)).not.toBeInTheDocument();
+        });
+});

@@ -107,13 +107,16 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
 ## Frontend (`src/features/drugs/`)
 - **Page** `pages/DrugsPage.tsx` at `/drugs` (design M1.7 D9, M1.7c):
   - **URL state** (`useSearchParams`; pure helpers in `pages/drugListParams.ts`): `search`, `source`
-    (`all`/`shared`/`own`), `categoryId`, `subCategoryId` (an id or `none`) and `page` (1-based); defaults are left out
-    (`writeDrugListParams`) and every update replaces the history entry (`replace: true`, M1.7c C2), so Back leaves the
-    page with its filters kept and a link reopens the same list. Any change other than the page goes to page 1. The
+    (`all`/`shared`/`own`), `categoryId`, `subCategoryId` (an id or `none`), `page` (1-based) and `view` (`list`; the
+    tree is the default, M1.7 review R1); defaults are left out (`writeDrugListParams`: `view=list` only) and every
+    filter update replaces the history entry (`replace: true`, M1.7c C2), so Back leaves the page with its filters kept
+    and a link reopens the same list. A **view change** pushes a new entry instead (Back returns to the other view,
+    CAT-271), keeps the search, source and categories and resets `page` to 1. Any change other than the page goes to page 1. The
     page size stays local (10/20/50, default 20). `readDrugListParams` drops invalid values silently: an unknown
     `source` (another case too) → «الكل»; a `categoryId` that isn't a positive integer (≤ 2,147,483,647) or, once the
     categories are loaded, isn't one of them → none, with its subcategory; a `subCategoryId` without a valid category,
-    `none` alone, malformed, or not of that category → none; a bad `page` → 1. Once the categories are loaded the URL is
+    `none` alone, malformed, or not of that category → none; a bad `page` → 1; a `view` other than `list` (`TREE`
+    too) → the tree. Once the categories are loaded the URL is
     rewritten once without them. While the URL holds a `categoryId` and the categories aren't loaded, the list query
     waits (no request with an unchecked id). A page past the end (an old link, the last rows deleted or filtered away)
     is replaced by the last one (`clampPage`); until that page arrives no rows and no range show (neither an older
@@ -128,25 +131,37 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
     deselected), the **category select** (`drugs.category`; first `drugs.allCategories`, then `sortCategories` of
     `useDrugCategories`, enabled with `drugs.list`) and the **subcategory select** (`drugs.subCategory`; disabled until
     a category is chosen; `drugs.allSubCategories`, the chosen category's subcategories sorted, then
-    `drugs.noSubCategory`; changing the category resets it). A row from `sm` (wrapping when narrow); below `sm` the
-    toggle (full width) and the selects go under the search, one per line. Menu options wrap long names.
-  - **Header**: subtitle `drugs.subtitle` with the list's `totalCount` (grouped digits); «إضافة دواء» only with
-    `drugs.create`.
-  - **Table** (MUI, cells top-aligned): name (`DrugText`: name, the own drug's dosing sentence, 2-line description;
-    shared drugs have no dosing so no sentence) + the row chip «مشترك» / "Shared" or «خاص بالعيادة» / "Clinic"
-    (`drugs.chip.*`); **category** (`drugs.category`, cell `categoryPath` in the UI language: «العيون › المياه
+    `drugs.noSubCategory`; changing the category resets it), then the **view toggle** (`ToggleButtonGroup` `exclusive`,
+    `aria-label` `drugs.view.label`, buttons `drugs.view.tree|list`, never deselected). A row from `sm` (wrapping when
+    narrow); below `sm` the toggles (full width) and the selects go under the search, one per line. Menu options wrap
+    long names. The one filter bar drives both views.
+  - **Header**: subtitle `drugs.subtitle` with the list's `totalCount`, or in the tree view the filtered tree's
+    `treeTotal` (grouped digits); «إضافة دواء» only with `drugs.create`.
+  - **Tree view** (default, M1.7 review R1): `DrugTree` with `filters` (the URL's search, source, category and
+    subcategory: it then renders no search box, source toggle, «النتائج: N» or progress bar of its own; the page's
+    progress bar and error alert cover it), `rowMode="open"` (no «مُضاف», no ⊕) and `rowActions` (the list's ✎ / 🗑 of
+    an own row, same permissions; none on a shared row). A click or Enter on a drug opens what a list row opens
+    (`canOpen`; without the permission nothing). The API's tree has no category filter: `filterTree` (in
+    `drugTreeModel.ts`) keeps only the chosen category (opened) or the chosen subcategory under it (its count becomes
+    the category's; a lone bucket auto-opens and loads its first page). The page reads the same `useDrugTree` query
+    (same key: `treeSearchTerm(search)`, source) for the subtitle and the empty states; the list query is disabled
+    meanwhile. A save or delete refreshes the tree (`drugKeys.all`).
+  - **Table** (list view, MUI, cells top-aligned): name (`DrugText`: name, the own drug's dosing sentence, 2-line
+    description; shared drugs have no dosing so no sentence) + «خاص بالعيادة» / "Clinic" (`drugs.chip.own`) on an own
+    row; a shared row has no chip (M1.7 review R2); **category** (`drugs.category`, cell `categoryPath` in the UI language: «العيون › المياه
     الزرقاء», the category alone without a subcategory; below `sm` the column and its header aren't rendered and the path goes
     under the name instead: one copy per row, chosen with `useMediaQuery(theme.breakpoints.down("sm"))`, C26); actions (own rows only: edit, delete). Long names and paths wrap (`overflowWrap: "anywhere"`), no sideways
     scroll at 375 px. `TablePagination` (numbers grouped, «1–20 من 23,414»). Confirm before delete (`useConfirm`).
     Clicking an own row opens edit (read-only details without `drugs.update`). **Shared rows** (M1.7b) have no edit or
     delete button at all; with `drugs.details` a click or Enter/Space opens the read-only details (also for a user with
     `drugs.update`), without it the row doesn't open; the delete's `GET /drugs/{id}/protocols` is never called for them.
-  - **Empty states** (`drugListEmptyState`, only when the answer has `totalCount` 0): a search typed →
+  - **Empty states** (`drugListEmptyState`, both views: only when the list's answer has `totalCount` 0, or the filtered
+    tree has no category): a search typed →
     `drugs.noResults`; «أدوية العيادة» with no category and no search → `drugs.noOwnDrugs` + «إضافة دواء» (with
     `drugs.create`); any other filter, no search → `drugs.noFilterResults` + a `drugs.clearFilters` button (back to the
-    defaults, the search emptied); nothing filtered → `drugs.emptyTitle` + description + «إضافة دواء».
+    defaults, the search emptied, the view kept); nothing filtered → `drugs.emptyTitle` + description + «إضافة دواء».
   - **Saving a new own drug while «المشتركة» is chosen** switches the toggle to «أدوية العيادة», clears the search (the
-    typed one too) and goes to page 1, so the new drug shows (CAT-137, M1.7c C35), through `DrugFormDialog`'s `onSaved(drug, created)` (called after a successful save, before
+    typed one too) and goes to page 1, so the new drug shows (CAT-137, M1.7c C35; the view is kept), through `DrugFormDialog`'s `onSaved(drug, created)` (called after a successful save, before
     the toast; `created` true for a new drug).
   - Stale answers: the query key holds the search, page, size and filters, so an older, slower answer never replaces a
     newer one (CAT-144); the old rows (and count) stay as placeholder until the new ones arrive, only while their query
@@ -180,7 +195,8 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
 - **Reusable components** (used by other features):
   - `DrugTree` (M1.7c, replaces `DrugPicker`): search + source toggle + categories → subcategories → drugs, 30 at a
     time per open subcategory, over `useDrugTree` / `useDrugBucket` (`treeApi.ts`, keys `drugTreeKeys`). Optional
-    `selectedIds` shows «مُضاف»; selecting keeps the search and the open nodes. Details:
+    `selectedIds` shows «مُضاف»; selecting keeps the search and the open nodes. The drugs page's tree view passes
+    `filters`, `rowMode="open"` and `rowActions` (above). Details:
     [prescription](../prescription/tech.md#the-drug-tree-drugtree).
   - `DrugText`: name (bold), optional dosing sentence (`showDosing`), description (`pre-line`,
     optional line clamp). The table and the picker show the dosing sentence; the description is always shown here

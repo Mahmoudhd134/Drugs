@@ -40,7 +40,7 @@ const treeAr = {
     sourceAll: "الكل",
     sourceShared: "المشتركة",
     sourceOwn: "أدوية العيادة",
-    /** `drugs.chip.*`: a drug row's chip */
+    /** `drugs.chip.own`: an own drug row's chip; `chipShared`: the old shared chip, never shown (M1.7 review R2: absence checks) */
     chipShared: "مشترك",
     chipOwn: "خاص بالعيادة",
     added: "مُضاف",

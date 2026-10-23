@@ -3,7 +3,7 @@ import {localPhone, unique, uniquePhone} from "../support/phones.ts";
 import {runState} from "../support/run.ts";
 import {expectContextLabel, expectToast, navTo, recordRequests} from "../support/ui.ts";
 import {ApiSession} from "../support/api.ts";
-import {drugRow, drugRows} from "../support/catalog.ts";
+import {drugRow, drugRows, showDrugsList} from "../support/catalog.ts";
 import {listDrugs} from "../support/shared.ts";
 import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {SHARED_TEXTS} from "../support/texts-shared.ts";
@@ -53,6 +53,7 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             await signIn(owner.page, ownerPhone);
             await expectContextLabel(owner.page, "عيادة النور");
             await navTo(owner.page, t, t.navDrugs);
+            await showDrugsList(owner.page, ct);
             // «الكل»: T's 2 own drugs first, then the shared catalog (design M1.7 D7); the total is the API's answer of
             // the same run (never a literal of the catalog, D12)
             const ownerApi = await ApiSession.login(runState().baseURL, ownerPhone);
@@ -63,7 +64,10 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             await expect(owner.page.getByText(ct.drugsSubtitle(all), {exact: true})).toBeVisible();
             const firstNames = await drugRows(owner.page).locator("td:first-child p:first-child").allTextContents();
             expect(firstNames.slice(0, template.drugs.length).sort()).toEqual([...template.drugs].sort());
-            await expect(drugRows(owner.page).nth(template.drugs.length).getByText(st.chipShared, {exact: true})).toBeVisible();
+            // Then the shared catalog: no chip on a shared row (M1.7 review R2)
+            await expect(drugRows(owner.page).nth(template.drugs.length)).toBeVisible();
+            await expect(drugRows(owner.page).nth(template.drugs.length).getByText(st.chipOwn, {exact: true})).toHaveCount(0);
+            await expect(drugRows(owner.page).nth(template.drugs.length).getByText(st.chipShared, {exact: true})).toHaveCount(0);
             // «أدوية العيادة»: exactly T's 2 own drugs
             await owner.page.getByRole("group", {name: ct.sourceLabel}).getByRole("button", {name: ct.sourceOwn, exact: true}).click();
             await expect(owner.page.getByText(ct.drugsSubtitle(template.drugs.length), {exact: true})).toBeVisible();

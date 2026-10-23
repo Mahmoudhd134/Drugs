@@ -148,7 +148,10 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
 `features/drugs/components/DrugTree.tsx` (+ `DrugTreeRows.tsx`, `DrugTreeBucket.tsx`; pure logic in `drugTreeModel.ts`,
 data in `treeApi.ts`; design M1.7 D7, D9, contract `docs/design/m1.7c-contract.md` § 3.3). Used here and in the protocol
 editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `autoFocus`, `maxHeight` (default 58vh),
-`enabled` (false: no request).
+`enabled` (false: no request). The drugs page's tree view (M1.7 review R1) also passes `filters` (search, source,
+category, subcategory from its URL: no search box, source toggle, «النتائج: N» or progress bar of the tree's own; the
+answer narrowed by `filterTree`, the chosen category opened; a change of them is a new tree), `rowMode="open"` (no
+«مُضاف», no ⊕) and `rowActions` (buttons at a drug row's end; their clicks never reach the row): [drugs](../drugs/tech.md).
 - **Top:** `SearchField` (`drugTree.searchPlaceholder`, debounced 300 ms, trimmed; only spaces or tatweel = no search;
   Esc clears it with `preventDefault` + `stopPropagation`, so no dialog or leave guard reacts; ↓ focuses the tree), the
   source toggle (`drugs.source.*`, exclusive, never null; per tree, starts at «الكل», C7), «النتائج: N» (`treeTotal`),
@@ -160,7 +163,7 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
   rows then the «بدون تصنيف فرعي» bucket last): a language switch re-sorts without a request.
 - **What is shown:** the tree's state (`View`: the search and source of its answer, open categories, open buckets)
   changes only on the **first answer** of a new (search, source): everything closes, the scroll panel goes back to its
-  top (M1.7c C36), then `autoOpenBucket` opens the lone bucket and its category. A refetch of the same key (a drug saved) changes nothing (C12), so a bucket the user
+  top (M1.7c C36), then `autoOpenBucket` opens the lone bucket and its category, and with a search `singleDrugBuckets` also opens every category whose only subcategory holds a single drug, with that subcategory (M1.7 review R3). A refetch of the same key (a drug saved) changes nothing (C12), so a bucket the user
   closed stays closed. The open buckets keep the shown tree's search and source until the new answer replaces it.
   Closing a bucket (or its category, which closes its buckets, or a new tree) removes its query
   (`queryClient.removeQueries`, after the commit), so reopening starts at page 1.
@@ -169,8 +172,8 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
   chevron `IconButton` (`tabIndex -1`, `drugTree.open`/`close` as tooltip and `aria-label`; closed: `ChevronRight` LTR /
   `ChevronLeft` RTL; open: `ExpandMore`), the name (wraps anywhere), the count (grouped digits); at least 44 px tall
   below `sm`. Drug line: name, the ingredients on one line from `sm` (ellipsis, full text in a `TapTooltip` without tap,
-  since a tap adds the drug; wraps on a phone), an own drug's `DosingText`, the «مشترك» / «خاص بالعيادة» chip, «مُضاف»
-  or ⊕; no description. The name sits in a `<bdi>` (M1.7b D27: a Latin name reads left to right in the Arabic UI). The
+  since a tap adds the drug; wraps on a phone), an own drug's `DosingText`, the «خاص بالعيادة» chip on an own drug
+  (a shared drug has no chip, M1.7 review R2), «مُضاف» or ⊕; no description. The name sits in a `<bdi>` (M1.7b D27: a Latin name reads left to right in the Arabic UI). The
   ingredients line is `dir="auto"` with the text directly inside it, no `<bdi>` (its own text's direction: its beginning
   visible, the ellipsis at its end; `dir="auto"` skips a `<bdi>` child when it looks for the first strong character, so
   the line would compute left to right, CAT-262) and a line that fits is aligned to the interface's start side (`textAlign: "left"`, flipped by the RTL style
@@ -194,6 +197,8 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
   source), a failed or closed bucket, or the focus leaving the tree's panel: it never steals the focus later.
 - **States instead of the tree:** first load spinner; the tree request failed → `common.loadFailed` + retry; no category →
   `drugs.noOwnDrugs` (source own, no search) or `drugs.noResults`.
+- **Look** (M1.7 review R4): a pictogram tile per category (`categoryIcons.tsx`, by catalog id; generic for others), count pills, guide lines
+  from an open node to its children, the open category's row pinned at the panel's top (`scroll-margin-top` on rows), ⊕ as a round target.
 
 ## Edge cases & limitations
 - Lines keep a **snapshot** of the drug (`DrugSnapshot`: id, name, description, default dosing, and since M1.7b

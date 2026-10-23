@@ -1,9 +1,9 @@
-import {type RefObject, useCallback, useEffect, useMemo, useRef} from "react";
+import {type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef} from "react";
 import {Alert, Box, Button, CircularProgress} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {useDrugBucket} from "../treeApi.ts";
 import {type BucketKey, dedupeById, subCategoryFilterOf} from "./drugTreeModel.ts";
-import {DrugTreeDrug, type TreeNav} from "./DrugTreeRows.tsx";
+import {type DrugRowMode, DrugTreeDrug, type TreeNav} from "./DrugTreeRows.tsx";
 import type {Drug, DrugSource} from "../types.ts";
 
 /** What the tree needs of an open bucket for the keyboard (↓ on its last loaded drug loads the next page). */
@@ -25,6 +25,8 @@ type Props = {
     panelRef: RefObject<HTMLElement | null>;
     nav: TreeNav;
     selectedIds?: ReadonlySet<number>;
+    rowMode: DrugRowMode;
+    rowActions?: (drug: Drug) => ReactNode;
     onPick: (drug: Drug, rowId: string) => void;
     /** Its loaded drugs and loader, null once it closes */
     onState: (bucket: BucketKey, state: BucketState | null) => void;
@@ -40,7 +42,7 @@ type Props = {
  * An open subcategory's `role="group"`: its drugs 30 at a time (the next page when the sentinel after the last loaded
  * drug scrolls into the panel's view, or with «تحميل المزيد»), a spinner while a page loads, a retry for a failed page.
  */
-export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucket, panelRef, nav, selectedIds, onPick, onState, onHoldFocus}: Props) => {
+export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucket, panelRef, nav, selectedIds, rowMode, rowActions, onPick, onState, onHoldFocus}: Props) => {
     const {t} = useTranslation();
     const query = useDrugBucket(search, source, categoryId, subCategoryFilterOf(subCategoryId));
     const {data, hasNextPage, isFetchingNextPage, isPending, isError, isFetchNextPageError, fetchNextPage, refetch} = query;
@@ -70,8 +72,8 @@ export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucke
         <Box role="group" aria-busy={busy}>
             {drugs.map(drug => {
                 const id = `d${bucket}:${drug.id}`;
-                return <DrugTreeDrug key={drug.id} id={id} drug={drug} added={selectedIds?.has(drug.id) ?? false} nav={nav}
-                                     onPick={() => onPick(drug, id)}/>;
+                return <DrugTreeDrug key={drug.id} id={id} drug={drug} added={selectedIds?.has(drug.id) ?? false} mode={rowMode}
+                                     actions={rowActions?.(drug)} nav={nav} onPick={() => onPick(drug, id)}/>;
             })}
             <div data-testid="drug-tree-sentinel" ref={sentinelRef}/>
             {busy ? (

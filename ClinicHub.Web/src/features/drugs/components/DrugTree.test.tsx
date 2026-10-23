@@ -113,7 +113,7 @@ describe("drug tree: the drug rows @area:catalog", () => {
     });
     const vigamox = () => aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML", activeIngredients: "MOXIFLOXACIN", description: "Antibiotic"});
 
-    test("a row: the name, the ingredients, an own drug's dosing sentence, «خاص بالعيادة» / «مشترك», «مُضاف» when chosen; never the description @DRUG-059", async () => {
+    test("a row: the name, the ingredients, an own drug's dosing sentence, «خاص بالعيادة» on an own drug only (no «مشترك» chip), «مُضاف» when chosen; never the description @DRUG-059 @CAT-278", async () => {
         const own = tobradex();
         await renderTree({drugs: [own, vigamox()], selectedIds: [own.id]});
         const ownRow = within(await findDrugRow("Tobradex"));
@@ -127,18 +127,20 @@ describe("drug tree: the drug rows @area:catalog", () => {
         const sharedRow = within(drugRow("VIGAMOX 0.5% EYE DROPS 5 ML"));
         expect(sharedRow.getByText("VIGAMOX 0.5% EYE DROPS 5 ML")).toBeInTheDocument();
         expect(sharedRow.getByText("MOXIFLOXACIN")).toBeInTheDocument();
-        expect(sharedRow.getByText(ar.shared)).toBeInTheDocument();
+        // M1.7 review R2: a shared drug has no chip at all
+        expect(sharedRow.queryByText("مشترك")).not.toBeInTheDocument();
         expect(sharedRow.queryByText(ar.added)).not.toBeInTheDocument();
         expect(sharedRow.queryByText("Antibiotic")).not.toBeInTheDocument();
         expect(sharedRow.queryByText(ar.own)).not.toBeInTheDocument();
     });
 
-    test("in English: \"Clinic\", \"Shared\" and \"Added\" @DRUG-059", async () => {
+    test("in English: \"Clinic\" and \"Added\"; no \"Shared\" chip on a shared drug @DRUG-059 @CAT-278", async () => {
         const own = tobradex();
         await renderTree({drugs: [own, vigamox()], selectedIds: [own.id], lang: "en"});
         expect(within(await findDrugRow("Tobradex")).getByText(en.own)).toBeInTheDocument();
         expect(within(drugRow("Tobradex")).getByText(en.added)).toBeInTheDocument();
-        expect(within(drugRow("VIGAMOX 0.5% EYE DROPS 5 ML")).getByText(en.shared)).toBeInTheDocument();
+        expect(within(drugRow("VIGAMOX 0.5% EYE DROPS 5 ML")).queryByText("Shared")).not.toBeInTheDocument();
+        expect(within(drugRow("VIGAMOX 0.5% EYE DROPS 5 ML")).queryByText(en.own)).not.toBeInTheDocument();
     });
 
     test("the ingredients' full text in a tooltip on hover (desktop) @DRUG-059", async () => {

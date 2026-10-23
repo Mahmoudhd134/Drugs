@@ -127,7 +127,7 @@ describe("a stale tab after another sign-in @area:auth", () => {
             http.post(api("/auth/context"), () => problem(401, "unauthorized")),
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Template drug"})]))),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Template drug");
         return app;
     };
@@ -201,7 +201,7 @@ describe("a page across a context switch @area:auth", () => {
                 aDrug({name: contextOfRequest(request) === "clinic2" ? "B drug" : "A drug"}),
             ]))),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("A drug");
         const search = screen.getByPlaceholderText("ابحث بالاسم أو المادة الفعالة أو التصنيف…");
         await app.user.type(search, "Tob");

@@ -1,6 +1,8 @@
 import {expect, loginViaUi, signIn, superAdminPhone, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {UX_TEXTS} from "../support/texts-ux.ts";
+import {showDrugsList} from "../support/catalog.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {
     expectContextLabel,
     expectPicker,
@@ -157,7 +159,7 @@ test.describe("Clinic picker @area:auth", () => {
         });
 
     test("made owner of a new clinic while working in another: «تبديل العيادة» lists it and they enter it as Owner @ADM-079",
-        async ({page, t, data}) => {
+        async ({page, t, lang, data}) => {
             const u = unique();
             const a = await data.clinic({name: `A ${u}`});
             const b = await data.clinic({name: `B ${u}`});
@@ -173,12 +175,13 @@ test.describe("Clinic picker @area:auth", () => {
 
             // As Owner: every permission, e.g. deleting drugs (an Assistant can't)
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, CATALOG_TEXTS[lang]);
             await expect(page.getByRole("button", {name: t.delete}).first()).toBeVisible();
         });
 
     test("removed from a clinic, then added again: it shows again in «تبديل العيادة» and they enter it @ADM-270", async ({page, t, data, allowApiErrors}) => {
         // Removed from the clinic while in it: its next request is refused (the test's setup)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});

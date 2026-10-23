@@ -50,7 +50,7 @@ describe("staying logged in @area:auth", () => {
                     : problem(401, "unauthorized");
             }),
         );
-        await startApp({route: "/drugs"});
+        await startApp({route: "/drugs?view=list"});
 
         expect(await screen.findByText("Tobradex")).toBeInTheDocument();
         // Page load + the one refresh of the 401
@@ -90,7 +90,7 @@ describe("staying logged in @area:auth", () => {
         const refresh = refreshSequence(problem(500, "unexpected"));
         server.use(refresh.handler);
         const requests = recordRequests();
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
 
         expect(await screen.findByText("تعذّر الاتصال بالخادم. تحقّق من الاتصال.")).toBeInTheDocument();
         expect(screen.getByRole("button", {name: "إعادة المحاولة"})).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("staying logged in @area:auth", () => {
             http.post(api("/drugs"), () => networkError()),
             drugCategoriesHandler(),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Tobradex");
 
         await app.user.click(screen.getByRole("button", {name: "إضافة دواء"}));
@@ -137,7 +137,7 @@ describe("logging out @area:auth", () => {
             http.get(api("/protocols"), () => problem(401, "unauthorized")),
             http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         expect(await screen.findByText("Tobradex")).toBeInTheDocument();
 
         // The next call answers 401 (the access token gone stale): the in-session refresh, not a page load
@@ -160,7 +160,7 @@ describe("logging out @area:auth", () => {
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})]))),
             http.post(api("/auth/logout"), () => networkError()),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Tobradex");
 
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));

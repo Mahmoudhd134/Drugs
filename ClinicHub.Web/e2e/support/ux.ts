@@ -307,8 +307,11 @@ export const tourPages = async (page: Page, tour: Tour, check: (what: string) =>
     const lang = await uiLang(page);
     const {t, u} = textsOf(lang);
 
-    // Drugs: the list, the taper drug's dialog, a delete confirmation
+    // Drugs: the tree view (the page's default, M1.7 review R1), then the list, the taper drug's dialog, a delete confirmation
     await open(page, `/drugs`);
+    await expect(page.getByRole("tree").getByRole("treeitem").first()).toBeVisible();
+    await check("drugs tree view");
+    await open(page, `/drugs?view=list`);
     await expect(drugRow(page, tour.latin.name)).toBeVisible();
     await check("drugs list");
     await drugRow(page, tour.taper.name).click();

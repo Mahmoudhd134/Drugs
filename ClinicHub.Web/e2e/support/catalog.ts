@@ -87,6 +87,23 @@ export const deleteProtocol = async (data: Data, clinic: ClinicHandle, protocol:
 
 // ---- UI ----
 
+/** The drugs page in its list view (the table): the tree is the page's default view (M1.7 review R1). */
+export const DRUGS_LIST = "/drugs?view=list";
+
+/** The drugs page's view toggle «طريقة العرض» / "View". */
+export const viewToggle = (page: Page, ct: CatalogTexts) => page.getByRole("group", {name: ct.viewLabel});
+
+/** One button of the view toggle: «شجرة» / «قائمة». */
+export const viewButton = (page: Page, ct: CatalogTexts, view: "tree" | "list") =>
+    viewToggle(page, ct).getByRole("button", {name: view === "tree" ? ct.viewTree : ct.viewList, exact: true});
+
+/** Switches the drugs page (opened in its default tree view, e.g. from the sidebar) to the list: the table. */
+export const showDrugsList = async (page: Page, ct: CatalogTexts) => {
+    await viewButton(page, ct, "list").click();
+    await expect(viewButton(page, ct, "list")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("table")).toBeVisible();
+};
+
 /** The drugs table's row of a drug (names are unique per test). */
 export const drugRow = (page: Page, name: string) => page.getByRole("row").filter({hasText: name});
 

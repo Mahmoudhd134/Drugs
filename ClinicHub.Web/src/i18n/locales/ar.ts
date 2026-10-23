@@ -243,8 +243,12 @@ const ar: Translations = {
         categoryPath: "{{category}} › {{subCategory}}",
         categoryLine: "التصنيف: {{path}}",
         chip: {
-            shared: "مشترك",
             own: "خاص بالعيادة",
+        },
+        view: {
+            label: "طريقة العرض",
+            tree: "شجرة",
+            list: "قائمة",
         },
         source: {
             label: "الأدوية المعروضة",

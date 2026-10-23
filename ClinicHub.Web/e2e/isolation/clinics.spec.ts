@@ -8,7 +8,7 @@ import {TREE_TEXTS} from "../support/texts-rx.ts";
 import {DrugTreeUi} from "../support/tree.ts";
 import type {Lang} from "../support/texts.ts";
 import {categoryFilter, pick} from "../support/admin-catalog.ts";
-import {addToProtocol, drugRow, drugRows} from "../support/catalog.ts";
+import {addToProtocol, drugRow, drugRows, showDrugsList} from "../support/catalog.ts";
 import {expectContextLabel, expectToast, navTo, openSwitchClinic, pickerEntry, toast} from "../support/ui.ts";
 
 /** The drug tree of the page's main area (support/tree.ts). */
@@ -36,7 +36,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         const protocolB = await data.protocol(b, [drugB], `Protocol B ${u}`);
         const staff = await data.staff(a);
         await data.staff(b, {phone: staff.phone});
-        await signIn(page, staff.phone, {clinicId: a.id}, "/drugs");
+        await signIn(page, staff.phone, {clinicId: a.id}, "/drugs?view=list");
         await expect(page.getByRole("cell", {name: drugA.name})).toBeVisible();
         await openSwitchClinic(page, t);
 
@@ -52,9 +52,11 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         await expectContextLabel(page, b.name);
 
         await navTo(page, t, t.navDrugs);
+        await showDrugsList(page, CATALOG_TEXTS[lang]);
         await expect(page.getByRole("cell", {name: drugB.name})).toBeVisible();
-        // The shared catalog shows in B too (design M1.7 D1), after B's own drugs
-        await expect(page.getByText(SHARED_TEXTS[lang].chipShared, {exact: true}).first()).toBeVisible();
+        // The shared catalog shows in B too (design M1.7 D1), after B's own drugs: rows without «خاص بالعيادة» (a shared
+        // row has no chip, M1.7 review R2)
+        await expect(drugRows(page).filter({hasNot: page.getByText(SHARED_TEXTS[lang].chipOwn, {exact: true})}).first()).toBeVisible();
         await navTo(page, t, t.navProtocols);
         await expect(page.getByText(protocolB.name, {exact: true})).toBeVisible();
         expect(await page.evaluate(() => (window as unknown as { leaked?: string }).leaked ?? null)).toBeNull();
@@ -106,7 +108,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
             const name = (c: { nameEn: string; nameAr: string }) => (lang === "ar" ? c.nameAr : c.nameEn);
             const toggleOwn = () => page.getByRole("group", {name: ct.sourceLabel}).getByRole("button", {name: ct.sourceOwn, exact: true});
 
-            await signIn(page, staff.phone, {clinicId: a.id}, `/drugs?source=own&categoryId=${eye.id}`);
+            await signIn(page, staff.phone, {clinicId: a.id}, `/drugs?source=own&categoryId=${eye.id}&view=list`);
             await expect(drugRow(page, drugA.name)).toBeVisible();
             await expect(toggleOwn()).toHaveAttribute("aria-pressed", "true");
             await navTo(page, t, t.navPrescription);
@@ -126,6 +128,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
             await expect(treeOf(page, lang).drug(drugB.name), "its only subcategory opens by itself").toBeVisible();
             // B's drugs page under the same filters
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, CATALOG_TEXTS[lang]);
             await toggleOwn().click();
             await pick(page, categoryFilter(page, lang), name(eye));
             await expect(page).toHaveURL(new RegExp(`categoryId=${eye.id}`));

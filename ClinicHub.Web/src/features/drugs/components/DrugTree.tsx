@@ -1,4 +1,4 @@
-import {type FocusEvent, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {type FocusEvent, type KeyboardEvent, type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {Alert, Box, Button, CircularProgress, LinearProgress, Stack, ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
 import {useQueryClient} from "@tanstack/react-query";
 import {useTranslation} from "react-i18next";
@@ -11,15 +11,28 @@ import {
     autoOpenBucket,
     type BucketKey,
     bucketKey,
+    filterTree,
+    singleDrugBuckets,
     sortTree,
     type TreeRow,
     treeKeyAction,
+    treeSearchTerm,
     treeTotal,
     visibleRows,
 } from "./drugTreeModel.ts";
-import {DrugTreeNode, type TreeNav} from "./DrugTreeRows.tsx";
+import {type DrugRowMode, DrugTreeNode, type TreeNav} from "./DrugTreeRows.tsx";
+import {categoryIcon} from "./categoryIcons.tsx";
 import {type BucketState, DrugTreeBucket} from "./DrugTreeBucket.tsx";
-import type {Drug, DrugSource, DrugTreeSubCategory} from "../types.ts";
+import type {Drug, DrugSource, DrugTreeSubCategory, SubCategoryFilter} from "../types.ts";
+
+/** The drugs page's filters, when they drive the tree (its tree view, M1.7 review R1). */
+export type DrugTreeFilters = {
+    /** As in the URL (already debounced by the page) */
+    search: string;
+    source: DrugSource;
+    categoryId: number | null;
+    subCategoryId: SubCategoryFilter | null;
+};
 
 type Props = {
     /** A drug row clicked (or Enter on it); a double click adds once */
@@ -31,6 +44,15 @@ type Props = {
     maxHeight?: number | string;
     /** False: never loads (no `drugs.list`: no request to `/drugs/tree` or `/drugs`) */
     enabled?: boolean;
+    /**
+     * Given (the drugs page): the tree follows these filters and shows no search box, source toggle, «النتائج: N» or
+     * progress bar of its own (the page has them); a chosen category or subcategory is the only node, opened
+     */
+    filters?: DrugTreeFilters;
+    /** "add" (default, the pickers): «مُضاف» or ⊕ on a drug row; "open" (the drugs page): neither */
+    rowMode?: DrugRowMode;
+    /** Buttons at the end of a drug row (the drugs page's ✎ / 🗑) */
+    rowActions?: (drug: Drug) => ReactNode;
 };
 
 /** The tree being shown: the search and source of its answer and what is open in it. */
@@ -45,9 +67,6 @@ type View = {
 const SOURCES: DrugSource[] = ["all", "shared", "own"];
 const NOTHING_OPEN = new Set<never>();
 
-/** Only spaces or tatweel: no search (CAT-125). */
-const searchTerm = (text: string) => (text.replace(/[\sـ]/g, "") === "" ? "" : text);
-
 const bucketQueryKey = (view: View, bucket: BucketKey) => {
     const [categoryId, subCategoryId] = bucket.split(":");
     return drugTreeKeys.bucket(view.search, view.source, Number(categoryId), subCategoryId === "none" ? "none" : Number(subCategoryId));
@@ -60,7 +79,7 @@ const without = <T, >(set: ReadonlySet<T>, value: T) => new Set([...set].filter(
  * drugs, 30 at a time while scrolling. Replaces `DrugPicker` in the prescription page and the protocol editor (same
  * props). Structure, keyboard and accessible names: docs/design/m1.7c-contract.md § 3.3.
  */
-export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", enabled = true}: Props) => {
+export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", enabled = true, filters, rowMode = "add", rowActions}: Props) => {
     const {t} = useTranslation();
     const {language, dir} = useLanguage();
     const queryClient = useQueryClient();
@@ -68,25 +87,34 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
     const panelRef = useRef<HTMLDivElement>(null);
 
     const [search, setSearch] = useState("");
-    const [source, setSource] = useState<DrugSource>("all");
-    const term = searchTerm(useDebouncedValue(search.trim()));
-    const key = JSON.stringify([term, source]);
+    const [ownSource, setSource] = useState<DrugSource>("all");
+    const typedTerm = treeSearchTerm(useDebouncedValue(search.trim()));
+    const term = filters ? treeSearchTerm(filters.search.trim()) : typedTerm;
+    const source = filters?.source ?? ownSource;
+    const categoryId = filters?.categoryId ?? null;
+    const subCategoryId = filters?.subCategoryId ?? null;
+    const key = JSON.stringify([term, source, categoryId, subCategoryId]);
     const tree = useDrugTree(term, source, {enabled});
-    const data = tree.data;
+    // Only the chosen category or subcategory, if any (the API's tree has no category filter)
+    const answer = tree.data;
+    const data = useMemo(() => answer && filterTree(answer, categoryId, subCategoryId), [answer, categoryId, subCategoryId]);
 
     const [view, setView] = useState<View | null>(null);
     const [activeId, setActiveId] = useState<string>();
     const [pendingFocus, setPendingFocus] = useState<{ bucket: BucketKey; index: number } | null>(null);
-    // The first answer of a new search or source: everything closes, then the lone bucket opens by itself (D7). A
-    // refetch of the same search and source (a drug saved) changes nothing (C12)
+    // The first answer of a new search, source or category filter: everything closes, then the lone bucket opens by
+    // itself (D7), and a chosen category too (R1). A refetch of the same filters (a drug saved) changes nothing (C12)
     if (data && !tree.isPlaceholderData && view?.key !== key) {
-        const auto = autoOpenBucket(data);
+        const lone = autoOpenBucket(data);
+        // With a search, also every category whose only subcategory holds a single drug (R3)
+        const auto = [...(lone ? [lone] : []), ...(term !== "" ? singleDrugBuckets(data) : [])];
+        const chosen = categoryId !== null && data.categories.length > 0 ? [categoryId] : [];
         setView({
             key,
             search: term,
             source,
-            openCategories: new Set(auto ? [auto.categoryId] : []),
-            openBuckets: new Set(auto ? [auto.bucket] : []),
+            openCategories: new Set([...auto.map(a => a.categoryId), ...chosen]),
+            openBuckets: new Set(auto.map(a => a.bucket)),
         });
         setActiveId(undefined);
         // Nothing of the old tree takes the focus later (R3-4)
@@ -334,36 +362,38 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
 
     return (
         <Box>
-            <SearchField
-                value={search}
-                onChange={setSearch}
-                placeholder={t("drugTree.searchPlaceholder")}
-                autoFocus={autoFocus}
-                inputRef={searchRef}
-                onKeyDown={onSearchKeyDown}
-                controls={hasTree ? treeId : undefined}
-            />
-            <Stack direction="row" sx={{mt: 1, gap: 1, alignItems: "center", flexWrap: "wrap"}}>
-                <ToggleButtonGroup
-                    exclusive
-                    size="small"
-                    value={source}
-                    // Never deselected to null
-                    onChange={(_, value: DrugSource | null) => value && setSource(value)}
-                    aria-label={t("drugs.source.label")}
-                >
-                    {SOURCES.map(value => <ToggleButton key={value} value={value}>{t(`drugs.source.${value}`)}</ToggleButton>)}
-                </ToggleButtonGroup>
-                {hasTree && (
-                    <Typography variant="caption" color="text.secondary" sx={{marginInlineStart: "auto", px: 0.5}}>
-                        {t("common.results", {count: treeTotal(data)})}
-                    </Typography>
-                )}
-            </Stack>
+            {!filters && <>
+                <SearchField
+                    value={search}
+                    onChange={setSearch}
+                    placeholder={t("drugTree.searchPlaceholder")}
+                    autoFocus={autoFocus}
+                    inputRef={searchRef}
+                    onKeyDown={onSearchKeyDown}
+                    controls={hasTree ? treeId : undefined}
+                />
+                <Stack direction="row" sx={{mt: 1, gap: 1, alignItems: "center", flexWrap: "wrap"}}>
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={source}
+                        // Never deselected to null
+                        onChange={(_, value: DrugSource | null) => value && setSource(value)}
+                        aria-label={t("drugs.source.label")}
+                    >
+                        {SOURCES.map(value => <ToggleButton key={value} value={value}>{t(`drugs.source.${value}`)}</ToggleButton>)}
+                    </ToggleButtonGroup>
+                    {hasTree && (
+                        <Typography variant="caption" color="text.secondary" sx={{marginInlineStart: "auto", px: 0.5}}>
+                            {t("common.results", {count: treeTotal(data)})}
+                        </Typography>
+                    )}
+                </Stack>
 
-            <Box sx={{height: 4, my: 1}}>
-                {tree.isPlaceholderData && <LinearProgress sx={{borderRadius: 1}} aria-label={t("common.loading")}/>}
-            </Box>
+                <Box sx={{height: 4, my: 1}}>
+                    {tree.isPlaceholderData && <LinearProgress sx={{borderRadius: 1}} aria-label={t("common.loading")}/>}
+                </Box>
+            </>}
 
             {!enabled ? null : data === undefined ? (
                 tree.isError ? (
@@ -387,7 +417,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                      sx={{maxHeight, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 2}}>
                     <Box role="tree" id={treeId} aria-label={t("drugTree.label")} onKeyDown={onTreeKeyDown} onFocus={onTreeFocus}
                          onBlur={onTreeBlur}
-                         sx={{py: 0.5}}>
+                         sx={{py: 0.5, px: {xs: 0, sm: 0.5}}}>
                         {categories.map(category => (
                             <DrugTreeNode
                                 key={category.id}
@@ -395,6 +425,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                                 level={1}
                                 name={categoryName(category, language)}
                                 count={category.count}
+                                icon={categoryIcon(category.id)}
                                 expanded={openCategories.has(category.id)}
                                 nav={nav}
                                 onToggle={() => toggleCategory(category.id)}
@@ -424,6 +455,8 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                                                         panelRef={panelRef}
                                                         nav={nav}
                                                         selectedIds={selectedIds}
+                                                        rowMode={rowMode}
+                                                        rowActions={rowActions}
                                                         onPick={pick}
                                                         onState={onBucketState}
                                                         onHoldFocus={holdFocus}

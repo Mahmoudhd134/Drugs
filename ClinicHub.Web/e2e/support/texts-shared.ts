@@ -29,6 +29,7 @@ const arInUse = (what: string) => (n: number) => `لا يمكن حذف ${what}: 
 
 const ar = {
     // Drugs page, own-drug dialog, read-only details
+    /** The old shared chip: no row shows it any more (M1.7 review R2), kept for absence checks */
     chipShared: "مشترك",
     chipOwn: "خاص بالعيادة",
     activeIngredients: "المادة الفعالة",

@@ -13,7 +13,7 @@ test.describe("The template clinic's catalog @area:auth", () => {
         const u = unique();
         const drug = `Template drug ${u}`;
         const protocol = `Template protocol ${u}`;
-        await signIn(page, superAdminPhone(), "template", "/drugs");
+        await signIn(page, superAdminPhone(), "template", "/drugs?view=list");
         await expectContextLabel(page, t.template);
 
         // Add a drug, then edit it

@@ -214,7 +214,7 @@ test.describe("A disabled shared drug in protocols and prescriptions @area:catal
                 expect(found.items.map(d => d.name)).toContain(w.name);
             }
             // B's drugs page: found by search, the count the API's
-            await signIn(page, other.owner.phone, "asIs", "/drugs");
+            await signIn(page, other.owner.phone, "asIs", "/drugs?view=list");
             await search(page, page.getByPlaceholder(t.searchDrugs), w.name);
             await expect(page.getByRole("row").filter({has: page.getByText(w.name, {exact: true})})).toBeVisible();
 

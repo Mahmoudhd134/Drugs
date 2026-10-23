@@ -90,7 +90,8 @@ describe("drugs page URL: invalid values are dropped silently @area:catalog", ()
             expect(sent.get("subCategoryId"), "subCategoryId").toBeNull();
             expect(sent.get("page"), "page").toBe("1");
         }
-        await waitFor(() => expect(location().search).toBe(""));
+        // The view kept (the list)
+        await waitFor(() => expect(location().search).toBe("?view=list"));
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
         expect(toastTexts()).toEqual([]);
     });
@@ -103,7 +104,7 @@ describe("drugs page URL: invalid values are dropped silently @area:catalog", ()
         expect(subCategoryFilter()).toHaveTextContent("كل التصنيفات الفرعية");
         for (const sent of listQueries(recorded)) expect(sent.get("subCategoryId")).toBeNull();
         expect(lastListQuery(recorded).get("categoryId")).toBe("17");
-        await waitFor(() => expect(location().search).toBe("?categoryId=17"));
+        await waitFor(() => expect(location().search).toBe("?categoryId=17&view=list"));
         expect(toastTexts()).toEqual([]);
     });
 
@@ -160,7 +161,7 @@ describe("drugs page URL: invalid values are dropped silently @area:catalog", ()
             categories.open();
             expect(await loaded(1)).toBeInTheDocument();
             expect(listQueries(recorded).filter(q => q.get("categoryId") !== null)).toEqual([]);
-            await waitFor(() => expect(location().search).toBe(""));
+            await waitFor(() => expect(location().search).toBe("?view=list"));
         });
 });
 
@@ -213,7 +214,7 @@ describe("drugs page: the empty states @area:catalog", () => {
             expect(screen.queryByText("لا توجد أدوية بعد")).not.toBeInTheDocument();
         });
 
-    test("«مسح الفلاتر» goes back to the defaults: «الكل», every category, the URL empty, the list back @CAT-142", async () => {
+    test("«مسح الفلاتر» goes back to the defaults: «الكل», every category, the URL holding only the view, the list back @CAT-142 @CAT-134", async () => {
         const recorded = recordRequests();
         const {user, location} = await renderDrugsPage([SHARED_EYE(), aDrug({name: "Acnelyse", category: SKIN, subCategory: ACNE})],
             {route: "/drugs?source=own&categoryId=17&subCategoryId=138"});
@@ -224,7 +225,8 @@ describe("drugs page: the empty states @area:catalog", () => {
         expect(categoryFilter()).toHaveTextContent("كل التصنيفات");
         expect(subCategoryFilter()).toHaveAttribute("aria-disabled", "true");
         expect(screen.getByRole("searchbox")).toHaveValue("");
-        await waitFor(() => expect(location().search).toBe(""));
+        // The view stays the list
+        await waitFor(() => expect(location().search).toBe("?view=list"));
         const sent = lastListQuery(recorded);
         expect([sent.get("source"), sent.get("categoryId"), sent.get("subCategoryId"), sent.get("search") ?? ""]).toEqual([null, null, null, ""]);
     });
@@ -271,7 +273,7 @@ describe("drugs page URL: a page past the end @area:catalog", () => {
     test("an empty list asked at page 5: page 1 with the empty state, the page dropped from the URL @CAT-143", async () => {
         const {location} = await renderDrugsPage([SHARED_EYE()], {route: "/drugs?source=own&page=5"});
         expect(await screen.findByText("لا توجد أدوية خاصة بالعيادة بعد.")).toBeInTheDocument();
-        await waitFor(() => expect(location().search).toBe("?source=own"));
+        await waitFor(() => expect(location().search).toBe("?source=own&view=list"));
     });
 });
 
@@ -368,7 +370,7 @@ describe("drugs page: the subcategory select follows the category @area:catalog"
             expect(subCategoryFilter()).toHaveTextContent("كل التصنيفات الفرعية");
             const sent = lastListQuery(recorded);
             expect([sent.get("categoryId"), sent.get("subCategoryId"), sent.get("page")]).toEqual(["5", null, "1"]);
-            await waitFor(() => expect(location().search).toBe("?categoryId=5"));
+            await waitFor(() => expect(location().search).toBe("?categoryId=5&view=list"));
         });
 
     test("«كل التصنيفات» again: the subcategory select is disabled again @CAT-133", async () => {
@@ -381,11 +383,13 @@ describe("drugs page: the subcategory select follows the category @area:catalog"
 });
 
 describe("drugs page: a row of each source @area:catalog", () => {
-    test("«المشتركة» lists only rows with «مشترك»; the row's category reads «العيون › المياه الزرقاء» @CAT-132", async () => {
+    test("«المشتركة» lists only rows without «خاص بالعيادة» (and no «مشترك» chip); the row's category reads «العيون › المياه الزرقاء» @CAT-132 @CAT-278", async () => {
         await renderDrugsPage([OWN_EYE(), SHARED_EYE()], {route: "/drugs?source=shared"});
         expect(await loaded(1)).toBeInTheDocument();
         const row = await rowOf("VIGAMOX 0.5% EYE DROPS 5 ML");
-        expect(within(row).getByText("مشترك")).toBeInTheDocument();
+        expect(within(row).queryByText("خاص بالعيادة")).not.toBeInTheDocument();
+        expect(within(row).queryByText("مشترك")).not.toBeInTheDocument();
+        expect(screen.queryByText("خاص بالعيادة")).not.toBeInTheDocument();
         expect(within(row).getByText("العيون › المياه الزرقاء")).toBeInTheDocument();
         expect(screen.queryByText("Tobradex")).not.toBeInTheDocument();
     });

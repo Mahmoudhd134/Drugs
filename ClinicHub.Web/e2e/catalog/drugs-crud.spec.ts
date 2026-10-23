@@ -46,7 +46,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
     test("«إضافة دواء», a name, a category, Save: the toast «تمت إضافة الدواء», the dialog closes and the drug is found by search @DRUG-061 @smoke",
         async ({page, t, lang, data, healthy}) => {
             const clinic = await data.clinic();
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             const name = `New drug ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).click();
             const form = dialog(page, t.newDrug);
@@ -72,7 +72,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             const drug = await ownDrugIn(data, clinic, {
                 name: `Edit me ${unique()}`, description, defaultDosing: DOSINGS.dropRight4x7d, activeIngredients: "TOBRAMYCIN",
             });
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             for (const how of ["row", "edit button"] as const) {
                 const row = drugRow(page, drug.name);
@@ -101,7 +101,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Old name ${unique()}`);
             const renamed = `New name ${unique()}`;
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await drugRow(page, drug.name).getByRole("cell").first().click();
             const form = dialog(page, t.editDrug);
             await form.getByRole("textbox", {name: t.drugName}).fill(renamed);
@@ -117,7 +117,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
         allowApiErrors({status: 404, method: "PUT", path: /^\/api\/v1\/drugs\/\d+$/});
         const clinic = await data.clinic();
         const drug = await createDrug(data, clinic, `Gone ${unique()}`);
-        await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+        await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
         await drugRow(page, drug.name).getByRole("cell").first().click();
         const form = dialog(page, t.editDrug);
         await form.getByRole("textbox", {name: t.drugName}).fill(`${drug.name} edited`);
@@ -135,7 +135,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
                 name: `Viewer drug ${unique()}`, description, defaultDosing: DOSINGS.dropRight4x7d, activeIngredients: "HYALURONATE",
             });
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, READ_ONLY)).id]});
-            await signIn(page, viewer.phone, "asIs", "/drugs");
+            await signIn(page, viewer.phone, "asIs", "/drugs?view=list");
             await drugRow(page, drug.name).getByRole("cell").first().click();
             const details = dialog(page, t.drugDetails);
             await expect(details).toBeVisible();
@@ -155,7 +155,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
         async ({page, t, lang, data}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Sentence ${unique()}`, {dosing: DOSINGS.dropRight4x7d});
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await expect(sentenceIn(drugRow(page, drug.name))).toHaveText(SENTENCES.dropRight4x7d);
 
             // The protocol editor's tree: a unique name matches one subcategory, which opens by itself (design M1.7 D7)
@@ -181,7 +181,7 @@ test.describe("Drugs: delete @area:catalog", () => {
             // Created B first: the names are listed by name, not by creation
             await createProtocol(data, clinic, `B protocol ${u}`, [{drug}, {drug: other}]);
             await createProtocol(data, clinic, `A protocol ${u}`, [{drug}]);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             const askDelete = async () => {
                 await drugRow(page, drug.name).getByRole("button", {name: t.delete, exact: true}).click();
@@ -242,7 +242,7 @@ test.describe("Tapering in the drug dialog @area:catalog", () => {
             const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();
             const name = `Pred taper ${unique()}`;
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await page.getByRole("button", {name: t.addDrug}).click();
             let form = dialog(page, t.newDrug);
             await form.getByRole("textbox", {name: t.drugName}).fill(name);

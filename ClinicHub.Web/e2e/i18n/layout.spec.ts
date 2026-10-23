@@ -87,7 +87,7 @@ test.describe("Direction and alignment @area:i18n", () => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: DOSINGS.twoDropsLeft.dosing});
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             const aligned = async (scope: Locator, what: string) => {
                 const sentence = scope.getByText(DOSINGS.twoDropsLeft.text, {exact: true}).filter({visible: true}).first();

@@ -30,7 +30,7 @@ import {pickCategory} from "../../../test/pages/drugDialog.ts";
 
 const openDrugs = async (drugs: Drug[], {lang = "ar", permissions}: { lang?: LanguageCode; permissions?: Permission[] } = {}) => {
     server.use(...drugsHandlers(drugs));
-    const rendered = await renderWithProviders(<DrugsPage/>, {lang, route: "/drugs", user: permissions ? {permissions} : undefined});
+    const rendered = await renderWithProviders(<DrugsPage/>, {lang, route: "/drugs?view=list", user: permissions ? {permissions} : undefined});
     if (drugs.length) await screen.findByText(drugs[0].name);
     return rendered;
 };
@@ -195,7 +195,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
                 });
             }),
         );
-        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs"});
+        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs?view=list"});
         expect(screen.getByRole("progressbar")).toBeInTheDocument();
         await screen.findByText("Tobradex");
         await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());

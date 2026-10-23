@@ -25,7 +25,7 @@ test.describe("Every page and dialog of the catalog and prescription @area:ux", 
         async ({page, t, lang, data}) => {
             test.slow();
             const tour = await tourClinic(data);
-            await signIn(page, tour.clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, tour.clinic.owner.phone, "asIs", "/drugs?view=list");
             const check = async (what: string) => {
                 await pageChecks(page, what);
                 const open = dialog(page);

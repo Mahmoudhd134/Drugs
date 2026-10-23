@@ -2,20 +2,24 @@ import type {Category, DrugSource, SubCategoryFilter} from "../types.ts";
 
 /*
  * The drugs page's state in the URL query (design M1.7 D9; CAT-134, CAT-135, CAT-143): `search`, `source`,
- * `categoryId`, `subCategoryId` (an id or "none") and `page` (1-based). Defaults are left out of the URL. Pure
- * (StrykerJS-mutated).
+ * `categoryId`, `subCategoryId` (an id or "none"), `page` (1-based) and `view` ("list"; the tree is the default, M1.7
+ * review R1). Defaults are left out of the URL. Pure (StrykerJS-mutated).
  */
+
+/** The drugs page's two views: the category tree (default) or the flat, paged list. */
+export type DrugListView = "tree" | "list";
 
 export type DrugListParams = {
     search: string;
     source: DrugSource;
     categoryId: number | null;
     subCategoryId: SubCategoryFilter | null;
-    /** 1-based */
+    /** 1-based (the list's; the tree has no page) */
     page: number;
+    view: DrugListView;
 };
 
-export const DEFAULT_DRUG_LIST_PARAMS: DrugListParams = {search: "", source: "all", categoryId: null, subCategoryId: null, page: 1};
+export const DEFAULT_DRUG_LIST_PARAMS: DrugListParams = {search: "", source: "all", categoryId: null, subCategoryId: null, page: 1, view: "tree"};
 
 const SOURCES: DrugSource[] = ["all", "shared", "own"];
 /** The largest id the API binds (an `int`): a larger one can't name a category */
@@ -38,7 +42,8 @@ const idOf = (value: string | null) => {
  * The page's state read from the URL; invalid values are dropped silently (no error, no 400): an unknown `source`
  * (another case included) → "all"; a `categoryId` that isn't a positive integer, or (once `categories` is loaded) isn't
  * one of them → none, and its subcategory with it; a `subCategoryId` without a valid category, "none" alone, not a
- * positive integer or "none", or (once loaded) not of that category → none; `page` not a positive integer → 1.
+ * positive integer or "none", or (once loaded) not of that category → none; `page` not a positive integer → 1; `view`
+ * other than "list" (another case included) → "tree".
  * While `categories` is undefined, syntactically valid ids are kept.
  */
 export const readDrugListParams = (query: URLSearchParams, categories: Category[] | undefined): DrugListParams => {
@@ -54,7 +59,8 @@ export const readDrugListParams = (query: URLSearchParams, categories: Category[
     if (categoryId === null || (typeof subCategoryId === "number" && category && !category.subCategories.some(s => s.id === subCategoryId)))
         subCategoryId = null;
 
-    return {search: query.get("search") ?? "", source, categoryId, subCategoryId, page: positiveInt(query.get("page")) ?? 1};
+    return {search: query.get("search") ?? "", source, categoryId, subCategoryId, page: positiveInt(query.get("page")) ?? 1,
+        view: query.get("view") === "list" ? "list" : "tree"};
 };
 
 /** The URL query of a state (default values left out; the search as typed, untrimmed). */
@@ -65,6 +71,7 @@ export const writeDrugListParams = (params: DrugListParams): URLSearchParams => 
     if (params.categoryId !== null) query.set("categoryId", String(params.categoryId));
     if (params.subCategoryId !== null) query.set("subCategoryId", String(params.subCategoryId));
     if (params.page !== 1) query.set("page", String(params.page));
+    if (params.view !== "tree") query.set("view", params.view);
     return query;
 };
 
