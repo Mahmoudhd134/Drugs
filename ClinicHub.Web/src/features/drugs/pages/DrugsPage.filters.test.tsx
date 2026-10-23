@@ -120,6 +120,24 @@ describe("drugs page URL: invalid values are dropped silently @area:catalog", ()
             expect(new URLSearchParams(location().search).get("categoryId")).toBe("17");
         });
 
+    test("/drugs?search=amox%20&page=3 opened as is: the search as typed and page 3 are kept, the URL is not rewritten on load @CAT-263", async () => {
+        const recorded = recordRequests();
+        const {location} = await renderDrugsPage([...manyDrugs(45, {}, "Amox"), ...manyDrugs(5, {}, "Other")],
+            {route: "/drugs?search=amox%20&page=3"});
+        expect(await screen.findByText("41–45 من 45")).toBeInTheDocument();
+        expect(screen.getByText("Amox 041")).toBeInTheDocument();
+        expect(screen.getByRole("searchbox")).toHaveValue("amox ");
+        // The categories loaded and the search's debounce past: still the URL as opened
+        expect(await screen.findByText(subtitle("45"))).toBeInTheDocument();
+        await pastExitTransition();
+        const query = new URLSearchParams(location().search);
+        expect([query.get("search"), query.get("page")]).toEqual(["amox ", "3"]);
+        // Every list request asked page 3 of "amox" (none of page 1)
+        const sent = listQueries(recorded);
+        expect(sent.length).toBeGreaterThan(0);
+        for (const params of sent) expect([params.get("search")?.trim(), params.get("page")]).toEqual(["amox", "3"]);
+    });
+
     test("subCategoryId=none with its category: «بدون تصنيف فرعي» is chosen and sent @CAT-135", async () => {
         const recorded = recordRequests();
         await renderDrugsPage([aDrug({name: "Eyelid wipes", subCategory: null}), OWN_EYE()], {route: "/drugs?categoryId=17&subCategoryId=none"});
