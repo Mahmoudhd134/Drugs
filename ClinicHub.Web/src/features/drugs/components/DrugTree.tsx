@@ -417,7 +417,7 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                      sx={{maxHeight, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 2}}>
                     <Box role="tree" id={treeId} aria-label={t("drugTree.label")} onKeyDown={onTreeKeyDown} onFocus={onTreeFocus}
                          onBlur={onTreeBlur}
-                         sx={{p: 0.5}}>
+                         sx={{py: 0.5, px: {xs: 0, sm: 0.5}}}>
                         {categories.map(category => (
                             <DrugTreeNode
                                 key={category.id}

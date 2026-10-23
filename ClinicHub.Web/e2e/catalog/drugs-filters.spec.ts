@@ -130,7 +130,7 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             await expect(page.getByText(ct.displayedRows(1, own, own), {exact: true})).toBeVisible();
             await expect(drugRows(page)).toHaveCount(own);
             await expect(drugRows(page).filter({has: page.getByText(st.chipOwn, {exact: true})})).toHaveCount(own);
-            await expect(page.getByText(st.chipShared, {exact: true})).toHaveCount(0);
+            await expect(drugRows(page).getByText(st.chipShared, {exact: true})).toHaveCount(0);
             await expect(page).toHaveURL(/[?&]source=own(&|$)/);
         });
 

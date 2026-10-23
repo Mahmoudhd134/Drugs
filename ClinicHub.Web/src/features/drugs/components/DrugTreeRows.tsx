@@ -179,7 +179,7 @@ export const DrugTreeDrug = ({id, drug, added, mode, actions, nav, onPick}: Drug
                  if (event.detail > 1) return;
                  onPick();
              }}>
-            <Box className="drug-tree-line" sx={{...lineSx, alignItems: "flex-start", py: 1, pl: 1, pr: 1}}>
+            <Box className="drug-tree-line" sx={{...lineSx, alignItems: "flex-start", py: 1, pl: {xs: 0.5, sm: 1}, pr: {xs: 0.5, sm: 1}}}>
                 <Box sx={{flex: 1, minWidth: 0}}>
                     {/* Isolated: a Latin name reads left to right in the Arabic UI (M1.7b D27) */}
                     <Typography sx={{fontWeight: 600, fontSize: "0.9rem", overflowWrap: "anywhere"}}><bdi>{drug.name}</bdi></Typography>
