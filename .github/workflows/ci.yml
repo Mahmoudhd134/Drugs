@@ -341,6 +341,10 @@ jobs:
         run: *postgres
       - name: Tools
         run: dotnet tool restore
+      # Restored once before Stryker: without it, Stryker's project analysis fails and it restores the projects in
+      # parallel, which can race (seen: "ClinicHub.Api.csproj simulated build failed", run 39990287959)
+      - name: Restore
+        run: dotnet restore ClinicHub.sln -nologo
       # tests/stryker-config.json with this file only, in its own project (Stryker otherwise runs the initial tests and
       # creates mutants for every project of the solution), 4 test sessions (the runner's cores); with areas, only those
       # areas' integration tests score it
