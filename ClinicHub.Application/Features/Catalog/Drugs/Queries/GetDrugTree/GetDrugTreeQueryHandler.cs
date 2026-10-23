@@ -8,8 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugTree;
 
 /// <summary>
-/// One aggregate query over <see cref="DrugQueries.ListedAsync"/> (search + source, no category filter): counts per
-/// <c>(CategoryId, SubCategoryId)</c>, joined in memory with the ≤ ~205 category and subcategory rows
+/// One aggregate query over <c>DrugQueries.ListedAsync</c> (search + source, no category filter): counts per
+/// <c>(CategoryId, SubCategoryId)</c>, joined in memory with the ≤ ~205 category and subcategory rows (loaded once, also
+/// used by the search's category-name match)
 /// (<c>CategoryIds.IsPinnedLast</c>, <c>SubCategoryIds.IsPinnedLast</c>). Going through <c>ListedAsync</c> keeps the
 /// invariant with <c>GET /drugs</c>: a bucket's count is that list's <c>totalCount</c> for the same search and source.
 /// </summary>
@@ -17,8 +18,11 @@ internal sealed class GetDrugTreeQueryHandler(IAppDbContext db) : IQueryHandler<
 {
     public async Task<Result<DrugTreeDto>> Handle(GetDrugTreeQuery query, CancellationToken cancellationToken)
     {
+        // Loaded once: their names label the tree and (with a search) match the term in ListedAsync
+        var categories = await db.Categories.AsNoTracking().ToDictionaryAsync(c => c.Id, cancellationToken);
+        var subCategories = await db.SubCategories.AsNoTracking().ToDictionaryAsync(s => s.Id, cancellationToken);
         var drugs = await DrugQueries.ListedAsync(db, new DrugListFilter(query.Search, query.Source, null, null),
-            cancellationToken);
+            new CatalogNames(categories.Values, subCategories.Values), cancellationToken);
 
         var counts = await drugs
             .GroupBy(d => new { d.CategoryId, d.SubCategoryId })
@@ -26,9 +30,6 @@ internal sealed class GetDrugTreeQueryHandler(IAppDbContext db) : IQueryHandler<
             .ToListAsync(cancellationToken);
         if (counts.Count == 0)
             return new DrugTreeDto([]);
-
-        var categories = await db.Categories.AsNoTracking().ToDictionaryAsync(c => c.Id, cancellationToken);
-        var subCategories = await db.SubCategories.AsNoTracking().ToDictionaryAsync(s => s.Id, cancellationToken);
 
         var tree = counts
             .Where(c => c.Count > 0)
