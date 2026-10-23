@@ -1,6 +1,7 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
-import {http} from "msw";
+import {http, HttpResponse} from "msw";
+import type {SaveDrug} from "../types.ts";
 import {
     aDrug,
     api,
@@ -13,7 +14,9 @@ import {
     server,
     toastTexts,
     choose,
+    fillIn,
 } from "../../../test";
+import {pickCategory} from "../../../test/pages/drugDialog.ts";
 import {
     ACNE,
     categoryFilter,
@@ -386,4 +389,40 @@ describe("drugs page: a row of each source @area:catalog", () => {
         expect(within(row).getByText("العيون › المياه الزرقاء")).toBeInTheDocument();
         expect(screen.queryByText("Tobradex")).not.toBeInTheDocument();
     });
+});
+
+describe("drugs page: an own drug saved while «المشتركة» is shown @area:catalog", () => {
+    test("«المشتركة» with a search on page 2, a new own drug saved: «أدوية العيادة», the search cleared, page 1, the new drug listed (decision C35) @CAT-137",
+        async () => {
+            const drugs = [...manyDrugs(45, {isShared: true}, "Vigamox"), OWN_EYE()];
+            server.use(http.post(api("/drugs"), async ({request}) => {
+                const body = await request.json() as SaveDrug;
+                const created = aDrug({name: body.name});
+                drugs.push(created);
+                return HttpResponse.json(created, {status: 201});
+            }));
+            const recorded = recordRequests();
+            const {user, location} = await renderDrugsPage(drugs, {route: "/drugs?source=shared&search=vigamox&page=2"});
+            expect(await loaded(45)).toBeInTheDocument();
+            expect(new URLSearchParams(location().search).get("page")).toBe("2");
+            expect(pressedSource()).toBe("shared");
+            expect(screen.getByRole("searchbox")).toHaveValue("vigamox");
+
+            await user.click(screen.getAllByRole("button", {name: "إضافة دواء"})[0]);
+            const form = await screen.findByRole("dialog");
+            await fillIn(user, within(form).getByRole("textbox", {name: "الاسم"}), "Tears New");
+            await pickCategory(user, {scope: form});
+            await user.click(within(form).getByRole("button", {name: "حفظ"}));
+            await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+            await waitFor(() => expect(pressedSource()).toBe("own"));
+            expect(await rowOf("Tears New")).toBeInTheDocument();
+            expect(screen.getByRole("searchbox")).toHaveValue("");
+            const query = new URLSearchParams(location().search);
+            expect(query.get("source")).toBe("own");
+            expect(query.get("search"), "no search in the URL").toBeNull();
+            expect(query.get("page") ?? "1", "page 1").toBe("1");
+            const last = lastListQuery(recorded);
+            expect([last.get("source"), last.get("search") ?? "", last.get("page") ?? "1"]).toEqual(["own", "", "1"]);
+        });
 });
