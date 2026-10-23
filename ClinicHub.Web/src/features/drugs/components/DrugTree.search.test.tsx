@@ -22,6 +22,7 @@ import {
     rowsAt,
     searchTree,
     sourceButton,
+    theTree,
     thinBar,
     treeSearch,
     treeTexts,
@@ -264,6 +265,45 @@ describe("drug tree: the source toggle @area:catalog", () => {
         expect(sourceButton(ar.sourceShared)).toHaveAttribute("aria-pressed", "true");
         await user.click(sourceButton(ar.sourceAll));
         await waitFor(() => expect(labelsAt(1)).toEqual(["العيون، 4"]));
+    });
+});
+
+describe("drug tree: a new tree starts at the panel's top @area:catalog", () => {
+    /** The scroll panel (contract § 3.3 item 5): the nearest element around the tree whose overflowY is auto. */
+    const scrollPanel = (): HTMLElement => {
+        for (let el: HTMLElement | null = theTree(); el; el = el.parentElement) if (getComputedStyle(el).overflowY === "auto") return el;
+        throw new Error("no scroll panel around the tree");
+    };
+    /** «العيون، 4» (all): VIGAMOX (shared), Timolol and Xalatan in «المياه الزرقاء», Tiopex in «المياه البيضاء». */
+    const mixed = () => [
+        aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"}),
+        aDrug({name: "Timolol"}),
+        aDrug({name: "Xalatan"}),
+        aDrug({name: "Tiopex", subCategory: CATARACT}),
+    ];
+
+    test("scrolled down an open subcategory, a new search: once its tree replaces the old one, the panel is at its top @CAT-264", async () => {
+        const {user} = await renderTree({drugs: mixed()});
+        await openNode(user, await findNodeRow("العيون", "ar", 4));
+        await openNode(user, nodeRow("المياه الزرقاء", "ar", 3));
+        await findDrugRow("Xalatan");
+        scrollPanel().scrollTop = 150;
+
+        await searchTree(user, "ti");
+        await waitFor(() => expect(nodeRow("العيون", "ar", 2)).toBeInTheDocument());
+        await waitFor(() => expect(scrollPanel().scrollTop).toBe(0));
+    });
+
+    test("scrolled down, the source changed: once its tree replaces the old one, the panel is at its top @CAT-264", async () => {
+        const {user} = await renderTree({drugs: mixed()});
+        await openNode(user, await findNodeRow("العيون", "ar", 4));
+        await openNode(user, nodeRow("المياه الزرقاء", "ar", 3));
+        await findDrugRow("Xalatan");
+        scrollPanel().scrollTop = 150;
+
+        await user.click(sourceButton(ar.sourceOwn));
+        await waitFor(() => expect(nodeRow("العيون", "ar", 3)).toBeInTheDocument());
+        await waitFor(() => expect(scrollPanel().scrollTop).toBe(0));
     });
 });
 
