@@ -1,4 +1,4 @@
-import {keepPreviousData, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {api} from "../../api/client.ts";
 import {type PagedResult, type QueryOptions} from "../../api/types.ts";
 import type {Category, Drug, DrugFilters, SaveDrug} from "./types.ts";
@@ -44,15 +44,22 @@ export const useDrugCategories = ({enabled = true, refetchOnMount}: QueryOptions
 export const fetchDrugProtocolNames = async (id: number) =>
     (await api.get<string[]>(`/drugs/${id}/protocols`)).data;
 
-/** One page of drugs, for tables (own first, then shared: design M1.7 D7). */
+/**
+ * One page of drugs, for tables (own first, then shared: design M1.7 D7). The previous page stays as placeholder while
+ * the next loads, only while its query is still cached: after a context switch clears the cache, the other clinic's
+ * rows are never shown (as `useDrugTree`, M1.7c C20).
+ */
 export const useDrugs = (search: string, page: number, pageSize: number, {enabled = true}: QueryOptions = {},
-                         filters: DrugFilters = {}) =>
-    useQuery({
+                         filters: DrugFilters = {}) => {
+    const queryClient = useQueryClient();
+    return useQuery({
         queryKey: drugKeys.list(search, page, pageSize, filters),
         queryFn: () => fetchDrugs(search, page, pageSize, filters),
-        placeholderData: keepPreviousData,
+        placeholderData: (previous, previousQuery) =>
+            previousQuery && Object.is(queryClient.getQueryCache().get(previousQuery.queryHash), previousQuery) ? previous : undefined,
         enabled,
     });
+};
 
 export const useSaveDrug = () => {
     const queryClient = useQueryClient();
