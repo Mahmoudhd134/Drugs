@@ -76,8 +76,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [RX](#rx--prescription-builder) | 40 | 46 | 24 | 110 | 38 | 0 | 25 | 50 | 3 |
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
-| [CAT](#cat--shared-catalog-and-categories) | 72 | 101 | 64 | 237 | 12 | 132 | 48 | 54 | 2 |
-| **All** | **434** | **637** | **393** | **1464** | **208** | **675** | **354** | **301** | **10** |
+| [CAT](#cat--shared-catalog-and-categories) | 72 | 103 | 66 | 241 | 12 | 132 | 52 | 55 | 2 |
+| **All** | **434** | **639** | **395** | **1468** | **208** | **675** | **358** | **302** | **10** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2202,9 +2202,18 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| CAT-233 | 👁 Given the Arabic UI and the drugs «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» (shared) and «قطرة مرطبة 10 مل.» (own, typed in Arabic), then every place showing a drug name isolates it with its own direction (`<bdi>` or `dir="auto"` around exactly the name): the clinic drugs page rows, the drug picker (protocol editor, prescription drugs tab), the prescription lines, the protocol cards (prescription protocol picker, protocols list; each name on its own, not one joined text) and the admin shared drugs list, so the Latin name keeps its left-to-right order (not «.20 F.C.TABS (ONE TWO THREE) 3 2 1») and the Arabic one stays right to left | P1 | ui | [decisions D27](../design/m1.7b-decisions-pending-user.md), «يظهر الدواء المشترك باسمه الإنجليزي الكامل كما في المصدر» (T5 acceptance A1) |
+| CAT-233 | 👁 Given the Arabic UI and the drugs «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» (shared) and «قطرة مرطبة 10 مل.» (own, typed in Arabic), then every place showing a drug name isolates it with its own direction (`<bdi>` or `dir="auto"` around exactly the name): the clinic drugs page rows, the drug tree's rows (protocol editor, prescription drugs tab; M1.7c), the prescription lines, the protocol cards (prescription protocol picker, protocols list; each name on its own, not one joined text) and the admin shared drugs list, so the Latin name keeps its left-to-right order (not «.20 F.C.TABS (ONE TWO THREE) 3 2 1») and the Arabic one stays right to left | P1 | ui | [decisions D27](../design/m1.7b-decisions-pending-user.md), «يظهر الدواء المشترك باسمه الإنجليزي الكامل كما في المصدر» (T5 acceptance A1) |
 | CAT-234 | Given those two drugs on a prescription, when it is copied (`htmlForPaste(linesToHtml(…))`), then inside the right-to-left paragraphs each name's `<strong>` has an explicit direction from the name's first strong character (Word ignores `dir="auto"` and `<bdi>`): `<strong dir="ltr">` for the Latin name, `<strong dir="rtl">` for the Arabic one, `ltr` for a name without letters, so Word keeps the Latin name's order | P1 | unit | [decisions D27](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A1) |
-| CAT-235 | Given the drug search (clinic drugs page, protocol editor picker, prescription drugs tab), then its placeholder names what it matches: «ابحث بالاسم أو المادة الفعالة أو التصنيف…» / "Search by name, active ingredient or category…" (never the hidden Arabic name, Q7) | P2 | ui | [decisions D29](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A3) |
+| CAT-235 | Given the drug search (clinic drugs page, protocol editor and prescription drugs tab: the drug tree's search, M1.7c), then its placeholder names what it matches: «ابحث بالاسم أو المادة الفعالة أو التصنيف…» / "Search by name, active ingredient or category…" (never the hidden Arabic name, Q7) | P2 | ui | [decisions D29](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A3) |
 | CAT-236 | Given `/admin/drugs` and `/admin/categories`, then each row button's accessible name ends with its row's name in quotes («تعديل «الاسم»» / "Edit “name”"): a shared drug's edit and «تعطيل» / «تفعيل», a category's and a subcategory's rename and delete (a blocked delete too), in Arabic and English, so no two rows share a button name | P2 | ui | [decisions D30](../design/m1.7b-decisions-pending-user.md) (T5 acceptance A4) |
 | CAT-237 | Given `/admin/drugs` at 800 × 900 (sidebar shown), Arabic and English, then the search's placeholder «ابحث في الكتالوج المشترك…» / "Search the shared catalog…" is shown whole (its text fits the field) and the page has no cut text | P2 | e2e | T5 acceptance A5 |
+
+### T3 review (M1.7c)
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| CAT-260 | Given an open subcategory of the drug tree with more pages, when «تحميل المزيد» is pressed (a click, or Enter after Tab), then once the page loads the focus is on its first new drug; when a failed page's «إعادة المحاولة» is pressed, the focus goes back into that subcategory (its last loaded drug, or its row when none is loaded); the focus is never lost to `<body>` | P1 | ui | [contract M1.7c § 3.3](../design/m1.7c-contract.md) "Keyboard" (never to `<body>`, CAT-104), T3 R3-1 |
+| CAT-261 | Given ↓ on a bucket's last loaded drug started its next page, when before it arrives the user presses another key, changes the search, or the page fails (and is retried), then that page's first new drug never takes the focus later (it stays where the user put it) | P1 | ui | [contract M1.7c § 3.3](../design/m1.7c-contract.md) "Keyboard", T3 R3-4 / R1-1 |
+| CAT-262 | 👁 Given drug rows in the tree whose active ingredients are Latin («TIMOLOL 0.5%.») or typed in Arabic («كلوريد الصوديوم 0.9٪.»), Arabic and English, then each keeps its own direction (`<bdi>` or `dir="auto"` around exactly the text) and starts at the interface's start side (the right in Arabic, the left in English) | P2 | ui+e2e | [decisions M1.7b D27](../design/m1.7b-decisions-pending-user.md), T3 R3-3 |
+| CAT-263 | Given the URL `/drugs?search=amox%20&page=3` opened as is, then the search box shows «amox » as typed, page 3 of its results shows and the URL is not rewritten on load (no page 1, no trimmed search) | P2 | ui | [contract M1.7c § 3.4](../design/m1.7c-contract.md) (URL, C2; only invalid values are dropped), T3 R1-2 |
 

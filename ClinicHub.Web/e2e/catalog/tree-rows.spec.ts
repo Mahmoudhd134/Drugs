@@ -8,7 +8,7 @@ import {SENTENCES} from "../support/texts-catalog.ts";
 import {RX_TEXTS} from "../support/texts-rx.ts";
 import type {Lang} from "../support/texts.ts";
 import {bucketPage, categoryIds, categoryName} from "../support/tree.ts";
-import {expectNoCutOrOverlap} from "../support/ux.ts";
+import {expectNoCutOrOverlap, textRect} from "../support/ux.ts";
 
 /*
  * The drug tree's rows and keys (design M1.7 D9; contract M1.7c § 3.3 and decision C3): what a drug row shows, a double
@@ -61,10 +61,14 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             await expect(rich).not.toContainText(`وصف لا يظهر ${u}`);
             const shown = rich.getByText(ingredients, {exact: true});
             await expect(shown).toBeVisible();
-            const layout = await shown.evaluate(el => ({
-                cut: el.scrollWidth > el.clientWidth, noWrap: getComputedStyle(el).whiteSpace === "nowrap",
-                height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) || 20,
-            }));
+            // Measured on the ingredients' line (the block around a `<bdi>` isolating them, CAT-262)
+            const layout = await shown.evaluate(found => {
+                const el = found.tagName === "BDI" ? found.parentElement! : found;
+                return {
+                    cut: el.scrollWidth > el.clientWidth, noWrap: getComputedStyle(el).whiteSpace === "nowrap",
+                    height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) || 20,
+                };
+            });
             if ((page.viewportSize()?.width ?? 1280) >= 600) {
                 // From `sm`: one line with an ellipsis, the full text in a tooltip
                 expect(layout.noWrap && layout.cut, "the ingredients on one cut line").toBe(true);
@@ -93,6 +97,39 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             if (alemox.activeIngredients) await expect(shared).toContainText(alemox.activeIngredients);
             await expect(shared).not.toContainText("أليموكس");
             await expect(sentenceIn(shared)).toHaveCount(0);
+        });
+
+    test("Latin and Arabic active ingredients each keep their own direction and start at the interface's start (the right in Arabic, the left in English) @CAT-262",
+        async ({page, lang, data}) => {
+            const u = unique();
+            const clinic = await data.clinic();
+            const latin = `TIMOLOL 0.5% ${u}.`;
+            const arabic = `كلوريد الصوديوم 0.9٪ ${u}.`;
+            const timolol = await ownDrugIn(data, clinic, {name: `Latin ${u}`, activeIngredients: latin});
+            const saline = await ownDrugIn(data, clinic, {name: `Arabic ${u}`, activeIngredients: arabic});
+            const rx = await openDrugsTab(page, lang, clinic.owner.phone);
+            // Both in «العيون › المياه الزرقاء»: the one subcategory opens by itself
+            await rx.tree.search(u);
+            for (const [drug, text] of [[timolol, latin], [saline, arabic]] as const) {
+                const row = rx.drug(drug.name);
+                await expect(row.getByText(text, {exact: true})).toBeVisible();
+                // The line holding the text (the block around it, past any inline <bdi>) and where the text itself sits
+                const line = await row.getByText(text, {exact: true}).evaluate(found => {
+                    let el: HTMLElement = found as HTMLElement;
+                    while (getComputedStyle(el).display.startsWith("inline")) el = el.parentElement!;
+                    const box = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return {
+                        left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight),
+                        isolated: !!found.closest("bdi") || found.closest("[dir]")?.getAttribute("dir") === "auto",
+                    };
+                });
+                const shown = await textRect(row, text);
+                expect(line.isolated, `${text}: in a <bdi> or dir="auto"`).toBe(true);
+                expect(shown.width, `${text}: shorter than its line`).toBeLessThan(line.right - line.left - 20);
+                if (lang === "ar") expect(Math.abs(line.right - shown.right), `${text}: starts at the right`).toBeLessThanOrEqual(2);
+                else expect(Math.abs(shown.left - line.left), `${text}: starts at the left`).toBeLessThanOrEqual(2);
+            }
         });
 
     test("at 375 px a long drug name wraps inside the tree's panel, never past it @CAT-112", async ({page, lang, data}) => {
