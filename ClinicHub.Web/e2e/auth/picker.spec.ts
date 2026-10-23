@@ -178,7 +178,7 @@ test.describe("Clinic picker @area:auth", () => {
 
     test("removed from a clinic, then added again: it shows again in «تبديل العيادة» and they enter it @ADM-270", async ({page, t, data, allowApiErrors}) => {
         // Removed from the clinic while in it: its next request is refused (the test's setup)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
