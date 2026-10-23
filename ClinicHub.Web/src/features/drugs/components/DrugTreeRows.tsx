@@ -134,14 +134,20 @@ export const DrugTreeDrug = ({id, drug, added, nav, onPick}: DrugProps) => {
                             <Typography
                                 variant="body2"
                                 color="text.secondary"
+                                // The line takes its own text's direction: its beginning stays visible and the ellipsis
+                                // sits at its end, a Latin line in the Arabic UI too (M1.7c C34)
+                                dir="auto"
                                 sx={{
                                     overflowWrap: "anywhere",
                                     whiteSpace: {xs: "normal", sm: "nowrap"},
                                     overflow: {sm: "hidden"},
                                     textOverflow: {sm: "ellipsis"},
+                                    // A line that fits starts at the interface's start side: `left` is flipped to
+                                    // `right` in Arabic by the RTL style cache (a line too long is start-aligned in its
+                                    // own direction by CSS, so its beginning shows)
+                                    textAlign: "left",
                                 }}
                             >
-                                {/* Aligned with the interface, the text in its own direction (M1.7b D27) */}
                                 <bdi>{drug.activeIngredients}</bdi>
                             </Typography>
                         </TapTooltip>
