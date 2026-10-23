@@ -1,4 +1,4 @@
-import type {ReactNode} from "react";
+import type {MouseEvent, ReactNode} from "react";
 import {Box, Chip, IconButton, Stack, Tooltip, Typography} from "@mui/material";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -34,6 +34,12 @@ const lineSx = {
     "&:hover": {bgcolor: "action.hover"},
 } as const;
 
+/** A click that comes from inside the row's `role="group"` (its nested rows and their buttons). */
+const isFromChildren = (event: MouseEvent<HTMLElement>) => {
+    const group = (event.target as HTMLElement).closest('[role="group"]');
+    return group !== null && event.currentTarget.contains(group);
+};
+
 const treeItemProps = (id: string, nav: TreeNav) => ({
     role: "treeitem",
     "data-row-id": id,
@@ -62,16 +68,22 @@ export const DrugTreeNode = ({id, level, name, count, expanded, nav, onToggle, c
     const toggleLabel = t(expanded ? "drugTree.close" : "drugTree.open", {name});
     return (
         <Box {...treeItemProps(id, nav)} aria-level={level} aria-expanded={expanded}
-             aria-label={t("drugTree.nodeLabel", {name, count})} sx={itemSx}>
+             aria-label={t("drugTree.nodeLabel", {name, count})} sx={itemSx}
+             onClick={(event) => {
+                 // A click in its children (a nested row, «تحميل المزيد», a retry) is theirs, not this row's
+                 if (isFromChildren(event)) return;
+                 // A double click opens once (its second click has detail 2)
+                 if (event.detail > 1) return;
+                 event.currentTarget.focus();
+                 onToggle();
+             }}>
             <Box
                 className="drug-tree-line"
-                onClick={(event) => {
-                    // A double click opens once (its second click has detail 2)
-                    if (event.detail > 1) return;
-                    (event.currentTarget.parentElement as HTMLElement).focus();
-                    onToggle();
+                sx={{
+                    ...lineSx, alignItems: "center", flexWrap: "wrap", columnGap: 0.5, py: 0.5, pl: level === 1 ? 0.5 : 3,
+                    // A touch target on a phone
+                    minHeight: {xs: 44, sm: 0},
                 }}
-                sx={{...lineSx, alignItems: "center", flexWrap: "wrap", columnGap: 0.5, py: 0.5, pl: level === 1 ? 0.5 : 3}}
             >
                 <Tooltip title={toggleLabel}>
                     {/* Not a Tab stop and doesn't take the focus: the row does */}
@@ -105,37 +117,32 @@ type DrugProps = {
  */
 export const DrugTreeDrug = ({id, drug, added, nav, onPick}: DrugProps) => {
     const {t} = useTranslation();
-    const {dir} = useLanguage();
     return (
-        <Box {...treeItemProps(id, nav)} aria-level={3} aria-label={drug.name} sx={itemSx}>
-            <Box
-                className="drug-tree-line"
-                onClick={(event) => {
-                    // A double click adds once
-                    if (event.detail > 1) return;
-                    onPick();
-                }}
-                sx={{...lineSx, alignItems: "flex-start", py: 1, pl: 7}}
-            >
+        <Box {...treeItemProps(id, nav)} aria-level={3} aria-label={drug.name} sx={itemSx}
+             onClick={(event) => {
+                 // A double click adds once
+                 if (event.detail > 1) return;
+                 onPick();
+             }}>
+            <Box className="drug-tree-line" sx={{...lineSx, alignItems: "flex-start", py: 1, pl: 7}}>
                 <Box sx={{flex: 1, minWidth: 0}}>
-                    <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{drug.name}</Typography>
+                    {/* Isolated: a Latin name reads left to right in the Arabic UI (M1.7b D27) */}
+                    <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{drug.name}</bdi></Typography>
                     {drug.activeIngredients && (
                         // The tap is the row's own action (adds the drug); on a phone the text wraps instead
                         <TapTooltip title={drug.activeIngredients} tap={false}>
                             <Typography
                                 variant="body2"
                                 color="text.secondary"
-                                dir="auto"
                                 sx={{
-                                    // Aligned with the interface (logical values of this element's own direction, as DosingText)
-                                    textAlign: dir === "rtl" ? "end" : "start",
                                     overflowWrap: "anywhere",
                                     whiteSpace: {xs: "normal", sm: "nowrap"},
                                     overflow: {sm: "hidden"},
                                     textOverflow: {sm: "ellipsis"},
                                 }}
                             >
-                                {drug.activeIngredients}
+                                {/* Aligned with the interface, the text in its own direction (M1.7b D27) */}
+                                <bdi>{drug.activeIngredients}</bdi>
                             </Typography>
                         </TapTooltip>
                     )}
