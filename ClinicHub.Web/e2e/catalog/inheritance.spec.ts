@@ -13,6 +13,7 @@ import {
     protocolCard,
     option,
     sentenceIn,
+    showDrugsList,
 } from "../support/catalog.ts";
 import {RxPage} from "../support/rx.ts";
 import {CATALOG_TEXTS, type CatalogTexts, SENTENCES} from "../support/texts-catalog.ts";
@@ -65,7 +66,7 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             ]);
 
             // The drugs page: the drops' duration 7 → 14 days; the tablets' 2 → 3 times a day for 2 weeks
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await editDrug(page, t, drops.name, form => fillNumber(form, ct.duration, 14));
             await editDrug(page, t, tablets.name, async form => {
                 await fillNumber(form, ct.timesPerDay, 3);
@@ -109,6 +110,7 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             await expect(sentenceIn(rx.drug(drug.name))).toHaveText(SENTENCES.drop4x);
 
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, ct);
             await editDrug(page, t, drug.name, async form => {
                 await form.getByRole("textbox", {name: t.drugName}).fill(renamed);
                 await fillNumber(form, ct.timesPerDay, 3);
@@ -152,6 +154,7 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             }
 
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, ct);
             await editDrug(page, t, drug.name, async form => {
                 await form.getByRole("textbox", {name: t.drugName}).fill(renamed);
                 await fillNumber(form, ct.timesPerDay, 3);

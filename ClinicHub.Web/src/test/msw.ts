@@ -141,7 +141,8 @@ export const treeOf = (drugs: Drug[], search = "", source = "all"): DrugTreeData
  */
 export const drugTreeHandler = (given: Array<Drug | ProtocolDrug>,
                                 {delayMs}: { delayMs?: number | ((search: string) => number) } = {}) => {
-    const drugs = given.map(d => ("category" in d ? d : asDrug(d)));
+    // Read at each request (as drugsHandlers): a drug a test adds or deletes shows in the next tree
+    const drugs = () => given.map(d => ("category" in d ? d : asDrug(d)));
     return http.get(api("/drugs/tree"), async ({request}) => {
         const params = new URL(request.url).searchParams;
         const search = params.get("search") ?? "";
@@ -149,7 +150,7 @@ export const drugTreeHandler = (given: Array<Drug | ProtocolDrug>,
         const wait = typeof delayMs === "function" ? delayMs(search) : delayMs;
         if (wait) await delay(wait);
         if (!["all", "shared", "own"].includes(source)) return problem(400, "invalidRequest");
-        return json(treeOf(drugs, search, source));
+        return json(treeOf(drugs(), search, source));
     });
 };
 

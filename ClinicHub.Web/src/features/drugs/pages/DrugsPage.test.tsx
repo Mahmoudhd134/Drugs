@@ -26,7 +26,8 @@ const manyDrugs = (count: number) => Array.from({length: count}, (_, i) => aDrug
 
 const openPage = async (drugs: Drug[], lang: "ar" | "en" = "ar") => {
     server.use(...drugsHandlers(drugs));
-    const rendered = await renderWithProviders(<DrugsPage/>, {lang});
+    // The table: the list view (the tree is the default, M1.7 review R1)
+    const rendered = await renderWithProviders(<DrugsPage/>, {lang, route: "/drugs?view=list"});
     return rendered;
 };
 
@@ -65,13 +66,15 @@ describe("drugs page: the list @area:catalog", () => {
         expect(getComputedStyle(text).getPropertyValue("-webkit-line-clamp")).toBe("2");
     });
 
-    test("in Arabic a shared row shows «العيون › المياه الزرقاء» and «مشترك», its English name only, and its description @DRUG-056", async () => {
+    test("in Arabic a shared row shows «العيون › المياه الزرقاء», no chip (no «مشترك», no «خاص بالعيادة»), its English name only, and its description @DRUG-056 @CAT-278", async () => {
         await openPage([aDrug({
             name: "VIGAMOX 0.5% EYE DROPS 5 ML", isShared: true, activeIngredients: "MOXIFLOXACIN", description: "Antibiotic eye drops",
         })]);
         const row = await rowOf("VIGAMOX 0.5% EYE DROPS 5 ML");
         expect(within(row).getByText("العيون › المياه الزرقاء")).toBeInTheDocument();
-        expect(within(row).getByText("مشترك", {exact: true})).toBeInTheDocument();
+        // M1.7 review R2: a shared row has no chip
+        expect(within(row).queryByText("مشترك")).not.toBeInTheDocument();
+        expect(within(row).queryByText("خاص بالعيادة")).not.toBeInTheDocument();
         expect(within(row).getByText("Antibiotic eye drops")).toBeInTheDocument();
         expect(within(row).queryByText("Eye › Glaucoma")).not.toBeInTheDocument();
     });
@@ -89,7 +92,7 @@ describe("drugs page: the list @area:catalog", () => {
             drugCategoriesHandler(),
             http.get(api("/drugs"), () => (fail ? problem(500, "unexpected") : HttpResponse.json({items: [aDrug({name: "Vigamox"})], totalCount: 1, page: 1, pageSize: 20}))),
         );
-        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar"});
+        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs?view=list"});
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent("تعذّر تحميل البيانات.");
         fail = false;
@@ -100,7 +103,7 @@ describe("drugs page: the list @area:catalog", () => {
 
     test("in English the load error reads \"Couldn't load data.\" with \"Retry\" @DRUG-057", async () => {
         server.use(drugCategoriesHandler(), http.get(api("/drugs"), () => networkError()));
-        await renderWithProviders(<DrugsPage/>, {lang: "en"});
+        await renderWithProviders(<DrugsPage/>, {lang: "en", route: "/drugs?view=list"});
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent("Couldn't load data.");
         expect(within(alert).getByRole("button", {name: "Retry"})).toBeInTheDocument();

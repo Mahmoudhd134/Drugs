@@ -120,7 +120,7 @@ test.describe("Content in both languages @area:i18n", () => {
                 await test.step(`UI ${ui}`, async () => {
                     if (ui !== lang) await chooseLanguage(page, ui);
                     const {t} = textsOf(ui);
-                    await open(page, "/drugs");
+                    await open(page, "/drugs?view=list");
                     for (const drug of [tour.latin, tour.arabic]) {
                         await expectShown(drugRow(page, drug.name), drug.name, "drugs table");
                         await expectShown(drugRow(page, drug.name), drug.description!, "drugs table");
@@ -150,7 +150,7 @@ test.describe("Content in both languages @area:i18n", () => {
             test.skip(testInfo.project.name === "ar-desktop", "the English UI (en-desktop, and the phone switched to English)");
             const tour = await tourClinic(data);
             await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-            await signIn(page, tour.clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, tour.clinic.owner.phone, "asIs", "/drugs?view=list");
             await setLanguage(page, "en");
             const {t, u} = textsOf("en");
 
@@ -215,7 +215,7 @@ test.describe("Content in both languages @area:i18n", () => {
             const api = await data.ownerApi(clinic);
             const total = (await api.ok<{ totalCount: number }>("GET", "/api/v1/drugs?pageSize=20")).totalCount;
             const protocols = (await api.ok<{ totalCount: number }>("GET", "/api/v1/protocols?pageSize=20")).totalCount;
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             // N is the list's totalCount from the API (the shared catalog included), grouped: never a literal (design M1.7 D12)
             expect(total, "the shared catalog is in the list").toBeGreaterThan(1000);
@@ -278,7 +278,7 @@ test.describe("Content in both languages @area:i18n", () => {
             await expectToast(page, u.alreadyAdded(name));
             await expectInOrder(toast(page, u.alreadyAdded(name)), lang === "ar" ? "موجود" : "is already", "already-added toast");
 
-            await open(page, "/drugs");
+            await open(page, "/drugs?view=list");
             await drugRow(page, drug.name).getByRole("button", {name: t.delete}).click();
             const message = dialog(page).getByText(u.deleteDrugMessage(name), {exact: true});
             await expect(message).toBeVisible();

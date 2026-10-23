@@ -27,7 +27,7 @@ import {DrugsPage} from "./DrugsPage.tsx";
 
 const openDrugs = async (drugs: Drug[], permissions?: Permission[]) => {
     server.use(...drugsHandlers(drugs));
-    const rendered = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs", user: permissions ? {permissions} : undefined});
+    const rendered = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs?view=list", user: permissions ? {permissions} : undefined});
     await screen.findByText(drugs[0].name);
     return rendered;
 };

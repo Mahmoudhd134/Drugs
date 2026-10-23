@@ -259,9 +259,15 @@ const en = {
         // A drug's place, in the UI language (the category alone when it has no subcategory)
         categoryPath: "{{category}} › {{subCategory}}",
         categoryLine: "Category: {{path}}",
+        // Own drugs only: a shared drug has no chip (M1.7 review R2)
         chip: {
-            shared: "Shared",
             own: "Clinic",
+        },
+        // The drugs page's tree / list toggle (M1.7 review R1)
+        view: {
+            label: "View",
+            tree: "Tree",
+            list: "List",
         },
         // The drugs page toggle and its empty states (M1.7c screens; texts fixed in M1.7b)
         source: {

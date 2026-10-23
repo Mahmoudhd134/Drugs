@@ -39,17 +39,19 @@ const params = (fields: Partial<DrugListParams> = {}): DrugListParams => ({...DE
 const pairs = (query: URLSearchParams) => [...query.entries()].map(([k, v]) => `${k}=${v}`).sort();
 
 describe("drugs page URL: reading the query @area:catalog", () => {
-    test("an empty query: the defaults (search empty, «الكل», no category, page 1) @CAT-134", () => {
-        expect(DEFAULT_DRUG_LIST_PARAMS).toEqual({search: "", source: "all", categoryId: null, subCategoryId: null, page: 1});
+    test("an empty query: the defaults (search empty, «الكل», no category, page 1, the tree view) @CAT-134 @CAT-270", () => {
+        expect(DEFAULT_DRUG_LIST_PARAMS).toEqual({search: "", source: "all", categoryId: null, subCategoryId: null, page: 1, view: "tree"});
         expect(read("")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
         expect(readLoading("")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
     });
 
     test("every value set and valid is read as it is (the search as typed) @CAT-134", () => {
         expect(read("search=+amox+&source=own&categoryId=17&subCategoryId=138&page=3"))
-            .toEqual({search: " amox ", source: "own", categoryId: 17, subCategoryId: 138, page: 3});
+            .toEqual({search: " amox ", source: "own", categoryId: 17, subCategoryId: 138, page: 3, view: "tree"});
+        expect(read("search=+amox+&source=own&categoryId=17&subCategoryId=138&page=3&view=list"))
+            .toEqual({search: " amox ", source: "own", categoryId: 17, subCategoryId: 138, page: 3, view: "list"});
         expect(read("source=shared&categoryId=5&subCategoryId=40"))
-            .toEqual({search: "", source: "shared", categoryId: 5, subCategoryId: 40, page: 1});
+            .toEqual({search: "", source: "shared", categoryId: 5, subCategoryId: 40, page: 1, view: "tree"});
     });
 
     test("an Arabic search is read back as typed @CAT-134", () => {
@@ -138,6 +140,18 @@ describe("drugs page URL: reading the query @area:catalog", () => {
         expect(read("source=own").search).toBe("");
     });
 
+    test("view=list: the list; no view: the tree (the default) @CAT-270 @CAT-271", () => {
+        expect(read("view=list").view).toBe("list");
+        expect(readLoading("view=list").view).toBe("list");
+        expect(read("").view).toBe("tree");
+        expect(read("source=own&categoryId=17&view=list")).toEqual(params({source: "own", categoryId: 17, view: "list"}));
+    });
+
+    test.each(["bogus", "TREE", "tree", "List", "LIST", "", " list", "list "])(
+        "view «%s» other than \"list\" → the tree, nothing else dropped @CAT-273", (value) => {
+            expect(read(`view=${encodeURIComponent(value)}&source=own&page=2`)).toEqual(params({source: "own", page: 2, view: "tree"}));
+        });
+
     test("the given query is never changed @CAT-135", () => {
         const query = new URLSearchParams("source=bogus&categoryId=99&subCategoryId=none&page=0");
         readDrugListParams(query, CATEGORIES);
@@ -150,9 +164,15 @@ describe("drugs page URL: writing the query @area:catalog", () => {
         expect(writeDrugListParams(DEFAULT_DRUG_LIST_PARAMS).toString()).toBe("");
     });
 
-    test("every value set: all five keys @CAT-134", () => {
-        expect(pairs(writeDrugListParams({search: "amox", source: "own", categoryId: 17, subCategoryId: 138, page: 3})))
-            .toEqual(["categoryId=17", "page=3", "search=amox", "source=own", "subCategoryId=138"]);
+    test("every value set: all six keys @CAT-134 @CAT-271", () => {
+        expect(pairs(writeDrugListParams({search: "amox", source: "own", categoryId: 17, subCategoryId: 138, page: 3, view: "list"})))
+            .toEqual(["categoryId=17", "page=3", "search=amox", "source=own", "subCategoryId=138", "view=list"]);
+    });
+
+    test("the view: `view=list` for the list, nothing for the tree (the default) @CAT-270 @CAT-271", () => {
+        expect(writeDrugListParams(params({view: "list"})).toString()).toBe("view=list");
+        expect(writeDrugListParams(params({view: "tree"})).toString()).toBe("");
+        expect(writeDrugListParams(params({source: "own", view: "tree"})).has("view")).toBe(false);
     });
 
     test("only the values that differ from the defaults are written @CAT-134", () => {
@@ -175,6 +195,8 @@ describe("drugs page URL: writing the query @area:catalog", () => {
         params({source: "shared", categoryId: 5, subCategoryId: 40}),
         params({categoryId: 17, subCategoryId: "none", page: 900}),
         params({search: " عين "}),
+        params({view: "list"}),
+        params({search: "amox", source: "shared", categoryId: 17, page: 2, view: "list"}),
     ])("what is written reads back the same (%o) @CAT-134", (state) => {
         expect(readDrugListParams(writeDrugListParams(state), CATEGORIES)).toEqual(state);
     });

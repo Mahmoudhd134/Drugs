@@ -6,17 +6,21 @@ import {
     bucketKey,
     type BucketKey,
     dedupeById,
+    filterTree,
+    singleDrugBuckets,
     sortTree,
     subCategoryFilterOf,
     treeKeyAction,
     type TreeRow,
+    treeSearchTerm,
     treeTotal,
     visibleRows,
 } from "./drugTreeModel.ts";
 
 // The drug tree's pure logic: docs/design/m1.7c-contract.md § 2.3 (sortTree, treeTotal, autoOpenBucket, visibleRows,
 // treeKeyAction, dedupeById, bucketKey, subCategoryFilterOf), design M1.7 D5 (order), D7 (auto-open, de-duplication),
-// D9 (keyboard), decisions C3 (keys) and C4 (the bucket last).
+// D9 (keyboard), decisions C3 (keys) and C4 (the bucket last); docs/design/m1.7-review-contract.md R1 (filterTree,
+// the drugs page's category filters) and R3 (singleDrugBuckets).
 
 const tree = (...categories: DrugTreeCategory[]): DrugTreeData => ({categories});
 const sub = (id: number, nameEn: string, nameAr: string, count = 1, pinnedLast = false): DrugTreeSubCategory =>
@@ -189,6 +193,97 @@ describe("drug tree: the bucket that opens by itself @area:catalog", () => {
 
     test("a subcategory with id 0 keeps its id in the key @CAT-099", () => {
         expect(autoOpenBucket(tree(aTreeCategory({id: 5, subCategories: [sub(0, "z", "ز")]})))).toEqual({categoryId: 5, bucket: "5:0"});
+    });
+});
+
+describe("drug tree: the branches a search opens by themselves @area:catalog", () => {
+    const one = (id: number, subId: number | null, count = 1) =>
+        aTreeCategory({id, subCategories: [subId === null ? bucket(count) : sub(subId, `s${subId}`, `ف${subId}`, count)]});
+
+    test("three categories, each with one subcategory of one drug: all three open, in the answer's order @CAT-279", () => {
+        expect(singleDrugBuckets(tree(one(1, 10), one(2, 20), one(3, 30)))).toEqual([
+            {categoryId: 1, bucket: "1:10"}, {categoryId: 2, bucket: "2:20"}, {categoryId: 3, bucket: "3:30"},
+        ]);
+    });
+
+    test("a category with one subcategory of 2 drugs, or with 2 subcategories, stays closed; the others open @CAT-279", () => {
+        const twoDrugs = one(4, 40, 2);
+        const twoSubs = aTreeCategory({id: 5, subCategories: [sub(50, "a", "أ"), sub(51, "b", "ب")]});
+        expect(singleDrugBuckets(tree(one(1, 10), twoDrugs, twoSubs, one(3, 30))))
+            .toEqual([{categoryId: 1, bucket: "1:10"}, {categoryId: 3, bucket: "3:30"}]);
+        expect(singleDrugBuckets(tree(twoDrugs, twoSubs))).toEqual([]);
+    });
+
+    test("a lone «بدون تصنيف فرعي» of one drug is that category's only subcategory: it opens too @CAT-279", () => {
+        expect(singleDrugBuckets(tree(one(7, null), one(8, 80)))).toEqual([{categoryId: 7, bucket: "7:none"}, {categoryId: 8, bucket: "8:80"}]);
+    });
+
+    test("a subcategory with id 0 keeps its id in the key @CAT-279", () => {
+        expect(singleDrugBuckets(tree(one(5, 0)))).toEqual([{categoryId: 5, bucket: "5:0"}]);
+    });
+
+    test("an empty answer, or one category of one drug (the D7 lone bucket, opened anyway): nothing more than that bucket @CAT-279 @CAT-280", () => {
+        expect(singleDrugBuckets(tree())).toEqual([]);
+        expect(singleDrugBuckets(tree(one(1, 10)))).toEqual([autoOpenBucket(tree(one(1, 10)))]);
+    });
+
+    test("the answer is left as it is @CAT-279", () => {
+        const data = tree(one(1, 10), one(2, 20, 3));
+        const before = structuredClone(data);
+        singleDrugBuckets(data);
+        expect(data).toEqual(before);
+    });
+});
+
+describe("drug tree: the search term @area:catalog", () => {
+    test("only spaces or tatweel is no search; anything else is kept as given @CAT-125", () => {
+        expect(treeSearchTerm("")).toBe("");
+        expect(treeSearchTerm("   ")).toBe("");
+        expect(treeSearchTerm("ـــ")).toBe("");
+        expect(treeSearchTerm(" ـ 	 ـ ")).toBe("");
+        expect(treeSearchTerm("amox")).toBe("amox");
+        expect(treeSearchTerm("عين")).toBe("عين");
+        expect(treeSearchTerm("ـعـ")).toBe("ـعـ");
+        expect(treeSearchTerm(" a ")).toBe(" a ");
+    });
+});
+
+describe("drug tree: the drugs page's category filters @area:catalog", () => {
+    const eye = () => aTreeCategory({id: 17, count: 6, subCategories: [sub(138, "Glaucoma", "المياه الزرقاء", 3), sub(139, "Dry eye", "جفاف العين", 2), bucket(1)]});
+    const skin = () => aTreeCategory({id: 5, count: 4, subCategories: [sub(40, "Acne", "حب الشباب", 4)]});
+
+    test("no category: the whole tree @CAT-274", () => {
+        const data = tree(eye(), skin());
+        expect(filterTree(data, null, null)).toEqual(data);
+    });
+
+    test("a category: only its node, with all its subcategories and its count @CAT-274", () => {
+        expect(filterTree(tree(eye(), skin()), 5, null)).toEqual(tree(skin()));
+        expect(filterTree(tree(eye(), skin()), 17, null)).toEqual(tree(eye()));
+    });
+
+    test("a subcategory: only it under its category, the category's count becoming the subcategory's @CAT-274", () => {
+        expect(filterTree(tree(eye(), skin()), 17, 139))
+            .toEqual(tree({...eye(), count: 2, subCategories: [sub(139, "Dry eye", "جفاف العين", 2)]}));
+    });
+
+    test("«بدون تصنيف فرعي» (\"none\"): only the bucket under its category @CAT-274", () => {
+        expect(filterTree(tree(eye(), skin()), 17, "none")).toEqual(tree({...eye(), count: 1, subCategories: [bucket(1)]}));
+    });
+
+    test("a category or subcategory with no matching drug (not in the answer): no node at all @CAT-274", () => {
+        expect(filterTree(tree(eye(), skin()), 99, null)).toEqual(tree());
+        expect(filterTree(tree(eye(), skin()), 5, 41)).toEqual(tree());
+        expect(filterTree(tree(skin()), 5, "none")).toEqual(tree());
+        expect(filterTree(tree(), 17, null)).toEqual(tree());
+    });
+
+    test("the answer is left as it is @CAT-274", () => {
+        const data = tree(eye(), skin());
+        const before = structuredClone(data);
+        filterTree(data, 17, 138);
+        filterTree(data, 5, null);
+        expect(data).toEqual(before);
     });
 });
 

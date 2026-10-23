@@ -67,7 +67,7 @@ test.describe("Permissions in the UI @area:access", () => {
     test("a read-only role on Drugs: no Add, no Actions column; a row opens the read-only details, also with Enter and Space @ACC-061",
         async ({page, t, data, healthy}) => {
             const {drug, staff} = await setUp(data, READ_ONLY);
-            await signIn(page, staff.phone, "asIs", "/drugs");
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
             const row = page.getByRole("row").filter({hasText: drug.name});
             await expect(row).toBeVisible();
             await expect(page.getByRole("button", {name: t.addDrug})).toHaveCount(0);
@@ -100,7 +100,7 @@ test.describe("Permissions in the UI @area:access", () => {
             const api = await data.ownerApi(clinic);
             const own = (await listDrugs(api, {pageSize: 20, source: "own"})).totalCount;
             const shared = (await listDrugs(api, {pageSize: 20, source: "shared"})).totalCount;
-            await signIn(page, staff.phone, "asIs", "/drugs");
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
             const sourceButton = (label: string) => page.getByRole("group", {name: ct.sourceLabel}).getByRole("button", {name: label, exact: true});
             const details = page.getByRole("dialog", {name: t.drugDetails});
             const expectReadOnly = async (rowName: string) => {
@@ -135,7 +135,7 @@ test.describe("Permissions in the UI @area:access", () => {
 
     test("an Assistant on Drugs: Add and the edit icon on own rows, no delete icon, an own row opens the editor; shared rows have no edit icon and open the read-only details @ACC-062", async ({page, t, data}) => {
         const {drug, staff} = await setUp(data, "Assistant");
-        await signIn(page, staff.phone, "asIs", "/drugs");
+        await signIn(page, staff.phone, "asIs", "/drugs?view=list");
         await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
         const row = page.getByRole("row").filter({hasText: drug.name});
         await expect(row).toBeVisible();
@@ -197,8 +197,9 @@ test.describe("Permissions in the UI @area:access", () => {
             await signIn(page, phone);
             await expectContextLabel(page, clinic.name);
 
-            const pages = role === "read-only" ? ["/protocols", `/protocols/${protocol.id}`, "/drugs"]
-                : ["/", "/protocols", "/protocols/new", `/protocols/${protocol.id}`, "/drugs"];
+            // The drugs page last, in its list view: its row opens the drug's dialog below
+            const pages = role === "read-only" ? ["/protocols", `/protocols/${protocol.id}`, "/drugs", "/drugs?view=list"]
+                : ["/", "/protocols", "/protocols/new", `/protocols/${protocol.id}`, "/drugs", "/drugs?view=list"];
             for (const path of pages) {
                 await page.goto(path);
                 await expectContextLabel(page, clinic.name);
@@ -245,7 +246,7 @@ test.describe("Permissions changed while working @area:access", () => {
             // The save refused once the role lost drugs.update: the test's subject
             allowApiErrors({status: 403, method: "PUT", path: /^\/api\/v1\/drugs\/\d+$/});
             const {clinic, drug, staff, roleId} = await setUp(data, "Assistant");
-            await signIn(page, staff.phone, "asIs", "/drugs");
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
             const row = page.getByRole("row").filter({hasText: drug.name});
             await row.getByRole("button", {name: t.edit}).click();
             const editor = page.getByRole("dialog", {name: t.editDrug});

@@ -63,7 +63,7 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
         drugTreeHandler([]),
     );
     installIntersectionObserver();
-    const app = await startApp({route: "/drugs", lang: "ar"});
+    const app = await startApp({route: "/drugs?view=list", lang: "ar"});
     await screen.findByText("A drug");
     const addDrug = async () => {
         await app.user.click(screen.getByRole("button", {name: "إضافة دواء"}));
@@ -157,7 +157,7 @@ describe("losing the clinic while working in it @area:auth", () => {
             meByContext(),
             http.get(api("/drugs"), () => problem(403, "noAccess")),
         );
-        const app = await startApp({route: "/drugs", lang});
+        const app = await startApp({route: "/drugs?view=list", lang});
         return {...app, requests};
     };
 
@@ -197,7 +197,7 @@ describe("losing the clinic while working in it @area:auth", () => {
                 ? problem(403, "noAccess")
                 : HttpResponse.json(aPage([aDrug({name: "B drug"})])))),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
 
         expect(await screen.findByText("B drug")).toBeInTheDocument();
         expect(app.path()).toBe("/drugs");
@@ -241,7 +241,7 @@ describe("isolation across a context switch @area:isolation", () => {
                 return HttpResponse.json(aPage([aDrug({name: "A secret drug"})]));
             }),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await waitFor(() => expect(aStarted).toBe(true));
 
         act(() => app.session.setSession(sessionIn(clinicB, [clinicA, clinicB])));

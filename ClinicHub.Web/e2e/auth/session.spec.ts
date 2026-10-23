@@ -1,5 +1,7 @@
 import {expect, loginViaUi, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {showDrugsList} from "../support/catalog.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {
     expectContextLabel,
     expectPicker,
@@ -27,7 +29,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
     });
 
     test("two tabs: one logs out, the other keeps working until its next refresh, which opens /login without a message @AUTH-159",
-        async ({page, t, data, newTab}) => {
+        async ({page, t, lang, data, newTab}) => {
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
             await signIn(page, clinic.owner.phone);
@@ -41,6 +43,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
 
             // Still working (its access token lives on, up to 15 min)
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, CATALOG_TEXTS[lang]);
             await expect(page.getByRole("cell", {name: drug.name})).toBeVisible();
             // Its next refresh (the page loaded again) ends there
             await page.reload();
@@ -56,7 +59,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
             allowApiErrors({status: 401, method: "GET", path: /^\/api\/v1\/drugs$/});
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await expect(page.getByRole("cell", {name: drug.name})).toBeVisible();
             const other = await newTab();
             await other.goto("/");
@@ -272,7 +275,7 @@ test.describe("Several tabs and sessions @area:auth", () => {
             await expectContextLabel(page, a.name);
 
             const other = await newTab();
-            await other.goto("/drugs");
+            await other.goto("/drugs?view=list");
             await expect(other.getByRole("cell", {name: drugA.name})).toBeVisible();
             // From the next load on: A's drug and B's name never on screen together
             await other.addInitScript(([forbidden, under]) => {
@@ -307,7 +310,7 @@ test.describe("Several tabs and sessions @area:auth", () => {
             await signIn(page, staff.phone, {clinicId: a.id});
             await expectContextLabel(page, a.name);
             const other = await newTab();
-            await other.goto("/drugs");
+            await other.goto("/drugs?view=list");
             await expect(other.getByRole("cell", {name: drugA.name})).toBeVisible();
 
             await openSwitchClinic(page, t);

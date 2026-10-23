@@ -39,7 +39,7 @@ const linesOf = async (row: import("@playwright/test").Locator) =>
     (await row.innerText()).split("\n").map(part => part.trim()).filter(Boolean);
 
 test.describe("The drug tree: rows and keys @area:catalog", () => {
-    test("a drug row: the name only, its ingredients on one line (the full text in a tooltip; none, no empty line), the «مشترك» / «خاص بالعيادة» chip, an own drug's dosing sentence, never its description or an Arabic name @CAT-112",
+    test("a drug row: the name only, its ingredients on one line (the full text in a tooltip; none, no empty line), «خاص بالعيادة» on an own drug and no «مشترك» chip on a shared one, an own drug's dosing sentence, never its description or an Arabic name @CAT-112 @CAT-278",
         async ({page, lang, data, isMobile}) => {
             const u = unique();
             const clinic = await data.clinic();
@@ -91,11 +91,11 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             await expect(plain).not.toContainText("null");
             await expect(sentenceIn(plain)).toHaveCount(0);
 
-            // A shared drug: «مشترك», its ingredients, no dosing sentence, never its hidden Arabic name («أليموكس»)
+            // A shared drug: no chip (no «مشترك», M1.7 review R2), its ingredients, no dosing sentence, never its hidden Arabic name («أليموكس»)
             await rx.tree.search(IMPORTED.alemox1g);
             const shared = rx.drug(IMPORTED.alemox1g);
             await expect(shared).toBeVisible();
-            await expect(shared.getByText(tt.chipShared, {exact: true})).toBeVisible();
+            await expect(shared.getByText(tt.chipShared, {exact: true})).toHaveCount(0);
             await expect(shared.getByText(tt.chipOwn, {exact: true})).toHaveCount(0);
             if (alemox.activeIngredients) await expect(shared).toContainText(alemox.activeIngredients);
             await expect(shared).not.toContainText("أليموكس");
@@ -203,9 +203,13 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             const clinic = await data.clinic();
             const api = await data.ownerApi(clinic);
             const other = await categoryIds(api, "Other");
-            // Two categories: «العيون» (an own drug in «المياه الزرقاء») and «أخرى» (one without a subcategory, pinned last)
+            // Two categories: «العيون» (an own drug in «المياه الزرقاء», another without a subcategory) and «أخرى» (two without a
+            // subcategory, pinned last): neither has a lone subcategory of one drug, so nothing opens by itself (R3)
+            const eyeIds = await categoryIds(api, EYE.en);
             const a = await ownDrugIn(data, clinic, {name: `Keys ${u} A`, defaultDosing: DOSINGS.dropRight4x});
+            await ownDrugIn(data, clinic, {name: `Keys ${u} A2`, categoryId: eyeIds.categoryId, subCategoryId: null});
             await ownDrugIn(data, clinic, {name: `Keys ${u} B`, categoryId: other.categoryId, subCategoryId: null});
+            await ownDrugIn(data, clinic, {name: `Keys ${u} B2`, categoryId: other.categoryId, subCategoryId: null});
             const rx = await openDrugsTab(page, lang, clinic.owner.phone);
             const tt = rx.tree.tt;
             const opening = lang === "ar" ? "ArrowLeft" : "ArrowRight";

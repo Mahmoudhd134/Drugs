@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useSearchParams} from "react-router-dom";
 import {
     Alert,
@@ -36,12 +36,16 @@ import {categoryPath} from "../categories.ts";
 import {DrugFormDialog} from "../components/DrugFormDialog.tsx";
 import {DrugListFilters} from "../components/DrugListFilters.tsx";
 import {DrugText} from "../components/DrugText.tsx";
+import {DrugTree} from "../components/DrugTree.tsx";
+import {filterTree, treeSearchTerm, treeTotal} from "../components/drugTreeModel.ts";
+import {useDrugTree} from "../treeApi.ts";
 import type {Drug, DrugFilters} from "../types.ts";
 import {
     clampPage,
     DEFAULT_DRUG_LIST_PARAMS,
     drugListEmptyState,
     type DrugListParams,
+    type DrugListView,
     readDrugListParams,
     writeDrugListParams,
 } from "./drugListParams.ts";
@@ -53,8 +57,10 @@ import {PermissionButton, PermissionIconButton} from "../../access/components/Pe
 const MAX_PAGE = 999_999;
 
 /**
- * `/drugs` (design M1.7 D9): the clinic's own drugs and the shared catalog in one table. Search, the source toggle, the
- * category and subcategory filters and the page live in the URL (`replace: true`, M1.7c C2); the page size is local.
+ * `/drugs` (design M1.7 D9): the clinic's own drugs and the shared catalog as a category tree (the default) or one paged
+ * table (M1.7 review R1). Search, the source toggle, the category and subcategory filters and the list's page live in
+ * the URL (`replace: true`, M1.7c C2), the view too (a new history entry: Back returns to the other view); the page size
+ * is local. One filter bar drives both views.
  */
 export const DrugsPage = () => {
     const {t, i18n} = useTranslation();
@@ -76,6 +82,7 @@ export const DrugsPage = () => {
     const categories = useDrugCategories({enabled: canList});
     const params = readDrugListParams(searchParams, categories.data);
     const page = params.page;
+    const isTree = params.view === "tree";
 
     /** Changes the URL's state in place (no new history entry); values that aren't valid are dropped. */
     const update = useCallback((change: (current: DrugListParams) => DrugListParams) =>
@@ -85,6 +92,9 @@ export const DrugsPage = () => {
     const setFilters = useCallback((changes: Partial<DrugListParams>) =>
         update(current => ({...current, ...changes, page: 1})), [update]);
     const setPage = useCallback((next: number) => update(current => ({...current, page: next})), [update]);
+    /** The other view: the filters are kept, the list's page goes back to 1; a new history entry (CAT-271) */
+    const setView = (view: DrugListView) =>
+        setSearchParams(prev => writeDrugListParams({...readDrugListParams(prev, categories.data), view, page: 1}));
 
     const [search, setSearch] = useState(params.search);
     const debouncedSearch = useDebouncedValue(search.trim());
@@ -120,23 +130,32 @@ export const DrugsPage = () => {
     // No request with a category id that isn't checked yet: the list waits for the categories
     const waitsForCategories = searchParams.has("categoryId") && categories.data === undefined && !categories.isError;
     const filters: DrugFilters = {source: params.source, categoryId: params.categoryId, subCategoryId: params.subCategoryId};
-    const drugs = useDrugs(params.search.trim(), Math.min(page, MAX_PAGE), pageSize, {enabled: canList && !waitsForCategories}, filters);
+    const drugs = useDrugs(params.search.trim(), Math.min(page, MAX_PAGE), pageSize,
+        {enabled: canList && !waitsForCategories && !isTree}, filters);
+    // The tree view's counts: the same query (and cache entry) as the tree's own, for the subtitle and the empty states
+    const tree = useDrugTree(treeSearchTerm(params.search.trim()), params.source, {enabled: canList && !waitsForCategories && isTree});
+    const treeData = useMemo(() => tree.data && filterTree(tree.data, params.categoryId, params.subCategoryId),
+        [tree.data, params.categoryId, params.subCategoryId]);
     const deleteDrug = useDeleteDrug();
     const {confirm, dialog: confirmDialog} = useConfirm();
 
-    const items = drugs.data?.items ?? [];
-    const totalCount = drugs.data?.totalCount ?? 0;
+    // The list's answer, never while the tree shows (a disabled query still returns its cached data)
+    const listData = isTree ? undefined : drugs.data;
+    const items = listData?.items ?? [];
+    const totalCount = listData?.totalCount ?? 0;
     const lastPage = clampPage(page, totalCount, pageSize);
+    // «إجمالي الأدوية: N» in both views: the drugs matching the filters
+    const shownTotal = isTree ? treeData && treeTotal(treeData) : listData?.totalCount;
 
     // A page past the end (an old link, or its last rows deleted or filtered away): the last page instead (CAT-143)
-    const pastTheEnd = drugs.data !== undefined && !drugs.isPlaceholderData && page > lastPage;
+    const pastTheEnd = listData !== undefined && !drugs.isPlaceholderData && page > lastPage;
     useEffect(() => {
         if (pastTheEnd) setPage(lastPage);
     }, [pastTheEnd, lastPage, setPage]);
 
     // Until the clamped page arrives, a page past the end shows no rows (an older page's, or none) and no range (CAT-143):
     // a page beyond the known total, or an empty page of a non-empty list
-    const awaitingClamp = drugs.data !== undefined && totalCount > 0 && (page > lastPage || items.length === 0);
+    const awaitingClamp = listData !== undefined && totalCount > 0 && (page > lastPage || items.length === 0);
 
     // Saving a new own drug while «المشتركة» is chosen switches to «أدوية العيادة», clears the search, page 1, so the
     // drug shows (CAT-137, M1.7c C35)
@@ -178,8 +197,25 @@ export const DrugsPage = () => {
 
     const clearFilters = () => {
         setSearch("");
-        update(() => DEFAULT_DRUG_LIST_PARAMS);
+        // The view stays
+        update(current => ({...DEFAULT_DRUG_LIST_PARAMS, view: current.view}));
     };
+
+    // A clinic can't edit or delete a shared drug: no buttons at all (design M1.7 D9); the same in both views
+    const rowActions = (drug: Drug) => !drug.isShared && <>
+        <Tooltip title={t("common.edit")}>
+            <PermissionIconButton permission={PERMISSIONS.drugs.update} size="small"
+                                  onClick={() => openEdit(drug)} aria-label={t("common.edit")}>
+                <EditIcon fontSize="small"/>
+            </PermissionIconButton>
+        </Tooltip>
+        <Tooltip title={t("common.delete")}>
+            <PermissionIconButton permission={PERMISSIONS.drugs.delete} size="small" color="error"
+                                  onClick={() => void handleDelete(drug)} aria-label={t("common.delete")}>
+                <DeleteIcon fontSize="small"/>
+            </PermissionIconButton>
+        </Tooltip>
+    </>;
 
     const addButton = (
         <PermissionButton permission={PERMISSIONS.drugs.create} variant="contained" startIcon={<AddIcon/>} onClick={openCreate}>
@@ -187,13 +223,16 @@ export const DrugsPage = () => {
         </PermissionButton>
     );
     // Only when nothing matches at all: an empty page of a non-empty list is a page past the end, being replaced
-    const emptyState = drugs.data !== undefined && totalCount === 0 ? drugListEmptyState(params) : null;
+    const nothingMatches = isTree ? treeData !== undefined && treeData.categories.length === 0 : listData !== undefined && totalCount === 0;
+    const emptyState = nothingMatches ? drugListEmptyState(params) : null;
+    const failed = isTree ? tree.isError && tree.data === undefined : drugs.isError;
+    const fetching = isTree ? tree.isFetching : drugs.isFetching;
 
     return (
         <>
             <PageHeader
                 title={t("drugs.title")}
-                subtitle={drugs.data && t("drugs.subtitle", {count: totalCount})}
+                subtitle={shownTotal !== undefined && t("drugs.subtitle", {count: shownTotal})}
                 actions={addButton}
             />
 
@@ -204,17 +243,20 @@ export const DrugsPage = () => {
                     params={params}
                     categories={categories.data}
                     onChange={setFilters}
+                    onViewChange={setView}
                 />
                 {/* Also while the typed search waits to be sent: the rows shown are not its results yet */}
                 <Box sx={{height: 4}}>
-                    {(drugs.isFetching || search.trim() !== params.search.trim()) && <LinearProgress aria-label={t("common.loading")}/>}
+                    {(fetching || search.trim() !== params.search.trim()) && <LinearProgress aria-label={t("common.loading")}/>}
                 </Box>
 
-                {drugs.isError ? (
+                {failed ? (
                     <Alert
                         severity="error"
                         sx={{m: 2}}
-                        action={<Button color="inherit" size="small" onClick={() => void drugs.refetch()}>{t("common.retry")}</Button>}
+                        action={<Button color="inherit" size="small" onClick={() => void (isTree ? tree.refetch() : drugs.refetch())}>
+                            {t("common.retry")}
+                        </Button>}
                     >
                         {t("common.loadFailed")}
                     </Alert>
@@ -235,6 +277,20 @@ export const DrugsPage = () => {
                     />
                 ) : emptyState === "noResults" ? (
                     <EmptyState compact title={t("drugs.noResults")}/>
+                ) : isTree ? (
+                    <Box sx={{px: 2, pb: 2}}>
+                        {/* The page's filters drive it: no search box or source toggle of its own; a click opens the
+                            drug as a list row does (M1.7 review R1) */}
+                        <DrugTree
+                            filters={{search: params.search, source: params.source, categoryId: params.categoryId, subCategoryId: params.subCategoryId}}
+                            rowMode="open"
+                            rowActions={showActions ? rowActions : undefined}
+                            onSelect={(drug) => {
+                                if (canOpen(drug)) openEdit(drug);
+                            }}
+                            enabled={canList && !waitsForCategories}
+                        />
+                    </Box>
                 ) : awaitingClamp ? null : (
                     <>
                         <TableContainer>
@@ -278,33 +334,16 @@ export const DrugsPage = () => {
                                                                 </Typography>
                                                             )}
                                                         </Box>
-                                                        {/* From the platform's shared catalog (read-only) or the clinic's own (design M1.7 D12) */}
-                                                        <Chip
-                                                            size="small"
-                                                            variant="outlined"
-                                                            color={drug.isShared ? "default" : "primary"}
-                                                            label={drug.isShared ? t("drugs.chip.shared") : t("drugs.chip.own")}
-                                                            sx={{flexShrink: 0, mt: 0.25}}
-                                                        />
+                                                        {/* The clinic's own drug (design M1.7 D12); a shared drug has no chip (M1.7 review R2) */}
+                                                        {!drug.isShared && (
+                                                            <Chip size="small" variant="outlined" color="primary" label={t("drugs.chip.own")}
+                                                                  sx={{flexShrink: 0, mt: 0.25}}/>
+                                                        )}
                                                     </Stack>
                                                 </TableCell>
                                                 {!phone && <TableCell sx={{overflowWrap: "anywhere"}}>{path}</TableCell>}
                                                 {showActions && <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{whiteSpace: "nowrap"}}>
-                                                    {/* A clinic can't edit or delete a shared drug: no buttons at all (design M1.7 D9) */}
-                                                    {!drug.isShared && <>
-                                                        <Tooltip title={t("common.edit")}>
-                                                            <PermissionIconButton permission={PERMISSIONS.drugs.update} size="small"
-                                                                                  onClick={() => openEdit(drug)} aria-label={t("common.edit")}>
-                                                                <EditIcon fontSize="small"/>
-                                                            </PermissionIconButton>
-                                                        </Tooltip>
-                                                        <Tooltip title={t("common.delete")}>
-                                                            <PermissionIconButton permission={PERMISSIONS.drugs.delete} size="small" color="error"
-                                                                                  onClick={() => void handleDelete(drug)} aria-label={t("common.delete")}>
-                                                                <DeleteIcon fontSize="small"/>
-                                                            </PermissionIconButton>
-                                                        </Tooltip>
-                                                    </>}
+                                                    {rowActions(drug)}
                                                 </TableCell>}
                                             </TableRow>
                                         );

@@ -230,7 +230,6 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
     {
         // M1.7 shared catalog (its business doc's «الرسائل التي تظهر للمستخدم (جديدة)»)
         name: "shared-catalog", doc: sharedCatalogDoc, entries: [
-            ["مشترك", () => t("drugs.chip.shared")],
             ["خاص بالعيادة", () => t("drugs.chip.own")],
             ["الكل", () => t("drugs.source.all")],
             ["المشتركة", () => t("drugs.source.shared")],

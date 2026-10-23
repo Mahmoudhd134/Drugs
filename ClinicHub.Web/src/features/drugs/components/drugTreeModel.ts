@@ -39,6 +39,23 @@ export const sortTree = (tree: DrugTreeData, language: string, searching: boolea
         .sort(compare);
 };
 
+/** The tree's search: only spaces or tatweel is no search (CAT-125). */
+export const treeSearchTerm = (text: string): string => (text.replace(/[\sـ]/g, "") === "" ? "" : text);
+
+/**
+ * The tree narrowed to the drugs page's category filters (M1.7 review R1; a new object, the answer is left as it is):
+ * no category → the whole tree; a category → only its node (none if it has no matching drug); a subcategory ("none" =
+ * «بدون تصنيف فرعي») → only that subcategory under it, the category's count becoming the subcategory's.
+ */
+export const filterTree = (tree: DrugTreeData, categoryId: number | null, subCategoryId: SubCategoryFilter | null): DrugTreeData => {
+    if (categoryId === null) return tree;
+    const category = tree.categories.find(c => c.id === categoryId);
+    if (!category) return {categories: []};
+    if (subCategoryId === null) return {categories: [category]};
+    const subCategory = category.subCategories.find(s => s.id === (subCategoryId === "none" ? null : subCategoryId));
+    return {categories: subCategory ? [{...category, count: subCategory.count, subCategories: [subCategory]}] : []};
+};
+
 /** «النتائج: N» above the tree: the sum of the category counts. */
 export const treeTotal = (tree: DrugTreeData): number =>
     tree.categories.reduce((sum, category) => sum + category.count, 0);
@@ -52,6 +69,16 @@ export const autoOpenBucket = (tree: DrugTreeData): { categoryId: number; bucket
         category.subCategories.map(subCategory => ({categoryId: category.id, bucket: bucketKey(category.id, subCategory.id)})));
     return buckets.length === 1 ? buckets[0] : null;
 };
+
+/**
+ * The buckets a search answer also opens by themselves (M1.7 review R3): each category whose only subcategory holds a
+ * single drug, so that drug shows without a click.
+ */
+export const singleDrugBuckets = (tree: DrugTreeData): { categoryId: number; bucket: BucketKey }[] =>
+    tree.categories.flatMap(category =>
+        category.subCategories.length === 1 && category.subCategories[0].count === 1
+            ? [{categoryId: category.id, bucket: bucketKey(category.id, category.subCategories[0].id)}]
+            : []);
 
 /** A focusable row of the tree, in display order (`visibleRows`). */
 export type TreeRow =

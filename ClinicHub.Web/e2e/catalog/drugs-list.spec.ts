@@ -17,7 +17,7 @@ test.describe("The drugs list @area:catalog", () => {
             await createDrug(data, clinic, `Zeta ${u}`);
             // The list's total: the API's answer of the same run (never a literal of the catalog, design M1.7 D12)
             const total = (await listDrugs(await data.ownerApi(clinic), {pageSize: 20})).totalCount;
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await expect(page.getByText(ct.displayedRows(1, 20, total), {exact: true})).toBeVisible();
             await healthy();
 
@@ -48,7 +48,7 @@ test.describe("The drugs list @area:catalog", () => {
             await createDrugs(data, clinic, Array.from({length: 53}, (_, i) => `Page ${u} ${String(i).padStart(2, "0")}`));
             // Own drugs + the shared catalog: the API's total of the same run (design M1.7 D12)
             const total = (await listDrugs(await data.ownerApi(clinic), {pageSize: 20})).totalCount;
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await expect(drugRows(page)).toHaveCount(20);
             await expect(page.getByText(ct.displayedRows(1, 20, total), {exact: true})).toBeVisible();
             await page.getByRole("button", {name: t.nextPage}).click();
@@ -73,7 +73,7 @@ test.describe("The drugs list @area:catalog", () => {
     test("a search without results says «لا توجد أدوية مطابقة للبحث.» @DRUG-054", async ({page, t, lang, data, healthy}) => {
         const ct = CATALOG_TEXTS[lang];
         const clinic = await data.clinic();
-        await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+        await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
         await page.getByPlaceholder(t.searchDrugs).fill(`nothing ${unique()}`);
         await expect(page.getByText(ct.drugsNoResults, {exact: true})).toBeVisible();
         await expect(drugRows(page)).toHaveCount(0);
@@ -84,7 +84,7 @@ test.describe("The drugs list @area:catalog", () => {
         async ({page, t, data, healthy}) => {
             const clinic = await data.clinic();
             for (const name of ["قرص أسبرين", "اسبرين أطفال", "أسبرين ممتد", "باراسيتامول"]) await createDrug(data, clinic, name);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await page.getByPlaceholder(t.searchDrugs).fill("اسبرين");
             // The clinic's own drugs come first (design M1.7 D7); shared drugs matching the term may follow them
             const names = drugRows(page).locator("td:first-child p:first-child");

@@ -59,7 +59,7 @@ test.describe("Long names wrap, never cut @area:ux", () => {
             for (const width of WIDTHS) {
                 await test.step(`${width} px`, async () => {
                     await atWidth(page, width);
-                    await page.goto(`/drugs?search=${encodeURIComponent(`O${u}`)}`);
+                    await page.goto(`/drugs?search=${encodeURIComponent(`O${u}`)}&view=list`);
                     await settled(page);
                     const row = drugRow(page, own.name);
                     await expect(row).toBeVisible();
@@ -95,7 +95,7 @@ test.describe("Long names wrap, never cut @area:ux", () => {
             for (const width of WIDTHS) {
                 await test.step(`${width} px details`, async () => {
                     await atWidth(other.page, width);
-                    await other.page.goto(`/drugs?search=${encodeURIComponent(`S${u}`)}`);
+                    await other.page.goto(`/drugs?search=${encodeURIComponent(`S${u}`)}&view=list`);
                     await settled(other.page);
                     await drugRow(other.page, shared.name).getByRole("cell").first().click();
                     const details = namedDialog(other.page, t.drugDetails);
@@ -155,7 +155,7 @@ test.describe("Long active ingredients @area:catalog", () => {
             const shared = await sharedDrug(admin, {name: `E2E INGREDIENTS ${u} 5 ML`, activeIngredients: ingredients});
             const clinic = await data.clinic();
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, [...READ_ONLY, "prescriptions.create"])).id]});
-            await signIn(page, viewer.phone, "asIs", "/drugs");
+            await signIn(page, viewer.phone, "asIs", "/drugs?view=list");
 
             await atWidth(page, 375);
             await search(page, page.getByPlaceholder(t.searchDrugs), shared.name);

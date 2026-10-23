@@ -3,10 +3,11 @@ import {Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup} from "@mui/ma
 import {useTranslation} from "react-i18next";
 import {SearchField} from "../../../components/common/SearchField.tsx";
 import {categoryName, sortCategories} from "../categories.ts";
-import type {DrugListParams} from "../pages/drugListParams.ts";
+import type {DrugListParams, DrugListView} from "../pages/drugListParams.ts";
 import type {Category, DrugSource, SubCategoryFilter} from "../types.ts";
 
 const SOURCES: DrugSource[] = ["all", "shared", "own"];
+const VIEWS: DrugListView[] = ["tree", "list"];
 /** The "every category / subcategory" choice of a select (MUI needs a string value) */
 const ALL = "";
 const NONE = "none";
@@ -21,14 +22,17 @@ type Props = {
     categories: Category[] | undefined;
     /** A filter changed (the page goes back to page 1) */
     onChange: (changes: Partial<Pick<DrugListParams, "source" | "categoryId" | "subCategoryId">>) => void;
+    /** «شجرة» / «قائمة» chosen (the other filters are kept) */
+    onViewChange: (view: DrugListView) => void;
 };
 
 /**
  * The drugs page's filter bar (design M1.7 D9): the search, the source toggle «الكل» / «المشتركة» / «أدوية العيادة»,
- * the category select and the subcategory select (disabled until a category is chosen; its subcategories sorted, then
- * «بدون تصنيف فرعي»). A row from `sm`; below it the filters wrap under the search, one per line.
+ * the category select, the subcategory select (disabled until a category is chosen; its subcategories sorted, then
+ * «بدون تصنيف فرعي») and the view toggle «شجرة» / «قائمة» (M1.7 review R1). A row from `sm`; below it the filters wrap
+ * under the search, one per line.
  */
-export const DrugListFilters = ({search, onSearchChange, params, categories, onChange}: Props) => {
+export const DrugListFilters = ({search, onSearchChange, params, categories, onChange, onViewChange}: Props) => {
     const {t, i18n} = useTranslation();
     const language = i18n.language;
     const sortedCategories = useMemo(() => sortCategories(categories ?? [], language), [categories, language]);
@@ -43,6 +47,7 @@ export const DrugListFilters = ({search, onSearchChange, params, categories, onC
         select: {displayEmpty: true, MenuProps: {slotProps: {paper: {sx: {maxHeight: 360, maxWidth: "calc(100vw - 32px)"}}}}},
     };
     const optionSx = {whiteSpace: "normal", overflowWrap: "anywhere"} as const;
+    const toggleSx = {"& .MuiToggleButton-root": {flex: {xs: 1, sm: "0 0 auto"}, px: 1.5, whiteSpace: "nowrap"}};
 
     return (
         <Box sx={{p: 2, display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center"}}>
@@ -60,7 +65,7 @@ export const DrugListFilters = ({search, onSearchChange, params, categories, onC
                     onChange={(_, value: DrugSource | null) => {
                         if (value !== null && value !== params.source) onChange({source: value});
                     }}
-                    sx={{"& .MuiToggleButton-root": {flex: {xs: 1, sm: "0 0 auto"}, px: 1.5, whiteSpace: "nowrap"}}}
+                    sx={toggleSx}
                 >
                     {SOURCES.map(s => <ToggleButton key={s} value={s}>{t(`drugs.source.${s}`)}</ToggleButton>)}
                 </ToggleButtonGroup>
@@ -95,6 +100,20 @@ export const DrugListFilters = ({search, onSearchChange, params, categories, onC
                     ))}
                     <MenuItem value={NONE}>{t("drugs.noSubCategory")}</MenuItem>
                 </TextField>
+                <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    color="primary"
+                    aria-label={t("drugs.view.label")}
+                    value={params.view}
+                    // Never deselected: a click on the selected button keeps it
+                    onChange={(_, value: DrugListView | null) => {
+                        if (value !== null && value !== params.view) onViewChange(value);
+                    }}
+                    sx={toggleSx}
+                >
+                    {VIEWS.map(v => <ToggleButton key={v} value={v}>{t(`drugs.view.${v}`)}</ToggleButton>)}
+                </ToggleButtonGroup>
             </Box>
         </Box>
     );

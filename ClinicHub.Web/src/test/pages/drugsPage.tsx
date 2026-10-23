@@ -4,7 +4,7 @@ import type {Category, Drug} from "../../features/drugs/types.ts";
 import {DrugsPage} from "../../features/drugs/pages/DrugsPage.tsx";
 import {aCategory, aSubCategory, EYE, GLAUCOMA, OTHER, UNCLASSIFIED} from "../data.ts";
 import {http, HttpResponse, type RequestHandler} from "msw";
-import {api, drugCategoriesHandler, drugsHandlers, type recordRequests} from "../msw.ts";
+import {api, drugCategoriesHandler, drugsHandlers, drugTreeHandler, type recordRequests} from "../msw.ts";
 import {renderWithProviders} from "../render.tsx";
 import {server} from "../server.ts";
 import {categoryField, subCategoryField} from "./drugDialog.ts";
@@ -13,14 +13,15 @@ import {categoryField, subCategoryField} from "./drugDialog.ts";
  * The drugs page with its filters (M1.7c contract § 3.4; design M1.7 D9): the source toggle (`drugs.source.label`,
  * buttons «الكل» / «المشتركة» / «أدوية العيادة»), the category select (`drugs.category`, first option
  * `drugs.allCategories`) and the subcategory select (`drugs.subCategory`, disabled until a category is chosen, first
- * option `drugs.allSubCategories`, last `drugs.noSubCategory`), all in the URL query (C2).
+ * option `drugs.allSubCategories`, last `drugs.noSubCategory`), all in the URL query (C2); the view toggle
+ * (`drugs.view.label`, «شجرة» / «قائمة», URL `view=list`; the tree is the default: docs/design/m1.7-review-contract.md R1).
  */
 
 type Lang = "ar" | "en";
 
 const TEXTS = {
-    ar: {source: "الأدوية المعروضة", all: "الكل", shared: "المشتركة", own: "أدوية العيادة"},
-    en: {source: "Drugs to show", all: "All", shared: "Shared", own: "Clinic's own"},
+    ar: {source: "الأدوية المعروضة", all: "الكل", shared: "المشتركة", own: "أدوية العيادة", view: "طريقة العرض", tree: "شجرة", list: "قائمة"},
+    en: {source: "Drugs to show", all: "All", shared: "Shared", own: "Clinic's own", view: "View", tree: "Tree", list: "List"},
 };
 
 /** «العيون» (17: «المياه الزرقاء» 138, «جفاف العين» 139), «الجلدية» (5: «حب الشباب» 40), «أخرى» (23, pinned: «غير مصنف» 182). */
@@ -34,19 +35,29 @@ export const PAGE_CATEGORIES: Category[] = [
     aCategory({...OTHER, pinnedLast: true, subCategories: [{...UNCLASSIFIED, pinnedLast: true}]}),
 ];
 
+/** `route` with `view=list` added, unless it already names a view. */
+export const inList = (route: string) => {
+    const url = new URL(route, "http://localhost");
+    if (!url.searchParams.has("view")) url.searchParams.append("view", "list");
+    return `${url.pathname}${url.search}`;
+};
+
 /**
- * Renders the drugs page at `route` (default `/drugs`) over `drugs` (`drugsHandlers`) and `categories`
- * (`GET /drug-categories`; default `PAGE_CATEGORIES`). Doesn't wait for anything.
+ * Renders the drugs page at `route` (default `/drugs`) over `drugs` (`drugTreeHandler` + `drugsHandlers`) and
+ * `categories` (`GET /drug-categories`; default `PAGE_CATEGORIES`). `view` "list" (the default here: most page tests
+ * test the table) adds `view=list` to a route without a view; "tree" opens the route as given (no `view`: the tree).
+ * Doesn't wait for anything.
  */
 export const renderDrugsPage = async (drugs: Drug[], options: {
-    lang?: Lang; route?: string; permissions?: Permission[]; categories?: Category[];
+    lang?: Lang; route?: string; view?: "tree" | "list"; permissions?: Permission[]; categories?: Category[];
     /** `GET /drug-categories` answers only once this resolves */
     categoriesHeld?: Promise<void>;
     /** Handlers of the test's own, used before the defaults (e.g. a `GET /drugs` with a huge total) */
     handlers?: RequestHandler[];
 } = {}) => {
-    const {lang = "ar", route = "/drugs", permissions, categories = PAGE_CATEGORIES, categoriesHeld, handlers = []} = options;
-    server.use(...drugsHandlers(drugs));
+    const {lang = "ar", route = "/drugs", view = "list", permissions, categories = PAGE_CATEGORIES, categoriesHeld, handlers = []} = options;
+    // The tree's handler first: drugsHandlers' `GET /drugs/:id` would answer `/drugs/tree` 404
+    server.use(drugTreeHandler(drugs), ...drugsHandlers(drugs));
     // A later `server.use` wins over drugsHandlers' default categories
     server.use(categoriesHeld
         ? http.get(api("/drug-categories"), async () => {
@@ -55,7 +66,22 @@ export const renderDrugsPage = async (drugs: Drug[], options: {
         })
         : drugCategoriesHandler(categories));
     if (handlers.length) server.use(...handlers);
-    return renderWithProviders(<DrugsPage/>, {lang, route, path: "/drugs", user: permissions ? {permissions} : undefined});
+    return renderWithProviders(<DrugsPage/>, {lang, route: view === "list" ? inList(route) : route, path: "/drugs",
+        user: permissions ? {permissions} : undefined});
+};
+
+/** The view toggle «طريقة العرض» / "View" (a group of two toggle buttons). */
+export const viewToggle = (lang: Lang = "ar") => screen.getByRole("group", {name: TEXTS[lang].view});
+
+/** One button of the view toggle: "tree" | "list". */
+export const viewButton = (view: "tree" | "list", lang: Lang = "ar") =>
+    within(viewToggle(lang)).getByRole("button", {name: TEXTS[lang][view]});
+
+/** The view whose button is pressed (fails unless exactly one is). */
+export const pressedView = (lang: Lang = "ar") => {
+    const pressed = (["tree", "list"] as const).filter(v => viewButton(v, lang).getAttribute("aria-pressed") === "true");
+    if (pressed.length !== 1) throw new Error(`Expected one pressed view button, found ${pressed.join(", ") || "none"}`);
+    return pressed[0];
 };
 
 /** The source toggle (a group of three toggle buttons). */

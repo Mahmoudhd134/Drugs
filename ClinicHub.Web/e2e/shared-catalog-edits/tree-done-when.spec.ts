@@ -81,7 +81,8 @@ test.describe("The shared catalog through the drug tree @area:catalog", () => {
             await navTo(page, t, t.navPrescription);
             await rx.openDrugsTab();
             await rx.tree.show(renamed);
-            await expect(rx.drug(renamed).getByText(tt.chipShared, {exact: true})).toBeVisible();
+            await expect(rx.drug(renamed)).toBeVisible();
+            await expect(rx.drug(renamed).getByText(tt.chipShared, {exact: true})).toHaveCount(0);
         });
 
     test("a role with protocols.list + protocols.details only: a protocol of shared, own and disabled lines opens read-only with the disabled chip and the alert, no drug tree, and no request to /drugs/tree or /drug-categories (no 403) @ACC-090",

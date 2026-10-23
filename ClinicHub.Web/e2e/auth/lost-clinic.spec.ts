@@ -3,6 +3,8 @@ import {expect, loginViaUi, signIn, test} from "../support/fixtures.ts";
 import type {Texts} from "../support/texts.ts";
 import {unique} from "../support/phones.ts";
 import {pickCategory} from "../support/shared.ts";
+import {showDrugsList} from "../support/catalog.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {expectContextLabel, expectPicker, expectToast, focusBack, navTo, pickerEntries, recordRequests, toasts} from "../support/ui.ts";
 
 /** The user does something that asks the API (opens the drugs page). */
@@ -18,7 +20,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
     test("deactivated in A with two other places: «…اختر أين تريد المتابعة.» and the picker opens @AUTH-182 @smoke",
         async ({page, t, data, healthy, allowApiErrors}) => {
             // The clinic lost: its next request is refused (the test's subject)
-            allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+            allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
             const u = unique();
             const [a, b, c] = [await data.clinic({name: `A ${u}`}), await data.clinic({name: `B ${u}`}), await data.clinic({name: `C ${u}`})];
             const inA = await data.staff(a);
@@ -39,7 +41,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("lost A with exactly one other clinic B: «…أنت الآن في «B».» and B's / opens @AUTH-183", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -58,7 +60,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("lost A with no other place: «…ولا أي عيادة أخرى.» and /login opens @AUTH-184", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await signIn(page, staff.phone);
@@ -73,7 +75,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("the clinic suspended while working in it: the lost-clinic message, never a «موقوفة» one @AUTH-185", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -92,7 +94,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("the clinic deleted while working in it: the lost-clinic message @AUTH-186", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await signIn(page, staff.phone);
@@ -107,7 +109,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("removed from the clinic while working in it: the lost-clinic message @AUTH-187", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs(\/tree)?$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const [a, b, c] = [await data.clinic({name: `A ${u}`}), await data.clinic({name: `B ${u}`}), await data.clinic({name: `C ${u}`})];
         const inA = await data.staff(a);
@@ -129,7 +131,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
             allowApiErrors({status: 403, method: "POST", path: /^\/api\/v1\/drugs$/});
             const clinic = await data.clinic();
             const staff = await data.staff(clinic, {roles: ["Doctor"]});
-            await signIn(page, staff.phone, "asIs", "/drugs");
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
             await expectContextLabel(page, clinic.name);
 
             // The dialog reads the categories when it opens: opened and filled first, so the save is the first refused request
@@ -172,7 +174,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
             expect(me.length).toBeGreaterThanOrEqual(1);
         });
 
-    test("a clinic disabled then enabled again: the staff member logs in and finds A as before @ADM-271", async ({page, t, data}) => {
+    test("a clinic disabled then enabled again: the staff member logs in and finds A as before @ADM-271", async ({page, t, lang, data}) => {
         const clinic = await data.clinic();
         const drug = await data.drug(clinic);
         const staff = await data.staff(clinic);
@@ -182,6 +184,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
         await loginViaUi(page, t, staff.phone);
         await expectContextLabel(page, clinic.name);
         await navTo(page, t, t.navDrugs);
+        await showDrugsList(page, CATALOG_TEXTS[lang]);
         await expect(page.getByRole("cell", {name: drug.name})).toBeVisible();
     });
 });

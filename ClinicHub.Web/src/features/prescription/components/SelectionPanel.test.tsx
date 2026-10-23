@@ -80,3 +80,11 @@ describe("prescription lines: each name keeps its own direction @area:i18n", () 
             expectOwnDirection(document.body, ARABIC_DRUG_NAME);
         });
 });
+
+describe("prescription lines: no «مشترك» chip @area:catalog", () => {
+    test.each([["ar", "مشترك"], ["en", "Shared"]] as const)("(%s) a shared drug's line has no «%s» chip @CAT-278", async (lang, chip) => {
+        await openPanel([aLine(aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"})), aLine(aDrug({name: "Tobradex"}))], lang);
+        expect(await screen.findByText("VIGAMOX 0.5% EYE DROPS 5 ML")).toBeInTheDocument();
+        expect(screen.queryByText(chip)).not.toBeInTheDocument();
+    });
+});

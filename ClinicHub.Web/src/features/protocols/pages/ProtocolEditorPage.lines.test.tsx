@@ -14,7 +14,7 @@ const fourTimesTwoWeeks: Dosing = {doseAmount: 1, doseUnit: "drop", frequency: "
 const alreadyThere = (name: string) => `«${isolate(name)}» موجود بالفعل في هذا البروتوكول لنفس العين`;
 
 describe("protocol editor: adding drugs from the drug tree @area:catalog", () => {
-    test("a drug clicked in the tree is appended with no override and marked «مُضاف»; an own drug shows its default sentence, a shared one «لا توجد جرعة محددة» or its description @GRP-051 @smoke", async () => {
+    test("a drug clicked in the tree is appended with no override and marked «مُضاف»; an own drug shows its default sentence, a shared one «لا توجد جرعة محددة» or its description; no «مشترك» chip in the tree or the lines @GRP-051 @CAT-278 @smoke", async () => {
         const tobradex = aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks});
         const vigamox = aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML", description: null});
         const alemox = aSharedDrug({name: "ALEMOX 1 GM 12 F.C.TABS.", description: "Antibiotic"});
@@ -30,6 +30,9 @@ describe("protocol editor: adding drugs from the drug tree @area:catalog", () =>
         expect(within(described).getByText("Antibiotic")).toBeInTheDocument();
         expect(within(described).queryByText("لا توجد جرعة محددة")).not.toBeInTheDocument();
         for (const name of ["Tobradex", vigamox.name, alemox.name]) expect(within(await treeDrug(name)).getByText("مُضاف")).toBeInTheDocument();
+        // M1.7 review R2: no «مشترك» chip anywhere (the tree's shared rows nor the lines); the own drug keeps «خاص بالعيادة»
+        expect(screen.queryByText("مشترك")).not.toBeInTheDocument();
+        expect(within(await treeDrug("Tobradex")).getByText("خاص بالعيادة")).toBeInTheDocument();
 
         await user.type(screen.getByRole("textbox", {name: "اسم البروتوكول"}), "Post cataract");
         await user.click(screen.getByRole("button", {name: "حفظ"}));

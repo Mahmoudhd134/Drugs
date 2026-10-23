@@ -329,3 +329,92 @@ describe("drug tree: switching the language @area:i18n", () => {
         expect(recorded.requests).toEqual([]);
     });
 });
+
+describe("drug tree: a search opens single-drug branches by themselves @area:catalog", () => {
+    // docs/design/m1.7-review-contract.md R3: on a search's first answer, every category whose only subcategory holds a
+    // single drug opens with that subcategory; the D7 lone bucket unchanged; nothing of it without a search
+    const SKIN = {id: 5, nameEn: "Skin", nameAr: "الجلدية"};
+    const ACNE = {id: 40, nameEn: "Acne", nameAr: "حب الشباب"};
+    const EAR = {id: 7, nameEn: "Ear", nameAr: "الأذن"};
+    const OTIC = {id: 70, nameEn: "Otic drops", nameAr: "قطرات الأذن"};
+    const NOSE = {id: 8, nameEn: "Nose", nameAr: "الأنف"};
+    const SPRAYS = {id: 80, nameEn: "Sprays", nameAr: "بخاخات"};
+    const NOSE_DROPS = {id: 81, nameEn: "Nose drops", nameAr: "نقط الأنف"};
+
+    /** «ti» matches one drug in each of «العيون», «مضادات العدوى» and «الجلدية»; «الأذن» 2 in one subcategory; «الأنف» 1 in each of 2. */
+    const drugs = () => [
+        aDrug({name: "Timolol"}),
+        aDrug({name: "Amoxil", subCategory: CATARACT}),
+        aDrug({name: "Tazocin Ti", category: ANTI_INFECTIVES, subCategory: PENICILLINS}),
+        aDrug({name: "Tretinoin", category: SKIN, subCategory: ACNE}),
+        aDrug({name: "Otic Ti A", category: EAR, subCategory: OTIC}),
+        aDrug({name: "Otic Ti B", category: EAR, subCategory: OTIC}),
+        aDrug({name: "Spray Ti", category: NOSE, subCategory: SPRAYS}),
+        aDrug({name: "Drops Ti", category: NOSE, subCategory: NOSE_DROPS}),
+    ];
+
+    test("three categories with one subcategory of one drug each open with it and show the drug; one subcategory of 2 drugs, or 2 subcategories, stay closed @CAT-279",
+        async () => {
+            const {user} = await renderTree({drugs: drugs()});
+            await findNodeRow("العيون", "ar", 2);
+            await searchTree(user, "ti");
+            expect(await findDrugRow("Timolol")).toBeInTheDocument();
+            expect(await findDrugRow("Tazocin Ti")).toBeInTheDocument();
+            expect(await findDrugRow("Tretinoin")).toBeInTheDocument();
+            for (const [category, sub] of [["العيون", "المياه الزرقاء"], ["مضادات العدوى", "البنسلينات"], ["الجلدية", "حب الشباب"]]) {
+                expect(nodeRow(category, "ar", 1), category).toHaveAttribute("aria-expanded", "true");
+                expect(nodeRow(sub, "ar", 1), sub).toHaveAttribute("aria-expanded", "true");
+            }
+            expect(nodeRow("الأذن", "ar", 2)).toHaveAttribute("aria-expanded", "false");
+            expect(nodeRow("الأنف", "ar", 2)).toHaveAttribute("aria-expanded", "false");
+            expect(screen.queryByRole("treeitem", {name: "Otic Ti A"})).not.toBeInTheDocument();
+            expect(screen.queryByRole("treeitem", {name: "Spray Ti"})).not.toBeInTheDocument();
+        });
+
+    test("a branch the user closes stays closed until the search changes; a new search opens its own single-drug branches @CAT-279", async () => {
+        const {user} = await renderTree({drugs: drugs()});
+        await findNodeRow("العيون", "ar", 2);
+        await searchTree(user, "ti");
+        await findDrugRow("Tretinoin");
+        await closeNode(user, nodeRow("الجلدية", "ar", 1));
+        await pastDebounce();
+        expect(nodeRow("الجلدية", "ar", 1)).toHaveAttribute("aria-expanded", "false");
+        expect(nodeRow("العيون", "ar", 1)).toHaveAttribute("aria-expanded", "true");
+
+        await searchTree(user, "tretinoin");
+        // One category of one drug: open (D7 and R3 alike)
+        expect(await findDrugRow("Tretinoin")).toBeInTheDocument();
+        await waitFor(() => expect(nodeRow("الجلدية", "ar", 1)).toHaveAttribute("aria-expanded", "true"));
+    });
+
+    test("no search: the full tree opens nothing, even categories of one drug @CAT-280", async () => {
+        const recorded = recordRequests();
+        await renderTree({drugs: drugs()});
+        await findNodeRow("الجلدية", "ar", 1);
+        await pastDebounce();
+        expect(rowsAt(1).every(row => row.getAttribute("aria-expanded") === "false")).toBe(true);
+        expect(rowsAt(2)).toEqual([]);
+        expect(paramsOf(recorded.requests, "/drugs")).toEqual([]);
+    });
+
+    test("no search, «أدوية العيادة» with own drugs each alone in a category: nothing opens; one own drug alone: the D7 lone bucket opens @CAT-280",
+        async () => {
+            const own = [aDrug({name: "Timolol"}), aDrug({name: "Tretinoin", category: SKIN, subCategory: ACNE})];
+            const shared = [aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML", subCategory: CATARACT}), aSharedDrug({name: "ACNE GEL", category: SKIN, subCategory: ACNE})];
+            const {user, unmount} = await renderTree({drugs: [...own, ...shared]});
+            await findNodeRow("العيون", "ar", 2);
+            await user.click(sourceButton(ar.sourceOwn));
+            await waitFor(() => expect(nodeRow("العيون", "ar", 1)).toBeInTheDocument());
+            await pastDebounce();
+            expect(nodeRow("العيون", "ar", 1)).toHaveAttribute("aria-expanded", "false");
+            expect(nodeRow("الجلدية", "ar", 1)).toHaveAttribute("aria-expanded", "false");
+            expect(rowsAt(3)).toEqual([]);
+            unmount();
+
+            const alone = await renderTree({drugs: [own[0], ...shared]});
+            await findNodeRow("العيون", "ar", 2);
+            await alone.user.click(sourceButton(ar.sourceOwn));
+            expect(await findDrugRow("Timolol")).toBeInTheDocument();
+            expect(nodeRow("العيون", "ar", 1)).toHaveAttribute("aria-expanded", "true");
+        });
+});
