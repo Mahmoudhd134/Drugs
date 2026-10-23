@@ -219,6 +219,7 @@ public class ProtocolTests(AppFixture app) : CatalogTest(app)
 
     [Theory]
     [Trait("Case", "GRP-096")]
+    [Trait("Case", "CAT-077")]
     [InlineData("التهاب", "بروتوكول إلتهاب")]
     [InlineData("بروتوكول", "بروتوكول إلتهاب")]
     [InlineData("بُرُوتُوكُول", "بروتوكول إلتهاب")]

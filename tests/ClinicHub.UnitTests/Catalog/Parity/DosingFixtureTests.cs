@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Text.RegularExpressions;
 using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Protocols.Commands.CreateProtocol;
@@ -34,7 +35,7 @@ public partial class DosingFixtureTests
         var answer = groupLine
             ? ApiValidation.Run(new CreateProtocolCommandValidator(),
                 new CreateProtocolCommand("G", [new SaveProtocolItem(1, input)]))
-            : ApiValidation.Run(new CreateDrugCommandValidator(), new CreateDrugCommand("Tobradex", null, input));
+            : ApiValidation.Run(new CreateDrugCommandValidator(), new CreateDrugCommand("Tobradex", null, null, input, CategoryIds.Eye, null));
         List<ApiFieldError> expectedErrors = row.Valid ? [] : row.Errors.Select(e => new ApiFieldError(e.Code, e.Field)).ToList();
         answer.Errors.ShouldBe(expectedErrors, "the API's errors for this dosing");
         if (!row.Valid)

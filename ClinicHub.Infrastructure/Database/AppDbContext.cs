@@ -15,10 +15,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     /// <summary>The current clinic; every <see cref="IClinicOwned"/> query is filtered to it.</summary>
     public int? ClinicId => clinicContext.ClinicId;
 
+    /// <summary>
+    /// True inside <c>IClinicScope.UseSharedCatalog()</c>: read by the (singleton) save interceptor, which lets a request
+    /// with no clinic write shared drugs only then (design M1.7 D2).
+    /// </summary>
+    public bool IsWritingSharedCatalog => clinicContext.WritingSharedCatalog;
+
     public DbSet<Clinic> Clinics { get; set; }
     public DbSet<Drug> Drugs { get; set; }
     public DbSet<Protocol> Protocols { get; set; }
     public DbSet<ProtocolItem> ProtocolItems { get; set; }
+    public DbSet<Category> Categories { get; set; }
+    public DbSet<SubCategory> SubCategories { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<OtpCode> OtpCodes { get; set; }
     public DbSet<Session> Sessions { get; set; }
@@ -39,6 +47,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
                      .Where(t => !t.IsOwned() && typeof(IClinicOwned).IsAssignableFrom(t.ClrType))
                      .Select(t => t.ClrType).ToList())
             ConfigureClinicOwnedMethod.MakeGenericMethod(type).Invoke(this, [modelBuilder]);
+        foreach (var type in modelBuilder.Model.GetEntityTypes()
+                     .Where(t => !t.IsOwned() && typeof(IClinicOrShared).IsAssignableFrom(t.ClrType))
+                     .Select(t => t.ClrType).ToList())
+            ConfigureClinicOrSharedMethod.MakeGenericMethod(type).Invoke(this, [modelBuilder]);
 
         base.OnModelCreating(modelBuilder);
     }
@@ -56,5 +68,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
         var builder = modelBuilder.Entity<T>();
         builder.HasOne<Clinic>().WithMany().HasForeignKey(x => x.ClinicId).OnDelete(DeleteBehavior.Restrict);
         builder.HasQueryFilter(x => ClinicId != null && x.ClinicId == ClinicId);
+    }
+
+    private static readonly MethodInfo ConfigureClinicOrSharedMethod =
+        typeof(AppDbContext).GetMethod(nameof(ConfigureClinicOrShared), BindingFlags.Instance | BindingFlags.NonPublic);
+
+    /// <summary>
+    /// FK to the clinic (restrict, nullable: null = shared) and the filter of design M1.7 D1: the shared rows plus the
+    /// current clinic's; a request with no clinic (platform) sees only the shared rows. <c>IgnoreQueryFilters()</c> stays
+    /// Platform-only (the category delete counts every clinic's drugs).
+    /// </summary>
+    private void ConfigureClinicOrShared<T>(ModelBuilder modelBuilder) where T : class, IClinicOrShared
+    {
+        var builder = modelBuilder.Entity<T>();
+        builder.HasOne<Clinic>().WithMany().HasForeignKey(x => x.ClinicId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasQueryFilter(x => x.ClinicId == null || (ClinicId != null && x.ClinicId == ClinicId));
     }
 }

@@ -4,10 +4,12 @@ import type {PermissionDefinition} from "../features/access/api.ts";
 import type {ClinicDetails, ClinicSummary} from "../features/admin/types.ts";
 import type {AuthResult, Context, Me} from "../features/auth/types.ts";
 import type {Protocol} from "../features/protocols/types.ts";
-import type {Drug} from "../features/drugs/types.ts";
+import type {Category, Drug, ProtocolDrug} from "../features/drugs/types.ts";
+import type {AdminDrug} from "../features/admin/drugs/types.ts";
+import type {AdminCategory} from "../features/admin/categories/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
-import {aMe, PERMISSION_CATALOG} from "./data.ts";
+import {aCategory, aMe, asDrug, PERMISSION_CATALOG} from "./data.ts";
 import {server} from "./server.ts";
 
 /*
@@ -30,7 +32,8 @@ export type ProblemError = { code: string; description?: string; field?: string 
  * A ProblemDetails body (docs/tech/overview.md "Errors"): `code` = the first error's code, `errors` = all of them
  * (one with `code` when not given), `clinicNames` only when given.
  */
-export const problemBody = (status: number, code: string, options: { errors?: ProblemError[]; clinicNames?: string[] } = {}) => {
+export const problemBody = (status: number, code: string,
+                            options: { errors?: ProblemError[]; clinicNames?: string[]; drugCount?: number } = {}) => {
     const errors = (options.errors ?? [{code}]).map(e => ({description: `${e.code} (test)`, ...e}));
     return {
         type: `https://httpstatuses.io/${status}`,
@@ -42,6 +45,7 @@ export const problemBody = (status: number, code: string, options: { errors?: Pr
         errors,
         traceId: "00-test-trace-01",
         ...(options.clinicNames ? {clinicNames: options.clinicNames} : {}),
+        ...(options.drugCount !== undefined ? {drugCount: options.drugCount} : {}),
     };
 };
 
@@ -64,14 +68,82 @@ const pageOf = <T extends { name?: string; fullName?: string }>(request: Request
 
 const json = (body: JsonBodyType) => HttpResponse.json(body);
 
-/** `GET /drugs` (paged, searched by name) and `GET /drugs/:id` (404 `notFound` when missing). */
-export const drugsHandlers = (drugs: Drug[]) => [
-    http.get(api("/drugs"), ({request}) => json(pageOf(request, drugs))),
-    http.get(api("/drugs/:id"), ({params}) => {
-        const drug = drugs.find(d => d.id === Number(params.id));
-        return drug ? json(drug) : problem(404, "notFound");
-    }),
-];
+/**
+ * `GET /drugs` (paged, searched by name; `source`, `categoryId` and `subCategoryId` filtered like the API, in the given
+ * order) and `GET /drugs/:id` (404 `notFound` when missing). A protocol line's drug gets the full shape (`asDrug`).
+ */
+export const drugsHandlers = (given: Array<Drug | ProtocolDrug>) => {
+    // Read at each request: a test may change `given` (a delete splices it) and the next GET shows it
+    const all = () => given.map(d => ("category" in d ? d : asDrug(d)));
+    return [
+        http.get(api("/drugs"), ({request}) => {
+            const params = new URL(request.url).searchParams;
+            const source = params.get("source") || "all";
+            const categoryId = params.get("categoryId");
+            const subCategoryId = params.get("subCategoryId");
+            const listed = all().filter(d => !d.withdrawn
+                && (source === "all" || (source === "shared") === d.isShared)
+                && (!categoryId || d.category.id === Number(categoryId))
+                && (!subCategoryId || (subCategoryId === "none" ? d.subCategory === null : d.subCategory?.id === Number(subCategoryId))));
+            return json(pageOf(request, listed));
+        }),
+        http.get(api("/drugs/:id"), ({params}) => {
+            const drug = all().find(d => d.id === Number(params.id));
+            return drug ? json(drug) : problem(404, "notFound");
+        }),
+        // The drug dialog reads the categories on open (design M1.7 D9): «العيون › المياه الزرقاء» unless a test adds
+        // its own `drugCategoriesHandler` after these (a later `server.use` wins)
+        drugCategoriesHandler(),
+    ];
+};
+
+/** `GET /drug-categories` (default: «العيون» with «المياه الزرقاء»). */
+export const drugCategoriesHandler = (categories: Category[] = [aCategory()]) =>
+    http.get(api("/drug-categories"), () => json(categories));
+
+/**
+ * `GET /admin/drugs` (paged, searched by name, `status` active by default, category filters) and the admin writes:
+ * `POST`/`PUT /admin/drugs[/:id]` answer the saved drug, `withdraw`/`restore` 204 (404 when missing). The list is kept
+ * in memory, so a write shows in the next GET.
+ */
+export const adminDrugsHandlers = (drugs: AdminDrug[]) => {
+    const find = (id: unknown) => drugs.find(d => d.id === Number(id));
+    return [
+        http.get(api("/admin/drugs"), ({request}) => {
+            const params = new URL(request.url).searchParams;
+            const status = params.get("status") || "active";
+            const categoryId = params.get("categoryId");
+            const subCategoryId = params.get("subCategoryId");
+            const listed = drugs.filter(d => (status === "all" || (status === "withdrawn") === d.withdrawn)
+                && (!categoryId || d.category.id === Number(categoryId))
+                && (!subCategoryId || (subCategoryId === "none" ? d.subCategory === null : d.subCategory?.id === Number(subCategoryId))));
+            return json(pageOf(request, listed));
+        }),
+        http.get(api("/admin/drugs/:id"), ({params}) => {
+            const drug = find(params.id);
+            return drug ? json(drug) : problem(404, "notFound");
+        }),
+        http.post(api("/admin/drugs/:id/withdraw"), ({params}) => {
+            const drug = find(params.id);
+            if (!drug) return problem(404, "notFound");
+            if (!drug.withdrawn) Object.assign(drug, {withdrawn: true, withdrawnAt: "2026-10-22T10:00:00Z"});
+            return new HttpResponse(null, {status: 204});
+        }),
+        http.post(api("/admin/drugs/:id/restore"), ({params}) => {
+            const drug = find(params.id);
+            if (!drug) return problem(404, "notFound");
+            Object.assign(drug, {withdrawn: false, withdrawnAt: null});
+            return new HttpResponse(null, {status: 204});
+        }),
+    ];
+};
+
+/**
+ * `GET /admin/drug-categories` (with counts). Writes (create, rename, delete, and the 409 `categoryInUse` with
+ * `drugCount`) are per test: `http.post(api("/admin/drug-categories"), …)`, `problem(409, "categoryInUse", {drugCount: 3})`.
+ */
+export const adminCategoriesHandler = (categories: AdminCategory[]) =>
+    http.get(api("/admin/drug-categories"), () => json(categories));
 
 /** `GET /protocols` (paged, searched by name) and `GET /protocols/:id` (404 `notFound` when missing). */
 export const protocolsHandlers = (protocols: Protocol[]) => [

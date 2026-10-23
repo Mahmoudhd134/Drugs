@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Domain.Catalog;
@@ -34,7 +35,7 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         var owner = await Login.OwnerAsync(clinic);
         Clock.Advance(TimeSpan.FromMinutes(3));
 
-        var drug = await (await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Tobradex", "توبرادكس") })).ReadAsync<DrugDto>();
+        var drug = await (await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = Unique.Name("Tobradex", "توبرادكس") })).ReadAsync<DrugDto>();
         var protocol = await (await owner.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(drug.Id))).ReadAsync<ProtocolDto>();
 
         var drugStamps = await DrugStampsAsync(drug.Id);
@@ -58,19 +59,19 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
         var owner = await Login.OwnerAsync(clinic);
 
         Clock.Advance(TimeSpan.FromMinutes(1));
-        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = drug.Name + " 2" })).ShouldBeOkAsync();
+        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { categoryId = CategoryIds.Eye, name = drug.Name + " 2" })).ShouldBeOkAsync();
         (await DrugStampsAsync(drug.Id)).ShouldBe((created, Now), "name changed");
 
         Clock.Advance(TimeSpan.FromMinutes(1));
-        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = drug.Name + " 2", defaultDosing = Dosings.Drops() })).ShouldBeOkAsync();
+        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { categoryId = CategoryIds.Eye, name = drug.Name + " 2", defaultDosing = Dosings.Drops() })).ShouldBeOkAsync();
         (await DrugStampsAsync(drug.Id)).ShouldBe((created, Now), "dosing added");
 
         Clock.Advance(TimeSpan.FromMinutes(1));
-        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = drug.Name + " 2", defaultDosing = Dosings.Drops(amount: 2) })).ShouldBeOkAsync();
+        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { categoryId = CategoryIds.Eye, name = drug.Name + " 2", defaultDosing = Dosings.Drops(amount: 2) })).ShouldBeOkAsync();
         (await DrugStampsAsync(drug.Id)).ShouldBe((created, Now), "dosing changed");
 
         Clock.Advance(TimeSpan.FromMinutes(1));
-        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = drug.Name + " 2", defaultDosing = (object)null })).ShouldBeOkAsync();
+        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { categoryId = CategoryIds.Eye, name = drug.Name + " 2", defaultDosing = (object)null })).ShouldBeOkAsync();
         (await DrugStampsAsync(drug.Id)).ShouldBe((created, Now), "dosing removed");
     }
 
@@ -157,7 +158,7 @@ public class TimestampTests(AppFixture app) : IntegrationTest(app)
 
         await InClinicAsync(clinic.Id, db =>
         {
-            db.Drugs.Add(new Drug { Name = name });
+            db.Drugs.Add(new Drug { Name = name, CategoryId = CategoryIds.Eye });
             db.SaveChanges();
             return Task.CompletedTask;
         });

@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Application.Features.Access;
 using ClinicHub.Domain.Access;
@@ -59,8 +60,8 @@ public static class CatalogRoutes
         "GET /drugs" => client.GetAsync("/api/v1/drugs"),
         "GET /drugs/{id}" => client.GetAsync($"/api/v1/drugs/{target.DrugId}"),
         "GET /drugs/{id}/protocols" => client.GetAsync($"/api/v1/drugs/{target.DrugId}/protocols"),
-        "POST /drugs" => client.PostAsync("/api/v1/drugs", new { name = Unique.Name("Drug", "دواء") }),
-        "PUT /drugs/{id}" => client.PutAsync($"/api/v1/drugs/{target.DrugId}", new { name = Unique.Name("Drug", "دواء") }),
+        "POST /drugs" => client.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = Unique.Name("Drug", "دواء") }),
+        "PUT /drugs/{id}" => client.PutAsync($"/api/v1/drugs/{target.DrugId}", new { categoryId = CategoryIds.Eye, name = Unique.Name("Drug", "دواء") }),
         "DELETE /drugs/{id}" => client.DeleteAsync($"/api/v1/drugs/{target.DrugId}"),
         "GET /protocols" => client.GetAsync("/api/v1/protocols"),
         "GET /protocols/{id}" => client.GetAsync($"/api/v1/protocols/{target.ProtocolId}"),

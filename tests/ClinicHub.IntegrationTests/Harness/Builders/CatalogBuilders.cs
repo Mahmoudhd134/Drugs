@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Catalog.Protocols;
 using ClinicHub.Application.Features.Catalog.Protocols.Commands.CreateProtocol;
 using ClinicHub.Application.Features.Catalog.Drugs;
@@ -9,12 +10,18 @@ using ClinicHub.IntegrationTests.Harness.Hosting;
 
 namespace ClinicHub.IntegrationTests.Harness.Builders;
 
-/// <summary><see cref="CreateDrugCommand"/> in the clinic (or the template).</summary>
+/// <summary>
+/// <see cref="CreateDrugCommand"/> in the clinic (or the template): an own drug. Default category «العيون» › «المياه
+/// الزرقاء» (Eye › Glaucoma, design M1.7 D12).
+/// </summary>
 public sealed class DrugBuilder(AppFixture app, int clinicId)
 {
     private string name = Unique.Name("Drug", "دواء");
     private string description;
     private Dosing dosing;
+    private string activeIngredients;
+    private int? categoryId = CategoryIds.Eye;
+    private int? subCategoryId = SubCategoryIds.Glaucoma;
 
     public DrugBuilder Named(string value)
     {
@@ -35,8 +42,23 @@ public sealed class DrugBuilder(AppFixture app, int clinicId)
         return this;
     }
 
+    public DrugBuilder WithIngredients(string value)
+    {
+        activeIngredients = value;
+        return this;
+    }
+
+    /// <summary>Another category; <paramref name="subCategory"/> null = «بدون تصنيف فرعي».</summary>
+    public DrugBuilder InCategory(int category, int? subCategory = null)
+    {
+        categoryId = category;
+        subCategoryId = subCategory;
+        return this;
+    }
+
     public async Task<DrugDto> CreateAsync() =>
-        (await app.SendAsync(new CreateDrugCommand(name, description, dosing), clinicId)).ShouldSucceed();
+        (await app.SendAsync(new CreateDrugCommand(name, activeIngredients, description, dosing, categoryId, subCategoryId),
+            clinicId)).ShouldSucceed();
 
     public TaskAwaiter<DrugDto> GetAwaiter() => CreateAsync().GetAwaiter();
 }

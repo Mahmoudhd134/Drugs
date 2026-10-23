@@ -99,6 +99,12 @@ The same tiers on the laptop (PowerShell 5.1+, Docker running: it starts the com
 the runner or a test that fails on CI and not in its own run; `full` takes 25–30 min here. The tiers' contents and gates
 below are the same on CI.
 
+**Prerequisite: Python 3.10+ and psycopg** (design M1.7 D12). The integration harness and the e2e setup load the shared
+drug catalog with `data/drug-catalog/tools/load_catalog.py`: `python` on the PATH, then once
+`python -m pip install "psycopg[binary]"`. `test.ps1` checks it first (stage "Prerequisites") and stops with that
+command when it is missing; a run started any other way (Rider, `dotnet test`, `npm run e2e`, Stryker) stops at its
+first load with the same message (`CatalogLoader.InstallHint`, `PYTHON_HINT`).
+
 ```powershell
 ./test.ps1                          # step tier, integration areas from your changes
 ./test.ps1 -Tier step -Area auth,access
@@ -328,10 +334,13 @@ zero-width space, a name of exactly n characters). A rule whose answer depends o
   `TimeProvider` is the test clock, JwtBearer checks token lifetimes against it (the app's own `ValidateLifetime`
   switch kept), and the access cache (HybridCache) runs on its own clock (see "Time and tokens").
 - PostgreSQL: the compose container. Per test process (run id `CLINICHUB_TEST_RUN`, set by `test.ps1`; generated when
-  unset), one **template** `drags_it_<run>_tpl` is migrated and seeded once by booting the app on it; each **collection**
-  gets its own copy `drags_it_<run>_<n>` (`CREATE DATABASE … TEMPLATE`). Before each new test class the copy is reset
-  (Respawn on every table but the migrations history, then the startup seeder runs again, then the access cache is
-  emptied). Everything of the run is dropped at the end; a crashed or killed run's databases are dropped by the next
+  unset), one **template** `drags_it_<run>_tpl` is migrated and seeded once by booting the app on it, copied to the
+  **bare template** `drags_it_<run>_tpl_bare` (no catalog), then loaded with the shared catalog (`load_catalog.py`, run
+  with `Process.Start` and an argument list, no shell) and its **baseline** recorded (`TestRun.Baseline`, see
+  [The shared catalog](#the-shared-catalog-in-integration-tests)); each **collection** gets its own copy
+  `drags_it_<run>_<n>` of the loaded template (the migration collection: of the bare one) (`CREATE DATABASE …
+  TEMPLATE`). Before each new test class the copy is reset (below), then the startup seeder runs again, then the access
+  cache is emptied. Everything of the run is dropped at the end; a crashed or killed run's databases are dropped by the next
   run (each run holds a liveness lock; a database whose run holds none, or older than a day, is stale). A run never
   drops another live run's databases (parallel worktrees are safe), and a second process started with a run id that is
   already in use stops at once and drops nothing. Under load (parallel worktrees, Stryker) `CREATE`/`DROP DATABASE` can
@@ -349,6 +358,37 @@ zero-width space, a name of exactly n characters). A rule whose answer depends o
   and on every connection it opens; `Harness/Databases/DatabaseGuard`, proved by `SelfTests`).
 - Order: collections run in parallel (one database each); the classes of a collection one after another; with a seed
   (`CLINICHUB_TEST_SEED`, always set by `test.ps1`), collections, classes and tests are shuffled reproducibly.
+
+### The shared catalog in integration tests
+
+Every collection but the migrations runs on the full imported catalog (23 categories, 182 subcategories, 23,414
+shared drugs), as production will (design M1.7 D12).
+
+- **Reset of a loaded copy**: Respawn on every table but `__EFMigrationsHistory`, `Clinics`, `Drugs`, `Categories`,
+  `SubCategories` (a truncate cascades into every table referencing a truncated one: truncating `Clinics` would empty
+  `Drugs`), then in one transaction `DELETE FROM "Drugs" WHERE "ClinicId" IS NOT NULL OR "Id" > <max imported id>`,
+  `DELETE FROM "Clinics"`, and the subcategories and categories above the imported max ids; then the baseline check;
+  then the startup seeder. About 0.2–0.3 s (the check is ~0.12 s of it).
+- **Baseline check** (`BaselineGuard.CheckAsync`): the imported rows (shared drugs, categories, subcategories up to
+  the baseline's max ids) must keep their count, max ids and checksum (`md5` of every column of every imported row, so
+  a raw SQL change that keeps `UpdatedAt` counts too). Checked after every reset and once more when the collection
+  ends. A change fails the run with "tests never edit imported rows or categories: create your own shared drug or
+  category", naming the class that ran last (the first test of the next class fails with it, or the collection's
+  cleanup); the collection's database is then re-created from the template, so the next classes run clean.
+- **Rules for tests**: read imported drugs by exact name (`await Data.Shared("ALEMOX 1 GM 12 F.C.TABS.")`; names in
+  the M1.7b contract's test data), never by id; anything that creates, renames, withdraws, restores or deletes a shared
+  drug, a category or a subcategory uses its **own** rows (`Data.SharedDrug()`, `Data.Category()`,
+  `Data.SubCategory()`); a subcategory of your own under an imported category is fine. Catalog numbers come from
+  `TestRun.Baseline` (`SharedCount`, `MaxCategoryId`, …), never literals. Lists that should show "only this clinic's
+  drugs" filter `source=own` or search a name absent from the catalog.
+- **Migration collection**: its fixture is `BareAppFixture` (a copy of the bare template: migrated and seeded, no
+  catalog, reset by Respawn on every table, no baseline check). Its classes take `BareAppFixture app`.
+  `AddSharedCatalog` needs an empty `Drugs` table: a case crossing it with drugs deletes them first.
+- **Self-tests of the guard** run `BaselineGuard.CheckAsync` on a scratch copy (`TestRun.CreateCopyAsync()`, then
+  `TestRun.DropAsync`), never on the collection's own database. `TestRun.RecreateCopyAsync(name)` re-creates a copy
+  from its template.
+- Timings (a quiet machine): template migrated and seeded ~4–7 s, bare copy ~0.1 s, catalog load ~4 s, baseline
+  read ~0.7 s, a collection copy ~0.1–0.2 s, a reset ~0.2–0.3 s.
 
 ### Writing a test class
 
@@ -403,6 +443,8 @@ public class OtpRequestTests(AppFixture app) : IntegrationTest(app)
 | Staff | `await Data.Staff(clinic)` (default: new phone, unique name, Doctor) `.WithPhone(p)` (same user in two clinics), `.WithRole("Assistant")`, `.WithRoles(roleId)`, `.Named(n)`, `.Inactive()` → `StaffHandle`; `Data.DeactivateStaffAsync`, `ActivateStaffAsync`, `UpdateStaffAsync`, `RemoveStaffAsync` |
 | Roles | `await Data.Role(clinic).WithPermissions(Permissions.Drugs.List, …)` → `RoleDto`; `Data.UpdateRoleAsync`, `DeleteRoleAsync` |
 | Drugs, protocols (a clinic, or the template: `await App.TemplateClinicIdAsync()`) | `await Data.Drug(clinic).Named("Tobradex").WithDosing(Dosings.Drops())`; `await Data.Protocol(clinic).With(drug).With(other, Dosings.AskEye())` (no `With`: one line with a new drug of the clinic); `Data.UpdateDrugAsync`, `DeleteDrugAsync`, `UpdateProtocolAsync`, `DeleteProtocolAsync`; `Dosings.Drops/Tablets/Taper/AskEye` |
+| Imported shared drugs (read only) | `await Data.Shared("VIGAMOX 0.5% EYE DROPS 5 ML")` → `DrugDto` (fails unless exactly one shared drug has that exact name); the catalog's numbers: `TestRun.Baseline` |
+| Shared drugs, categories, subcategories of the test's own (super admin use cases) | `await Data.SharedDrug()` (default: unique name, «العيون › المياه الزرقاء») `.Named(n)`, `.WithIngredients(i)`, `.Described(d)`, `.InCategory(cat, sub?)`, `.Withdrawn()` → `AdminDrugDto`; `await Data.Category().Named(en, ar)` → `CategoryDto`; `await Data.SubCategory(categoryId).Named(en, ar)` → `SubCategoryDto`; `Data.UpdateSharedDrugAsync`, `WithdrawSharedDrugAsync`, `RestoreSharedDrugAsync`. Own drugs' builders send a category too (default Eye › Glaucoma: `CategoryIds`, `SubCategoryIds`) |
 | Unique values | `Unique.Phone()` (E.164 `+2011…`), `Unique.LocalPhone(e164)` (`011…`), `Unique.Name("Drug", "دواء")` |
 | A logged-in browser (real OTP flow: request → `devCode` → verify → context) | `Login.SuperAdminAsync()` (platform), `Login.SuperAdminInTemplateAsync()`, `Login.OwnerAsync(clinic)`, `Login.StaffAsync(staff)`, `Login.WithRoleAsync(clinic, "Assistant")`, `Login.WithPermissionsAsync(clinic, keys…)`, `Login.AsAsync(phone)` (context left as the login gives it) |
 | A refused login, a code | `Login.TryAsync(browser, phone)` (raw verify response), `Login.CodeAsync(browser, phone)`, `Login.ClearCodesAsync(phone)` |
@@ -533,14 +575,22 @@ P0 and P1 cases only.
 
 - `npm run e2e` (global setup, `e2e/global-setup.ts`) builds the SPA and the Release API, starts the API in the
   `Testing` environment on its own port (5080 and up) serving the built SPA, on its own database `drags_e2e_<run>`
-  (created by the API's startup; any other name is refused, never `drags`), seeds the template's catalog, and at the end
-  stops the API and drops the database. Docker's PostgreSQL must be up (it is started when it isn't).
+  (created by the API's startup; any other name is refused, never `drags`), loads the shared drug catalog into it once
+  the API answers (`loadCatalog`, `e2e/support/catalogLoad.ts`: `spawnSync("python", …)` without a shell; Python +
+  psycopg needed, see [`test.ps1`](#running-the-tests-testps1)), seeds the template's catalog (2 own drugs in
+  «العيون › المياه الزرقاء», found through `GET /drug-categories`, and 1 protocol), and at the end stops the API and
+  drops the database. Docker's PostgreSQL must be up (it is started when it isn't).
 - Settings on top of `appsettings.Testing.json`: a pool of super admin phones (each test claims its own, so the OTP
   limit of 5 codes per hour per phone is never reached) and `Otp:ResendSeconds = 0` (a test may log the same person in
   twice in a row; the 60 s rule is proven by the `api` tests).
 - Projects (`playwright.config.ts`), all Chromium: `ar-desktop` and `en-desktop` (1280 px), `ar-phone` (375 px, touch),
   and `ar-desktop-template`: the specs of `e2e/template-edits/` change the template clinic's catalog (copied into every
-  new clinic), so they run alone, after all the others.
+  new clinic), so they run alone, after all the others; `ar-desktop-shared-catalog`: the specs of
+  `e2e/shared-catalog-edits/` create, rename, withdraw, restore or delete shared drugs, categories or subcategories
+  (their own rows, unique names, never imported ones), so they run last too.
+- The imported catalog is shared by every test of the run: a spec never asserts a literal count of it (the total, a
+  search's or a category's matches: CAT-229); it compares the screen with the API's answer for the same search in the
+  same run (`ApiSession.ok("GET", …)`).
 - Parallel: `fullyParallel`, 4 workers, no retries (a flaky test is a bug to fix, not to retry).
 
 ### Writing a spec

@@ -6,6 +6,8 @@ import type {Lang} from "./texts.ts";
  * (docs/testing/test-catalog.md, which quotes `ar.ts` / `en.ts`); plain labels as the locale files have them. A name
  * inside a message sits in the bidi isolates U+2068/U+2069 (catalog "How to read it").
  */
+/** Counts as the UI shows them: grouped Latin digits (design M1.7 D9 "Numbers", I18N-014). */
+const g = (n: number) => new Intl.NumberFormat("en-US").format(n);
 const iso = (name: string) => `⁨${name}⁩`;
 
 const ar = {
@@ -35,10 +37,10 @@ const ar = {
     copied: "تم النسخ",
     alreadyAdded: (name: string) => `«${iso(name)}» موجود بالفعل في القائمة`,
     protocolAdded: (name: string, count: number) => `تمت الإضافة من «${iso(name)}»: ${count}`,
-    results: (count: number) => `النتائج: ${count}`,
+    results: (count: number) => `النتائج: ${g(count)}`,
     // Drugs
-    drugsSubtitle: (count: number) => `إجمالي الأدوية: ${count}`,
-    displayedRows: (from: number, to: number, count: number) => `${from}–${to} من ${count}`,
+    drugsSubtitle: (count: number) => `إجمالي الأدوية: ${g(count)}`,
+    displayedRows: (from: number, to: number, count: number) => `${g(from)}–${g(to)} من ${g(count)}`,
     drugDescription: "الوصف",
     deleteDrugTitle: "حذف الدواء؟",
     deleteDrugMessage: (name: string) => `سيتم حذف «${iso(name)}» وإزالته من كل البروتوكولات. لا يمكن التراجع عن ذلك.`,
@@ -93,9 +95,9 @@ const en: UxTexts = {
     copied: "Copied to clipboard",
     alreadyAdded: name => `“${iso(name)}” is already in the list`,
     protocolAdded: (name, count) => `Added from “${iso(name)}”: ${count}`,
-    results: count => `Results: ${count}`,
-    drugsSubtitle: count => `Total drugs: ${count}`,
-    displayedRows: (from, to, count) => `${from}–${to} of ${count}`,
+    results: count => `Results: ${g(count)}`,
+    drugsSubtitle: count => `Total drugs: ${g(count)}`,
+    displayedRows: (from, to, count) => `${g(from)}–${g(to)} of ${g(count)}`,
     drugDescription: "Description",
     deleteDrugTitle: "Delete drug?",
     deleteDrugMessage: name => `“${iso(name)}” will be deleted and removed from every protocol. This can't be undone.`,

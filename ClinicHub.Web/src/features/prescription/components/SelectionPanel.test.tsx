@@ -1,6 +1,17 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen} from "@testing-library/react";
-import {aDrug, aLine, hoverPastDelay, hoverTooltip, leaveTooltip, renderWithProviders} from "../../../test";
+import {
+    aDrug,
+    aLine,
+    ARABIC_DRUG_NAME,
+    aSharedDrug,
+    DIGITS_FIRST_NAME,
+    expectOwnDirection,
+    hoverPastDelay,
+    hoverTooltip,
+    leaveTooltip,
+    renderWithProviders,
+} from "../../../test";
 import type {PrescriptionLine} from "../types.ts";
 import {SelectionPanel} from "./SelectionPanel.tsx";
 
@@ -58,4 +69,14 @@ describe("line icon buttons @area:ux", () => {
         for (const name of ["Edit dosing", "Add for the other eye", "Remove", "Drag to reorder"])
             expect(screen.getByRole("button", {name})).toBeInTheDocument();
     });
+});
+
+describe("prescription lines: each name keeps its own direction @area:i18n", () => {
+    test("in Arabic, the lines of «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and of an Arabic name each isolate the name with its own direction @CAT-233",
+        async () => {
+            await openPanel([aLine(aSharedDrug({name: DIGITS_FIRST_NAME}), {eye: "right"}), aLine(aDrug({name: ARABIC_DRUG_NAME}))]);
+            // Every place the panel shows each name
+            expectOwnDirection(document.body, DIGITS_FIRST_NAME);
+            expectOwnDirection(document.body, ARABIC_DRUG_NAME);
+        });
 });

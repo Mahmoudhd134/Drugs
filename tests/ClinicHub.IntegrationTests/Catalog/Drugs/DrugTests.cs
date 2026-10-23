@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.IntegrationTests.Harness.Assertions;
@@ -32,6 +33,15 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
         body.ContainsKey("defaultDosing").ShouldBeTrue("defaultDosing is returned (null)");
         body["defaultDosing"].ShouldBeNull();
         LocationPath(response).ShouldBe($"/api/v1/drugs/{id}");
+        // The M1.7 fields (design M1.7 D8): no Arabic name
+        body.ContainsKey("activeIngredients").ShouldBeTrue("activeIngredients is returned (null)");
+        body["activeIngredients"].ShouldBeNull();
+        body["isShared"]!.GetValue<bool>().ShouldBeFalse();
+        body["withdrawn"]!.GetValue<bool>().ShouldBeFalse();
+        body.ContainsKey("nameAr").ShouldBeFalse();
+        var created = await response.ReadAsync<DrugDto>();
+        created.Category.ShouldBe(new CategoryNameDto(CategoryIds.Eye, "Eye", "العيون"));
+        created.SubCategory.ShouldBe(new CategoryNameDto(SubCategoryIds.Glaucoma, "Glaucoma", "المياه الزرقاء"));
     }
 
     [Fact]
@@ -114,7 +124,8 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
         var created = await CreateDrugAsync(owner, "Tobradex", "Old", Dosings.Drops());
         var dosing = Dosings.Tablets(amount: 2, everyHours: 12, days: 10);
 
-        var response = await PutDrugAsync(owner, created.Id, "Tobradex ST", "New description", dosing);
+        var response = await owner.PutAsync($"{DrugsUrl}/{created.Id}", DrugBody("Tobradex ST", "New description", dosing,
+            activeIngredients: "DEXAMETHASONE+TOBRAMYCIN", categoryId: CategoryIds.Other, subCategoryId: SubCategoryIds.Unclassified));
 
         await response.ShouldBeOkAsync();
         var updated = await response.ReadAsync<DrugDto>();
@@ -122,10 +133,31 @@ public class DrugTests(AppFixture app) : CatalogTest(app)
         updated.Name.ShouldBe("Tobradex ST");
         updated.Description.ShouldBe("New description");
         ShouldMatch(updated.DefaultDosing, dosing);
+        updated.ActiveIngredients.ShouldBe("DEXAMETHASONE+TOBRAMYCIN");
+        updated.IsShared.ShouldBeFalse();
+        updated.Withdrawn.ShouldBeFalse();
+        updated.Category.Id.ShouldBe(CategoryIds.Other);
+        updated.SubCategory.ShouldNotBeNull().Id.ShouldBe(SubCategoryIds.Unclassified);
         var read = await GetDrugAsync(owner, created.Id);
         read.Name.ShouldBe("Tobradex ST");
         read.Description.ShouldBe("New description");
         ShouldMatch(read.DefaultDosing, dosing);
+        read.ActiveIngredients.ShouldBe("DEXAMETHASONE+TOBRAMYCIN");
+        read.Category.Id.ShouldBe(CategoryIds.Other);
+        read.SubCategory.ShouldNotBeNull().Id.ShouldBe(SubCategoryIds.Unclassified);
+    }
+
+    [Fact]
+    [Trait("Case", "DRUG-007")]
+    public async Task The_category_is_required_on_update_too()
+    {
+        var owner = await OwnerAsync();
+        var created = await CreateDrugAsync(owner, "Tobradex");
+
+        var response = await owner.PutAsync($"{DrugsUrl}/{created.Id}", DrugBody("Tobradex ST", categoryId: null, subCategoryId: null));
+
+        (await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "categoryRequired")).ShouldHaveError("categoryId", "categoryRequired");
+        (await GetDrugAsync(owner, created.Id)).Name.ShouldBe("Tobradex");
     }
 
     [Fact]

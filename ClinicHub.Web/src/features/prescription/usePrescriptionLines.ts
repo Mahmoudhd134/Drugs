@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import type {Drug} from "../drugs/types.ts";
+import type {DrugSnapshot} from "../drugs/types.ts";
 import {eyeKey, otherEye, type Dosing} from "../dosing/types.ts";
 import type {PrescriptionLine} from "./types.ts";
 
@@ -14,10 +14,10 @@ const LEGACY_STORAGE_KEY = "prescription.selection";
 const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 /** A new line for the drug with the given dosing (the drug's default when omitted). */
-export const newLine = (drug: Drug, dosing: Dosing = drug.defaultDosing ?? {}): PrescriptionLine =>
+export const newLine = (drug: DrugSnapshot, dosing: Dosing = drug.defaultDosing ?? {}): PrescriptionLine =>
     ({key: newKey(), drug, dosing: {...dosing}, note: ""});
 
-const lineFromDrug = (drug: Drug) => newLine(drug);
+const lineFromDrug = (drug: DrugSnapshot) => newLine(drug);
 
 /** A drug can appear once per eye. */
 export const lineIdentity = (drugId: number, dosing: Dosing) => `${drugId}:${eyeKey(dosing)}`;
@@ -40,7 +40,7 @@ const load = (clinicId: number): PrescriptionLine[] => {
 
         const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) ?? "null");
         if (Array.isArray(legacy)) {
-            const migrated = (legacy as Drug[]).map(lineFromDrug);
+            const migrated = (legacy as DrugSnapshot[]).map(lineFromDrug);
             localStorage.setItem(key, JSON.stringify(migrated));
             localStorage.removeItem(LEGACY_STORAGE_KEY);
             return migrated;
@@ -77,7 +77,7 @@ export const usePrescriptionLines = (clinicId: number) => {
     const drugIds = useMemo(() => new Set(lines.map(l => l.drug.id)), [lines]);
 
     /** Adds a line per drug (with its default dosing), skipping drug+eye pairs already present. */
-    const addDrugs = useCallback((drugs: Drug[]) => {
+    const addDrugs = useCallback((drugs: DrugSnapshot[]) => {
         const taken = new Set(latest.current.map(l => identity(l.drug.id, l.dosing)));
         const fresh: PrescriptionLine[] = [];
         for (const drug of drugs) {

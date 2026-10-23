@@ -28,6 +28,7 @@ public class DatabaseGuardTests
     [Theory]
     [InlineData("drags_it_infra20261015_1")]
     [InlineData("drags_it_local1a2b_tpl")]
+    [InlineData("drags_it_local1a2b_tpl_bare")]
     public void Accepts_a_test_database(string database) => DatabaseGuard.EnsureName(database);
 
     [Theory]

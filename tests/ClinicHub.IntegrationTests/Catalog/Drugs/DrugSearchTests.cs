@@ -1,3 +1,4 @@
+using ClinicHub.Application.Common.Search;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
 using ClinicHub.IntegrationTests.Harness.Hosting;
@@ -8,7 +9,9 @@ namespace ClinicHub.IntegrationTests.Catalog.Drugs;
 
 /// <summary>
 /// The drug search: case-insensitive, Arabic-normalized contains with prefix ranking (drugs § البحث عن دواء; drugs
-/// tech § Backend; overview § Conventions "Search"). Each test has an empty clinic, so the results are exact.
+/// tech § Backend; overview § Conventions "Search"). Each test has an empty clinic and searches its own drugs (source=own:
+/// since M1.7 lists also hold the shared catalog), so the results are exact; on the app-filled search columns the
+/// M1.6.1 folding cases keep their results (CAT-077).
 /// </summary>
 [Collection(CatalogListCollection.Name)]
 [Trait("Area", "catalog")]
@@ -26,7 +29,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("Tobradex");
         await Data.Drug(clinic).Named("Zinc");
 
-        (await SearchDrugNamesAsync(owner, search)).ShouldBe(["Tobradex"]);
+        (await SearchOwnDrugNamesAsync(owner, search)).ShouldBe(["Tobradex"]);
     }
 
     [Fact]
@@ -37,7 +40,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("قطرة مرطبة");
         await Data.Drug(clinic).Named("قطرة أحمر");
 
-        (await SearchDrugNamesAsync(owner, "مرطبة")).ShouldBe(["قطرة مرطبة"]);
+        (await SearchOwnDrugNamesAsync(owner, "مرطبة")).ShouldBe(["قطرة مرطبة"]);
     }
 
     [Fact]
@@ -48,7 +51,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("قطرة أحمر");
         await Data.Drug(clinic).Named("قطرة مرطبة");
 
-        (await SearchDrugNamesAsync(owner, "احمر")).ShouldBe(["قطرة أحمر"]);
+        (await SearchOwnDrugNamesAsync(owner, "احمر")).ShouldBe(["قطرة أحمر"]);
     }
 
     [Fact]
@@ -60,7 +63,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("Atropine tobra");
         await Data.Drug(clinic).Named("Tobradex");
 
-        (await SearchDrugNamesAsync(owner, "tobra")).ShouldBe(["Tobradex", "Atropine tobra", "Zinc tobra"]);
+        (await SearchOwnDrugNamesAsync(owner, "tobra")).ShouldBe(["Tobradex", "Atropine tobra", "Zinc tobra"]);
     }
 
     [Fact]
@@ -72,8 +75,8 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("Tobradex");
         await Data.Drug(clinic).Named("Zinc");
 
-        var trimmed = await SearchDrugNamesAsync(owner, "tobra");
-        var padded = await SearchDrugNamesAsync(owner, "  tobra  ");
+        var trimmed = await SearchOwnDrugNamesAsync(owner, "tobra");
+        var padded = await SearchOwnDrugNamesAsync(owner, "  tobra  ");
 
         padded.ShouldBe(trimmed);
         padded.ShouldBe(["Tobradex", "Zinc tobra"]);
@@ -91,7 +94,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("Tobradex");
         await Data.Drug(clinic).Named("Zinc");
 
-        (await SearchDrugNamesAsync(owner, search)).ShouldBe(["Tobradex"]);
+        (await SearchOwnDrugNamesAsync(owner, search)).ShouldBe(["Tobradex"]);
     }
 
     [Fact]
@@ -104,10 +107,10 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("Vit_D");
         await Data.Drug(clinic).Named("VitXD");
 
-        (await SearchDrugNamesAsync(owner, "%")).ShouldBe(["Moxifloxacin 0.5%"]);
-        (await SearchDrugNamesAsync(owner, "0.5%")).ShouldBe(["Moxifloxacin 0.5%"]);
-        (await SearchDrugNamesAsync(owner, "_")).ShouldBe(["Vit_D"]);
-        (await SearchDrugNamesAsync(owner, "vit_")).ShouldBe(["Vit_D"]);
+        (await SearchOwnDrugNamesAsync(owner, "%")).ShouldBe(["Moxifloxacin 0.5%"]);
+        (await SearchOwnDrugNamesAsync(owner, "0.5%")).ShouldBe(["Moxifloxacin 0.5%"]);
+        (await SearchOwnDrugNamesAsync(owner, "_")).ShouldBe(["Vit_D"]);
+        (await SearchOwnDrugNamesAsync(owner, "vit_")).ShouldBe(["Vit_D"]);
     }
 
     [Fact]
@@ -117,7 +120,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Drug(clinic).Named("Tobradex");
 
-        var page = await ListDrugsAsync(owner, "search=nothing-like-it");
+        var page = await ListDrugsAsync(owner, "search=zzqx");
 
         page.Items.ShouldBeEmpty();
         page.TotalCount.ShouldBe(0);
@@ -125,6 +128,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
 
     [Theory]
     [Trait("Case", "DRUG-088")]
+    [Trait("Case", "CAT-077")]
     [InlineData("اسبرين")]
     [InlineData("إسبرين")]
     [InlineData("آسبرين")]
@@ -135,11 +139,12 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("أسبرين ممتد");
         await Data.Drug(clinic).Named("قطرة مرطبة");
 
-        (await SearchDrugNamesAsync(owner, search)).ShouldBe(["أسبرين ممتد"]);
+        (await SearchOwnDrugNamesAsync(owner, search)).ShouldBe(["أسبرين ممتد"]);
     }
 
     [Theory]
     [Trait("Case", "DRUG-089")]
+    [Trait("Case", "CAT-077")]
     [InlineData("أسبرين")]
     [InlineData("إسبرين")]
     public async Task A_hamza_term_finds_a_name_stored_without_it(string search)
@@ -148,47 +153,51 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("اسبرين أطفال");
         await Data.Drug(clinic).Named("قطرة مرطبة");
 
-        (await SearchDrugNamesAsync(owner, search)).ShouldBe(["اسبرين أطفال"]);
+        (await SearchOwnDrugNamesAsync(owner, search)).ShouldBe(["اسبرين أطفال"]);
     }
 
     [Fact]
     [Trait("Case", "DRUG-090")]
+    [Trait("Case", "CAT-077")]
     public async Task Alef_maksura_and_yeh_find_each_other()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Drug(clinic).Named("مستشفى العين");
         await Data.Drug(clinic).Named("قطرة عيني");
 
-        (await SearchDrugNamesAsync(owner, "مستشفي")).ShouldBe(["مستشفى العين"]);
-        (await SearchDrugNamesAsync(owner, "عينى")).ShouldBe(["قطرة عيني"]);
+        (await SearchOwnDrugNamesAsync(owner, "مستشفي")).ShouldBe(["مستشفى العين"]);
+        (await SearchOwnDrugNamesAsync(owner, "عينى")).ShouldBe(["قطرة عيني"]);
     }
 
     [Fact]
     [Trait("Case", "DRUG-091")]
+    [Trait("Case", "CAT-077")]
     public async Task Teh_marbuta_and_heh_find_each_other()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Drug(clinic).Named("قطرة عيني");
         await Data.Drug(clinic).Named("قطره مرطبه");
 
-        (await SearchDrugNamesAsync(owner, "قطره عيني")).ShouldBe(["قطرة عيني"]);
-        (await SearchDrugNamesAsync(owner, "قطرة مرطبة")).ShouldBe(["قطره مرطبه"]);
+        (await SearchOwnDrugNamesAsync(owner, "قطره عيني")).ShouldBe(["قطرة عيني"]);
+        (await SearchOwnDrugNamesAsync(owner, "قطرة مرطبة")).ShouldBe(["قطره مرطبه"]);
     }
 
     [Fact]
     [Trait("Case", "DRUG-092")]
+    [Trait("Case", "CAT-077")]
     public async Task Hamza_seats_fold_to_waw_and_yeh()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Drug(clinic).Named("مؤقت");
         await Data.Drug(clinic).Named("هيئة");
 
-        (await SearchDrugNamesAsync(owner, "موقت")).ShouldBe(["مؤقت"]);
-        (await SearchDrugNamesAsync(owner, "هييه")).ShouldBe(["هيئة"]);
+        (await SearchOwnDrugNamesAsync(owner, "موقت")).ShouldBe(["مؤقت"]);
+        (await SearchOwnDrugNamesAsync(owner, "هييه")).ShouldBe(["هيئة"]);
     }
 
     [Theory]
     [Trait("Case", "DRUG-093")]
+    [Trait("Case", "CAT-077")]
     [InlineData("مضاد حيوي")]
     [InlineData("مُضَادّ")]
     public async Task Diacritics_are_ignored_on_either_side(string search)
@@ -198,38 +207,43 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("مضاد حيوي قوي");
         await Data.Drug(clinic).Named("قطرة مرطبة");
 
-        (await SearchDrugNamesAsync(owner, search)).ShouldBe(["مُضَادّ حَيَوِيّ", "مضاد حيوي قوي"], ignoreOrder: true);
+        (await SearchOwnDrugNamesAsync(owner, search)).ShouldBe(["مُضَادّ حَيَوِيّ", "مضاد حيوي قوي"], ignoreOrder: true);
     }
 
     [Fact]
     [Trait("Case", "DRUG-094")]
+    [Trait("Case", "CAT-077")]
     public async Task Tatweel_is_ignored_on_either_side()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Drug(clinic).Named("كـــورتيزون");
         await Data.Drug(clinic).Named("كورتيزون موضعي");
 
-        (await SearchDrugNamesAsync(owner, "كورتيزون")).ShouldBe(["كـــورتيزون", "كورتيزون موضعي"], ignoreOrder: true);
-        (await SearchDrugNamesAsync(owner, "كـورتيزون م")).ShouldBe(["كورتيزون موضعي"]);
+        (await SearchOwnDrugNamesAsync(owner, "كورتيزون")).ShouldBe(["كـــورتيزون", "كورتيزون موضعي"], ignoreOrder: true);
+        (await SearchOwnDrugNamesAsync(owner, "كـورتيزون م")).ShouldBe(["كورتيزون موضعي"]);
     }
 
     [Fact]
     [Trait("Case", "DRUG-095")]
+    [Trait("Case", "CAT-077")]
     public async Task A_superscript_alef_reads_as_an_alef()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         await Data.Drug(clinic).Named("هٰذا");
         await Data.Drug(clinic).Named("هذا");
 
-        (await SearchDrugNamesAsync(owner, "هاذا")).ShouldBe(["هٰذا"]);
+        (await SearchOwnDrugNamesAsync(owner, "هاذا")).ShouldBe(["هٰذا"]);
     }
 
     [Theory]
     [Trait("Case", "DRUG-096")]
+    [Trait("Case", "CAT-077")]
     [InlineData("ـ")]
     [InlineData("ـــ")]
     [InlineData("َ")]
     [InlineData(" ّ ")]
+    [InlineData("ً")] // the first and the last of the removed diacritics U+064B–U+065F (tech overview § Conventions)
+    [InlineData("ٟ")]
     public async Task A_term_of_only_tatweel_or_diacritics_does_not_filter(string search)
     {
         var (clinic, owner) = await EmptyClinicAsync();
@@ -237,8 +251,8 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("قطرة مرطبة");
         await Data.Drug(clinic).Named("Zinc");
 
-        var all = await ListDrugsAsync(owner);
-        var searched = await ListDrugsAsync(owner, $"search={Uri.EscapeDataString(search)}");
+        var all = await ListOwnDrugsAsync(owner);
+        var searched = await ListOwnDrugsAsync(owner, $"search={Uri.EscapeDataString(search)}");
 
         searched.TotalCount.ShouldBe(3);
         searched.Items.Select(d => d.Id).ShouldBe(all.Items.Select(d => d.Id));
@@ -246,6 +260,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DRUG-097")]
+    [Trait("Case", "CAT-077")]
     public async Task Folded_prefix_matches_come_first_and_paging_counts_the_matches()
     {
         var (clinic, owner) = await EmptyClinicAsync();
@@ -258,7 +273,8 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
 
         var secondPageQuery = $"search={Uri.EscapeDataString("إسبرين")}&pageSize=2&page=2";
 
-        // The catalog's data as given
+        // The catalog's data as given; the shared catalog is listed too (source=all): no shared name, hidden Arabic name
+        // or ingredient holds «اسبرين» once folded (design M1.7 test cases, "Checked, no change")
         (await SearchDrugNamesAsync(owner, "إسبرين")).ShouldBe([.. startingByName, "قرص أسبرين"]);
         var secondPage = await ListDrugsAsync(owner, secondPageQuery);
         secondPage.Items.Select(d => d.Name).ShouldBe(["قرص أسبرين"]);
@@ -275,12 +291,13 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DRUG-098")]
+    [Trait("Case", "CAT-077")]
     public async Task A_found_name_is_answered_as_stored()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         var drug = await Data.Drug(clinic).Named("أسبرين ممتد");
 
-        var page = await ListDrugsAsync(owner, $"search={Uri.EscapeDataString("اسبرين")}");
+        var page = await ListOwnDrugsAsync(owner, $"search={Uri.EscapeDataString("اسبرين")}");
 
         var found = page.Items.ShouldHaveSingleItem();
         found.Id.ShouldBe(drug.Id);
@@ -289,6 +306,7 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DRUG-099")]
+    [Trait("Case", "CAT-077")]
     public async Task Latin_names_are_unchanged_by_the_folding()
     {
         var (clinic, owner) = await EmptyClinicAsync();
@@ -297,23 +315,29 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
         await Data.Drug(clinic).Named("قطرة Tobradex");
         await Data.Drug(clinic).Named("Tobradex");
 
-        (await SearchDrugNamesAsync(owner, "MOXI")).ShouldBe(["Moxifloxacin 0.5%", "Moxifloxacin 05"], ignoreOrder: true);
-        (await SearchDrugNamesAsync(owner, "%")).ShouldBe(["Moxifloxacin 0.5%"]);
-        (await SearchDrugNamesAsync(owner, "قطره TOBRA")).ShouldBe(["قطرة Tobradex"]);
+        (await SearchOwnDrugNamesAsync(owner, "MOXI")).ShouldBe(["Moxifloxacin 0.5%", "Moxifloxacin 05"], ignoreOrder: true);
+        // With the shared catalog (14 shared names start with "MOXI"): own drugs first, still on page 1
+        (await ListDrugsAsync(owner, "search=MOXI")).Items.Take(2).Select(d => d.Name)
+            .ShouldBe(["Moxifloxacin 0.5%", "Moxifloxacin 05"], ignoreOrder: true);
+        (await SearchOwnDrugNamesAsync(owner, "%")).ShouldBe(["Moxifloxacin 0.5%"]);
+        (await SearchOwnDrugNamesAsync(owner, "قطره TOBRA")).ShouldBe(["قطرة Tobradex"]);
     }
 
     [Fact]
     [Trait("Case", "DRUG-100")]
+    [Trait("Case", "CAT-077")]
     public async Task A_rename_is_searchable_at_once()
     {
         var (clinic, owner) = await EmptyClinicAsync();
         var drug = await Data.Drug(clinic).Named("مؤقت");
-        (await SearchDrugNamesAsync(owner, "موقته")).ShouldBeEmpty();
+        (await SearchOwnDrugNamesAsync(owner, "موقته")).ShouldBeEmpty();
 
         await (await PutDrugAsync(owner, drug.Id, "مُؤقّتة")).ShouldBeOkAsync();
 
-        (await SearchDrugNamesAsync(owner, "موقته")).ShouldBe(["مُؤقّتة"]);
-        (await SearchDrugNamesAsync(owner, "مؤقت")).ShouldBe(["مُؤقّتة"]);
+        (await SearchOwnDrugNamesAsync(owner, "موقته")).ShouldBe(["مُؤقّتة"]);
+        (await SearchOwnDrugNamesAsync(owner, "مؤقت")).ShouldBe(["مُؤقّتة"]);
+        // Refolded by the save interceptor (design M1.7 D7), no longer by the database
+        (await StoredSearchColumnsAsync(drug.Id)).SearchName.ShouldBe(SearchText.Fold("مُؤقّتة"));
     }
 
     /// <summary>The names sorted by the database's default collation (the oracle for "by name").</summary>

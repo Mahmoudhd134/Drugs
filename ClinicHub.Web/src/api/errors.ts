@@ -25,6 +25,11 @@ export interface ApiError {
      * `staffInactive`; by name): the message is then `errors.<code>_named` (plural forms). Empty otherwise.
      */
     clinicNames: string[];
+    /**
+     * How many drugs block a delete (`categoryInUse`, `subCategoryInUse`; design M1.7 § 7): the message is then
+     * `errors.<code>_counted` (plural forms, `{{count, count}}`). Null otherwise.
+     */
+    drugCount: number | null;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -56,6 +61,7 @@ export const toApiError = (error: unknown): ApiError | null => {
         clinicNames: Array.isArray(body.clinicNames)
             ? body.clinicNames.filter((name): name is string => typeof name === "string")
             : [],
+        drugCount: typeof body.drugCount === "number" ? body.drugCount : null,
     };
 };
 
@@ -68,11 +74,13 @@ const clinicList = (names: string[]) =>
  * `errors.<code>` when that text exists; `errors.<code>_named` (plural forms, `{{clinics}}`) when the error names
  * clinics.
  */
-const translateCode = (code: string | null, clinicNames: string[] = []) => {
+const translateCode = (code: string | null, clinicNames: string[] = [], drugCount: number | null = null) => {
     if (!code) return null;
     const count = clinicNames.length;
     if (count > 0 && i18n.exists(`errors.${code}_named`, {count}))
         return i18n.t(`errors.${code}_named`, {count, clinics: clinicList(clinicNames)});
+    if (drugCount !== null && i18n.exists(`errors.${code}_counted`, {count: drugCount}))
+        return i18n.t(`errors.${code}_counted`, {count: drugCount});
     return i18n.exists(`errors.${code}`) ? i18n.t(`errors.${code}`) : null;
 };
 
@@ -80,7 +88,7 @@ const translateCode = (code: string | null, clinicNames: string[] = []) => {
 export const getErrorMessage = (error: unknown): string => {
     if (axios.isAxiosError(error) && !error.response) return i18n.t("errors.network");
     const apiError = toApiError(error);
-    const message = translateCode(apiError?.code ?? null, apiError?.clinicNames);
+    const message = translateCode(apiError?.code ?? null, apiError?.clinicNames, apiError?.drugCount);
     if (message) return message;
     if (apiError?.status === 404) return i18n.t("errors.notFound");
     return i18n.t("errors.generic");

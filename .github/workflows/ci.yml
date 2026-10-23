@@ -109,6 +109,12 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
+      # load_catalog.py (the shared drug catalog, D11/D12) runs in the integration harness and the e2e setup
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python + psycopg (the shared catalog loader)
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]"
       - name: PostgreSQL (docker compose)
         run: &postgres |
           # A slow pull or start fails in 2 minutes and is tried again (seen: a runner stuck on it for 6+ minutes)
@@ -239,6 +245,12 @@ jobs:
           node-version: 26
           cache: npm
           cache-dependency-path: ClinicHub.Web/package-lock.json
+      # load_catalog.py (the shared drug catalog, D11/D12) runs in the integration harness and the e2e setup
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python + psycopg (the shared catalog loader)
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]"
       - name: PostgreSQL (docker compose)
         working-directory: .
         run: *postgres
@@ -317,6 +329,12 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
+      # load_catalog.py (the shared drug catalog, D11/D12) runs in the integration harness and the e2e setup
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python + psycopg (the shared catalog loader)
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]"
       - name: PostgreSQL (docker compose)
         run: *postgres
       - name: Tools

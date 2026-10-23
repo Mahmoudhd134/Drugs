@@ -5,9 +5,9 @@ import EditIcon from "@mui/icons-material/EditOutlined";
 import AddToEyeIcon from "@mui/icons-material/AddCircleOutline";
 import {useTranslation} from "react-i18next";
 import {SortableList} from "../../../components/common/SortableList.tsx";
-import type {Drug} from "../../drugs/types.ts";
+import type {DrugSnapshot} from "../../drugs/types.ts";
 
-type Line = { key: string; drug: Drug };
+type Line = { key: string; drug: DrugSnapshot };
 
 type Props<T extends Line> = {
     lines: T[];
@@ -39,7 +39,7 @@ export const DosingLineList = <T extends Line>(props: Props<T>) => {
                 sx={{flex: 1, minWidth: 0, cursor: readOnly ? undefined : "pointer"}}
                 onClick={readOnly ? undefined : () => onEdit(line)}
             >
-                <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{line.drug.name}</Typography>
+                <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{line.drug.name}</bdi></Typography>
                 {renderDetails(line)}
             </Stack>
             {!readOnly && (

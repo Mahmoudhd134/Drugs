@@ -363,6 +363,22 @@ try {
 
     # ------------------------------------------------------------ stages
 
+    # The integration harness and the e2e setup load the shared drug catalog with Python + psycopg (design M1.7 D12):
+    # checked once up front, so a missing prerequisite stops the run with the install command instead of failing
+    # every test. The message is CatalogLoader.InstallHint (tests/ClinicHub.IntegrationTests/Harness/Databases).
+    Invoke-Stage 'Prerequisites (Python + psycopg)' {
+        $installHint = 'The integration tests load the shared drug catalog with Python 3 and psycopg: install Python 3.10+ (python on the PATH), then run: python -m pip install "psycopg[binary]"'
+        $python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $python) { throw $installHint }
+        # PowerShell 5.1 turns a native stderr line into an error record: only the exit code matters here
+        $ErrorActionPreference = 'Continue'
+        & $python.Source -c 'import psycopg' 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw $installHint }
+    }
+    if (@($stages | Where-Object { $_.Name -like 'Prerequisites*' -and $_.Result -eq 'FAILED' }).Count -gt 0) {
+        throw 'a test prerequisite is missing (see the Prerequisites stage)'
+    }
+
     Invoke-Stage 'PostgreSQL (docker compose)' {
         $code = Invoke-Native 'docker' @('compose', 'up', '-d')
         if ($code -ne 0) { throw "docker compose up failed ($code)" }
@@ -426,7 +442,7 @@ try {
         # Belt and braces: the run drops its databases itself; a crash leaves them to the next run's cleanup
         try {
             & docker exec drags-postgres psql -U drags -d postgres -Atc "SELECT datname FROM pg_database WHERE datname LIKE 'drags\_it\_$runId\_%'" |
-                Where-Object { $_ -match "^drags_it_$($runId)_[a-z0-9]+$" } |
+                Where-Object { $_ -match "^drags_it_$($runId)_[a-z0-9]+(_bare)?$" } |
                 ForEach-Object { & docker exec drags-postgres psql -U drags -d postgres -qc "DROP DATABASE IF EXISTS `"$_`" WITH (FORCE)" | Out-Null }
         }
         catch {

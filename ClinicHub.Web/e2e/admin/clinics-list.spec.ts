@@ -3,7 +3,8 @@ import {expect, signInSuperAdmin, test} from "../support/fixtures.ts";
 import type {Data} from "../support/data.ts";
 import {unique} from "../support/phones.ts";
 import type {Texts} from "../support/texts.ts";
-import {expectContextLabel, openSidebar, recordRequests, sidebarEntries} from "../support/ui.ts";
+import {closeSidebar, expectContextLabel, navTo, openSidebar, recordRequests, sidebarEntries} from "../support/ui.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
 
 const rows = (page: Page) => page.locator("tbody tr");
 
@@ -24,14 +25,30 @@ const chooseStatus = async (page: Page, t: Texts, label: string) => {
 };
 
 test.describe("Platform admin: the clinics list @area:admin", () => {
-    test("the platform context: «إدارة المنصة» in the app bar, «العيادات» and «تعديل العيادة النموذجية» in the sidebar @ADM-010 @smoke",
-        async ({page, t, healthy}) => {
+    test("the platform context: «إدارة المنصة» in the app bar; the sidebar «العيادات»، «الأدوية»، «التصنيفات»، «تعديل العيادة النموذجية», each opening its page @ADM-010 @smoke",
+        async ({page, t, lang, healthy}) => {
+            const st = SHARED_TEXTS[lang];
             await signInSuperAdmin(page);
             await expectContextLabel(page, t.platform);
-            expect(await sidebarEntries(page, t)).toEqual([t.adminClinics]);
+            expect(await sidebarEntries(page, t)).toEqual([t.adminClinics, st.navDrugs, st.navCategories]);
             const {nav} = await openSidebar(page, t);
             await expect(nav.getByRole("button", {name: t.editTemplate})).toBeVisible();
             await healthy();
+            if (page.viewportSize()!.width < 900) await closeSidebar(page);
+
+            for (const [entry, path, heading] of [
+                [st.navDrugs, /\/admin\/drugs$/, st.adminDrugsTitle],
+                [st.navCategories, /\/admin\/categories$/, st.categoriesTitle],
+                [t.adminClinics, /\/admin$/, null],
+            ] as const) {
+                await navTo(page, t, entry);
+                await expect(page, entry).toHaveURL(path);
+                if (heading) await expect(page.getByRole("heading", {level: 1, name: heading})).toBeVisible();
+            }
+            const again = await openSidebar(page, t);
+            await again.nav.getByRole("button", {name: t.editTemplate}).click();
+            await expect(page).toHaveURL(/\/drugs$/);
+            await expectContextLabel(page, t.template);
         });
 
     test("«تعديل العيادة النموذجية» (double click): one switch, the template's drugs page with its banner @ADM-142",

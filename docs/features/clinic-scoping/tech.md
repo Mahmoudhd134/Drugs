@@ -30,6 +30,9 @@ contracts are unchanged.
 
 The composite FKs make the database itself reject an item whose protocol or drug is in another
 clinic (the unique `(Id, ClinicId)` alternate keys exist only as their targets).
+*(M1.7b)* `Drugs.ClinicId` became nullable (null = shared), the drug FK of `ProtocolItems` is simple (`DrugId` →
+`Drugs.Id`, cascade) and `AK_Drugs_Id_ClinicId` is gone: a line on another clinic's drug is refused by the protocol
+handlers (`drugNotFound`) and a drug changing owner by the save interceptor ([shared catalog](../shared-catalog/tech.md)).
 
 Owned `Dosing`, cascades and "one drug per protocol per eye" are unchanged. Migration: the single
 PostgreSQL `Initial` was regenerated (nothing in production; dev DBs reset with
@@ -59,6 +62,28 @@ No new endpoints, no contract changes. Behavior inside a clinic:
   - `IClinicOwned` (added, modified or deleted): no clinic in context → `InvalidOperationException`.
     New rows with `ClinicId == 0` get the context's clinic; a row whose `ClinicId` differs from the
     context, or was loaded from another clinic (original `ClinicId`), throws. So Platform code that works on a clinic's rows must set `ClinicContext` first.
+  - *(M1.7b)* `IClinicOrShared` (`Drug` only; `ClinicId` null = a shared drug of the platform catalog,
+    [shared catalog](../shared-catalog/tech.md)), the table of design M1.7 D2:
+
+    | Row | Clinic in context | No clinic |
+    |---|---|---|
+    | added, `ClinicId` 0/null | stamped with the clinic (an own drug) | stays shared only inside `UseSharedCatalog()`, else throws |
+    | added/modified/deleted, own row | as `IClinicOwned` (same clinic only) | throws |
+    | modified, shared row | throws (read-only in a clinic) | only inside `UseSharedCatalog()` |
+    | deleted, shared row | throws | throws, even inside `UseSharedCatalog()` (withdrawn, never deleted) |
+    | `ClinicId` changed (original ≠ current: shared ↔ own, clinic → clinic) | throws | throws |
+    | `Drug` added or modified: shared with any `DefaultDosing` column set, or own with `IsWithdrawn` | throws | throws |
+
+    A drug whose only change is its owned `DefaultDosing` counts as modified (same owner lookup as the timestamps).
+  - *(M1.7b)* Search columns (design M1.7 D7): every column declared with `HasSearchName(source)` /
+    `HasSearchOther()` (`SearchNameConfiguration`, model annotation `ClinicHub:SearchSource` = its source properties)
+    is set on an added row, and on a modified row only when one of its source properties is modified:
+    `SearchName` = `SearchText.Fold(source)` (`Drugs`, `Protocols`, `Clinics` from `Name`; `Staff` from `FullName`),
+    `SearchOther` = `SearchText.OtherText(NameAr, ActiveIngredients)` (`Drugs`). Otherwise the column is never
+    written (not even from a whole row attached with `Update`). Searches fold the term with the same `SearchText`
+    (`Term`, `OtherTerm`) and compare with `Contains`/`StartsWith` on `EF.Property(…, SearchText.Column)`: no
+    database-specific SQL. Writes that skip the interceptor (`ExecuteUpdate`, raw SQL) leave the column stale (`''` for
+    a raw insert): no `ExecuteUpdate` sets a searched text (architecture test).
   - `IHasTimestamps`: added → `CreatedAt = UpdatedAt = DateTime.UtcNow`; modified → `UpdatedAt`
     only (`CreatedAt` is never overwritten). A change to an owned value (e.g. only a drug's
     `DefaultDosing`) counts as a change to its owner (owners found with one key lookup, so bulk
@@ -84,6 +109,14 @@ No new endpoints, no contract changes. Behavior inside a clinic:
     while inserting its rows. The dev seed runs in one transaction, so a crash can't leave a half-seeded DB
     that later starts would skip.
 
+- *(M1.7b)* `IClinicContext.WritingSharedCatalog` (read by the interceptor through
+  `AppDbContext.IsWritingSharedCatalog`) is true only inside `IClinicScope.UseSharedCatalog()`: it sets the flag for a
+  block and restores the previous value on dispose (nestable: open until the outermost block is disposed); it throws
+  when a clinic is in context, and `Use(clinicId)` / `EnterAsync` throw inside it (a request never mixes a clinic with
+  shared-catalog writing). Only the admin shared-drug handlers (`Features/Platform/SharedDrugs`) call it.
+- *(M1.7b)* Query filter of `IClinicOrShared` (`AppDbContext.ConfigureClinicOrShared`, FK to `Clinics` restrict,
+  nullable): `x.ClinicId == null || (ClinicId != null && x.ClinicId == ClinicId)`: a clinic sees the shared drugs and
+  its own; a platform request (no clinic) sees only the shared drugs.
 - Since M1.2 the request's clinic comes from the token's `clinic_id`: `UseClinicFromToken()` in the Api's
   `Features/Identity/IdentitySetup` (reads `ICurrentUser`, whose interface is in `Application/Common/Abstractions`).
   Only exception (M1.5.3): the super admin's per-clinic admin routes (`/admin/clinics/{clinicId}/roles…`, `/staff…`),

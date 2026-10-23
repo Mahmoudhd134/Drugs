@@ -10,6 +10,11 @@ using ClinicHub.Application.Features.Catalog.Protocols.Commands.UpdateProtocol;
 using ClinicHub.Application.Features.Catalog.Drugs;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.DeleteDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
+using ClinicHub.Application.Features.Catalog.Categories;
+using ClinicHub.Application.Features.Platform.SharedDrugs;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.RestoreSharedDrug;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.UpdateSharedDrug;
+using ClinicHub.Application.Features.Platform.SharedDrugs.Commands.WithdrawSharedDrug;
 using ClinicHub.Application.Features.Platform.Clinics;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.ActivateClinic;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.DeleteClinic;
@@ -99,8 +104,11 @@ public sealed class TestData(AppFixture app)
 
     public ProtocolBuilder Protocol(ClinicHandle clinic) => Protocol(clinic.Id);
 
-    public async Task<DrugDto> UpdateDrugAsync(int clinicId, int drugId, string name, string description = null, Dosing dosing = null) =>
-        (await app.SendAsync(new UpdateDrugCommand(drugId, name, description, dosing), clinicId)).ShouldSucceed();
+    /// <summary>Full update of an own drug; the category defaults to the builders' («العيون › المياه الزرقاء»).</summary>
+    public async Task<DrugDto> UpdateDrugAsync(int clinicId, int drugId, string name, string description = null, Dosing dosing = null,
+        string activeIngredients = null, int categoryId = CategoryIds.Eye, int? subCategoryId = SubCategoryIds.Glaucoma) =>
+        (await app.SendAsync(new UpdateDrugCommand(drugId, name, activeIngredients, description, dosing, categoryId, subCategoryId),
+            clinicId)).ShouldSucceed();
 
     public async Task DeleteDrugAsync(int clinicId, int drugId) =>
         (await app.SendAsync(new DeleteDrugCommand(drugId), clinicId)).ShouldSucceed();
@@ -110,4 +118,47 @@ public sealed class TestData(AppFixture app)
 
     public async Task DeleteProtocolAsync(int clinicId, int protocolId) =>
         (await app.SendAsync(new DeleteProtocolCommand(protocolId), clinicId)).ShouldSucceed();
+
+    // ---- Shared catalog (design M1.7 D12): imported rows are only read; tests write their own rows ----
+
+    /// <summary>
+    /// An imported shared drug looked up by its exact name (e.g. "ALEMOX 1 GM 12 F.C.TABS."); fails unless exactly one
+    /// shared drug has it. Read only: never change it (the baseline check fails the run). Read from the database (no
+    /// clinic needed), mapped as the clinic API maps it (<see cref="DrugMappings.ToDto"/>).
+    /// </summary>
+    public async Task<DrugDto> Shared(string exactName)
+    {
+        var found = await app.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().AsNoTracking().WithCategories()
+            .Where(d => d.ClinicId == null && d.Name == exactName)
+            .ToListAsync());
+        if (found.Count != 1)
+            throw new InvalidOperationException(
+                $"Data.Shared(\"{exactName}\"): {found.Count} shared drugs have this exact name (expected one imported drug).");
+        return found[0].ToDto();
+    }
+
+    /// <summary>A test-owned shared drug (create, rename, withdraw, restore it freely).</summary>
+    public SharedDrugBuilder SharedDrug() => new(app);
+
+    /// <summary>A test-owned category.</summary>
+    public CategoryBuilder Category() => new(app);
+
+    /// <summary>A test-owned subcategory, by default under «العيون» (an imported category: allowed, its row is never touched).</summary>
+    public SubCategoryBuilder SubCategory(int categoryId = CategoryIds.Eye) => new(app, categoryId);
+
+    /// <summary>
+    /// Admin actions on a test-owned shared drug (<c>UpdateSharedDrugCommand</c>, <c>WithdrawSharedDrugCommand</c>,
+    /// <c>RestoreSharedDrugCommand</c>), as the super admin (no clinic). Never on an imported drug.
+    /// </summary>
+    public async Task<AdminDrugDto> UpdateSharedDrugAsync(int drugId, string name,
+        string activeIngredients = null, string description = null, int categoryId = CategoryIds.Eye,
+        int? subCategoryId = SubCategoryIds.Glaucoma) =>
+        (await app.SendAsync(new UpdateSharedDrugCommand(drugId, name, activeIngredients, description, categoryId, subCategoryId)))
+            .ShouldSucceed();
+
+    public async Task WithdrawSharedDrugAsync(int drugId) =>
+        (await app.SendAsync(new WithdrawSharedDrugCommand(drugId))).ShouldSucceed();
+
+    public async Task RestoreSharedDrugAsync(int drugId) =>
+        (await app.SendAsync(new RestoreSharedDrugCommand(drugId))).ShouldSucceed();
 }

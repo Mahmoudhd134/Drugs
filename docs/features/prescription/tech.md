@@ -68,6 +68,10 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
        `protocolSkipped` (identical), `protocolDuplicated` (duplicated in the protocol, not added; M1.6.0: no line is dropped
        silently). Its style is **success** when something was added or replaced, otherwise the **neutral** (plain)
        toast: the prescription didn't change.
+    7. Lines of drugs the platform admin disabled (`drug.withdrawn`, shared catalog, M1.7b) are added like the others
+       (asked about like the others, counted in the toast above as usual). When N of the **new** lines are such lines, a
+       second toast follows the protocol's: `toast(t("prescription.protocolWithdrawn", {count: N}), {icon: "⚠️"})`
+       («أُضيف رغم تعطيله من الإدارة: N», plain style, ⚠ icon, dismissible like every toast); none when N = 0.
   - Adding a single drug whose drug+eye is already present → toast `prescription.alreadyAdded`.
   - Double clicks (M1.6.0): `SearchableList` (both pickers) ignores the extra clicks of a burst (`event.detail > 1`;
     keyboard activation has `detail` 0), so a double click selects once (one add, one toast); adding a protocol also
@@ -86,8 +90,13 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   (`prescription.clearAllInfo`, `quickCopyInfo`, `editAndCopyInfo`) show only while there are lines: with an empty list
   the three buttons are disabled and show no tooltip.
 - `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, `LineDetails` (the Arabic dosing
-  sentence, or the drug description when the dosing has no instructions: see Text formats), note; actions ✎ edit,
-  ⊕ add for the other eye (only when possible), ✕ remove. Clicking the row text also edits.
+  sentence, or the drug description when the dosing has no instructions: see Text formats; for a **shared** drug with
+  neither, a muted «لا توجد جرعة محددة» / "No dosing set", screen only, never copied; an own drug's line keeps showing
+  its name alone, RX-060), note, and `WithdrawnChip` («معطّل من الإدارة» with its tooltip) when the line's snapshot has
+  `withdrawn: true` (a tap on it shows the tooltip without opening the line); actions ✎ edit, ⊕ add for the other eye
+  (only when possible), ✕ remove. Clicking the row text also edits.
+- The protocols tab's rows (`ProtocolPicker`) show «الأدوية: N» (every line) and, when some lines' drugs are disabled,
+  `WithdrawnChip count={n}` («معطّل من الإدارة: n»; inside the option, so not a Tab stop of its own).
 - `components/useProtocolAddDialogs.tsx`: promise-based dialogs `askEye` and `askConflict`
   (render `dialogs` in the page). On a phone (375 px) the conflict dialog's two boxes («الحالي» / «من البروتوكول») are
   stacked (side by side from `sm`) and the eye dialog's three buttons (right / left / both) fit on one row. The protocol
@@ -127,8 +136,10 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   + `execCommand("copy")` fallback that sets both formats. Failure → toast `errors.copyFailed`.
 
 ## Edge cases & limitations
-- Lines keep a **snapshot** of the drug; later edits/deletes of the drug are not reflected until
-  the line is removed and re-added.
+- Lines keep a **snapshot** of the drug (`DrugSnapshot`: id, name, description, default dosing, and since M1.7b
+  `isShared` / `withdrawn`, optional: lines stored before M1.7 lack them and still load, edit and copy); later
+  edits/deletes of the drug (a rename by the super admin, a withdraw) are not reflected until the line is removed and
+  re-added. A line added before its drug was disabled keeps no chip and works as before (⊕ included).
 - The pickers (`useDrugPicker`, `useProtocolPicker`) show what they loaded: a drug or protocol changed or deleted in
   another window or on another computer stays as it was until the picker loads again (a search change or the page
   opened again once the data is older than the 30 s `staleTime`; no refetch on focus), or the browser page is

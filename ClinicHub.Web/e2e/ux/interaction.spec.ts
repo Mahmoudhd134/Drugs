@@ -1,6 +1,7 @@
 import type {Locator, Page} from "@playwright/test";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
+import {IMPORTED, pickCategory} from "../support/shared.ts";
 import {unique, uniqueDigits} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
 import {dropDaily} from "../support/rx.ts";
@@ -116,17 +117,18 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(await countNamed(data, clinic, "protocols", protocol.name)).toBe(1);
         });
 
-    test("the drugs table: Tab to a row, then Enter or Space opens the drug (edit for an owner, details for a viewer) @UX-020",
+    test("the drugs table: Tab to a row, then Enter or Space opens the drug (an own drug: edit for an owner, details for a viewer; a shared drug: the read-only details for both) @UX-020",
         async ({page, data, lang, newBrowser}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, READ_ONLY)).id]});
 
-            const opensWithKeys = async (target: Page, title: string, closeWith: string) => {
-                await target.getByRole("searchbox", {name: t.searchDrugs}).fill(drug.name);
-                const row = drugRow(target, drug.name);
-                await expect(target.getByRole("row")).toHaveCount(2);
+            const opensWithKeys = async (target: Page, title: string, closeWith: string, name = drug.name) => {
+                await target.getByRole("searchbox", {name: t.searchDrugs}).fill(name);
+                const row = drugRow(target, name);
+                await expect(row).toBeVisible();
+                if (name === drug.name) await expect(target.getByRole("row")).toHaveCount(2);
                 for (const key of ["Enter", "Space"]) {
                     await target.getByRole("searchbox", {name: t.searchDrugs}).focus();
                     await tabTo(target, row);
@@ -139,10 +141,13 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
 
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
             await opensWithKeys(page, t.editDrug, t.cancel);
+            // A shared row opens the read-only details, also for the owner (design M1.7 D9)
+            await opensWithKeys(page, t.drugDetails, t.close, IMPORTED.xalatan);
 
             const other = await newBrowser();
             await signIn(other.page, viewer.phone, "asIs", "/drugs");
             await opensWithKeys(other.page, t.drugDetails, t.close);
+            await opensWithKeys(other.page, t.drugDetails, t.close, IMPORTED.xalatan);
         });
 
     test("prescription lines and protocol lines move with the keyboard: focus the drag handle, Space, ↓, Space @UX-021",
@@ -190,6 +195,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         const name = `Double ${unique()}`;
         await page.getByRole("button", {name: t.addDrug}).click();
         await dialog(page).getByRole("textbox", {name: t.drugName}).fill(name);
+        await pickCategory(page, dialog(page), lang);
         await dialog(page).getByRole("button", {name: t.save, exact: true}).dblclick();
         await expectToast(page, t.drugAdded);
         await expectNoDialog(page);
@@ -210,6 +216,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await page.getByRole("button", {name: t.addDrug}).click();
             const field = dialog(page).getByRole("textbox", {name: t.drugName});
             await field.fill(entered);
+            await pickCategory(page, dialog(page), lang);
             const first = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
             await field.press("Enter");
             await first;
@@ -236,6 +243,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const clicked = `Double ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).click();
             await dialog(page).getByRole("textbox", {name: t.drugName}).fill(clicked);
+            await pickCategory(page, dialog(page), lang);
             const save = dialog(page).getByRole("button", {name: t.save, exact: true});
             const at = (await save.boundingBox())!;
             const second = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
@@ -259,6 +267,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await page.getByRole("button", {name: t.addDrug}).click();
             const field = dialog(page).getByRole("textbox", {name: t.drugName});
             await field.fill(name);
+            await pickCategory(page, dialog(page), lang);
             const saved = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
             await field.press("Enter");
             await saved;

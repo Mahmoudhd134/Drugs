@@ -77,6 +77,9 @@ describe("locale files @area:i18n", () => {
             "noAccess", "clinicSuspended", "staffInactive", "invalidPhone", "invalidCode", "codeExpired", "tooManyAttempts",
             "drugsRequired", "drugNotFound", "invalidDosing", "duplicateProtocolItem",
             "roleNameTaken", "unknownPermission", "roleLocked", "roleInUse", "rolesRequired", "roleNotFound", "staffExists", "lastOwner",
+            // The shared catalog (design M1.7 § 7; M1.7b contract § 2.4)
+            "sharedDrugReadOnly", "categoryRequired", "categoryNotFound", "subCategoryNotFound", "textTooLong", "drugWithdrawn",
+            "categoryNameTaken", "subCategoryNameTaken", "categoryInUse", "subCategoryInUse",
         ];
         for (const code of codes) {
             expect(enTexts[`errors.${code}`], `en errors.${code}`).toBeTypeOf("string");

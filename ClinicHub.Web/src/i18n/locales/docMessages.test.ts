@@ -9,6 +9,7 @@ import dosingDoc from "../../../../docs/features/dosing/business.md?raw";
 import protocolsDoc from "../../../../docs/features/protocols/business.md?raw";
 import drugsDoc from "../../../../docs/features/drugs/business.md?raw";
 import adminDoc from "../../../../docs/features/platform-admin/business.md?raw";
+import sharedCatalogDoc from "../../../../docs/features/shared-catalog/business.md?raw";
 import prescriptionDoc from "../../../../docs/features/prescription/business.md?raw";
 import taperingDoc from "../../../../docs/features/tapering/business.md?raw";
 
@@ -102,6 +103,8 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["تم إنشاء البروتوكول", () => t("protocols.created")],
             ["تم تحديث البروتوكول", () => t("protocols.updated")],
             ["تم حذف البروتوكول", () => t("protocols.deleted")],
+            // M1.7b: a protocol saved with a drug the admin disabled (design M1.7 D6)
+            ["«اسم الدواء» معطّل من الإدارة ولا يمكن إضافته.", () => t("protocols.drugWithdrawnNamed", {name: "اسم الدواء"})],
             ["الاسم مطلوب.", () => t("errors.nameRequired")],
             ["أضف دواءً واحدًا على الأقل.", () => t("errors.drugsRequired")],
             ["«اسم الدواء» موجود بالفعل في هذا البروتوكول لنفس العين", () => t("protocols.alreadyInProtocolForEye", {name: "اسم الدواء"})],
@@ -116,6 +119,12 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["تمت إضافة الدواء", () => t("drugs.created")],
             ["تم تحديث الدواء", () => t("drugs.updated")],
             ["تم حذف الدواء", () => t("drugs.deleted")],
+            // M1.7b: the required category (design M1.7 D9)
+            ["التصنيف مطلوب.", () => t("errors.categoryRequired")],
+            ["هذا التصنيف لم يعد موجودًا. اختر تصنيفًا آخر.", () => t("errors.categoryNotFound")],
+            ["هذا التصنيف الفرعي غير موجود في التصنيف المختار.", () => t("errors.subCategoryNotFound")],
+            ["النص طويل جدًا.", () => t("errors.textTooLong")],
+            ["لا يمكن تعديل الأدوية المشتركة.", () => t("errors.sharedDrugReadOnly")],
             ["الاسم مطلوب.", () => t("errors.nameRequired")],
             ["لا توجد أدوية مطابقة للبحث.", () => t("drugs.noResults")],
         ],
@@ -193,6 +202,8 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["«اسم الدواء» موجود بالفعل في القائمة", () => t("prescription.alreadyAdded", {name: "اسم الدواء"})],
             ["«اسم الدواء» موجود بالفعل في القائمة لنفس العين", () => t("prescription.eyeTaken", {name: "اسم الدواء"})],
             ["أي عين؟", () => t("prescription.chooseEyeTitle")],
+            // M1.7b: the ⚠ toast after a protocol with lines disabled by the admin (design M1.7 D6)
+            ["أُضيف رغم تعطيله من الإدارة: العدد", () => t("prescription.protocolWithdrawn", {count: "العدد"})],
             ["جرعتان لنفس العين", () => t("prescription.protocolClashTitle")],
             ["«اسم الدواء» موجود في البروتوكول مرتين للعين التي اخترتها، بجرعتين مختلفتين. أي جرعة تُضاف؟",
                 () => t("prescription.protocolClashMessage", {name: "اسم الدواء"})],
@@ -208,6 +219,53 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["تعذّر النسخ. حدّد النص وانسخه يدويًا.", () => t("errors.copyFailed")],
             ["تم مسح القائمة", () => t("prescription.cleared")],
             ["زر تراجع", () => `زر ${t("common.undo")}`],
+        ],
+    },
+    {
+        // M1.7 shared catalog (its business doc's «الرسائل التي تظهر للمستخدم (جديدة)»)
+        name: "shared-catalog", doc: sharedCatalogDoc, entries: [
+            ["مشترك", () => t("drugs.chip.shared")],
+            ["خاص بالعيادة", () => t("drugs.chip.own")],
+            ["الكل", () => t("drugs.source.all")],
+            ["المشتركة", () => t("drugs.source.shared")],
+            ["أدوية العيادة", () => t("drugs.source.own")],
+            ["بدون تصنيف فرعي", () => t("drugs.noSubCategory")],
+            ["النتائج: N", () => t("common.results", {count: "N"})],
+            ["لا توجد أدوية مطابقة للبحث.", () => t("drugs.noResults")],
+            ["لا توجد أدوية خاصة بالعيادة بعد.", () => t("drugs.noOwnDrugs")],
+            ["لا توجد أدوية مطابقة للفلاتر.", () => t("drugs.noFilterResults")],
+            ["«مسح الفلاتر»", () => `«${t("drugs.clearFilters")}»`],
+            ["التصنيف: «التصنيف» › «التصنيف الفرعي»", () => t("drugs.categoryLine", {path: "«التصنيف» › «التصنيف الفرعي»"})],
+            ["لا توجد جرعة محددة", () => t("dosing.noDosing")],
+            ["التصنيف مطلوب.", () => t("errors.categoryRequired")],
+            ["هذا التصنيف لم يعد موجودًا. اختر تصنيفًا آخر.", () => t("errors.categoryNotFound")],
+            ["هذا التصنيف الفرعي غير موجود في التصنيف المختار.", () => t("errors.subCategoryNotFound")],
+            ["لا يمكن تعديل الأدوية المشتركة.", () => t("errors.sharedDrugReadOnly")],
+            ["معطّل من الإدارة", () => t("drugs.withdrawn.chip")],
+            ["عطّل مدير المنصة هذا الدواء في الكتالوج المشترك، فلا يظهر في البحث. يبقى في البروتوكولات التي تستخدمه.",
+                () => t("drugs.withdrawn.tooltip")],
+            ["معطّل من الإدارة: N", () => t("drugs.withdrawn.count", {count: "N"})],
+            ["بعض الأدوية عطّلها مدير المنصة في الكتالوج المشترك.", () => t("protocols.withdrawnAlert")],
+            ["«اسم الدواء» معطّل من الإدارة ولا يمكن إضافته.", () => t("protocols.drugWithdrawnNamed", {name: "اسم الدواء"})],
+            ["أُضيف رغم تعطيله من الإدارة: N", () => t("prescription.protocolWithdrawn", {count: "N"})],
+            ["تعطيل الدواء", () => t("adminDrugs.withdraw")],
+            ["تفعيل الدواء", () => t("adminDrugs.restore")],
+            ["تعطيل «اسم الدواء»؟ سيختفي من البحث في كل العيادات ويبقى في البروتوكولات التي تستخدمه. يمكنك تفعيله لاحقًا.",
+                () => `${t("adminDrugs.withdrawTitle", {name: "اسم الدواء"})} ${t("adminDrugs.withdrawMessage")}`],
+            ["تم تعطيل الدواء", () => t("adminDrugs.withdrawnToast")],
+            ["تم تفعيل الدواء", () => t("adminDrugs.restoredToast")],
+            ["مفعّل", () => t("adminDrugs.status.active")],
+            ["معطّل", () => t("adminDrugs.status.withdrawn")],
+            ["لا توجد أدوية معطّلة.", () => t("adminDrugs.noWithdrawn")],
+            ["يوجد تصنيف بهذا الاسم.", () => t("errors.categoryNameTaken")],
+            ["يوجد تصنيف فرعي بهذا الاسم في نفس التصنيف.", () => t("errors.subCategoryNameTaken")],
+            ["لا يمكن حذف هذا التصنيف: يستخدمه N دواء.", () => t("errors.categoryInUse_counted_other", {count: "N"})],
+            ["لا يمكن حذف هذا التصنيف الفرعي: يستخدمه N دواء.", () => t("errors.subCategoryInUse_counted_other", {count: "N"})],
+            ["من عيادات محذوفة: N", () => t("adminCategories.deletedClinics", {count: "N"})],
+            ["حذف التصنيف «الاسم»؟ ستُحذف معه تصنيفاته الفرعية. لا يمكن التراجع عن ذلك.",
+                () => `${t("adminCategories.deleteCategoryTitle", {name: "الاسم"})} ${t("adminCategories.deleteCategoryMessage")}`],
+            ["حذف التصنيف الفرعي «الاسم»؟ لا يمكن التراجع عن ذلك.",
+                () => `${t("adminCategories.deleteSubCategoryTitle", {name: "الاسم"})} ${t("adminCategories.deleteSubCategoryMessage")}`],
         ],
     },
     {

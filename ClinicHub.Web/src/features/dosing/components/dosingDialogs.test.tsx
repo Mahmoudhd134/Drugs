@@ -1,7 +1,7 @@
 import type {ReactElement} from "react";
-import {describe, expect, test, vi} from "vitest";
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import {screen, within} from "@testing-library/react";
-import {aDrug, aLine, renderWithProviders} from "../../../test";
+import {aDrug, aLine, drugCategoriesHandler, renderWithProviders, server} from "../../../test";
 import {DrugFormDialog} from "../../drugs/components/DrugFormDialog.tsx";
 import {ProtocolItemDialog} from "../../protocols/components/ProtocolItemDialog.tsx";
 import {newItemKey} from "../../protocols/editorItem.ts";
@@ -21,6 +21,9 @@ const dialogs: [string, () => ReactElement][] = [
 const eyeChoices = () => within(screen.getByText("العين").nextElementSibling as HTMLElement).getAllByRole("button").map(b => b.textContent);
 
 describe("the dosing dialogs @area:catalog", () => {
+    // The drug dialog reads the categories on open (design M1.7 D9)
+    beforeEach(() => server.use(drugCategoriesHandler()));
+
     test("every dosing dialog shows the «تقليل تدريجي» switch with its ⓘ «تقليل الجرعة على مراحل، …» @TAPER-063", async () => {
         for (const [name, dialog] of dialogs) {
             const {unmount} = await renderWithProviders(dialog(), {lang: "ar"});

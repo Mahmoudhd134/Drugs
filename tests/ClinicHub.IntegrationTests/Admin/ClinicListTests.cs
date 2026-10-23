@@ -302,6 +302,7 @@ public class ClinicArabicSearchTests(AppFixture app) : IntegrationTest(app)
 {
     [Fact]
     [Trait("Case", "ADM-024")]
+    [Trait("Case", "CAT-077")]
     public async Task An_alef_with_hamza_is_found_by_a_plain_alef()
     {
         var admin = await Login.SharedSuperAdminAsync();
@@ -314,6 +315,7 @@ public class ClinicArabicSearchTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ADM-287")]
+    [Trait("Case", "CAT-077")]
     public async Task Hamza_yaa_and_taa_marbuta_are_folded_in_both_directions()
     {
         var admin = await Login.SharedSuperAdminAsync();
@@ -333,6 +335,7 @@ public class ClinicArabicSearchTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "ADM-288")]
+    [Trait("Case", "CAT-077")]
     public async Task Names_starting_with_the_folded_term_come_first()
     {
         var admin = await Login.SharedSuperAdminAsync();

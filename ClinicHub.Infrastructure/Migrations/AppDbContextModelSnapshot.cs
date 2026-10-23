@@ -98,9 +98,10 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.Property<string>("SearchName")
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("text")
-                        .HasComputedColumnSql("translate(lower(\"FullName\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
+                        .HasDefaultValue("")
+                        .HasAnnotation("ClinicHub:SearchSource", "FullName");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -140,6 +141,35 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("StaffRoles");
                 });
 
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Category", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Categories");
+                });
+
             modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>
                 {
                     b.Property<int>("Id")
@@ -148,7 +178,14 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("ClinicId")
+                    b.Property<string>("ActiveIngredients")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ClinicId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
@@ -157,23 +194,48 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsWithdrawn")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<string>("SearchName")
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("text")
-                        .HasComputedColumnSql("translate(lower(\"Name\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
+                        .HasDefaultValue("")
+                        .HasAnnotation("ClinicHub:SearchSource", "Name");
+
+                    b.Property<string>("SearchOther")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasAnnotation("ClinicHub:SearchSource", "NameAr,ActiveIngredients");
+
+                    b.Property<int?>("SubCategoryId")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("WithdrawnAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("CategoryId", "SubCategoryId");
+
                     b.HasIndex("ClinicId", "Name");
+
+                    b.HasIndex("SubCategoryId", "CategoryId");
 
                     b.ToTable("Drugs");
                 });
@@ -199,9 +261,10 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.Property<string>("SearchName")
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("text")
-                        .HasComputedColumnSql("translate(lower(\"Name\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
+                        .HasDefaultValue("")
+                        .HasAnnotation("ClinicHub:SearchSource", "Name");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -243,11 +306,45 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.HasIndex("ClinicId");
 
-                    b.HasIndex("DrugId", "ClinicId");
+                    b.HasIndex("DrugId");
 
                     b.HasIndex("ProtocolId", "ClinicId");
 
                     b.ToTable("ProtocolItems");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.SubCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("SubCategories");
                 });
 
             modelBuilder.Entity("ClinicHub.Domain.Identity.OtpCode", b =>
@@ -405,9 +502,10 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.Property<string>("SearchName")
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("text")
-                        .HasComputedColumnSql("translate(lower(\"Name\"), U&'\\0623\\0625\\0622\\0671\\0670\\0649\\0629\\0624\\0626\\0640\\064B\\064C\\064D\\064E\\064F\\0650\\0651\\0652\\0653\\0654\\0655\\0656\\0657\\0658\\0659\\065A\\065B\\065C\\065D\\065E\\065F', U&'\\0627\\0627\\0627\\0627\\0627\\064A\\0647\\0648\\064A')", true);
+                        .HasDefaultValue("")
+                        .HasAnnotation("ClinicHub:SearchSource", "Name");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -490,11 +588,22 @@ namespace ClinicHub.Infrastructure.Migrations
 
             modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>
                 {
+                    b.HasOne("ClinicHub.Domain.Catalog.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ClinicHub.Domain.Catalog.SubCategory", "SubCategory")
+                        .WithMany()
+                        .HasForeignKey("SubCategoryId", "CategoryId")
+                        .HasPrincipalKey("Id", "CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.OwnsOne("ClinicHub.Domain.Catalog.Dosing", "DefaultDosing", b1 =>
                         {
@@ -541,7 +650,11 @@ namespace ClinicHub.Infrastructure.Migrations
                                 .HasForeignKey("DrugId");
                         });
 
+                    b.Navigation("Category");
+
                     b.Navigation("DefaultDosing");
+
+                    b.Navigation("SubCategory");
                 });
 
             modelBuilder.Entity("ClinicHub.Domain.Catalog.Protocol", b =>
@@ -563,8 +676,7 @@ namespace ClinicHub.Infrastructure.Migrations
 
                     b.HasOne("ClinicHub.Domain.Catalog.Drug", "Drug")
                         .WithMany("ProtocolItems")
-                        .HasForeignKey("DrugId", "ClinicId")
-                        .HasPrincipalKey("Id", "ClinicId")
+                        .HasForeignKey("DrugId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -627,6 +739,17 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Navigation("Protocol");
                 });
 
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.SubCategory", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Catalog.Category", "Category")
+                        .WithMany("SubCategories")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("ClinicHub.Domain.Identity.Session", b =>
                 {
                     b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
@@ -651,6 +774,11 @@ namespace ClinicHub.Infrastructure.Migrations
             modelBuilder.Entity("ClinicHub.Domain.Access.Staff", b =>
                 {
                     b.Navigation("Roles");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Catalog.Category", b =>
+                {
+                    b.Navigation("SubCategories");
                 });
 
             modelBuilder.Entity("ClinicHub.Domain.Catalog.Drug", b =>

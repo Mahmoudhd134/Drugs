@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {Fragment, useState} from "react";
 import {Box, Chip, Stack, Typography} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import {useTranslation} from "react-i18next";
@@ -6,6 +6,8 @@ import {SearchableList} from "../../../components/common/SearchableList.tsx";
 import {useDebouncedValue} from "../../../hooks/useDebouncedValue.ts";
 import {useProtocolPicker} from "../api.ts";
 import type {Protocol} from "../types.ts";
+import {WithdrawnChip} from "../../drugs/components/WithdrawnChip.tsx";
+import {WithdrawnChipInsideControl} from "../../drugs/components/withdrawnChipContext.ts";
 
 type Props = {
     onSelect: (protocol: Protocol) => void;
@@ -39,13 +41,26 @@ export const ProtocolPicker = ({onSelect, autoFocus, maxHeight, enabled = true}:
                         <Stack direction="row" sx={{gap: 1, alignItems: "center", flexWrap: "wrap"}}>
                             <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{protocol.name}</Typography>
                             <Chip size="small" label={t("protocols.drugCount", {count: protocol.items.length})}/>
+                            {protocol.items.some(i => i.drug.withdrawn) && (
+                                // Inside the option (itself the control): not a Tab stop of its own. A tap shows its
+                                // tooltip, it doesn't add the protocol
+                                <WithdrawnChipInsideControl.Provider value>
+                                    <Box component="span" sx={{display: "inline-flex", maxWidth: "100%"}}
+                                         onClick={(e) => e.stopPropagation()}>
+                                        <WithdrawnChip count={protocol.items.filter(i => i.drug.withdrawn).length}/>
+                                    </Box>
+                                </WithdrawnChipInsideControl.Provider>
+                            )}
                         </Stack>
                         <Typography
                             variant="body2"
                             color="text.secondary"
                             sx={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere"}}
                         >
-                            {protocol.items.map(i => i.drug.name).join(" · ")}
+                            {/* Each name with its own direction (a Latin name inside Arabic text, design M1.7b D27) */}
+                            {protocol.items.map((i, index) => (
+                                <Fragment key={index}>{index > 0 && " · "}<bdi>{i.drug.name}</bdi></Fragment>
+                            ))}
                         </Typography>
                     </Box>
                     <AddIcon color="action" fontSize="small" sx={{mt: 0.5}}/>

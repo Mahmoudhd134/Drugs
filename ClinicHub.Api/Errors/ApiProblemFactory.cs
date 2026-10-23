@@ -67,6 +67,9 @@ public static class ApiProblemFactory
         // Only for the errors that name a clinic (the login and clinic picker refusals)
         if (first is ClinicError clinicError)
             problem.Extensions["clinicNames"] = clinicError.ClinicNames;
+        // Only for a blocked (sub)category delete (design M1.7 § 7): how many drugs use it
+        if (first is CountError countError)
+            problem.Extensions["drugCount"] = countError.DrugCount;
         problem.Extensions["errors"] = errors
             .Select(e => new ProblemError(e.Code, e.Description, FieldName(e.Field)))
             .ToList();

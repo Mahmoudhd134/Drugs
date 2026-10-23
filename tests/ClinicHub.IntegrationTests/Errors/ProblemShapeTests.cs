@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using System.Text;
 using ClinicHub.Application.Features.Catalog.Drugs;
@@ -44,7 +45,7 @@ public class ProblemShapeTests(AppFixture app) : IntegrationTest(app)
     {
         var owner = await Login.OwnerAsync(await Data.Clinic());
 
-        var response = await owner.PostAsync("/api/v1/drugs", new { name = "", defaultDosing = new { doseUnit = "bucket" } });
+        var response = await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "", defaultDosing = new { doseUnit = "bucket" } });
 
         var problem = await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "nameRequired");
         problem.Errors.Select(e => (e.Code, e.Field)).ShouldBe([("nameRequired", "name"), ("invalidDosing", "defaultDosing")]);
@@ -79,7 +80,11 @@ public class ProblemShapeTests(AppFixture app) : IntegrationTest(app)
         await response.ShouldBeOkAsync();
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
         var body = (await response.ReadNodeAsync()).AsObject();
-        body.Select(p => p.Key).ShouldBe(["id", "name", "description", "defaultDosing"], ignoreOrder: true);
+        // The keys of the contract's DrugDto (M1.7b contract § 2.5); never the hidden Arabic name
+        body.Select(p => p.Key).ShouldBe(
+            ["id", "name", "activeIngredients", "description", "defaultDosing", "isShared", "withdrawn", "category", "subCategory"],
+            ignoreOrder: true);
+        body.ContainsKey("nameAr").ShouldBeFalse();
     }
 
     [Fact]
@@ -90,7 +95,7 @@ public class ProblemShapeTests(AppFixture app) : IntegrationTest(app)
         var drug = await Data.Drug(clinic);
         var owner = await Login.OwnerAsync(clinic);
 
-        var drugResponse = await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Tobradex", "توبرادكس") });
+        var drugResponse = await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = Unique.Name("Tobradex", "توبرادكس") });
         var protocolResponse = await owner.PostAsync("/api/v1/protocols", CatalogRoutes.ProtocolBody(drug.Id));
 
         await drugResponse.ShouldBeAsync(HttpStatusCode.Created);
@@ -199,7 +204,7 @@ public class ProblemShapeTests(AppFixture app) : IntegrationTest(app)
             case 400:
             {
                 var owner = await Login.OwnerAsync(await Data.Clinic());
-                return (await owner.PostAsync("/api/v1/drugs", new { name = "" }), "/api/v1/drugs");
+                return (await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "" }), "/api/v1/drugs");
             }
             case 401:
                 return (await Anonymous().GetAsync("/api/v1/drugs"), "/api/v1/drugs");
