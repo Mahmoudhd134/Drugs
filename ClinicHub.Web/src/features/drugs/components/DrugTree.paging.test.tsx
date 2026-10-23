@@ -323,7 +323,7 @@ describe("drug tree: the focus after «تحميل المزيد» and a retry @ar
         await waitFor(() => expect(focusedRow()).toBe(drugRow("Drug 031")));
     });
 
-    test("a failed next page's «إعادة المحاولة»: the focus goes back into that subcategory (its last loaded drug or its row), never to <body> @CAT-260 @CAT-109", async () => {
+    test("a failed next page's «إعادة المحاولة»: the focus goes to that subcategory's last loaded drug and stays there when the page arrives, never its first new drug, never <body> (C33) @CAT-260 @CAT-109", async () => {
         let failing!: ReturnType<typeof failRequests>;
         const {user} = await renderTree({
             drugs: manyDrugs(65),
@@ -334,10 +334,15 @@ describe("drug tree: the focus after «تحميل المزيد» and a retry @ar
         const retry = await within(childrenOf(glaucomaRow())).findByRole("button", {name: ar.retry});
 
         failing.stop();
+        const nextPage = holdRequests("/drugs", p => p.get("page") === "2");
         await user.click(retry);
-        await waitFor(() => expect([glaucomaRow(), drugRow("Drug 030")]).toContain(focusedRow()));
+        await waitFor(() => expect(nextPage.held()).toBe(1));
+        await waitFor(() => expect(focusedRow()).toBe(drugRow("Drug 030")));
+
+        nextPage.release();
         await findDrugRow("Drug 060");
-        expect([glaucomaRow(), drugRow("Drug 030"), drugRow("Drug 031")]).toContain(focusedRow());
+        await pastDebounce();
+        expect(focusedRow(), "still the last drug loaded before the retry, not the first new one").toBe(drugRow("Drug 030"));
     });
 
     test("a failed first page's «إعادة المحاولة»: the focus goes to that subcategory's row, never to <body> @CAT-260 @CAT-109", async () => {
@@ -405,7 +410,7 @@ describe("drug tree: a page load asked with ↓ never takes the focus later @are
         expect(treeSearch()).toHaveFocus();
     });
 
-    test("the page failed: its retry loads it, and its first new drug does not take the focus @CAT-261", async () => {
+    test("the page failed: its «إعادة المحاولة» puts the focus on the last loaded drug, which keeps it when the page arrives (its first new drug never takes it, C33) @CAT-261", async () => {
         let failing!: ReturnType<typeof failRequests>;
         const {user} = await renderTree({
             drugs: manyDrugs(65),
@@ -420,9 +425,16 @@ describe("drug tree: a page load asked with ↓ never takes the focus later @are
         const retry = await within(childrenOf(glaucomaRow())).findByRole("button", {name: ar.retry});
 
         failing.stop();
+        const nextPage = holdRequests("/drugs", p => p.get("page") === "2");
         await user.click(retry);
+        await waitFor(() => expect(nextPage.held()).toBe(1));
+        await waitFor(() => expect(drugRow("Drug 030")).toHaveFocus());
+
+        nextPage.release();
         await findDrugRow("Drug 031");
         await pastDebounce();
+        expect(document.activeElement, "the focus is not lost to <body>").not.toBe(document.body);
         expect(drugRow("Drug 031")).not.toHaveFocus();
+        expect(drugRow("Drug 030")).toHaveFocus();
     });
 });
