@@ -135,7 +135,9 @@ export const DrugTreeDrug = ({id, drug, added, nav, onPick}: DrugProps) => {
                                 variant="body2"
                                 color="text.secondary"
                                 // The line takes its own text's direction: its beginning stays visible and the ellipsis
-                                // sits at its end, a Latin line in the Arabic UI too (M1.7c C34)
+                                // sits at its end, a Latin line in the Arabic UI too (M1.7c C34). The text sits directly
+                                // in the line, no `<bdi>`: `dir="auto"` skips a `<bdi>` child when it looks for the first
+                                // strong character, so the line would fall back to left to right (CAT-262)
                                 dir="auto"
                                 sx={{
                                     overflowWrap: "anywhere",
@@ -148,7 +150,7 @@ export const DrugTreeDrug = ({id, drug, added, nav, onPick}: DrugProps) => {
                                     textAlign: "left",
                                 }}
                             >
-                                <bdi>{drug.activeIngredients}</bdi>
+                                {drug.activeIngredients}
                             </Typography>
                         </TapTooltip>
                     )}

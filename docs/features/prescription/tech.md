@@ -170,9 +170,10 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
   `ChevronLeft` RTL; open: `ExpandMore`), the name (wraps anywhere), the count (grouped digits); at least 44 px tall
   below `sm`. Drug line: name, the ingredients on one line from `sm` (ellipsis, full text in a `TapTooltip` without tap,
   since a tap adds the drug; wraps on a phone), an own drug's `DosingText`, the «مشترك» / «خاص بالعيادة» chip, «مُضاف»
-  or ⊕; no description. The name and the ingredients each sit in a `<bdi>` (M1.7b D27: a Latin name reads left to right
-  in the Arabic UI). The ingredients line is `dir="auto"` (its own text's direction: its beginning visible, the ellipsis at
-  its end) and a line that fits is aligned to the interface's start side (`textAlign: "left"`, flipped by the RTL style
+  or ⊕; no description. The name sits in a `<bdi>` (M1.7b D27: a Latin name reads left to right in the Arabic UI). The
+  ingredients line is `dir="auto"` with the text directly inside it, no `<bdi>` (its own text's direction: its beginning
+  visible, the ellipsis at its end; `dir="auto"` skips a `<bdi>` child when it looks for the first strong character, so
+  the line would compute left to right, CAT-262) and a line that fits is aligned to the interface's start side (`textAlign: "left"`, flipped by the RTL style
   cache; M1.7c C34). The click handler is on the `treeitem`
   itself (a click anywhere on the row, the chevron included, toggles a node or adds a drug); a click coming from inside
   its `role="group"` (a nested row, «تحميل المزيد», a retry) is left to them. A click whose `event.detail > 1` is

@@ -91,8 +91,14 @@ export const DrugsPage = () => {
     // The search in the URL as this page last wrote it, or last took it from the URL, trimmed: a link's `search=amox%20`
     // is the same search as the typed "amox" (no rewrite, no jump to page 1)
     const lastSearch = useRef(params.search.trim());
+    // The debounced value this page last acted on: only a new debounced value is sent. A re-run for another reason (the
+    // categories refetched after a save, so `setFilters` changed) never sends a debounced value that was overtaken by a
+    // search cleared or replaced since (CAT-137: the old term would come back after the switch to «أدوية العيادة»)
+    const handledDebounce = useRef(debouncedSearch);
     // The typed search reaches the URL (and the query) once typing pauses, back on the first page
     useEffect(() => {
+        if (debouncedSearch === handledDebounce.current) return;
+        handledDebounce.current = debouncedSearch;
         if (debouncedSearch === lastSearch.current) return;
         lastSearch.current = debouncedSearch;
         setFilters({search: debouncedSearch});
