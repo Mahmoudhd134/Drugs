@@ -139,6 +139,24 @@ public class OwnDrugCategoryTests(AppFixture app) : CatalogTest(app)
         (await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidText")).ShouldHaveError("activeIngredients", "invalidText");
     }
 
+    [Theory]
+    [Trait("Case", "CAT-043")]
+    [InlineData("AMOXICILLIN\nCLAVULANIC ACID", "invalidText")]
+    [InlineData("LONG1001", "textTooLong")]
+    public async Task An_update_with_invalid_ingredients_is_400_on_activeIngredients_and_changes_nothing(string ingredients, string code)
+    {
+        // PUT /drugs/{id} validates as POST (drugs tech § API)
+        var owner = await OwnerAsync();
+        var created = await CreateDrugAsync(owner, Unique.Name("Tobradex", "توبرادكس"));
+        if (ingredients == "LONG1001")
+            ingredients = "A" + new string('x', 999) + "Z";
+
+        var response = await owner.PutAsync($"{DrugsUrl}/{created.Id}", DrugBody(created.Name, activeIngredients: ingredients));
+
+        (await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, code)).ShouldHaveError("activeIngredients", code);
+        (await GetDrugAsync(owner, created.Id)).ActiveIngredients.ShouldBe(created.ActiveIngredients);
+    }
+
     [Fact]
     [Trait("Case", "CAT-043")]
     public async Task Ingredients_are_at_most_1000_characters_after_trimming()
@@ -242,6 +260,10 @@ public class OwnDrugCategoryTests(AppFixture app) : CatalogTest(app)
         categories.Count.ShouldBe(baseline.MaxCategoryId);
         categories.SelectMany(c => c.SubCategories).Count().ShouldBe(baseline.MaxSubCategoryId);
         categories.Select(c => c.Id).Order().ShouldBe(Enumerable.Range(1, baseline.MaxCategoryId));
+        // By id, their subcategories too (shared-catalog tech § Backend: the SPA sorts by name)
+        categories.Select(c => c.Id).ShouldBeInOrder();
+        foreach (var category in categories)
+            category.SubCategories.Select(s => s.Id).ShouldBeInOrder();
         categories.ShouldAllBe(c => !string.IsNullOrWhiteSpace(c.NameEn) && !string.IsNullOrWhiteSpace(c.NameAr));
         categories.SelectMany(c => c.SubCategories).ShouldAllBe(s => !string.IsNullOrWhiteSpace(s.NameEn) && !string.IsNullOrWhiteSpace(s.NameAr));
         categories.Where(c => c.PinnedLast).Select(c => c.Id).ShouldBe([CategoryIds.Other]);

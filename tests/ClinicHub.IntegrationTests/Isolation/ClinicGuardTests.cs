@@ -117,6 +117,44 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
     }
 
     [Fact]
+    [Trait("Case", "ISO-032")]
+    public async Task In_one_clinic_adding_a_protocol_of_another_clinic_throws_and_writes_nothing()
+    {
+        // Drug is clinic-or-shared since M1.7 (D2): the plain clinic-owned rule is proved on a protocol
+        var a = await Data.Clinic();
+        var b = await Data.Clinic();
+        var name = Unique.Name("Intruder protocol", "بروتوكول دخيل");
+
+        await InClinicAsync(a.Id, async db =>
+        {
+            db.Protocols.Add(new Protocol { Name = name, ClinicId = b.Id });
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(g => g.Name == name))).ShouldBe(0);
+    }
+
+    [Fact]
+    [Trait("Case", "ISO-032")]
+    public async Task In_one_clinic_deleting_another_clinics_protocol_line_by_its_id_alone_throws_and_keeps_it()
+    {
+        var a = await Data.Clinic();
+        var b = await Data.Clinic();
+        var bProtocol = await Data.Protocol(b).With(await Data.Drug(b));
+        var lineId = await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters()
+            .Where(i => i.ProtocolId == bProtocol.Id).Select(i => i.Id).SingleAsync());
+
+        await InClinicAsync(a.Id, async db =>
+        {
+            // A stub (no clinic set, nothing loaded): the delete would match the id alone
+            db.ProtocolItems.Remove(new ProtocolItem { Id = lineId });
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+
+        (await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters().SingleAsync(i => i.Id == lineId))).ClinicId.ShouldBe(b.Id);
+    }
+
+    [Fact]
     [Trait("Case", "ISO-031")]
     public async Task Without_a_clinic_in_context_adding_changing_or_deleting_a_protocol_throws_and_writes_nothing()
     {

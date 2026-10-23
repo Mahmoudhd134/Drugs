@@ -99,6 +99,31 @@ public class SearchColumnTests(AppFixture app) : CatalogTest(app)
     }
 
     [Fact]
+    [Trait("Case", "CAT-075")]
+    public async Task A_description_only_or_dosing_only_update_never_rewrites_the_stored_search_columns()
+    {
+        // D7: "the value only changes when its source text changed". The stored values are set apart from a refold
+        // by SQL, so a rewrite from the unchanged sources would show
+        var owner = await OwnerAsync();
+        var n = Unique.Next();
+        var name = $"Kept columns {n}";
+        var ingredients = $"KEPTINGR{n}";
+        var created = await PostOwnAsync(owner, name, ingredients);
+        var stored = ($"zqstoredname{n}", $"zqstoredother{n}");
+        await App.OutsideTheApp.ExecuteAsync("""UPDATE "Drugs" SET "SearchName" = @p0, "SearchOther" = @p1 WHERE "Id" = @p2""",
+            stored.Item1, stored.Item2, created.Id);
+
+        await (await owner.PutAsync($"{DrugsUrl}/{created.Id}", DrugBody(name, "A new description", activeIngredients: ingredients)))
+            .ShouldBeOkAsync();
+        (await StoredSearchColumnsAsync(created.Id)).ShouldBe(stored, "a description-only update");
+
+        await (await owner.PutAsync($"{DrugsUrl}/{created.Id}", DrugBody(name, "A new description",
+            new { frequency = "daily", frequencyValue = 4 }, activeIngredients: ingredients))).ShouldBeOkAsync();
+        (await GetDrugAsync(owner, created.Id)).DefaultDosing.ShouldNotBeNull("precondition: the dosing was saved");
+        (await StoredSearchColumnsAsync(created.Id)).ShouldBe(stored, "a dosing-only update");
+    }
+
+    [Fact]
     [Trait("Case", "CAT-078")]
     public async Task A_new_clinic_its_owner_its_copied_drugs_and_protocols_are_found_at_once_by_a_folded_search()
     {

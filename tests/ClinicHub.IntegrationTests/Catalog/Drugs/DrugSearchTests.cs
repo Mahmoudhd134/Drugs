@@ -242,6 +242,8 @@ public class DrugSearchTests(AppFixture app) : CatalogTest(app)
     [InlineData("ـــ")]
     [InlineData("َ")]
     [InlineData(" ّ ")]
+    [InlineData("ً")] // the first and the last of the removed diacritics U+064B–U+065F (tech overview § Conventions)
+    [InlineData("ٟ")]
     public async Task A_term_of_only_tatweel_or_diacritics_does_not_filter(string search)
     {
         var (clinic, owner) = await EmptyClinicAsync();

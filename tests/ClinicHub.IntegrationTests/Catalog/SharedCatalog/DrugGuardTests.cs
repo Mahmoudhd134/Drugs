@@ -224,6 +224,27 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
 
     [Fact]
     [Trait("Case", "CAT-028")]
+    public async Task Inside_UseSharedCatalog_a_shared_drug_with_an_empty_dosing_is_saved_with_no_dosing()
+    {
+        // The D2 rule is "any DefaultDosing_* set": an empty dosing (no column set) is no dosing
+        var shared = await Data.SharedDrug();
+        var renamed = shared.Name + " renamed";
+
+        await InScopeAsync(null, writingShared: true, async db =>
+        {
+            var loaded = await db.Drugs.SingleAsync(d => d.Id == shared.Id);
+            loaded.Name = renamed;
+            loaded.DefaultDosing = new Dosing();
+            await db.SaveChangesAsync();
+        });
+
+        var stored = await StoredAsync(shared.Id);
+        stored.Name.ShouldBe(renamed);
+        stored.DefaultDosing.ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Case", "CAT-028")]
     [Trait("Case", "ISO-032")]
     public async Task An_own_drug_marked_withdrawn_in_its_clinic_throws()
     {
