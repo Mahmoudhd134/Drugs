@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Catalog.Drugs.Commands.CreateDrug;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.UnitTests.TestSupport;
@@ -13,7 +14,7 @@ namespace ClinicHub.UnitTests.Catalog.Drugs;
 public class CreateDrugCommandValidatorTests
 {
     private static ApiValidationAnswer Validate(string name, string description = null, Dosing dosing = null) =>
-        ApiValidation.Run(new CreateDrugCommandValidator(), new CreateDrugCommand(name, description, dosing));
+        ApiValidation.Run(new CreateDrugCommandValidator(), new CreateDrugCommand(name, null, description, dosing, CategoryIds.Eye, null));
 
     [Fact]
     public void A_drug_with_a_name_a_description_and_a_dosing_is_valid()

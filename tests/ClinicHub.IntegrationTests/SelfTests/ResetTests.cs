@@ -1,5 +1,6 @@
 using System.Net;
 using ClinicHub.IntegrationTests.Harness.Assertions;
+using ClinicHub.IntegrationTests.Harness.Databases;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -17,7 +18,11 @@ internal static class FreshDatabase
         users.ShouldHaveSingleItem().ShouldBe(new { Phone = app.SuperAdminPhone, IsSuperAdmin = true });
         (await app.QueryDbAsync(db => db.OtpCodes.CountAsync())).ShouldBe(0);
         (await app.QueryDbAsync(db => db.Sessions.CountAsync())).ShouldBe(0);
-        (await app.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync())).ShouldBe(0);
+        // The imported catalog stays (design M1.7 D12): only the shared drugs of the baseline, no own drug
+        (await app.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync())).ShouldBe(TestRun.Baseline.SharedCount);
+        (await app.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.ClinicId != null))).ShouldBe(0);
+        (await app.QueryDbAsync(db => db.Categories.CountAsync())).ShouldBe(TestRun.Baseline.MaxCategoryId);
+        (await app.QueryDbAsync(db => db.SubCategories.CountAsync())).ShouldBe(TestRun.Baseline.MaxSubCategoryId);
         (await app.QueryDbAsync(db => db.Database.GetPendingMigrationsAsync())).ShouldBeEmpty();
     }
 
@@ -25,7 +30,10 @@ internal static class FreshDatabase
     public static async Task DirtyAsync(AppFixture app)
     {
         var clinic = await app.Data.Clinic();
-        await app.Data.Drug(clinic);
+        await app.Data.Protocol(clinic).With(await app.Data.Drug(clinic)).With(await app.Data.Shared("VIGAMOX 0.5% EYE DROPS 5 ML"));
+        var category = await app.Data.Category();
+        await app.Data.SubCategory(category.Id);
+        await app.Data.SharedDrug().InCategory(category.Id);
         await app.Login.OwnerAsync(clinic);
     }
 }

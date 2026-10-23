@@ -1,10 +1,13 @@
 import type {Locator, Page} from "@playwright/test";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
+import {IMPORTED, pickCategory} from "../support/shared.ts";
 import {unique, uniqueDigits} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
 import {dropDaily} from "../support/rx.ts";
-import {RX_TEXTS} from "../support/texts-rx.ts";
+import {RX_TEXTS, TREE_TEXTS} from "../support/texts-rx.ts";
+import {DrugTreeUi} from "../support/tree.ts";
+import {addToProtocol} from "../support/catalog.ts";
 import {expectToast, recordRequests, toast} from "../support/ui.ts";
 import {
     addDrugToRx,
@@ -22,7 +25,6 @@ import {
     noHorizontalScroll,
     open,
     orderOnScreen,
-    pick,
     rxTab,
     searchBox,
     shownName,
@@ -83,7 +85,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
             const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug}]);
             const deletes = recordRequests(page, "DELETE", /\/api\/v1\//);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             await drugRow(page, drug.name).getByRole("button", {name: t.delete}).click();
             await expect(dialog(page).getByText(u.deleteDrugTitle)).toBeVisible();
@@ -116,17 +118,18 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(await countNamed(data, clinic, "protocols", protocol.name)).toBe(1);
         });
 
-    test("the drugs table: Tab to a row, then Enter or Space opens the drug (edit for an owner, details for a viewer) @UX-020",
+    test("the drugs table: Tab to a row, then Enter or Space opens the drug (an own drug: edit for an owner, details for a viewer; a shared drug: the read-only details for both) @UX-020",
         async ({page, data, lang, newBrowser}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
             const viewer = await data.staff(clinic, {roles: [(await data.role(clinic, READ_ONLY)).id]});
 
-            const opensWithKeys = async (target: Page, title: string, closeWith: string) => {
-                await target.getByRole("searchbox", {name: t.searchDrugs}).fill(drug.name);
-                const row = drugRow(target, drug.name);
-                await expect(target.getByRole("row")).toHaveCount(2);
+            const opensWithKeys = async (target: Page, title: string, closeWith: string, name = drug.name) => {
+                await target.getByRole("searchbox", {name: t.searchDrugs}).fill(name);
+                const row = drugRow(target, name);
+                await expect(row).toBeVisible();
+                if (name === drug.name) await expect(target.getByRole("row")).toHaveCount(2);
                 for (const key of ["Enter", "Space"]) {
                     await target.getByRole("searchbox", {name: t.searchDrugs}).focus();
                     await tabTo(target, row);
@@ -137,12 +140,15 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
                 }
             };
 
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await opensWithKeys(page, t.editDrug, t.cancel);
+            // A shared row opens the read-only details, also for the owner (design M1.7 D9)
+            await opensWithKeys(page, t.drugDetails, t.close, IMPORTED.xalatan);
 
             const other = await newBrowser();
-            await signIn(other.page, viewer.phone, "asIs", "/drugs");
+            await signIn(other.page, viewer.phone, "asIs", "/drugs?view=list");
             await opensWithKeys(other.page, t.drugDetails, t.close);
+            await opensWithKeys(other.page, t.drugDetails, t.close, IMPORTED.xalatan);
         });
 
     test("prescription lines and protocol lines move with the keyboard: focus the drag handle, Space, ↓, Space @UX-021",
@@ -185,11 +191,12 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         const {t} = textsOf(lang);
         const clinic = await data.clinic();
         const posts = recordRequests(page, "POST", /^\/api\/v1\/drugs$/);
-        await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+        await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
         const name = `Double ${unique()}`;
         await page.getByRole("button", {name: t.addDrug}).click();
         await dialog(page).getByRole("textbox", {name: t.drugName}).fill(name);
+        await pickCategory(page, dialog(page), lang);
         await dialog(page).getByRole("button", {name: t.save, exact: true}).dblclick();
         await expectToast(page, t.drugAdded);
         await expectNoDialog(page);
@@ -203,13 +210,14 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const posts = recordRequests(page, "POST", /^\/api\/v1\/drugs$/);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             // Enter twice: the second one right after the first save's answer (a server on the LAN answers in ~20 ms)
             const entered = `Enter ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).click();
             const field = dialog(page).getByRole("textbox", {name: t.drugName});
             await field.fill(entered);
+            await pickCategory(page, dialog(page), lang);
             const first = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
             await field.press("Enter");
             await first;
@@ -230,12 +238,13 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const posts = recordRequests(page, "POST", /^\/api\/v1\/drugs$/);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             // A double click whose second click comes after the answer (the dialog is fading out)
             const clicked = `Double ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).click();
             await dialog(page).getByRole("textbox", {name: t.drugName}).fill(clicked);
+            await pickCategory(page, dialog(page), lang);
             const save = dialog(page).getByRole("button", {name: t.save, exact: true});
             const at = (await save.boundingBox())!;
             const second = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
@@ -254,11 +263,12 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         async ({page, data, lang}) => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             const name = `Saved ${unique()}`;
             await page.getByRole("button", {name: t.addDrug}).click();
             const field = dialog(page).getByRole("textbox", {name: t.drugName});
             await field.fill(name);
+            await pickCategory(page, dialog(page), lang);
             const saved = page.waitForResponse(r => r.request().method() === "POST" && /\/api\/v1\/drugs$/.test(r.url()));
             await field.press("Enter");
             await saved;
@@ -280,7 +290,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
 
         const name = `Double ${unique()}`;
         await page.getByRole("textbox", {name: t.protocolName}).fill(name);
-        await pick(page, t.searchDrugs, drug.name);
+        await addToProtocol(page, lang, drug.name);
         await expect(shownName(page, drug.name)).toBeVisible();
         await page.getByRole("button", {name: t.save, exact: true}).dblclick();
         await expectToast(page, t.protocolCreated);
@@ -294,7 +304,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
         async ({page, data, lang, isMobile}) => {
             const {t, u} = textsOf(lang);
             const clinic = await data.clinic();
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await page.getByRole("button", {name: t.addDrug}).click();
             const info = dialog(page).getByRole("img", {name: u.taperInfo});
             const tip = page.getByRole("tooltip").filter({hasText: u.taperInfo});
@@ -332,7 +342,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             expect(name).toHaveLength(256);
             const drug = await drugWith(data, clinic, {name, description: "D".repeat(300), defaultDosing: DOSINGS.oneDropFour.dosing});
             const protocol = await protocolWith(data, clinic, `G${unique()}`.padEnd(256, "M"), [{drug}]);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             // The page keeps its width and an open dialog fits the screen; the name itself is shown whole (wrapped).
             // (Inputs holding the name scroll inside themselves: not checked. The protocols list's cards, the Protocols-tab
@@ -368,7 +378,7 @@ test.describe("Keyboard, focus and double clicks @area:ux", () => {
             await addDrugToRx(page, t, name);
             await expect(shownName(page, DOSINGS.oneDropFour.text)).toBeVisible();
             await fits("prescription line", linesPanel(page, u).getByText(name, {exact: true}));
-            await fits("drug picker", page.getByRole("option").filter({visible: true}).getByText(name, {exact: true}));
+            await fits("drug tree", new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]).drug(name).getByText(name, {exact: true}));
             await addDrugToRx(page, t, name);
             await expectToast(page, u.alreadyAdded(name));
             await fits("already-added toast", toast(page, u.alreadyAdded(name)));

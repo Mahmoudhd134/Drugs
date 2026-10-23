@@ -20,6 +20,8 @@ const PURE_LOGIC = [
     'src/app/chunkReload.ts',
     'src/hooks/useSingleFlight.ts',
     'src/utils/clipboard.ts',
+    'src/features/drugs/components/drugTreeModel.ts',
+    'src/features/drugs/pages/drugListParams.ts',
 ]
 
 // https://vite.dev/config/

@@ -1,10 +1,6 @@
-using ClinicHub.Application.Common.Paging;
-using ClinicHub.Application.Features.Access.StaffMembers;
-using ClinicHub.Application.Features.Platform.Clinics;
+using ClinicHub.Application.Common.Search;
 using ClinicHub.Infrastructure.Database;
-using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
-using ClinicHub.IntegrationTests.Harness.Clients;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -15,11 +11,14 @@ namespace ClinicHub.IntegrationTests.Catalog.Migrations;
 
 /// <summary>
 /// DRUG-101 (overview § Migrations: <c>AddSearchNames</c> computes the column for existing rows, down drops it; tested
-/// up → down → up with data). Runs on its collection's own database, which it leaves migrated to the latest version.
+/// up → down → up with data). In the migration collection (bare template, no catalog: design M1.7 D12): the rows
+/// written before <c>AddSearchNames</c> get their generated <c>SearchName</c> at once (read by SQL at that version);
+/// <c>AddSharedCatalog</c> needs an empty <c>Drugs</c> table (§ 5), so the test deletes its drugs before going back to
+/// the latest version. Leaves its database migrated to the latest version.
 /// </summary>
 [Collection(CatalogMigrationCollection.Name)]
 [Trait("Area", "catalog")]
-public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
+public class SearchNamesMigrationTests(BareAppFixture app) : CatalogTest(app)
 {
     private const string BeforeSearchNames = "20261014214338_AddClinicDeletedAt";
     // The protocol tables carry their old names before RenameGroupsToProtocols (design D10): DrugGroups, DrugGroupItems
@@ -30,12 +29,13 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
 
     [Fact]
     [Trait("Case", "DRUG-101")]
-    public async Task Existing_rows_are_searchable_once_AddSearchNames_is_applied_and_down_then_up_keeps_them()
+    public async Task Existing_rows_get_their_search_name_when_AddSearchNames_is_applied_and_down_then_up_keeps_every_row()
     {
         var n = Unique.Next();
+        var category = await MigrationData.TestCategoryAsync(App);
         var clinic = await Data.Clinic().Named($"عيادة الأمل {n}");
         var staff = await Data.Staff(clinic).Named($"أحمد مؤمن {n}");
-        var drug = await Data.Drug(clinic).Named($"أسبرين ممتد {n}");
+        var drug = await Data.Drug(clinic).Named($"أسبرين ممتد {n}").InCategory(category);
         var protocol = await Data.Protocol(clinic).Named($"بروتوكول إلتهاب {n}").With(drug);
         var before = (await CountRowsAsync(TablesAfter)).Values.ToList();
 
@@ -46,26 +46,33 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
             foreach (var table in SearchedTablesBefore)
                 (await HasSearchNameAsync(table)).ShouldBeFalse($"{table}.SearchName after migrating down");
             (await CountRowsAsync(TablesBefore)).Values.ToList().ShouldBe(before, "rows after migrating down");
+
+            // AddSearchNames (up to RenameGroupsToProtocols) applied to the existing rows: generated at once
+            await MigrateAsync(RenameMigrationKit.Rename);
+
+            foreach (var table in SearchedTablesAfter)
+                (await HasSearchNameAsync(table)).ShouldBeTrue($"{table}.SearchName after migrating up");
+            (await CountRowsAsync(TablesAfter)).Values.ToList().ShouldBe(before, "rows after migrating up");
+            (await StoredSearchNameAsync("Drugs", drug.Id)).ShouldBe(SearchText.Fold(drug.Name), "Drugs.SearchName");
+            (await StoredSearchNameAsync("Protocols", protocol.Id)).ShouldBe(SearchText.Fold(protocol.Name), "Protocols.SearchName");
+            (await StoredSearchNameAsync("Clinics", clinic.Id)).ShouldBe(SearchText.Fold(clinic.Name), "Clinics.SearchName");
+            (await StoredSearchNameAsync("Staff", staff.Id)).ShouldBe(SearchText.Fold(staff.FullName), "Staff.SearchName");
         }
         finally
         {
-            // AddSearchNames (and anything after it) applied to the existing rows
-            await MigrateAsync(null);
+            // AddSharedCatalog needs an empty Drugs table: the drugs are deleted, then the latest version
+            await MigrationData.MigrateToLatestAsync(App);
         }
 
-        foreach (var table in SearchedTablesAfter)
-            (await HasSearchNameAsync(table)).ShouldBeTrue($"{table}.SearchName after migrating up");
-        (await CountRowsAsync(TablesAfter)).Values.ToList().ShouldBe(before, "rows after migrating up");
-
-        var owner = await Login.OwnerAsync(clinic);
-        (await SearchDrugNamesAsync(owner, $"اسبرين ممتد {n}")).ShouldBe([drug.Name]);
-        (await SearchProtocolNamesAsync(owner, $"بروتوكول التهاب {n}")).ShouldBe([protocol.Name]);
-        var admin = await Login.SuperAdminAsync();
-        (await AdminSearchAsync<ClinicSummary>(admin, "/api/v1/admin/clinics", $"عياده الامل {n}"))
-            .Items.Select(c => c.Id).ShouldBe([clinic.Id]);
-        (await AdminSearchAsync<StaffMemberDto>(admin, $"/api/v1/admin/clinics/{clinic.Id}/staff", $"احمد مومن {n}"))
-            .Items.Select(s => s.Id).ShouldBe([staff.Id]);
+        (await App.QueryDbAsync(db => db.Database.GetPendingMigrationsAsync())).ShouldBeEmpty("pending migrations");
+        (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync())).ShouldBe(0, "drugs after the test deleted them");
+        (await App.QueryDbAsync(db => db.Clinics.CountAsync(c => c.Id == clinic.Id))).ShouldBe(1, "the clinic kept");
     }
+
+    /// <summary>The stored <c>SearchName</c> of one row (read by SQL: the app's model may not match this version).</summary>
+    private Task<string> StoredSearchNameAsync(string table, int id) =>
+        // The table name is one of the constants above, never input
+        App.OutsideTheApp.ScalarAsync<string>("SELECT \"SearchName\" FROM \"" + table + "\" WHERE \"Id\" = @p0", id);
 
     private Task MigrateAsync(string target) =>
         App.QueryDbAsync(async db =>
@@ -94,12 +101,5 @@ public class SearchNamesMigrationTests(AppFixture app) : CatalogTest(app)
         // The table name is one of the constants above, never input
         var sql = "SELECT count(*)::int AS \"Value\" FROM \"" + table + "\"";
         return db.Database.SqlQueryRaw<int>(sql).SingleAsync();
-    }
-
-    private static async Task<PagedResult<T>> AdminSearchAsync<T>(ApiClient admin, string url, string search)
-    {
-        var response = await admin.GetAsync($"{url}?search={Uri.EscapeDataString(search)}");
-        await response.ShouldBeOkAsync();
-        return await response.ReadAsync<PagedResult<T>>();
     }
 }

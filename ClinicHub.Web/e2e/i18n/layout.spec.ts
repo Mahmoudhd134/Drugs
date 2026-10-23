@@ -4,6 +4,8 @@ import {unique} from "../support/phones.ts";
 import {DOSINGS} from "../support/texts-ux.ts";
 import {closeSidebar} from "../support/ui.ts";
 import {addDrugToRx, drugRow, drugWith, protocolWith, linesPanel, open, shownName, textRect, textsOf} from "../support/ux.ts";
+import {TREE_TEXTS} from "../support/texts-rx.ts";
+import {DrugTreeUi} from "../support/tree.ts";
 
 const box = async (locator: Locator) => {
     const rect = await locator.boundingBox();
@@ -85,7 +87,7 @@ test.describe("Direction and alignment @area:i18n", () => {
             const {t} = textsOf(lang);
             const clinic = await data.clinic();
             const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`, defaultDosing: DOSINGS.twoDropsLeft.dosing});
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             const aligned = async (scope: Locator, what: string) => {
                 const sentence = scope.getByText(DOSINGS.twoDropsLeft.text, {exact: true}).filter({visible: true}).first();
@@ -100,11 +102,9 @@ test.describe("Direction and alignment @area:i18n", () => {
             await aligned(drugRow(page, drug.name), "drugs table");
             await open(page, "/");
             await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-            await page.getByRole("searchbox", {name: t.searchDrugs}).filter({visible: true}).fill(drug.name);
-            const option = page.getByRole("option").filter({visible: true}).filter({hasText: drug.name});
-            await expect(option).toHaveCount(1);
-            await aligned(option, "drug picker");
-            await option.click();
+            const tree = new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]);
+            await aligned(await tree.show(drug.name), "drug tree");
+            await tree.select(drug.name);
             await expect(shownName(page, drug.name)).toBeVisible();
             await aligned(linesPanel(page, textsOf(lang).u), "prescription line");
         });

@@ -1,6 +1,10 @@
 import {expect, type Locator, type Page} from "@playwright/test";
 import type {ClinicHandle, Data} from "./data.ts";
 import type {CatalogTexts} from "./texts-catalog.ts";
+import {ownDrugBody} from "./shared.ts";
+import type {Lang} from "./texts.ts";
+import {TREE_TEXTS} from "./texts-rx.ts";
+import {DrugTreeUi} from "./tree.ts";
 
 /**
  * Helpers of the catalog journeys (drugs, protocols, dosing, tapering): data through the API as an owner (with
@@ -41,7 +45,7 @@ export const createDrug = async (data: Data, clinic: ClinicHandle, name: string,
                                  options: { description?: string | null; dosing?: Dosing | null } = {}) => {
     const api = await data.ownerApi(clinic);
     return api.ok<CatalogDrug>("POST", "/api/v1/drugs",
-        {name, description: options.description ?? null, defaultDosing: options.dosing ?? null});
+        await ownDrugBody(api, {name, description: options.description ?? null, defaultDosing: options.dosing ?? null}));
 };
 
 /** Many drugs at once (a few requests in parallel, after the owner's one login: 5 codes per phone per hour). */
@@ -57,7 +61,7 @@ export const createDrugs = async (data: Data, clinic: ClinicHandle, names: strin
 export const updateDrug = async (data: Data, clinic: ClinicHandle, drug: CatalogDrug, changes: Partial<Omit<CatalogDrug, "id">>) => {
     const api = await data.ownerApi(clinic);
     const body = {name: drug.name, description: drug.description, defaultDosing: drug.defaultDosing, ...changes};
-    return api.ok<CatalogDrug>("PUT", `/api/v1/drugs/${drug.id}`, body);
+    return api.ok<CatalogDrug>("PUT", `/api/v1/drugs/${drug.id}`, await ownDrugBody(api, body));
 };
 
 export const deleteDrug = async (data: Data, clinic: ClinicHandle, drug: { id: number }) => {
@@ -83,6 +87,23 @@ export const deleteProtocol = async (data: Data, clinic: ClinicHandle, protocol:
 
 // ---- UI ----
 
+/** The drugs page in its list view (the table): the tree is the page's default view (M1.7 review R1). */
+export const DRUGS_LIST = "/drugs?view=list";
+
+/** The drugs page's view toggle «طريقة العرض» / "View". */
+export const viewToggle = (page: Page, ct: CatalogTexts) => page.getByRole("group", {name: ct.viewLabel});
+
+/** One button of the view toggle: «شجرة» / «قائمة». */
+export const viewButton = (page: Page, ct: CatalogTexts, view: "tree" | "list") =>
+    viewToggle(page, ct).getByRole("button", {name: view === "tree" ? ct.viewTree : ct.viewList, exact: true});
+
+/** Switches the drugs page (opened in its default tree view, e.g. from the sidebar) to the list: the table. */
+export const showDrugsList = async (page: Page, ct: CatalogTexts) => {
+    await viewButton(page, ct, "list").click();
+    await expect(viewButton(page, ct, "list")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("table")).toBeVisible();
+};
+
 /** The drugs table's row of a drug (names are unique per test). */
 export const drugRow = (page: Page, name: string) => page.getByRole("row").filter({hasText: name});
 
@@ -102,9 +123,20 @@ export const protocolCards = (page: Page) => page.locator(".MuiCard-root");
 export const editorLines = (page: Page, ct: CatalogTexts) =>
     page.getByRole("button", {name: ct.dragToReorder}).locator("..");
 
-/** A picker option (drug or protocol) by its name. */
+/**
+ * A picker option (a protocol) by its name, or a drug row of a drug tree (accessible name: the drug's name; shown once
+ * its subcategory is open, `DrugTreeUi.show`).
+ */
 export const option = (page: Page, name: string) =>
-    page.getByRole("option").filter({has: page.getByText(name, {exact: true})});
+    page.getByRole("option").filter({has: page.getByText(name, {exact: true})})
+        .or(page.getByRole("treeitem", {name, exact: true}).and(page.locator('[aria-level="3"]')));
+
+/** The protocol editor's drug tree (contract M1.7c § 3.2: where the drug picker was; editable editor only). */
+export const editorTree = (page: Page, lang: Lang) => new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]);
+
+/** Adds a drug to the protocol being edited through its tree (search, the bucket that opens or the drug's path, click). */
+export const addToProtocol = (page: Page, lang: Lang, name: string, where?: { category: string; subCategory: string }) =>
+    editorTree(page, lang).addDrug(name, where);
 
 /** Chooses `value` in the MUI select labelled `label` (nth when several). */
 export const choose = async (page: Page, scope: Locator, label: string, value: string, nth = 0) => {
@@ -127,7 +159,7 @@ export const dialog = (page: Page, title: string) => page.getByRole("dialog", {n
  * must not be cached yet (or the cache must have been invalidated), else no request is sent.
  */
 export const search = async (page: Page, field: Locator, term: string) => {
-    const answered = page.waitForResponse(r => /\/api\/v1\/(drugs|protocols)$/.test(new URL(r.url()).pathname)
+    const answered = page.waitForResponse(r => /\/api\/v1\/(drugs|drugs\/tree|protocols)$/.test(new URL(r.url()).pathname)
         && new URL(r.url()).searchParams.get("search") === term.trim());
     await field.fill(term);
     await answered;

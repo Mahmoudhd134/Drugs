@@ -3,6 +3,7 @@ using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Application.Features.Access;
 using ClinicHub.Application.Features.Access.Roles;
+using ClinicHub.Application.Features.Catalog.Categories;
 using ClinicHub.Application.Features.Identity.Users;
 using ClinicHub.Application.Features.Platform.Clinics.Commands.CreateClinic;
 using ClinicHub.Domain.Access;
@@ -36,6 +37,10 @@ public sealed class StartupSeeder(
     public const string DevOwnerName = "Dev Owner";
     public const string DevAssistantName = "Dev Assistant";
     public const string DevViewerRoleName = "Viewer";
+    /// <summary>The shared drug of the template's sample protocol (dev seed).</summary>
+    public const string SampleSharedDrugName = "VIGAMOX 0.5% EYE DROPS 5 ML";
+    /// <summary>The one-time loader of the shared catalog (design M1.7 D11), named by the dev seed's warning.</summary>
+    public const string CatalogScript = "data/drug-catalog/tools/load_catalog.py";
 
     public async Task SeedAsync(bool isDevelopment)
     {
@@ -59,6 +64,15 @@ public sealed class StartupSeeder(
         if (assistantPhone == ownerPhone)
             assistantPhone = null;
 
+        // No catalog yet (design M1.7 § 9, D5): seed nothing, so the first start after the load seeds everything (the
+        // check above would skip the template sample if the demo clinics were stored now)
+        if (!await CatalogLoadedAsync())
+        {
+            logger.LogWarning("The shared drug catalog is not loaded: the development data is not seeded (run {Script})",
+                CatalogScript);
+            return;
+        }
+
         var start = Stopwatch.GetTimestamp();
         // All or nothing: a half-done seed would never be repaired (the check above would skip it). The
         // commands sent below join this transaction (savepoints); their post-commit actions run at once, before
@@ -80,40 +94,46 @@ public sealed class StartupSeeder(
     }
 
     /// <summary>
-    /// The smallest content that proves the copy (design D6): two drugs with default dosings and one protocol using
-    /// both, one line overriding its drug's dosing (a tapering schedule, the eye asked when the protocol is added).
-    /// Skipped (false) when the template already has drugs (e.g. added by hand, or seeded on an earlier start
-    /// while <c>DevOwnerPhone</c> was empty).
+    /// The smallest content that proves the copy (design D6, M1.7 § 9): two own drugs with categories and default dosings,
+    /// and one protocol on the shared <see cref="SampleSharedDrugName"/> and one own drug (a tapering schedule, the eye
+    /// asked when the protocol is added). Skipped (false) when the template already has own drugs (e.g. added by hand,
+    /// or seeded on an earlier start while <c>DevOwnerPhone</c> was empty). Runs only once <see cref="CatalogLoadedAsync"/>.
     /// </summary>
     private async Task<bool> SeedTemplateAsync()
     {
         var templateId = await db.Clinics.Where(c => c.IsTemplate).Select(c => c.Id).FirstAsync();
         using (clinicScope.Use(templateId))
         {
-            if (await db.Drugs.AnyAsync())
+            if (await db.Drugs.AnyAsync(d => d.ClinicId != null))
                 return false;
 
-            var antibiotic = new Drug
-            {
-                Name = "Moxifloxacin 0.5%",
-                Description = "Antibiotic eye drops",
-                DefaultDosing = new Dosing
-                {
-                    DoseAmount = 1, DoseUnit = "drop", Frequency = "daily", FrequencyValue = 4,
-                    DurationValue = 1, DurationUnit = "weeks",
-                },
-            };
+            var shared = await db.Drugs.AsNoTracking()
+                .FirstAsync(d => d.ClinicId == null && d.Name == SampleSharedDrugName && !d.IsWithdrawn);
+            var eye = await db.Categories.Include(c => c.SubCategories).FirstAsync(c => c.Id == CategoryIds.Eye);
+
             var steroid = new Drug
             {
                 Name = "Prednisolone acetate 1%",
+                ActiveIngredients = "PREDNISOLONE ACETATE",
                 Description = "Steroid eye drops",
+                CategoryId = eye.Id,
+                SubCategoryId = eye.SubCategories.FirstOrDefault(s => s.NameEn == "Eye anti-inflammatories")?.Id,
                 DefaultDosing = new Dosing
                 {
                     DoseAmount = 1, DoseUnit = "drop", Frequency = "daily", FrequencyValue = 4,
                     DurationValue = 4, DurationUnit = "weeks",
                 },
             };
-            db.Drugs.AddRange(antibiotic, steroid);
+            var glaucoma = new Drug
+            {
+                Name = "Timolol 0.5%",
+                ActiveIngredients = "TIMOLOL",
+                Description = "Glaucoma eye drops",
+                CategoryId = eye.Id,
+                SubCategoryId = eye.SubCategories.FirstOrDefault(s => s.Id == SubCategoryIds.Glaucoma)?.Id,
+                DefaultDosing = new Dosing { DoseAmount = 1, DoseUnit = "drop", Frequency = "daily", FrequencyValue = 2 },
+            };
+            db.Drugs.AddRange(steroid, glaucoma);
             await db.SaveChangesAsync();
 
             db.Protocols.Add(new Protocol
@@ -121,8 +141,17 @@ public sealed class StartupSeeder(
                 Name = "After cataract surgery",
                 Items =
                 [
-                    // The drug's default dosing as is
-                    new ProtocolItem { DrugId = antibiotic.Id, Order = 0 },
+                    // A shared drug has no default dosing: the line gives it
+                    new ProtocolItem
+                    {
+                        DrugId = shared.Id,
+                        Order = 0,
+                        Dosing = new Dosing
+                        {
+                            DoseAmount = 1, DoseUnit = "drop", Frequency = "daily", FrequencyValue = 4,
+                            DurationValue = 1, DurationUnit = "weeks",
+                        },
+                    },
                     // Override: taper 4 → 1 times a day over 4 weeks; the dose comes from the drug
                     new ProtocolItem
                     {
@@ -145,8 +174,17 @@ public sealed class StartupSeeder(
     }
 
     /// <summary>
-    /// "Demo clinic" (the template copy + 10,000 drugs, the assistant as Assistant) and "Second demo clinic" (the
-    /// template copy, a read-only "Viewer" role, the assistant as Viewer), both owned by the dev owner.
+    /// The shared catalog is loaded (<see cref="CatalogScript"/> run): the template sample's shared drug and the Eye
+    /// category exist.
+    /// </summary>
+    private async Task<bool> CatalogLoadedAsync() =>
+        await db.Drugs.AnyAsync(d => d.ClinicId == null && d.Name == SampleSharedDrugName && !d.IsWithdrawn)
+        && await db.Categories.AnyAsync(c => c.Id == CategoryIds.Eye);
+
+    /// <summary>
+    /// "Demo clinic" (the template copy, the assistant as Assistant) and "Second demo clinic" (the template copy, a
+    /// read-only "Viewer" role, the assistant as Viewer), both owned by the dev owner. Paging and search are checked on
+    /// the shared catalog (23K drugs): no bulk drugs.
     /// </summary>
     private async Task SeedDemoClinicsAsync(string ownerPhone, string assistantPhone)
     {
@@ -155,17 +193,10 @@ public sealed class StartupSeeder(
         var demoId = await CreateClinicAsync(DemoClinicName, ownerPhone);
         using (clinicScope.Use(demoId))
         {
-            // For paging and search checks
-            db.Drugs.AddRange(Enumerable.Range(1, 10000).Select(x => new Drug
-            {
-                Name = $"Drug number {x}",
-                Description = $"Description of drug number {x}",
-            }));
             // No deletes
             AddAssistant(assistant, await db.Roles.SingleAsync(r => r.Name == DefaultRoles.Assistant));
             await db.SaveChangesAsync();
         }
-        // Don't keep the 10,000 drugs tracked through the next clinic's saves
         db.ChangeTracker.Clear();
 
         var secondId = await CreateClinicAsync(SecondDemoClinicName, ownerPhone);

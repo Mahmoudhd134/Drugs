@@ -3,6 +3,7 @@ import {unique} from "../support/phones.ts";
 import {createDrug, createDrugs, drugRow, drugRows} from "../support/catalog.ts";
 import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {recordRequests} from "../support/ui.ts";
+import {listDrugs} from "../support/shared.ts";
 
 /** The drugs page: search, paging, no results (docs/features/drugs/business.md "البحث عن دواء"). */
 test.describe("The drugs list @area:catalog", () => {
@@ -11,15 +12,17 @@ test.describe("The drugs list @area:catalog", () => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
             const clinic = await data.clinic();
-            // 25 drugs "Bulk …" (+ the 2 copied from the template) = 2 pages of 20; the searched one sorts last
+            // 25 own drugs "Bulk …", then the searched one; the shared catalog after them (design M1.7 D7 order)
             await createDrugs(data, clinic, Array.from({length: 25}, (_, i) => `Bulk ${u} ${String(i).padStart(2, "0")}`));
             await createDrug(data, clinic, `Zeta ${u}`);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
-            await expect(page.getByText(ct.displayedRows(1, 20, 28), {exact: true})).toBeVisible();
+            // The list's total: the API's answer of the same run (never a literal of the catalog, design M1.7 D12)
+            const total = (await listDrugs(await data.ownerApi(clinic), {pageSize: 20})).totalCount;
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
+            await expect(page.getByText(ct.displayedRows(1, 20, total), {exact: true})).toBeVisible();
             await healthy();
 
             await page.getByRole("button", {name: t.nextPage}).click();
-            await expect(page.getByText(ct.displayedRows(21, 28, 28), {exact: true})).toBeVisible();
+            await expect(page.getByText(ct.displayedRows(21, 40, total), {exact: true})).toBeVisible();
 
             const search = page.getByPlaceholder(t.searchDrugs);
             const lists = recordRequests(page, "GET", /\/api\/v1\/drugs$/);
@@ -43,8 +46,9 @@ test.describe("The drugs list @area:catalog", () => {
             const u = unique();
             const clinic = await data.clinic();
             await createDrugs(data, clinic, Array.from({length: 53}, (_, i) => `Page ${u} ${String(i).padStart(2, "0")}`));
-            const total = 55; // + the template's 2
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            // Own drugs + the shared catalog: the API's total of the same run (design M1.7 D12)
+            const total = (await listDrugs(await data.ownerApi(clinic), {pageSize: 20})).totalCount;
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await expect(drugRows(page)).toHaveCount(20);
             await expect(page.getByText(ct.displayedRows(1, 20, total), {exact: true})).toBeVisible();
             await page.getByRole("button", {name: t.nextPage}).click();
@@ -69,7 +73,7 @@ test.describe("The drugs list @area:catalog", () => {
     test("a search without results says «لا توجد أدوية مطابقة للبحث.» @DRUG-054", async ({page, t, lang, data, healthy}) => {
         const ct = CATALOG_TEXTS[lang];
         const clinic = await data.clinic();
-        await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+        await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
         await page.getByPlaceholder(t.searchDrugs).fill(`nothing ${unique()}`);
         await expect(page.getByText(ct.drugsNoResults, {exact: true})).toBeVisible();
         await expect(drugRows(page)).toHaveCount(0);
@@ -80,11 +84,14 @@ test.describe("The drugs list @area:catalog", () => {
         async ({page, t, data, healthy}) => {
             const clinic = await data.clinic();
             for (const name of ["قرص أسبرين", "اسبرين أطفال", "أسبرين ممتد", "باراسيتامول"]) await createDrug(data, clinic, name);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await page.getByPlaceholder(t.searchDrugs).fill("اسبرين");
-            await expect(drugRows(page)).toHaveCount(3);
+            // The clinic's own drugs come first (design M1.7 D7); shared drugs matching the term may follow them
             const names = drugRows(page).locator("td:first-child p:first-child");
-            await expect(names).toHaveText(["أسبرين ممتد", "اسبرين أطفال", "قرص أسبرين"]);
+            await expect(names.first()).toHaveText("أسبرين ممتد");
+            const shown = await names.allTextContents();
+            expect(shown.slice(0, 3)).toEqual(["أسبرين ممتد", "اسبرين أطفال", "قرص أسبرين"]);
+            expect(shown).not.toContain("باراسيتامول");
             await healthy();
         });
 });

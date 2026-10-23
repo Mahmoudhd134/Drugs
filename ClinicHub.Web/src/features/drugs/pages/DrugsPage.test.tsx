@@ -5,6 +5,7 @@ import {http, HttpResponse} from "msw";
 import {
     aDrug,
     api,
+    drugCategoriesHandler,
     drugsHandlers,
     findToast,
     isolate,
@@ -25,7 +26,8 @@ const manyDrugs = (count: number) => Array.from({length: count}, (_, i) => aDrug
 
 const openPage = async (drugs: Drug[], lang: "ar" | "en" = "ar") => {
     server.use(...drugsHandlers(drugs));
-    const rendered = await renderWithProviders(<DrugsPage/>, {lang});
+    // The table: the list view (the tree is the default, M1.7 review R1)
+    const rendered = await renderWithProviders(<DrugsPage/>, {lang, route: "/drugs?view=list"});
     return rendered;
 };
 
@@ -46,22 +48,7 @@ describe("drugs page: the list @area:catalog", () => {
         expect(await screen.findByText("Total drugs: 3")).toBeInTheDocument();
     });
 
-    test("no drugs at all: «لا توجد أدوية بعد» / «أضف أول دواء…» with an «إضافة دواء» button @DRUG-055", async () => {
-        const {user} = await openPage([]);
-        const title = await screen.findByText("لا توجد أدوية بعد");
-        const empty = title.parentElement as HTMLElement;
-        expect(within(empty).getByText("أضف أول دواء لتبدأ في كتابة الروشتات.")).toBeInTheDocument();
-        await user.click(within(empty).getByRole("button", {name: "إضافة دواء"}));
-        expect(await screen.findByRole("heading", {name: "دواء جديد"})).toBeInTheDocument();
-    });
-
-    test("in English the empty state reads \"No drugs yet\" @DRUG-055", async () => {
-        await openPage([], "en");
-        expect(await screen.findByText("No drugs yet")).toBeInTheDocument();
-        expect(screen.getByText("Add your first drug to start building prescriptions.")).toBeInTheDocument();
-    });
-
-    test("a row shows the name, the Arabic dosing sentence and the description cut to 2 lines @DRUG-056 @smoke", async () => {
+    test("a row shows the name, the Arabic dosing sentence, the category › subcategory, the chip and the description cut to 2 lines @DRUG-056 @smoke", async () => {
         const description = "سطر 1\nسطر 2\nسطر 3\nسطر 4";
         await openPage([aDrug({
             name: "Tobradex",
@@ -70,9 +57,26 @@ describe("drugs page: the list @area:catalog", () => {
         })], "en");
         const row = await rowOf("Tobradex");
         expect(within(row).getByText("نقطة واحدة 4 مرات يوميًا لمدة أسبوعين")).toBeInTheDocument();
+        // M1.7c: the category in the UI language and the own-drug chip (never an Arabic name: an own drug has none)
+        expect(within(row).getByText("Eye › Glaucoma")).toBeInTheDocument();
+        expect(within(row).getByText("Clinic", {exact: true})).toBeInTheDocument();
+        expect(within(row).queryByText("العيون › المياه الزرقاء")).not.toBeInTheDocument();
         const text = within(row).getByText((_, el) => el?.textContent === description && el.tagName === "P");
         expect(text).toHaveStyle({display: "-webkit-box", overflow: "hidden", whiteSpace: "pre-line"});
         expect(getComputedStyle(text).getPropertyValue("-webkit-line-clamp")).toBe("2");
+    });
+
+    test("in Arabic a shared row shows «العيون › المياه الزرقاء», no chip (no «مشترك», no «خاص بالعيادة»), its English name only, and its description @DRUG-056 @CAT-278", async () => {
+        await openPage([aDrug({
+            name: "VIGAMOX 0.5% EYE DROPS 5 ML", isShared: true, activeIngredients: "MOXIFLOXACIN", description: "Antibiotic eye drops",
+        })]);
+        const row = await rowOf("VIGAMOX 0.5% EYE DROPS 5 ML");
+        expect(within(row).getByText("العيون › المياه الزرقاء")).toBeInTheDocument();
+        // M1.7 review R2: a shared row has no chip
+        expect(within(row).queryByText("مشترك")).not.toBeInTheDocument();
+        expect(within(row).queryByText("خاص بالعيادة")).not.toBeInTheDocument();
+        expect(within(row).getByText("Antibiotic eye drops")).toBeInTheDocument();
+        expect(within(row).queryByText("Eye › Glaucoma")).not.toBeInTheDocument();
     });
 
     test("a default dosing of only «اليمنى»: «في العين اليمنى» and the description in the table @DRUG-103", async () => {
@@ -85,9 +89,10 @@ describe("drugs page: the list @area:catalog", () => {
     test("the list fails to load: «تعذّر تحميل البيانات.» with «إعادة المحاولة», which reloads @DRUG-057", async () => {
         let fail = true;
         server.use(
+            drugCategoriesHandler(),
             http.get(api("/drugs"), () => (fail ? problem(500, "unexpected") : HttpResponse.json({items: [aDrug({name: "Vigamox"})], totalCount: 1, page: 1, pageSize: 20}))),
         );
-        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar"});
+        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs?view=list"});
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent("تعذّر تحميل البيانات.");
         fail = false;
@@ -97,8 +102,8 @@ describe("drugs page: the list @area:catalog", () => {
     });
 
     test("in English the load error reads \"Couldn't load data.\" with \"Retry\" @DRUG-057", async () => {
-        server.use(http.get(api("/drugs"), () => networkError()));
-        await renderWithProviders(<DrugsPage/>, {lang: "en"});
+        server.use(drugCategoriesHandler(), http.get(api("/drugs"), () => networkError()));
+        await renderWithProviders(<DrugsPage/>, {lang: "en", route: "/drugs?view=list"});
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent("Couldn't load data.");
         expect(within(alert).getByRole("button", {name: "Retry"})).toBeInTheDocument();

@@ -64,8 +64,10 @@ reading.
 Composite FKs `(StaffId, ClinicId)` → `Staff(Id, ClinicId)` and `(RoleId, ClinicId)` → `Roles(Id, ClinicId)`
 (both cascade), so the database rejects a role of another clinic (same pattern as `ProtocolItems`).
 Like every clinic-owned table it also has the FK `ClinicId` → `Clinics` (restrict) and its index.
-`Staff` gets the unique `(Id, ClinicId)` they target (and, M1.6.1, the generated `SearchName` column for the staff
-search: [platform admin](../platform-admin/tech.md#roles-and-staff-m153)).
+`Staff` gets the unique `(Id, ClinicId)` they target (and, M1.6.1, the `SearchName` column for the staff search,
+filled by the save interceptor from `FullName` since M1.7b: [platform admin](../platform-admin/tech.md#roles-and-staff-m153)).
+Permission keys are unchanged by M1.7b: the shared drugs and categories are read with `drugs.list` / `drugs.details`
+and written only by the super admin (`PlatformAdmin` policy).
 
 The join tables have no timestamps (only `Roles` does).
 
@@ -218,8 +220,9 @@ whatever its `Status`.
   wrapped in `RequirePermission`. `/` (prescription) uses `denied: <FirstAllowedPage/>`
   (`app/FirstAllowedPage.tsx`): the first `NAV_ITEMS` page the user may open, or the no-permission page without its home link (`/` would loop).
 - `NAV_ITEMS` moved to `app/navigation.tsx` with a `permission`; the sidebar hides the rest.
-- Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugPicker`,
-  `useProtocols`, `useProtocolPicker`, `useProtocol`; `DrugPicker` / `ProtocolPicker` take `enabled`.
+- Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugTree` (its `useDrugBucket`s
+  run only under an open tree), `useProtocols`, `useProtocolPicker`, `useProtocol`; `DrugTree` / `ProtocolPicker` take
+  `enabled`.
 - A 403 `noAccess`/`clinicSuspended` (the clinic itself may be lost) never reaches the pages first: the API client
   refreshes the session and either follows it (picker, the only clinic left, or login, with a message;
   [auth](../auth/tech.md), design D7) or, when the clinic is still there (e.g. re-added under a new staff record),

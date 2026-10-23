@@ -8,13 +8,16 @@ import {
     DOSINGS,
     drugRow,
     editorLines,
+    editorTree,
     fillNumber,
     protocolCard,
     option,
-    search,
     sentenceIn,
+    showDrugsList,
 } from "../support/catalog.ts";
+import {RxPage} from "../support/rx.ts";
 import {CATALOG_TEXTS, type CatalogTexts, SENTENCES} from "../support/texts-catalog.ts";
+import {RX_TEXTS} from "../support/texts-rx.ts";
 import type {Texts} from "../support/texts.ts";
 import {expectToast, navTo, toast} from "../support/ui.ts";
 
@@ -63,7 +66,7 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             ]);
 
             // The drugs page: the drops' duration 7 → 14 days; the tablets' 2 → 3 times a day for 2 weeks
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await editDrug(page, t, drops.name, form => fillNumber(form, ct.duration, 14));
             await editDrug(page, t, tablets.name, async form => {
                 await fillNumber(form, ct.timesPerDay, 3);
@@ -79,7 +82,7 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             await expect(lineOf(page, ct, tablets.name).getByText(ct.protocolDosing, {exact: true})).toHaveCount(0);
         });
 
-    test("editing the name and default dosing of a drug in two protocols: the protocol cards and the pickers show the new name and sentence without a reload (no case tag: DRUG-071 also needs the editors, see the next test)",
+    test("editing the name and default dosing of a drug in two protocols: the protocol cards, the protocol picker and the drug trees show the new name and sentence without a reload @DRUG-071",
         async ({page, t, lang, data}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -90,42 +93,46 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             const renamed = `After ${u}`;
             await signIn(page, clinic.owner.phone, "asIs", "/protocols");
             await markPage(page);
+            const rx = new RxPage(page, RX_TEXTS[lang]);
+            const editor = editorTree(page, lang);
 
-            // Load the protocols, the protocol editor's drug picker and the prescription's pickers first (in the app's cache)
+            // Load the protocols, the protocol editor's drug tree and the prescription's lists first (in the app's cache)
             await expect(protocolCard(page, g1.name).locator("ol li")).toHaveText([drug.name]);
             await page.getByRole("link", {name: t.newProtocol}).click();
-            await search(page, page.getByPlaceholder(t.searchDrugs), u);
-            await expect(sentenceIn(option(page, drug.name))).toHaveText(SENTENCES.drop4x);
+            await editor.show(drug.name);
+            await expect(sentenceIn(editor.drug(drug.name))).toHaveText(SENTENCES.drop4x);
             await page.getByRole("button", {name: t.cancel, exact: true}).click();
             await navTo(page, t, t.navPrescription);
             await expect(option(page, g1.name).filter({visible: true})).toContainText(drug.name);
-            await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-            await search(page, page.getByPlaceholder(t.searchDrugs).filter({visible: true}), u.toUpperCase());
-            await expect(sentenceIn(option(page, drug.name).filter({visible: true}))).toHaveText(SENTENCES.drop4x);
+            await rx.openDrugsTab();
+            // The tree also finds it by a part of its name, in capitals: its one subcategory opens by itself
+            await rx.tree.search(u.toUpperCase());
+            await expect(sentenceIn(rx.drug(drug.name))).toHaveText(SENTENCES.drop4x);
 
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, ct);
             await editDrug(page, t, drug.name, async form => {
                 await form.getByRole("textbox", {name: t.drugName}).fill(renamed);
                 await fillNumber(form, ct.timesPerDay, 3);
             });
 
-            // The prescription's pickers (each tab kept its search): the protocols list the new name, the drug its new sentence
+            // The prescription's tree (the same search): the new name and sentence; the protocols list the new name
             await navTo(page, t, t.navPrescription);
-            await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-            await search(page, page.getByPlaceholder(t.searchDrugs).filter({visible: true}), u.toUpperCase());
-            await expect(sentenceIn(option(page, renamed).filter({visible: true}))).toHaveText(SENTENCES.drop3x);
-            await expect(option(page, drug.name).filter({visible: true})).toHaveCount(0);
-            await page.getByRole("tab", {name: t.rxTabProtocols}).click();
+            await rx.openDrugsTab();
+            await rx.tree.search(u.toUpperCase());
+            await expect(sentenceIn(rx.drug(renamed))).toHaveText(SENTENCES.drop3x);
+            await expect(rx.drug(drug.name)).toHaveCount(0);
+            await rx.openProtocolsTab();
             await expect(option(page, g1.name).filter({visible: true})).toContainText(renamed);
             await expect(option(page, g2.name).filter({visible: true})).toContainText(renamed);
 
-            // The protocols' cards and the protocol editor's drug picker
+            // The protocols' cards and the protocol editor's drug tree
             await navTo(page, t, t.navProtocols);
             for (const protocol of [g1, g2]) await expect(protocolCard(page, protocol.name).locator("ol li")).toHaveText([renamed]);
             await page.getByRole("link", {name: t.newProtocol}).click();
-            await search(page, page.getByPlaceholder(t.searchDrugs), u);
-            await expect(sentenceIn(option(page, renamed))).toHaveText(SENTENCES.drop3x);
-            await expect(option(page, drug.name)).toHaveCount(0);
+            await editor.search(u);
+            await expect(sentenceIn(editor.drug(renamed))).toHaveText(SENTENCES.drop3x);
+            await expect(editor.drug(drug.name)).toHaveCount(0);
             await expectSamePage(page);
             await settled(page);
         });
@@ -147,6 +154,7 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
             }
 
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, ct);
             await editDrug(page, t, drug.name, async form => {
                 await form.getByRole("textbox", {name: t.drugName}).fill(renamed);
                 await fillNumber(form, ct.timesPerDay, 3);
@@ -162,14 +170,14 @@ test.describe("Default dosing flowing into protocols and prescriptions @area:cat
         });
 
     test("a drug with a taper default added to a prescription: the line shows the whole taper sentence and «تعديل الجرعة» opens with the steps @TAPER-079 @smoke",
-        async ({page, t, lang, data, healthy}) => {
+        async ({page, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Taper rx ${unique()}`, {dosing: DOSINGS.taperOpenEnd});
             await signIn(page, clinic.owner.phone);
-            await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-            await page.getByPlaceholder(t.searchDrugs).filter({visible: true}).fill(drug.name);
-            await option(page, drug.name).filter({visible: true}).click();
+            const rx = new RxPage(page, RX_TEXTS[lang]);
+            await rx.openDrugsTab();
+            await rx.addDrug(drug.name);
 
             const edit = page.getByRole("button", {name: ct.editLine}).filter({visible: true});
             await expect(edit).toHaveCount(1);

@@ -3,6 +3,7 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {READ_ONLY} from "../support/data.ts";
 import {unique} from "../support/phones.ts";
 import {
+    addToProtocol,
     choose,
     createDrug,
     createDrugs,
@@ -12,13 +13,17 @@ import {
     dialog,
     DOSINGS,
     editorLines,
+    editorTree,
     fillNumber,
+    getProtocol,
     protocolCard,
-    option,
     sentenceIn,
     updateDrug,
 } from "../support/catalog.ts";
+import {type CategoryRow, EYE, GLAUCOMA, IMPORTED, ownDrugIn} from "../support/shared.ts";
 import {CATALOG_TEXTS, SENTENCES} from "../support/texts-catalog.ts";
+import {TREE_TEXTS} from "../support/texts-rx.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
 import {expectToast, recordRequests} from "../support/ui.ts";
 
 /** The protocol editor: create, edit, keyboard, reorder, two eyes, clashes, delete, read-only (docs/features/protocols). */
@@ -42,7 +47,7 @@ const dragLine = async (page: Page, handle: Locator, onto: Locator) => {
 };
 
 test.describe("The protocol editor @area:catalog", () => {
-    test("«بروتوكول جديد»: a name, 3 drugs clicked in «إضافة أدوية», Save: «تم إنشاء البروتوكول» and the list shows «الأدوية: 3» @GRP-046 @smoke",
+    test("«بروتوكول جديد»: a name, 3 drugs clicked in the tree («العيون» → «المياه الزرقاء» → the drug), Save: «تم إنشاء البروتوكول» and the list shows «الأدوية: 3» @GRP-046 @smoke",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const u = unique();
@@ -54,12 +59,14 @@ test.describe("The protocol editor @area:catalog", () => {
             await expect(page).toHaveURL(/\/protocols\/new$/);
             await expect(page.getByRole("heading", {level: 1, name: t.newProtocol})).toBeVisible();
             await page.getByRole("textbox", {name: t.protocolName}).fill(name);
-            for (const drug of drugs) {
-                await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
-                await option(page, drug.name).click();
-                await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
-                await expect(option(page, drug.name).getByText(ct.added, {exact: true})).toBeVisible();
-                await page.getByPlaceholder(t.searchDrugs).fill("");
+            // No search: the category, then the subcategory (own drugs first in it, newest first), then each drug
+            const tree = editorTree(page, lang);
+            const sub = await tree.openPath(EYE[lang], GLAUCOMA[lang]);
+            for (const [i, drug] of drugs.entries()) {
+                await tree.loadUntil(sub, tree.drug(drug.name));
+                await tree.select(drug.name);
+                await expect(editorLines(page, ct)).toHaveCount(i + 1);
+                await expect(tree.drug(drug.name).getByText(ct.added, {exact: true})).toBeVisible();
             }
             await expect(editorLines(page, ct)).toHaveCount(3);
             await healthy();
@@ -83,23 +90,74 @@ test.describe("The protocol editor @area:catalog", () => {
         await expect(protocolCard(page, protocol.name)).toHaveCount(0);
     });
 
-    test("the picker with ↓/↑ and Enter adds the highlighted drug @GRP-052", async ({page, t, lang, data}) => {
-        const ct = CATALOG_TEXTS[lang];
-        const u = unique();
-        const clinic = await data.clinic();
-        await createDrugs(data, clinic, [`Kbd ${u} A`, `Kbd ${u} B`, `Kbd ${u} C`]);
-        await signIn(page, clinic.owner.phone, "asIs", "/protocols/new");
-        const search = page.getByPlaceholder(t.searchDrugs);
-        await search.fill(`Kbd ${u}`);
-        await expect(page.getByRole("option")).toHaveCount(3);
-        await search.press("ArrowDown");
-        await search.press("ArrowDown");
-        await search.press("ArrowUp");
-        await expect(option(page, `Kbd ${u} B`)).toHaveAttribute("aria-selected", "true");
-        await search.press("Enter");
-        await expect(editorLines(page, ct)).toHaveCount(1);
-        await expect(editorLines(page, ct).first()).toContainText(`Kbd ${u} B`);
-    });
+    test("the tree's keyboard in the editor: ↓ from the search to a category, the opening arrow opens it, ↓ to a subcategory, Enter opens it, ↓ to a drug, Enter adds it @GRP-052",
+        async ({page, lang, data}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const tt = TREE_TEXTS[lang];
+            const u = unique();
+            const clinic = await data.clinic();
+            // Two drugs in «العيون › المياه الزرقاء», one in another subcategory of «العيون»: two subcategories, nothing opens by itself
+            const rows = await (await data.ownerApi(clinic)).ok<CategoryRow[]>("GET", "/api/v1/drug-categories");
+            const eye = rows.find(c => c.nameEn === EYE.en)!;
+            const other = eye.subCategories.find(s => s.nameEn !== GLAUCOMA.en)!;
+            await createDrugs(data, clinic, [`Kbd ${u} A`, `Kbd ${u} B`]);
+            await ownDrugIn(data, clinic, {name: `Kbd ${u} C`, categoryId: eye.id, subCategoryId: other.id});
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols/new");
+            const tree = editorTree(page, lang);
+            await tree.search(`Kbd ${u}`);
+            const category = tree.category(EYE[lang]);
+            await tree.expectOpen(category, false);
+
+            await tree.searchBox.press("ArrowDown");
+            await expect(category).toBeFocused();
+            await page.keyboard.press(lang === "ar" ? "ArrowLeft" : "ArrowRight");
+            await tree.expectOpen(category);
+            // Searching: the subcategories by their count, «المياه الزرقاء» (2) first
+            await page.keyboard.press("ArrowDown");
+            const glaucoma = tree.subCategory(EYE[lang], GLAUCOMA[lang]);
+            await expect(glaucoma).toBeFocused();
+            await expect(glaucoma).toHaveAttribute("aria-label", tt.node(GLAUCOMA[lang], 2));
+            await page.keyboard.press("Enter");
+            await tree.expectOpen(glaucoma);
+            await expect(tree.drugsIn(glaucoma)).toHaveCount(2);
+            await page.keyboard.press("ArrowDown");
+            await expect(tree.drug(`Kbd ${u} A`)).toBeFocused();
+            await page.keyboard.press("ArrowDown");
+            await expect(tree.drug(`Kbd ${u} B`)).toBeFocused();
+            await page.keyboard.press("Enter");
+            await expect(editorLines(page, ct)).toHaveCount(1);
+            await expect(editorLines(page, ct).first()).toContainText(`Kbd ${u} B`);
+            await expect(tree.drug(`Kbd ${u} B`)).toBeFocused();
+        });
+
+    test("a drug added from the editor's tree makes a line as the picker did: no override (an own drug's default sentence, nothing for a shared one) @CAT-114",
+        async ({page, t, lang, data}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const st = SHARED_TEXTS[lang];
+            const u = unique();
+            const clinic = await data.clinic();
+            const own = await createDrug(data, clinic, `Own line ${u}`, {dosing: DOSINGS.dropRight4x});
+            const name = `Tree lines ${u}`;
+            await signIn(page, clinic.owner.phone, "asIs", "/protocols/new");
+            await page.getByRole("textbox", {name: t.protocolName}).fill(name);
+            await addToProtocol(page, lang, own.name);
+            await addToProtocol(page, lang, IMPORTED.alemox1g);
+            const lines = editorLines(page, ct);
+            await expect(lines).toHaveCount(2);
+            await expect(lines.nth(0)).toContainText(own.name);
+            await expect(sentenceIn(lines.nth(0))).toHaveText(SENTENCES.dropRight4x);
+            await expect(lines.nth(0).getByText(ct.protocolDosing, {exact: true})).toHaveCount(0);
+            await expect(lines.nth(1)).toContainText(IMPORTED.alemox1g);
+            await expect(lines.nth(1).getByText(st.noDosing, {exact: true})).toBeVisible();
+            await expect(lines.nth(1).getByText(ct.protocolDosing, {exact: true})).toHaveCount(0);
+
+            const created = page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/v1/protocols");
+            await page.getByRole("button", {name: t.save, exact: true}).click();
+            await expectToast(page, t.protocolCreated);
+            const {id} = await (await created).json() as { id: number };
+            const saved = await getProtocol(data, clinic, id);
+            expect(saved.items.map(i => [i.drug.name, i.dosing]), "the lines as stored: no override").toEqual([[own.name, null], [IMPORTED.alemox1g, null]]);
+        });
 
     test("dragging the third line to the top by its handle, then saving: reopened, the new order is kept @GRP-056",
         async ({page, t, lang, data}) => {
@@ -134,8 +192,7 @@ test.describe("The protocol editor @area:catalog", () => {
             const name = `Two eyes ${u}`;
             await signIn(page, clinic.owner.phone, "asIs", "/protocols/new");
             await page.getByRole("textbox", {name: t.protocolName}).fill(name);
-            await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
-            await option(page, drug.name).click();
+            await addToProtocol(page, lang, drug.name);
             const lines = editorLines(page, ct);
             await expect(sentenceIn(lines.nth(0))).toHaveText(SENTENCES.dropRight4x);
 
@@ -271,7 +328,7 @@ test.describe("The protocol editor @area:catalog", () => {
         await expect(protocolCard(page, protocol.name)).toHaveCount(0);
     });
 
-    test("a read-only role opens a protocol: «البروتوكول», a read-only name, no picker, Save, Cancel, ✎, ⊕, ✕ or drag handle @GRP-064",
+    test("a read-only role opens a protocol: «البروتوكول», a read-only name, no drug tree, Save, Cancel, ✎, ⊕, ✕ or drag handle @GRP-064",
         async ({page, t, lang, data, healthy}) => {
             const ct = CATALOG_TEXTS[lang];
             const clinic = await data.clinic();
@@ -285,7 +342,8 @@ test.describe("The protocol editor @area:catalog", () => {
             await expect(name).toHaveValue(protocol.name);
             await expect(name).not.toBeEditable();
             await expect(page.getByText(drug.name, {exact: true})).toBeVisible();
-            await expect(page.getByPlaceholder(t.searchDrugs)).toHaveCount(0);
+            await expect(page.getByRole("tree")).toHaveCount(0);
+            await expect(page.getByPlaceholder(TREE_TEXTS[lang].searchPlaceholder)).toHaveCount(0);
             await expect(page.getByText(ct.addDrugs, {exact: true})).toHaveCount(0);
             for (const label of [t.save, t.cancel, t.delete, ct.editLine, ct.addOtherEye, ct.removeLine, ct.dragToReorder]) {
                 await expect(page.getByRole("button", {name: label, exact: true}), label).toHaveCount(0);

@@ -1,5 +1,7 @@
 import {expect, loginViaUi, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {showDrugsList} from "../support/catalog.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {
     expectContextLabel,
     expectPicker,
@@ -27,7 +29,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
     });
 
     test("two tabs: one logs out, the other keeps working until its next refresh, which opens /login without a message @AUTH-159",
-        async ({page, t, data, newTab}) => {
+        async ({page, t, lang, data, newTab}) => {
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
             await signIn(page, clinic.owner.phone);
@@ -41,6 +43,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
 
             // Still working (its access token lives on, up to 15 min)
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, CATALOG_TEXTS[lang]);
             await expect(page.getByRole("cell", {name: drug.name})).toBeVisible();
             // Its next refresh (the page loaded again) ends there
             await page.reload();
@@ -56,7 +59,7 @@ test.describe("Session: logout, reload, tabs, offline @area:auth", () => {
             allowApiErrors({status: 401, method: "GET", path: /^\/api\/v1\/drugs$/});
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await expect(page.getByRole("cell", {name: drug.name})).toBeVisible();
             const other = await newTab();
             await other.goto("/");
@@ -272,7 +275,7 @@ test.describe("Several tabs and sessions @area:auth", () => {
             await expectContextLabel(page, a.name);
 
             const other = await newTab();
-            await other.goto("/drugs");
+            await other.goto("/drugs?view=list");
             await expect(other.getByRole("cell", {name: drugA.name})).toBeVisible();
             // From the next load on: A's drug and B's name never on screen together
             await other.addInitScript(([forbidden, under]) => {
@@ -307,7 +310,7 @@ test.describe("Several tabs and sessions @area:auth", () => {
             await signIn(page, staff.phone, {clinicId: a.id});
             await expectContextLabel(page, a.name);
             const other = await newTab();
-            await other.goto("/drugs");
+            await other.goto("/drugs?view=list");
             await expect(other.getByRole("cell", {name: drugA.name})).toBeVisible();
 
             await openSwitchClinic(page, t);
@@ -324,13 +327,28 @@ test.describe("Several tabs and sessions @area:auth", () => {
             });
             const searches = recordRequests(other, "GET", /\/api\/v1\/drugs$/);
             const lost = toast(other, t.clinicLostChoose(a.name).slice(0, 12));
+            // The moment B shows in tab 2's banner (epoch ms, the clock of the requests' timing): the page remounted in B
+            // sends its own search after it (the search is in the URL, C2), which is not a replay
+            await other.evaluate(name => {
+                const w = window as unknown as { bShownAt?: number };
+                const shown = () => [...document.querySelectorAll("header")].some(el => el.textContent?.includes(name));
+                new MutationObserver((_, observer) => {
+                    if (!shown()) return;
+                    w.bShownAt = Date.now();
+                    observer.disconnect();
+                }).observe(document.body, {subtree: true, childList: true, characterData: true});
+            }, b.name);
             await other.getByPlaceholder(t.searchDrugs).fill(term);
 
             await expect.poll(() => refused).toBe(true);
             // The refresh brought B: tab 2 follows it, the A request is not sent again in B
             await expectContextLabel(other, b.name);
             await expect(other.getByRole("cell", {name: drugA.name})).toHaveCount(0);
-            expect(searches.filter(r => r.url().includes(term))).toHaveLength(1);
+            const bShownAt = await other.evaluate(() => (window as unknown as { bShownAt?: number }).bShownAt ?? null);
+            expect(bShownAt, "B shows in tab 2's banner").not.toBeNull();
+            const termSearches = searches.filter(r => r.url().includes(term));
+            await Promise.all(termSearches.map(r => r.response()));
+            expect(termSearches.filter(r => r.timing().startTime < bShownAt!), "the term's requests before B shows").toHaveLength(1);
             await expect(lost).toHaveCount(0);
             await expect(toasts(other).filter({hasText: a.name})).toHaveCount(0);
         });

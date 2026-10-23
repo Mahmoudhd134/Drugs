@@ -11,8 +11,11 @@ public static partial class DatabaseGuard
 {
     public const string Prefix = "drags_it_";
 
-    /// <summary>A run's database: <c>drags_it_&lt;run&gt;_&lt;suffix&gt;</c> (letters and digits only between the underscores).</summary>
-    [GeneratedRegex("^drags_it_[a-z0-9]+_[a-z0-9]+$")]
+    /// <summary>
+    /// A run's database: <c>drags_it_&lt;run&gt;_&lt;suffix&gt;</c> (letters and digits only between the underscores), or
+    /// the run's bare template <c>drags_it_&lt;run&gt;_tpl_bare</c> (design M1.7 D12).
+    /// </summary>
+    [GeneratedRegex("^drags_it_[a-z0-9]+_[a-z0-9]+(?:_bare)?$")]
     public static partial Regex TestDatabaseName();
 
     private static readonly string[] LocalHosts = ["localhost", "127.0.0.1", "::1"];
@@ -33,7 +36,7 @@ public static partial class DatabaseGuard
     {
         if (database is null || !TestDatabaseName().IsMatch(database))
             throw new InvalidOperationException(
-                $"Test database guard: refusing database '{database}': tests only use databases named {Prefix}<run>_<n>.");
+                $"Test database guard: refusing database '{database}': tests only use databases named {Prefix}<run>_<n> (or {Prefix}<run>_tpl_bare).");
     }
 
     /// <summary>Throws unless <paramref name="host"/> is the local (compose) server.</summary>

@@ -1,9 +1,32 @@
-import {expect, signIn, test} from "../support/fixtures.ts";
+import type {Page} from "@playwright/test";
+import {expect, settled, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {type CategoryRow, pickCategory} from "../support/shared.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
+import {TREE_TEXTS} from "../support/texts-rx.ts";
+import {DrugTreeUi} from "../support/tree.ts";
+import type {Lang} from "../support/texts.ts";
+import {categoryFilter, pick} from "../support/admin-catalog.ts";
+import {addToProtocol, drugRow, drugRows, showDrugsList} from "../support/catalog.ts";
 import {expectContextLabel, expectToast, navTo, openSwitchClinic, pickerEntry, toast} from "../support/ui.ts";
 
+/** The drug tree of the page's main area (support/tree.ts). */
+const treeOf = (page: Page, lang: Lang) => new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]);
+
+/** From now on, any of `names` anywhere on screen is a leak (read back with `leaked`). */
+const watchLeaks = (page: Page, names: string[]) => page.evaluate(watched => {
+    const flags = window as unknown as { leaked?: string };
+    new MutationObserver(() => {
+        const text = document.body.innerText;
+        const found = watched.find(n => text.includes(n));
+        if (found) flags.leaked = found;
+    }).observe(document, {subtree: true, childList: true, characterData: true});
+}, names);
+const leaked = (page: Page) => page.evaluate(() => (window as unknown as { leaked?: string }).leaked ?? null);
+
 test.describe("Clinic isolation in the browser @area:isolation", () => {
-    test("switching from A's drugs page to B: only B's drugs and protocols, never a moment of A's @ISO-040 @smoke", async ({page, t, data}) => {
+    test("switching from A's drugs page to B: B's own drugs (+ the shared ones) and B's protocols, never a moment of A's @ISO-040 @smoke", async ({page, t, lang, data}) => {
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -13,7 +36,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         const protocolB = await data.protocol(b, [drugB], `Protocol B ${u}`);
         const staff = await data.staff(a);
         await data.staff(b, {phone: staff.phone});
-        await signIn(page, staff.phone, {clinicId: a.id}, "/drugs");
+        await signIn(page, staff.phone, {clinicId: a.id}, "/drugs?view=list");
         await expect(page.getByRole("cell", {name: drugA.name})).toBeVisible();
         await openSwitchClinic(page, t);
 
@@ -29,13 +52,17 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         await expectContextLabel(page, b.name);
 
         await navTo(page, t, t.navDrugs);
+        await showDrugsList(page, CATALOG_TEXTS[lang]);
         await expect(page.getByRole("cell", {name: drugB.name})).toBeVisible();
+        // The shared catalog shows in B too (design M1.7 D1), after B's own drugs: rows without «خاص بالعيادة» (a shared
+        // row has no chip, M1.7 review R2)
+        await expect(drugRows(page).filter({hasNot: page.getByText(SHARED_TEXTS[lang].chipOwn, {exact: true})}).first()).toBeVisible();
         await navTo(page, t, t.navProtocols);
         await expect(page.getByText(protocolB.name, {exact: true})).toBeVisible();
         expect(await page.evaluate(() => (window as unknown as { leaked?: string }).leaked ?? null)).toBeNull();
     });
 
-    test("each clinic keeps its own prescription: B's is empty, A's line is still there when back @ISO-042", async ({page, t, data}) => {
+    test("each clinic keeps its own prescription: B's is empty, A's line is still there when back @ISO-042", async ({page, t, lang, data}) => {
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -46,7 +73,7 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         await expectContextLabel(page, a.name);
 
         await page.getByRole("tab", {name: t.rxTabDrugs}).click();
-        await page.getByRole("option", {name: new RegExp(drugA.name)}).click();
+        await treeOf(page, lang).addDrug(drugA.name);
         await expect(page.getByText(t.rxEmpty)).toHaveCount(0);
         await page.getByRole("tab", {name: t.rxTabProtocols}).click();
         await expect(page.getByText(drugA.name).filter({visible: true}).first()).toBeVisible();
@@ -66,6 +93,50 @@ test.describe("Clinic isolation in the browser @area:isolation", () => {
         const stored = await page.evaluate(id => localStorage.getItem(`prescription.lines.${id}`), a.id);
         expect(stored).toContain(drugA.name);
     });
+
+    test("A's drugs page on «أدوية العيادة» + «العيون» and A's tree with an open subcategory, switched to B: B's data under the same filters, never a moment of A's @ISO-047",
+        async ({page, t, lang, data}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const u = unique();
+            const a = await data.clinic({name: `A ${u}`});
+            const b = await data.clinic({name: `B ${u}`});
+            const drugA = await data.drug(a, `Iso ${u} A`);
+            const drugB = await data.drug(b, `Iso ${u} B`);
+            const staff = await data.staff(a);
+            await data.staff(b, {phone: staff.phone});
+            const eye = (await (await data.ownerApi(a)).ok<CategoryRow[]>("GET", "/api/v1/drug-categories")).find(c => c.nameEn === "Eye")!;
+            const name = (c: { nameEn: string; nameAr: string }) => (lang === "ar" ? c.nameAr : c.nameEn);
+            const toggleOwn = () => page.getByRole("group", {name: ct.sourceLabel}).getByRole("button", {name: ct.sourceOwn, exact: true});
+
+            await signIn(page, staff.phone, {clinicId: a.id}, `/drugs?source=own&categoryId=${eye.id}&view=list`);
+            await expect(drugRow(page, drugA.name)).toBeVisible();
+            await expect(toggleOwn()).toHaveAttribute("aria-pressed", "true");
+            await navTo(page, t, t.navPrescription);
+            await page.getByRole("tab", {name: t.rxTabDrugs}).click();
+            await treeOf(page, lang).search(`Iso ${u}`);
+            await expect(treeOf(page, lang).drug(drugA.name), "its only subcategory opens by itself").toBeVisible();
+
+            await openSwitchClinic(page, t);
+            await watchLeaks(page, [drugA.name]);
+            await pickerEntry(page, b.name).click();
+            await expectContextLabel(page, b.name);
+
+            // B's tree with the same search: B's drug in its open subcategory
+            await navTo(page, t, t.navPrescription);
+            await page.getByRole("tab", {name: t.rxTabDrugs}).click();
+            await treeOf(page, lang).search(`Iso ${u}`);
+            await expect(treeOf(page, lang).drug(drugB.name), "its only subcategory opens by itself").toBeVisible();
+            // B's drugs page under the same filters
+            await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, CATALOG_TEXTS[lang]);
+            await toggleOwn().click();
+            await pick(page, categoryFilter(page, lang), name(eye));
+            await expect(page).toHaveURL(new RegExp(`categoryId=${eye.id}`));
+            await settled(page);
+            await expect(drugRow(page, drugB.name)).toBeVisible();
+            await expect(drugRows(page).filter({hasText: drugA.name})).toHaveCount(0);
+            expect(await leaked(page)).toBeNull();
+        });
 
     test("A's user opening the URL of B's protocol: «هذا العنصر لم يعد موجودًا.» @ISO-043", async ({page, t, data, healthy, allowApiErrors}) => {
         // Another clinic's protocol is not found: the test's subject
@@ -99,7 +170,7 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
     });
 
     test("the API unreachable while saving a drug or a protocol: «تعذّر الاتصال بالخادم» and the form keeps what was typed @ERR-031",
-        async ({page, t, data, allowNetworkErrors}) => {
+        async ({page, t, lang, data, allowNetworkErrors}) => {
             const clinic = await data.clinic();
             const drug = await data.drug(clinic);
             await signIn(page, clinic.owner.phone, "asIs", "/drugs");
@@ -112,6 +183,7 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             await page.getByRole("button", {name: t.addDrug}).click();
             const dialog = page.getByRole("dialog");
             await dialog.getByRole("textbox", {name: t.drugName}).fill(name);
+            await pickCategory(page, dialog, lang);
             await dialog.getByRole("button", {name: t.save}).click();
             await expectToast(page, t.network);
             await expect(dialog.getByRole("textbox", {name: t.drugName})).toHaveValue(name);
@@ -124,8 +196,7 @@ test.describe("Client routes and an unreachable API @area:errors", () => {
             const protocol = `Protocol ${unique()}`;
             await page.goto("/protocols/new");
             await page.getByRole("textbox", {name: t.protocolName}).fill(protocol);
-            await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
-            await page.getByRole("option", {name: new RegExp(drug.name)}).click();
+            await addToProtocol(page, lang, drug.name);
             await page.getByRole("button", {name: t.save, exact: true}).click();
             await expectToast(page, t.network);
             await expect(page.getByRole("textbox", {name: t.protocolName})).toHaveValue(protocol);

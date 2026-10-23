@@ -5,6 +5,9 @@ import {settled} from "./fixtures.ts";
 import {unique, uniqueDigits} from "./phones.ts";
 import {type Lang, TEXTS, type Texts} from "./texts.ts";
 import {DOSINGS, LANGUAGE_NAMES, TEN_STEP_TAPER, UX_TEXTS, type UxTexts} from "./texts-ux.ts";
+import {ownDrugBody} from "./shared.ts";
+import {TREE_TEXTS} from "./texts-rx.ts";
+import {DrugTreeUi} from "./tree.ts";
 
 /** Helpers of the I18N and UX specs (e2e stage 2, track e2e-ux). */
 
@@ -15,11 +18,11 @@ export type ProtocolItem = { drug: Drug; dosing?: unknown };
 export const drugWith = async (data: Data, clinic: ClinicHandle,
                                options: { name?: string; description?: string | null; defaultDosing?: unknown } = {}) => {
     const api = await data.ownerApi(clinic);
-    return api.ok<FullDrug>("POST", "/api/v1/drugs", {
+    return api.ok<FullDrug>("POST", "/api/v1/drugs", await ownDrugBody(api, {
         name: options.name ?? `Drug ${unique()}`,
         description: options.description ?? null,
         defaultDosing: options.defaultDosing ?? null,
-    });
+    }));
 };
 
 /** A protocol whose lines may carry dosing overrides. */
@@ -254,10 +257,10 @@ export const pick = async (page: Page, placeholder: string, name: string) => {
     await option.click();
 };
 
-/** Adds a drug to the prescription from the Drugs tab. */
+/** Adds a drug to the prescription from the Drugs tab's tree (contract M1.7c § 4: search, its bucket, its row). */
 export const addDrugToRx = async (page: Page, t: Texts, name: string) => {
     await rxTab(page, t, "drugs");
-    await pick(page, t.searchDrugs, name);
+    await new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[t.dir === "rtl" ? "ar" : "en"]).addDrug(name);
 };
 
 /** Clicks a protocol in the prescription's Protocols tab (its dialogs, if any, are left to the caller). */
@@ -304,8 +307,11 @@ export const tourPages = async (page: Page, tour: Tour, check: (what: string) =>
     const lang = await uiLang(page);
     const {t, u} = textsOf(lang);
 
-    // Drugs: the list, the taper drug's dialog, a delete confirmation
+    // Drugs: the tree view (the page's default, M1.7 review R1), then the list, the taper drug's dialog, a delete confirmation
     await open(page, `/drugs`);
+    await expect(page.getByRole("tree").getByRole("treeitem").first()).toBeVisible();
+    await check("drugs tree view");
+    await open(page, `/drugs?view=list`);
     await expect(drugRow(page, tour.latin.name)).toBeVisible();
     await check("drugs list");
     await drugRow(page, tour.taper.name).click();
@@ -384,4 +390,23 @@ export const tourPages = async (page: Page, tour: Tour, check: (what: string) =>
     await check("Edit & copy");
     await dialog(page).getByRole("button", {name: t.close}).click();
     await expectNoDialog(page);
+};
+
+/**
+ * The placeholder of an empty `input` is shown whole: its text, measured in the placeholder's own font, fits the field's
+ * content box (the cut-text check above reads an element's content, which an input's placeholder is not; CAT-237).
+ */
+export const expectPlaceholderNotCut = async (input: Locator, what: string) => {
+    await expect(input, `${what}: empty, so its placeholder shows`).toHaveValue("");
+    const fit = await input.evaluate((e: HTMLInputElement) => {
+        const own = getComputedStyle(e);
+        const shown = getComputedStyle(e, "::placeholder");
+        const context = document.createElement("canvas").getContext("2d")!;
+        context.font = `${shown.fontStyle} ${shown.fontWeight} ${shown.fontSize} ${shown.fontFamily}`;
+        const text = context.measureText(e.placeholder).width;
+        const box = e.clientWidth - parseFloat(own.paddingLeft) - parseFloat(own.paddingRight);
+        return {placeholder: e.placeholder, text: Math.ceil(text), box: Math.floor(box)};
+    });
+    expect(fit.placeholder, `${what}: has a placeholder`).not.toBe("");
+    expect(fit.text, `${what}: the placeholder «${fit.placeholder}» (${fit.text} px) fits its ${fit.box} px field`).toBeLessThanOrEqual(fit.box);
 };

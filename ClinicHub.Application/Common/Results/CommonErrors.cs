@@ -48,4 +48,8 @@ public static class CommonErrors
     /// <summary>Free text with a NUL (it can't be stored); line breaks and tabs are allowed.</summary>
     public static readonly Error InvalidText =
         new("invalidText", "The text contains characters that are not allowed.", ErrorType.Validation);
+
+    /// <summary>A one-line text (<c>SingleLineText</c>, e.g. a drug's active ingredients) over its limit once trimmed.</summary>
+    public static readonly Error TextTooLong =
+        new("textTooLong", "The text is too long.", ErrorType.Validation);
 }

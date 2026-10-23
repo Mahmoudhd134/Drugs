@@ -1,7 +1,8 @@
-import {describe, expect, test, vi} from "vitest";
+import {beforeEach, describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import toast from "react-hot-toast";
+import {pickCategory} from "../test/pages/drugDialog.ts";
 import {
     aClinicContext,
     aDrug,
@@ -10,6 +11,8 @@ import {
     api,
     contextOfRequest,
     contextsHandler,
+    drugCategoriesHandler,
+    drugTreeHandler,
     expectPath,
     expectToasts,
     isolate,
@@ -24,6 +27,7 @@ import {
     startApp,
     toastTexts,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 import type {Context} from "../features/auth/types.ts";
 
 // Losing the clinic mid-session (design D7): docs/features/auth/tech.md "Frontend" (Lost clinic, api/client.ts),
@@ -53,18 +57,27 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
         drugsByClinic({clinic1: "A drug", clinic2: "B drug", clinic3: "C drug"}),
         contextsHandler(contexts.filter(c => c !== clinicA)),
         http.post(api("/drugs"), saveAnswer),
+        drugCategoriesHandler(),
         http.get(api("/protocols"), () => HttpResponse.json(aPage([]))),
+        // The start page (the prescription) after a move to another clinic shows the drug tree
+        drugTreeHandler([]),
     );
-    const app = await startApp({route: "/drugs", lang: "ar"});
+    installIntersectionObserver();
+    const app = await startApp({route: "/drugs?view=list", lang: "ar"});
     await screen.findByText("A drug");
     const addDrug = async () => {
         await app.user.click(screen.getByRole("button", {name: "إضافة دواء"}));
         await app.user.click(await screen.findByRole("textbox", {name: /^الاسم/}));
         await app.user.paste("Vigamox");
+        // A new drug needs a category (design M1.7 D3)
+        await pickCategory(app.user, {scope: screen.getByRole("dialog")});
         await app.user.click(screen.getByRole("button", {name: "حفظ"}));
     };
     return {...app, refresh, addDrug};
 };
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("losing the clinic while working in it @area:auth", () => {
     test("suspended, with other places left: the clinic-lost message and the picker, never «هذه العيادة موقوفة.» / «العيادة «A» موقوفة.» @AUTH-185", async () => {
@@ -144,7 +157,7 @@ describe("losing the clinic while working in it @area:auth", () => {
             meByContext(),
             http.get(api("/drugs"), () => problem(403, "noAccess")),
         );
-        const app = await startApp({route: "/drugs", lang});
+        const app = await startApp({route: "/drugs?view=list", lang});
         return {...app, requests};
     };
 
@@ -184,7 +197,7 @@ describe("losing the clinic while working in it @area:auth", () => {
                 ? problem(403, "noAccess")
                 : HttpResponse.json(aPage([aDrug({name: "B drug"})])))),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
 
         expect(await screen.findByText("B drug")).toBeInTheDocument();
         expect(app.path()).toBe("/drugs");
@@ -228,7 +241,7 @@ describe("isolation across a context switch @area:isolation", () => {
                 return HttpResponse.json(aPage([aDrug({name: "A secret drug"})]));
             }),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await waitFor(() => expect(aStarted).toBe(true));
 
         act(() => app.session.setSession(sessionIn(clinicB, [clinicA, clinicB])));

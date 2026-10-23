@@ -8,6 +8,77 @@
 import type {Lang} from "./texts.ts";
 
 const iso = (name: string) => `⁨${name}⁩`;
+/** Grouped Latin digits, as every count of the UI shows them (`{{count, count}}`, M1.7b D6): 23414 → "23,414". */
+const group = (n: number) => new Intl.NumberFormat("en-US").format(n);
+
+/**
+ * The drug tree (`DrugTree`, docs/design/m1.7c-contract.md § 3.1 and § 3.3; locale keys `drugTree.*`, `drugs.source.*`,
+ * `drugs.chip.*`, `drugs.noResults`, `drugs.noOwnDrugs`, `drugs.noSubCategory`, `common.*`), in the prescription's
+ * «الأدوية» tab and in the protocol editor.
+ */
+const treeAr = {
+    lang: "ar" as Lang,
+    /** `drugTree.label`: the tree's accessible name */
+    label: "كتالوج الأدوية",
+    /** `drugTree.searchPlaceholder` (contract decision C1) */
+    searchPlaceholder: "ابحث بالاسم أو المادة الفعالة أو التصنيف…",
+    /** `drugTree.nodeLabel`: a category's or subcategory's accessible name («العيون، 541», C8) */
+    node: (name: string, count: number) => `${name}، ${group(count)}`,
+    /** The separator between a node's name and its count in `node` */
+    nodeSeparator: "، ",
+    /** `drugTree.open` / `drugTree.close`: a chevron's accessible name and tooltip (UX-042) */
+    open: (name: string) => `فتح «${iso(name)}»`,
+    close: (name: string) => `إغلاق «${iso(name)}»`,
+    /** `common.results`: the total above the tree */
+    results: (n: number) => `النتائج: ${group(n)}`,
+    resultsPrefix: "النتائج: ",
+    noResults: "لا توجد أدوية مطابقة للبحث.",
+    noOwnDrugs: "لا توجد أدوية خاصة بالعيادة بعد.",
+    noSubCategory: "بدون تصنيف فرعي",
+    /** `drugs.source.*`: the source toggle */
+    sourceLabel: "الأدوية المعروضة",
+    sourceAll: "الكل",
+    sourceShared: "المشتركة",
+    sourceOwn: "أدوية العيادة",
+    /** `drugs.chip.own`: an own drug row's chip; `chipShared`: the old shared chip, never shown (M1.7 review R2: absence checks) */
+    chipShared: "مشترك",
+    chipOwn: "خاص بالعيادة",
+    added: "مُضاف",
+    loadMore: "تحميل المزيد",
+    loading: "جارٍ التحميل…",
+    loadFailed: "تعذّر تحميل البيانات.",
+    retry: "إعادة المحاولة",
+};
+
+export type TreeTexts = typeof treeAr;
+
+const treeEn: TreeTexts = {
+    lang: "en",
+    label: "Drug catalog",
+    searchPlaceholder: "Search by name, active ingredient or category…",
+    node: (name, count) => `${name}, ${group(count)}`,
+    nodeSeparator: ", ",
+    open: name => `Open “${iso(name)}”`,
+    close: name => `Close “${iso(name)}”`,
+    results: n => `Results: ${group(n)}`,
+    resultsPrefix: "Results: ",
+    noResults: "No drugs match your search.",
+    noOwnDrugs: "This clinic has no drugs of its own yet.",
+    noSubCategory: "No subcategory",
+    sourceLabel: "Drugs to show",
+    sourceAll: "All",
+    sourceShared: "Shared",
+    sourceOwn: "Clinic's own",
+    chipShared: "Shared",
+    chipOwn: "Clinic",
+    added: "Added",
+    loadMore: "Load more",
+    loading: "Loading…",
+    loadFailed: "Couldn't load data.",
+    retry: "Retry",
+};
+
+export const TREE_TEXTS: Record<Lang, TreeTexts> = {ar: treeAr, en: treeEn};
 
 const ar = {
     // Page (RX-001)
@@ -16,10 +87,13 @@ const ar = {
     tabProtocols: "البروتوكولات",
     tabDrugs: "الأدوية",
     searchProtocols: "ابحث عن بروتوكول بالاسم…",
-    searchDrugs: "ابحث عن دواء بالاسم…",
+    /** The «الأدوية» tab's search: the drug tree's (M1.7c, contract decision C1) */
+    searchDrugs: treeAr.searchPlaceholder,
     emptyTitle: "لم يتم اختيار شيء بعد",
-    /** The drug picker's mark on a drug in the prescription (RX-005) */
+    /** The drug tree's mark on a drug in the prescription (RX-005) */
     added: "مُضاف",
+    /** The drug tree of the «الأدوية» tab */
+    tree: treeAr,
     // Adding (RX-007)
     alreadyAdded: (name: string) => `«${iso(name)}» موجود بالفعل في القائمة`,
     // Protocol toast lines (RX-017, RX-024, RX-027, RX-029, RX-041, RX-042, RX-049)
@@ -82,9 +156,10 @@ const en: RxTexts = {
     tabProtocols: "Protocols",
     tabDrugs: "Drugs",
     searchProtocols: "Search protocols by name…",
-    searchDrugs: "Search drugs by name…",
+    searchDrugs: treeEn.searchPlaceholder,
     emptyTitle: "Nothing selected yet",
     added: "Added",
+    tree: treeEn,
     alreadyAdded: name => `“${iso(name)}” is already in the list`,
     protocolAdded: (name, n) => `Added from “${iso(name)}”: ${n}`,
     protocolReplaced: n => `Replaced with the protocol's dosing: ${n}`,

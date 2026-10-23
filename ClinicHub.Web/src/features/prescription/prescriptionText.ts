@@ -5,6 +5,18 @@ import type {PrescriptionLine} from "./types.ts";
 const escapeHtml = (text: string) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** A right-to-left script letter (Hebrew, Arabic and their presentation forms). */
+const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+
+/**
+ * The name's own direction in the copied HTML (design M1.7b D27): from its first letter, "rtl" for Arabic, else "ltr"
+ * (Latin, or no letter at all), so a Latin name keeps its order inside the right-to-left paragraph.
+ */
+const directionOf = (text: string) => {
+    const first = /\p{L}/u.exec(text)?.[0];
+    return first !== undefined && RTL_LETTER.test(first) ? "rtl" : "ltr";
+};
+
 /**
  * The text under a line's drug name: the dosing sentence, or, when the dosing has no dose, frequency, duration or
  * tapering (empty, or only an eye), the drug's description followed by the eye part (as the line shows it,
@@ -30,7 +42,7 @@ export const linesToHtml = (lines: PrescriptionLine[]) => {
     return lines
         .map(l => {
             const parts = [
-                `<strong>${escapeHtml(l.drug.name)}</strong>`,
+                `<strong dir="${directionOf(l.drug.name)}">${escapeHtml(l.drug.name)}</strong>`,
                 ...detailsOf(l).map(d => escapeHtml(d).replace(/\n/g, "<br>")),
             ];
             return `<p${attrs}>${parts.join("<br>")}</p>`;

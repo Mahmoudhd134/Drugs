@@ -4,7 +4,7 @@ import CategoryIcon from "@mui/icons-material/Category";
 import MedicationIcon from "@mui/icons-material/Medication";
 import {useTranslation} from "react-i18next";
 import {ProtocolPicker} from "../../protocols/components/ProtocolPicker.tsx";
-import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
+import {DrugTree} from "../../drugs/components/DrugTree.tsx";
 import type {Protocol} from "../../protocols/types.ts";
 import type {Drug} from "../../drugs/types.ts";
 import {PERMISSIONS} from "../../access/permissions.ts";
@@ -19,8 +19,8 @@ type Props = {
 };
 
 /**
- * Search protocols or single drugs to add to the prescription. Protocols are the default tab. Each tab
- * needs its list permission; a picker the user can't use is neither shown nor loaded.
+ * Search protocols or browse the drug tree to add to the prescription. Protocols are the default tab. Each tab
+ * needs its list permission; a tab the user can't use is neither shown nor loaded.
  */
 export const CatalogPanel = ({selectedIds, onSelectProtocol, onSelectDrug}: Props) => {
     const {t} = useTranslation();
@@ -46,12 +46,12 @@ export const CatalogPanel = ({selectedIds, onSelectProtocol, onSelectDrug}: Prop
                         {canProtocols && <Tab value="protocols" icon={<CategoryIcon fontSize="small"/>} iconPosition="start" label={t("prescription.tabProtocols")}/>}
                         {canDrugs && <Tab value="drugs" icon={<MedicationIcon fontSize="small"/>} iconPosition="start" label={t("prescription.tabDrugs")}/>}
                     </Tabs>
-                    {/* Keep both mounted so each tab remembers its search */}
+                    {/* Keep both mounted so each tab remembers its search (the tree: also its open nodes and scroll, CAT-124) */}
                     <Box hidden={tab !== "protocols"}>
                         <ProtocolPicker onSelect={onSelectProtocol} autoFocus={tab === "protocols"} maxHeight="58vh" enabled={canProtocols}/>
                     </Box>
                     <Box hidden={tab !== "drugs"}>
-                        <DrugPicker onSelect={onSelectDrug} selectedIds={selectedIds} autoFocus={tab === "drugs"} maxHeight="58vh" enabled={canDrugs}/>
+                        <DrugTree onSelect={onSelectDrug} selectedIds={selectedIds} autoFocus={tab === "drugs"} maxHeight="58vh" enabled={canDrugs}/>
                     </Box>
                 </>
             )}

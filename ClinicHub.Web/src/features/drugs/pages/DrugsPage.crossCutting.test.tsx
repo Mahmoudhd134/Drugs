@@ -4,6 +4,8 @@ import {http, HttpResponse} from "msw";
 import {
     aDrug,
     api,
+    aSharedDrug,
+    drugCategoriesHandler,
     drugsHandlers,
     findToast,
     hoverTooltip,
@@ -19,6 +21,7 @@ import type {Permission} from "../../access/permissions.ts";
 import type {LanguageCode} from "../../../i18n/languages.ts";
 import type {Drug} from "../types.ts";
 import {DrugsPage} from "./DrugsPage.tsx";
+import {pickCategory} from "../../../test/pages/drugDialog.ts";
 
 // The drugs page through the cross-cutting rules: permissions (docs/features/access/tech.md "Frontend", Pages: Drugs),
 // error toasts (docs/tech/overview.md "Conventions", "Data fetching"), dialogs and keyboard ("Shared components"),
@@ -27,7 +30,7 @@ import {DrugsPage} from "./DrugsPage.tsx";
 
 const openDrugs = async (drugs: Drug[], {lang = "ar", permissions}: { lang?: LanguageCode; permissions?: Permission[] } = {}) => {
     server.use(...drugsHandlers(drugs));
-    const rendered = await renderWithProviders(<DrugsPage/>, {lang, route: "/drugs", user: permissions ? {permissions} : undefined});
+    const rendered = await renderWithProviders(<DrugsPage/>, {lang, route: "/drugs?view=list", user: permissions ? {permissions} : undefined});
     if (drugs.length) await screen.findByText(drugs[0].name);
     return rendered;
 };
@@ -43,15 +46,24 @@ const startNewDrug = async (user: Awaited<ReturnType<typeof openDrugs>>["user"],
         await user.click(within(dialog).getByRole("textbox", {name: "الوصف"}));
         await user.paste(description);
     }
+    // A new drug needs a category (design M1.7 D3)
+    await pickCategory(user, {scope: dialog});
     return dialog;
 };
 
 describe("drugs page: permissions @area:access", () => {
-    test("with drugs.list only: rows don't open and aren't focusable, the Actions column is hidden @ACC-063", async () => {
-        const {user} = await openDrugs([aDrug({name: "Tobradex"})], {permissions: ["drugs.list"]});
+    test("with drugs.list only: rows don't open and aren't focusable, shared rows included; the Actions column is hidden @ACC-063", async () => {
+        const {user} = await openDrugs([aDrug({name: "Tobradex"}), aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"})], {permissions: ["drugs.list"]});
         const row = screen.getByText("Tobradex").closest("tr")!;
         expect(row).not.toHaveAttribute("tabindex");
         await user.click(row);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        // The shared details need drugs.details too (design M1.7 D9)
+        const shared = (await screen.findByText("VIGAMOX 0.5% EYE DROPS 5 ML")).closest("tr")!;
+        expect(shared).not.toHaveAttribute("tabindex");
+        await user.click(shared);
+        shared.focus();
+        await user.keyboard("{Enter}");
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
         expect(screen.queryByRole("columnheader", {name: "الإجراءات"})).not.toBeInTheDocument();
         expect(screen.queryByRole("button", {name: "تعديل"})).not.toBeInTheDocument();
@@ -103,6 +115,7 @@ describe("drugs page: errors of an action @area:errors", () => {
         await user.click(screen.getByRole("button", {name: "Add drug"}));
         await user.click(await screen.findByRole("textbox", {name: /^Name/}));
         await user.paste("Vigamox");
+        await pickCategory(user, {lang: "en"});
         await user.click(screen.getByRole("button", {name: "Save"}));
         expect(await findToast()).toBe("Can't reach the server. Check your connection.");
         expect(screen.getByRole("textbox", {name: /^Name/})).toHaveValue("Vigamox");
@@ -119,7 +132,9 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
         const {user} = await openDrugs([aDrug({name: "Tobradex"})]);
         const dialog = await startNewDrug(user);
         await user.type(within(dialog).getByRole("textbox", {name: /^الاسم/}), "{Enter}");
-        await waitFor(() => expect(created).toEqual({name: "Vigamox", description: null, defaultDosing: null}));
+        await waitFor(() => expect(created).toEqual({
+            name: "Vigamox", activeIngredients: null, description: null, defaultDosing: null, categoryId: 17, subCategoryId: null,
+        }));
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
@@ -163,7 +178,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
             expect(await hoverTooltip(button)).toBe(name);
             await leaveTooltip(button);
         }
-        await user.type(screen.getByRole("searchbox", {name: "ابحث عن دواء بالاسم…"}), "x");
+        await user.type(screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"}), "x");
         expect(await hoverTooltip(screen.getByRole("button", {name: "مسح"}))).toBe("مسح");
     });
 
@@ -171,6 +186,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
         let release!: () => void;
         const gate = new Promise<void>(resolve => (release = resolve));
         server.use(
+            drugCategoriesHandler(),
             http.get(api("/drugs"), async ({request}) => {
                 const search = new URL(request.url).searchParams.get("search");
                 if (search) await gate;
@@ -179,7 +195,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
                 });
             }),
         );
-        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs"});
+        const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar", route: "/drugs?view=list"});
         expect(screen.getByRole("progressbar")).toBeInTheDocument();
         await screen.findByText("Tobradex");
         await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());

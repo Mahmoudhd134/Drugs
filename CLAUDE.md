@@ -31,8 +31,8 @@ Read the docs, they are the source of truth for how and why things work:
 - Checks on the laptop (seconds): `cd ClinicHub.Web && npx tsc -b && npx eslint src`, `dotnet build ClinicHub.sln`,
   and at most the one test being written. **Every test tier runs on GitHub Actions**, never on the laptop: commit, then
   `./ci.ps1` (pushes the branch, runs the tier, waits, writes `artifacts/ci/summary.md`): `-Tier step` (≈ 5 min) after
-  each round, `-Tier full` (≈ 8 min; also every pull request, "Gates" is the required check), `-Tier release` (+
-  mutation), `-Mutate <files> [-Area <areas>]` (Stryker.NET on any tier). See `docs/testing/README.md` "Continuous
+  each round, `-Tier full` (≈ 8 min; also every pull request but into `main`, "Gates" is the required check), `-Tier release`
+  (+ mutation; also every pull request into `main`), `-Mutate <files> [-Area <areas>]` (Stryker.NET on any tier). See `docs/testing/README.md` "Continuous
   integration". Tests use their own databases (`drags_it_*`, `drags_e2e_*`), never `drags`.
 - EF commands (migrations live in `ClinicHub.Infrastructure`): always pass
   `--project ClinicHub.Infrastructure --startup-project ClinicHub.Api` (+ `--configuration Release` if Rider runs
@@ -78,7 +78,7 @@ minute and never tests by hand: the tests must be reliable and cheap.
   all the feature's new logic (≥ 85%; `./ci.ps1 -Mutate <files>`, one CI job per file) + an **acceptance agent** that uses the app from the business doc only (Arabic,
   English, phone) and explores freely; its findings become cases and go to T4. Repeat T4–T5 until green (after 3
   rounds, ask the user); one reviewer on the fix diff only if it was large or touched security.
-- **T6 Done** (gate): rebase on `main`, `full` green again on CI (the feature → `main` pull request), then a **ready report**: a 3–5 click script for the "done when"
+- **T6 Done** (gate): rebase on `main`, `release` green on CI (the feature → `main` pull request: `full` + mutation), then a **ready report**: a 3–5 click script for the "done when"
   scenario, an e2e screenshot gallery (Arabic, English, phone) and the numbers (cases covered, coverage, mutation, flaky
   runs 0, known bugs 0). The user's one-minute walkthrough (findings go to T4), then the user's merge OK.
 - **Test rules:** every business rule is a catalog case with a test; the feature's new and changed cases 100% covered

@@ -1,4 +1,7 @@
 import type {Page, Response} from "@playwright/test";
+import {IMPORTED, listDrugs} from "../support/shared.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {type ClinicHandle, type Data, type PermissionKey, READ_ONLY} from "../support/data.ts";
 import {expectContextLabel, expectToast, focusBack, navTo, recordRequests, sidebarEntries, toasts} from "../support/ui.ts";
@@ -64,7 +67,7 @@ test.describe("Permissions in the UI @area:access", () => {
     test("a read-only role on Drugs: no Add, no Actions column; a row opens the read-only details, also with Enter and Space @ACC-061",
         async ({page, t, data, healthy}) => {
             const {drug, staff} = await setUp(data, READ_ONLY);
-            await signIn(page, staff.phone, "asIs", "/drugs");
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
             const row = page.getByRole("row").filter({hasText: drug.name});
             await expect(row).toBeVisible();
             await expect(page.getByRole("button", {name: t.addDrug})).toHaveCount(0);
@@ -89,9 +92,51 @@ test.describe("Permissions in the UI @area:access", () => {
             }
         });
 
-    test("an Assistant on Drugs: Add and the edit icon show, the delete icon doesn't, and a row opens the editor @ACC-062", async ({page, t, data}) => {
+    test("the Viewer on Drugs: shared and own rows open the read-only details, the toggle works, nothing can be added, edited or deleted @ACC-087",
+        async ({page, t, lang, data, healthy}) => {
+            const ct = CATALOG_TEXTS[lang];
+            const st = SHARED_TEXTS[lang];
+            const {clinic, drug, staff} = await setUp(data, READ_ONLY);
+            const api = await data.ownerApi(clinic);
+            const own = (await listDrugs(api, {pageSize: 20, source: "own"})).totalCount;
+            const shared = (await listDrugs(api, {pageSize: 20, source: "shared"})).totalCount;
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
+            const sourceButton = (label: string) => page.getByRole("group", {name: ct.sourceLabel}).getByRole("button", {name: label, exact: true});
+            const details = page.getByRole("dialog", {name: t.drugDetails});
+            const expectReadOnly = async (rowName: string) => {
+                await page.getByRole("row").filter({has: page.getByText(rowName, {exact: true})}).getByRole("cell").first().click();
+                await expect(details).toBeVisible();
+                await expect(details.getByText(rowName, {exact: true})).toBeVisible();
+                await expect(details.getByRole("textbox")).toHaveCount(0);
+                await expect(details.getByRole("button")).toHaveText([t.close]);
+                await details.getByRole("button", {name: t.close}).click();
+                await expect(details).toHaveCount(0);
+            };
+            const expectNoWrite = async () => {
+                await expect(page.getByRole("button", {name: t.addDrug})).toHaveCount(0);
+                await expect(page.getByRole("button", {name: t.edit})).toHaveCount(0);
+                await expect(page.getByRole("button", {name: t.delete})).toHaveCount(0);
+            };
+
+            await sourceButton(ct.sourceOwn).click();
+            await expect(page.getByText(ct.drugsSubtitle(own), {exact: true})).toBeVisible();
+            await expect(page.getByRole("row").filter({hasText: drug.name}).getByText(st.chipOwn, {exact: true})).toBeVisible();
+            await expectNoWrite();
+            await expectReadOnly(drug.name);
+
+            await sourceButton(ct.sourceShared).click();
+            await expect(page.getByText(ct.drugsSubtitle(shared), {exact: true})).toBeVisible();
+            await page.getByPlaceholder(t.searchDrugs).fill(IMPORTED.vigamox);
+            await expect(page.getByRole("row").filter({has: page.getByText(IMPORTED.vigamox, {exact: true})})).toBeVisible();
+            await expectNoWrite();
+            await expectReadOnly(IMPORTED.vigamox);
+            await healthy();
+        });
+
+    test("an Assistant on Drugs: Add and the edit icon on own rows, no delete icon, an own row opens the editor; shared rows have no edit icon and open the read-only details @ACC-062", async ({page, t, data}) => {
         const {drug, staff} = await setUp(data, "Assistant");
-        await signIn(page, staff.phone, "asIs", "/drugs");
+        await signIn(page, staff.phone, "asIs", "/drugs?view=list");
+        await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
         const row = page.getByRole("row").filter({hasText: drug.name});
         await expect(row).toBeVisible();
         await expect(page.getByRole("button", {name: t.addDrug})).toBeVisible();
@@ -102,6 +147,20 @@ test.describe("Permissions in the UI @area:access", () => {
         const editor = page.getByRole("dialog", {name: t.editDrug});
         await expect(editor).toBeVisible();
         await expect(editor.getByRole("textbox", {name: t.drugName})).toHaveValue(drug.name);
+        await editor.getByRole("button", {name: t.cancel}).click();
+        await expect(editor).toHaveCount(0);
+
+        // A shared row (design M1.7 D9)
+        await page.getByPlaceholder(t.searchDrugs).fill(IMPORTED.vigamox);
+        const shared = page.getByRole("row").filter({has: page.getByText(IMPORTED.vigamox, {exact: true})});
+        await expect(shared).toBeVisible();
+        await shared.hover();
+        await expect(shared.getByRole("button", {name: t.edit})).toHaveCount(0);
+        await expect(shared.getByRole("button", {name: t.delete})).toHaveCount(0);
+        await shared.getByRole("cell").first().click();
+        await expect(page.getByRole("dialog", {name: t.drugDetails})).toBeVisible();
+        await expect(page.getByRole("dialog", {name: t.editDrug})).toHaveCount(0);
+        await page.getByRole("dialog", {name: t.drugDetails}).getByRole("button", {name: t.close}).click();
     });
 
     test("an Assistant in the protocol editor: Delete is shown disabled, and hovering it says «ليست لديك صلاحية» @ACC-066",
@@ -138,8 +197,9 @@ test.describe("Permissions in the UI @area:access", () => {
             await signIn(page, phone);
             await expectContextLabel(page, clinic.name);
 
-            const pages = role === "read-only" ? ["/protocols", `/protocols/${protocol.id}`, "/drugs"]
-                : ["/", "/protocols", "/protocols/new", `/protocols/${protocol.id}`, "/drugs"];
+            // The drugs page last, in its list view: its row opens the drug's dialog below
+            const pages = role === "read-only" ? ["/protocols", `/protocols/${protocol.id}`, "/drugs", "/drugs?view=list"]
+                : ["/", "/protocols", "/protocols/new", `/protocols/${protocol.id}`, "/drugs", "/drugs?view=list"];
             for (const path of pages) {
                 await page.goto(path);
                 await expectContextLabel(page, clinic.name);
@@ -186,7 +246,7 @@ test.describe("Permissions changed while working @area:access", () => {
             // The save refused once the role lost drugs.update: the test's subject
             allowApiErrors({status: 403, method: "PUT", path: /^\/api\/v1\/drugs\/\d+$/});
             const {clinic, drug, staff, roleId} = await setUp(data, "Assistant");
-            await signIn(page, staff.phone, "asIs", "/drugs");
+            await signIn(page, staff.phone, "asIs", "/drugs?view=list");
             const row = page.getByRole("row").filter({hasText: drug.name});
             await row.getByRole("button", {name: t.edit}).click();
             const editor = page.getByRole("dialog", {name: t.editDrug});

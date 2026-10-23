@@ -19,7 +19,9 @@
     "src/api/dataScope.ts",
     "src/app/chunkReload.ts",
     "src/hooks/useSingleFlight.ts",
-    "src/utils/clipboard.ts"
+    "src/utils/clipboard.ts",
+    "src/features/drugs/components/drugTreeModel.ts",
+    "src/features/drugs/pages/drugListParams.ts"
   ],
   "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": {

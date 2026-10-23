@@ -3,6 +3,8 @@ import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {addDrugToRx, drugWith, shownName, textsOf} from "../support/ux.ts";
 import type {ClinicHandle, Data} from "../support/data.ts";
+import {TREE_TEXTS} from "../support/texts-rx.ts";
+import {DrugTreeUi} from "../support/tree.ts";
 
 /**
  * Closing a toast before its time (business overview § قواعد عامة, tech overview § App shell "Dismissing"): an ×
@@ -12,11 +14,16 @@ import type {ClinicHandle, Data} from "../support/data.ts";
 /** One toast as shown (react-hot-toast: each toast is a child of the toaster), its message, buttons and all. */
 const toastBox = (page: Page, text: string): Locator => page.locator("[data-rht-toaster] > div").filter({hasText: text});
 
-/** A prescription with drugs A and B, then A and B picked again: two «… موجود بالفعل في القائمة» toasts (4 s each). */
+/**
+ * A prescription with drugs A and B, then A and B picked again: two «… موجود بالفعل في القائمة» toasts (4 s each). The
+ * two picks again come from one search showing both rows (one bucket, opened by itself), so the second toast follows
+ * the first at once, well inside its 4 s even on a slow phone (two more searches through the tree could eat most of them).
+ */
 const twoToasts = async (page: Page, data: Data, clinic: ClinicHandle, lang: "ar" | "en") => {
     const {t, u} = textsOf(lang);
-    const a = await drugWith(data, clinic, {name: `Toast A ${unique()}`});
-    const b = await drugWith(data, clinic, {name: `Toast B ${unique()}`});
+    const prefix = `Toast ${unique()}`;
+    const a = await drugWith(data, clinic, {name: `${prefix} A`});
+    const b = await drugWith(data, clinic, {name: `${prefix} B`});
     await signIn(page, clinic.owner.phone);
     await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith("prescription.")).forEach(k => localStorage.removeItem(k)));
     await page.reload();
@@ -24,8 +31,12 @@ const twoToasts = async (page: Page, data: Data, clinic: ClinicHandle, lang: "ar
         await addDrugToRx(page, t, drug.name);
         await expect(shownName(page, drug.name)).toBeVisible();
     }
-    await addDrugToRx(page, t, a.name);
-    await addDrugToRx(page, t, b.name);
+    const tree = new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]);
+    await tree.search(prefix);
+    await expect(tree.drug(a.name)).toBeVisible();
+    await expect(tree.drug(b.name)).toBeVisible();
+    await tree.select(a.name);
+    await tree.select(b.name);
     const first = toastBox(page, u.alreadyAdded(a.name));
     const second = toastBox(page, u.alreadyAdded(b.name));
     await expect(first).toBeVisible();

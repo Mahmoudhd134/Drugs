@@ -56,7 +56,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             const clinic = await data.clinic();
             const taper = await drugWith(data, clinic, {name: `Pred Forte ${unique()}`, defaultDosing: TEN_STEP_TAPER});
             const protocol = await protocolWith(data, clinic, `G ${unique()}`, [{drug: taper}]);
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
 
             await drugRow(page, taper.name).click();
             await expect(dialog(page).getByLabel(u.taperStep(10), {exact: true})).toBeAttached();
@@ -85,7 +85,7 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             const {u} = textsOf(lang);
             const clinic = await data.clinic();
             const taper = await drugWith(data, clinic, {name: `Pred Forte ${unique()}`, defaultDosing: TEN_STEP_TAPER});
-            await signIn(page, clinic.owner.phone, "asIs", "/drugs");
+            await signIn(page, clinic.owner.phone, "asIs", "/drugs?view=list");
             await drugRow(page, taper.name).click();
             const paper = page.locator(".MuiDialog-paper").filter({visible: true});
             const dialogBox = await box(paper);

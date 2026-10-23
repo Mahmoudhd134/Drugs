@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.Application.Features.Access;
 using ClinicHub.Application.Features.Identity.Sessions;
@@ -37,13 +38,13 @@ public class AccessChangeTests(AppFixture app) : IntegrationTest(app)
 
         await SaveRoleAsync(admin, clinic, roleId, "Assistant", AssistantKeys.Where(k => k != Permissions.Drugs.Create));
 
-        await (await assistant.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() }))
+        await (await assistant.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() }))
             .ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
         await (await assistant.GetAsync("/api/v1/drugs")).ShouldBeOkAsync();
 
         await SaveRoleAsync(admin, clinic, roleId, "Assistant", AssistantKeys);
 
-        await (await assistant.PostAsync("/api/v1/drugs", new { name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
+        await (await assistant.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "Vigamox " + Guid.NewGuid() })).ShouldBeAsync(HttpStatusCode.Created);
     }
 
     [Fact]

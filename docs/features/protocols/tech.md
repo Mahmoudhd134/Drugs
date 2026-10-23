@@ -10,15 +10,21 @@ conflict with lines already in the prescription. Called "drug groups" until M1.7
 Dosing flows: drug default → **protocol override** → prescription line (see [dosing](../dosing/tech.md)).
 
 ## Data model
-- `Protocols` (`ClinicHub.Domain/Catalog/Protocol.cs`): `Id`, `Name` (required, max 256), `SearchName` (stored
-  generated column: the name lower-cased and Arabic-folded, only searched; M1.6.1, [search](../../tech/overview.md#conventions)).
-- `ProtocolItems`: `Id`, `ProtocolId` (FK, cascade), `DrugId` (FK, cascade), `Order` (0-based),
-  `Dosing_*` (owned `Dosing`, nullable) = the protocol override.
-- Both tables also have `ClinicId` (FK → `Clinics`, restrict; an item's FKs to its protocol and drug
-  are composite with `ClinicId`, so the DB rejects cross-clinic lines) and
-  `CreatedAt`/`UpdatedAt` (UTC); index `(ClinicId, Name)` on `Protocols`. Everything is scoped
-  to the current clinic ([clinic scoping](../clinic-scoping/tech.md)): another clinic's protocol is
-  404, and another clinic's drug in `items` is `drugNotFound`.
+- `Protocols` (`ClinicHub.Domain/Catalog/Protocol.cs`): `Id`, `Name` (required, max 256), `SearchName` (ordinary
+  column `text NOT NULL DEFAULT ''`: the name lower-cased and Arabic-folded by `SearchText.Fold`, filled by the save
+  interceptor (M1.7b, design D7), only searched; [search](../../tech/overview.md#conventions)).
+- `ProtocolItems`: `Id`, `ProtocolId` (FK, cascade), `DrugId` (FK → `Drugs.Id`, simple, cascade; M1.7b), `Order`
+  (0-based), `Dosing_*` (owned `Dosing`, nullable) = the protocol override.
+- Both tables also have `ClinicId` (FK → `Clinics`, restrict; an item's FK to its protocol is composite with
+  `ClinicId`) and `CreatedAt`/`UpdatedAt` (UTC); index `(ClinicId, Name)` on `Protocols`. A line's drug is a **shared
+  drug or one of this clinic's own** (M1.7b, design D4): the database no longer refuses a cross-clinic line (the
+  composite drug FK is gone with `AddSharedCatalog`); the handlers do, by looking every line's drug up through the
+  clinic filter. Everything is scoped to the current clinic ([clinic scoping](../clinic-scoping/tech.md)): another
+  clinic's protocol is 404, and another clinic's drug in `items` is `drugNotFound`.
+- **Withdrawn shared drugs** (M1.7b, design D6): a protocol keeps its lines on a drug the super admin withdrew
+  («معطّل من الإدارة»); a save may keep them (eye, dosing and order may change) but never add one: a withdrawn drug's
+  lines pass while their number in the request ≤ its number of stored lines in that protocol (any eye); the first line
+  beyond is `drugWithdrawn`.
 - Override semantics (applied by the frontend, `mergeDosing`): each part left empty is taken from
   the drug's **current** default: dose (amount + unit), frequency (+ value/text), duration
   (+ value), eye. So editing a drug's default updates every protocol that didn't override that part.
@@ -46,12 +52,14 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 |---|---|---|---|---|
 | GET | `/protocols?search=&page=1&pageSize=20` | query | `PagedResult<ProtocolDto>` | |
 | GET | `/protocols/{id}` | | `ProtocolDto` | 404 `notFound` |
-| POST | `/protocols` | `SaveProtocolRequest` | 201 `ProtocolDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `drugsRequired`, `invalidRequest` (> 1000 items), `invalidDosing`, then (handler) `drugNotFound`, `duplicateProtocolItem` |
+| POST | `/protocols` | `SaveProtocolRequest` | 201 `ProtocolDto` (+ `Location`) | 400 `nameRequired`, `nameInvalid`, `nameTooLong`, `drugsRequired`, `invalidRequest` (> 1000 items), `invalidDosing`, then (handler) `drugNotFound`, `drugWithdrawn` (field `items[i].drugId`), `duplicateProtocolItem` |
 | PUT | `/protocols/{id}` | `SaveProtocolRequest` | `ProtocolDto` | 400 (as above, checked first), 404 `notFound` |
 | DELETE | `/protocols/{id}` | | 204 | 404 `notFound` |
 
-- `ProtocolDto = { id, name, items: [{ drug: DrugDto, dosing: Dosing | null }] }`, items in `Order`.
-  `drug` includes its `defaultDosing`, so the client can merge.
+- `ProtocolDto = { id, name, items: [{ drug: ProtocolDrugDto, dosing: Dosing | null }] }`, items in `Order`.
+  `ProtocolDrugDto = { id, name, description, defaultDosing, isShared, withdrawn }` (M1.7b: no category, no
+  ingredients, never the hidden Arabic name); `drug` includes its `defaultDosing` (null for a shared drug), so the
+  client can merge, and `withdrawn` for the editor's chip.
 - `SaveProtocolRequest = { name, items: [{ drugId, dosing }] }`; list position becomes `Order`.
 - Every action needs a clinic token (`ClinicContext` policy) and its permission: `protocols.list` (`GET /protocols`),
   `protocols.details` (`GET /protocols/{id}`), `protocols.create` / `protocols.update` / `protocols.delete`; else 401 / 403
@@ -71,16 +79,21 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
 
 - Feature root: `ProtocolDto`/`ProtocolItemDto` (+ `ToDto()`, `WithItems()` = `Include/ThenInclude` items → drug),
   `ProtocolErrors` (`NotFound` = `notFound`, `DrugsRequired`, `InvalidDosing`, `DuplicateItem` =
-  `duplicateProtocolItem`, `DrugNotFound`), `SaveProtocolItem(drugId, dosing)` with `Normalize(items)` (drops null
-  items, normalizes each dosing, keeps the order), used by the validators and the handlers.
+  `duplicateProtocolItem`, `DrugNotFound`, `DrugWithdrawn` / `DrugWithdrawnAt(i)`), `SaveProtocolItem(drugId, dosing)`
+  with `Normalize(items)` (drops null items, normalizes each dosing, keeps the order) and `RequestIndexes(items)` (each
+  kept item's index as sent, nulls counted), used by the validators and the handlers; `ProtocolLineRules.CheckAsync`
+  (the handlers' drug checks).
 - Validators (create and update, one each), in report order: name (`ValidName()`) → at least one non-null item
   (`drugsRequired`, field `items`) → at most `SaveProtocolItem.MaxItems` (1000) items (`invalidRequest`, field
   `items`; beyond it the item rules are skipped, so a huge list can't build a huge answer) → each item's dosing valid with `allowAskEye: true` (`invalidDosing`, field
   `items[i].dosing`; a custom frequency text with a NUL is invalid). All failures are returned.
-- The handlers then read the drugs' default eyes: every drug must exist in the clinic (`drugNotFound`, 400), then no
-  two lines may give the same drug for the same **effective** eye (`SaveProtocolItem.HasDuplicate`:
-  `duplicateProtocolItem`, 400, field `items`; moved from the validators in M1.6.0). Both are only reported when the
-  request is otherwise valid, and (update) before an unknown protocol's 404.
+- The handlers then read the drugs (`ProtocolLineRules`, § 7 order of the M1.7 design): every drug must be visible
+  in the clinic, shared or own (`drugNotFound`, 400, field `items`); then the withdrawn rule: the protocol's stored
+  lines are counted per withdrawn drug (none when creating, or for an unknown or another clinic's protocol), and the
+  first request line beyond that count is `drugWithdrawn` (400, field `items[i].drugId`, `i` = its index in the
+  request, nulls counted); then no two lines may give the same drug for the same **effective** eye
+  (`SaveProtocolItem.HasDuplicate`: `duplicateProtocolItem`, 400, field `items`; moved from the validators in
+  M1.6.0). All are only reported when the request is otherwise valid, and (update) before an unknown protocol's 404.
 - Update **replaces** all lines (remove + insert) and the name, and touches the protocol's `UpdatedAt`.
   Create and update reload the protocol with its drugs for the response. Each command is one transaction.
 - List/detail include items → drug; ordered by `Name` (the database's default collation: case-insensitive first, Latin
@@ -116,7 +129,10 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
     description, M1.6.1), chips "Protocol dosing" (override set) and "Eye is chosen
     when the protocol is added" (`ask`). Chips wrap on narrow screens. Actions: ✎ edit, ⊕ add for the
     other eye (when the effective eye is right/left and the other is free), ✕ remove; drag to reorder.
-  - Adding a drug from `DrugPicker` creates a line with an empty override; adding a drug+eye pair
+  - The editable editor's "Add drugs" part is `<DrugTree onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>`
+    (M1.7c; [the drug tree](../prescription/tech.md#the-drug-tree-drugtree), which replaced `DrugPicker`; the
+    read-only editor has none). Adding a drug from the tree creates a line with an empty override (as the picker did);
+    the tree keeps its search, open nodes and place after an add; adding a drug+eye pair
     already in the protocol shows `protocols.alreadyInProtocolForEye`.
   - `components/ProtocolItemDialog.tsx`: `DosingFields` in **inherit mode** (`inheritFrom` = drug
     default: empty fields display "Drug default", preview shows the merged result) with

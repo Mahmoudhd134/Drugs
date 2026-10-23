@@ -12,6 +12,8 @@ const pureLogicTests = [
     'src/app/chunkReload.test.tsx',
     'src/hooks/useSingleFlight.test.ts',
     'src/utils/clipboard.test.ts',
+    'src/features/drugs/components/drugTreeModel.test.ts',
+    'src/features/drugs/pages/drugListParams.test.ts',
 ]
 
 // The Vitest run of StrykerJS: the app's test set-up, without the tests that read files outside ClinicHub.Web (Stryker

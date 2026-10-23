@@ -1,11 +1,11 @@
-import type {Drug} from "../drugs/types.ts";
+import type {ProtocolDrug} from "../drugs/types.ts";
 import {eyeKey, isDosingEmpty, mergeDosing, normalizeDosing, type Dosing} from "../dosing/types.ts";
 import type {ProtocolItem, SaveProtocolItem} from "./types.ts";
 
 /** A protocol line while editing a protocol. */
 export interface EditorItem {
     key: string;
-    drug: Drug;
+    drug: ProtocolDrug;
     /** Override of the drug's default dosing (empty = use the default) */
     dosing: Dosing;
 }

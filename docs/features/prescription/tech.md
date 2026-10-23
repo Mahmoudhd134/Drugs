@@ -7,8 +7,8 @@ editing in a rich-text editor. **Frontend only**: nothing is saved on the server
 `localStorage`.
 
 ## Data model / API
-None of its own. Reads drugs and protocols through the existing endpoints (`GET /drugs`,
-`GET /protocols`) via `DrugPicker` and `ProtocolPicker`.
+None of its own. Reads drugs and protocols through the existing endpoints (`GET /drugs/tree` and `GET /drugs`,
+`GET /protocols`) via `DrugTree` (M1.7c) and `ProtocolPicker`.
 
 `PrescriptionLine` (`features/prescription/types.ts`):
 
@@ -39,7 +39,7 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
 - `removeLine(key)`, `reorder(lines)`, `clear()` (returns a `restore` function for undo).
 - `findLine(drugId, dosing)`, `addLines(lines)`, `setLineDosing(key, dosing)`: used by the
   add-protocol flow. `newLine(drug, dosing?)` and `lineIdentity(drugId, dosing)` are exported.
-- `drugIds: Set<number>` for "Added" markers in the drug picker.
+- `drugIds: Set<number>` for "Added" markers in the drug tree.
 
 ### Page & components
 - `pages/PrescriptionPage.tsx`: two columns (catalog md=5, lines md=7; stacked on mobile).
@@ -68,9 +68,14 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
        `protocolSkipped` (identical), `protocolDuplicated` (duplicated in the protocol, not added; M1.6.0: no line is dropped
        silently). Its style is **success** when something was added or replaced, otherwise the **neutral** (plain)
        toast: the prescription didn't change.
+    7. Lines of drugs the platform admin disabled (`drug.withdrawn`, shared catalog, M1.7b) are added like the others
+       (asked about like the others, counted in the toast above as usual). When N of the **new** lines are such lines, a
+       second toast follows the protocol's: `toast(t("prescription.protocolWithdrawn", {count: N}), {icon: "⚠️"})`
+       («أُضيف رغم تعطيله من الإدارة: N», plain style, ⚠ icon, dismissible like every toast); none when N = 0.
   - Adding a single drug whose drug+eye is already present → toast `prescription.alreadyAdded`.
-  - Double clicks (M1.6.0): `SearchableList` (both pickers) ignores the extra clicks of a burst (`event.detail > 1`;
-    keyboard activation has `detail` 0), so a double click selects once (one add, one toast); adding a protocol also
+  - Double clicks (M1.6.0): `SearchableList` (the protocol picker) and `DrugTree`'s rows (M1.7c) ignore the extra clicks
+    of a burst (`event.detail > 1`; keyboard activation has `detail` 0), so a double click selects once (one add, one
+    toast) and a double click on a tree node leaves it open; adding a protocol also
     runs in `useSingleFlight` (a click while its dialogs are open does nothing); `usePrescriptionLines` checks against the latest lines (a ref updated with every change, not
     the last render's), so a drug+eye is never added twice, even by two adds before a re-render or by a protocol whose
     dialogs were answered after other changes.
@@ -78,7 +83,13 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
     `() => setLines(previous)`): a line added after the clear and before Undo is dropped, without a message. Intended
     (M1.6.1, Q1): Undo restores the prescription as it was.
   - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
-- `components/CatalogPanel.tsx`: tabs **Protocols** (default) / **Drugs**; both pickers stay mounted. Each tab shows only
+- `components/CatalogPanel.tsx`: tabs **Protocols** (default) / **Drugs**; both stay mounted (the tree keeps its search,
+  open nodes and scroll position across tab switches, CAT-124: `DrugTree` keeps the panel's `scrollTop` from its
+  last scroll while shown and puts it back when a `ResizeObserver` sees the panel get a size again, since Chromium's own
+  restore of a `display: none` box came back ~2 px per loaded row too far down, T5 AC-2). The Drugs tab is
+  `<DrugTree onSelect selectedIds autoFocus={tab === "drugs"} maxHeight="58vh" enabled={canDrugs}/>` (see
+  [The drug tree](#the-drug-tree-drugtree) below). Selecting a drug keeps the search, the open nodes, the
+  loaded pages and the scroll position (the old picker cleared its search). Each tab shows only
   with its permission (`protocols.list` / `drugs.list`; neither → `access.nothingToPick`, unreachable today since the page's
   `prescriptions.create` requires `drugs.list`; [access](../access/tech.md#frontend-srcfeaturesaccess)).
 - `components/SelectionPanel.tsx`: count chip, Clear all, `PrescriptionLineList`, empty state,
@@ -86,8 +97,15 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   (`prescription.clearAllInfo`, `quickCopyInfo`, `editAndCopyInfo`) show only while there are lines: with an empty list
   the three buttons are disabled and show no tooltip.
 - `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, `LineDetails` (the Arabic dosing
-  sentence, or the drug description when the dosing has no instructions: see Text formats), note; actions ✎ edit,
-  ⊕ add for the other eye (only when possible), ✕ remove. Clicking the row text also edits.
+  sentence, or the drug description when the dosing has no instructions: see Text formats; for a **shared** drug with
+  neither, a muted «لا توجد جرعة محددة» / "No dosing set", screen only, never copied; an own drug's line keeps showing
+  its name alone, RX-060), note, and `WithdrawnChip` («معطّل من الإدارة» with its tooltip) when the line's snapshot has
+  `withdrawn: true` (a tap on it shows the tooltip without opening the line); actions ✎ edit, ⊕ add for the other eye
+  (only when possible), ✕ remove. Clicking the row text also edits.
+- The protocols tab's rows (`ProtocolPicker`) list their drugs «A · B», each name an inline-block `<bdi>` (its own
+  direction, kept whole on a line when it fits, aligned to the interface's start side; M1.7b D27, M1.7c C37), show
+  «الأدوية: N» (every line) and, when some lines' drugs are disabled,
+  `WithdrawnChip count={n}` («معطّل من الإدارة: n»; inside the option, so not a Tab stop of its own).
 - `components/useProtocolAddDialogs.tsx`: promise-based dialogs `askEye` and `askConflict`
   (render `dialogs` in the page). On a phone (375 px) the conflict dialog's two boxes («الحالي» / «من البروتوكول») are
   stacked (side by side from `sm`) and the eye dialog's three buttons (right / left / both) fit on one row. The protocol
@@ -126,11 +144,70 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
 - `copyRichText(html, text)`: async Clipboard API in secure contexts; on plain http a `copy` event
   + `execCommand("copy")` fallback that sets both formats. Failure → toast `errors.copyFailed`.
 
+### The drug tree (`DrugTree`)
+`features/drugs/components/DrugTree.tsx` (+ `DrugTreeRows.tsx`, `DrugTreeBucket.tsx`; pure logic in `drugTreeModel.ts`,
+data in `treeApi.ts`; design M1.7 D7, D9, contract `docs/design/m1.7c-contract.md` § 3.3). Used here and in the protocol
+editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `autoFocus`, `maxHeight` (default 58vh),
+`enabled` (false: no request). The drugs page's tree view (M1.7 review R1) also passes `filters` (search, source,
+category, subcategory from its URL: no search box, source toggle, «النتائج: N» or progress bar of the tree's own; the
+answer narrowed by `filterTree`, the chosen category opened; a change of them is a new tree), `rowMode="open"` (no
+«مُضاف», no ⊕) and `rowActions` (buttons at a drug row's end; their clicks never reach the row): [drugs](../drugs/tech.md).
+- **Top:** `SearchField` (`drugTree.searchPlaceholder`, debounced 300 ms, trimmed; only spaces or tatweel = no search;
+  Esc clears it with `preventDefault` + `stopPropagation`, so no dialog or leave guard reacts; ↓ focuses the tree), the
+  source toggle (`drugs.source.*`, exclusive, never null; per tree, starts at «الكل», C7), «النتائج: N» (`treeTotal`),
+  and a thin `LinearProgress` while a new search or source loads over the old tree (`isPlaceholderData`).
+- **Data:** `useDrugTree(search, source)` (`GET /drugs/tree`; the previous answer stays as placeholder only while its
+  query is still cached, so after a context switch clears the cache nothing of the other clinic shows, CAT-129) and one
+  `useDrugBucket` per open subcategory (`GET /drugs?categoryId=&subCategoryId=<id>|none` + search + source, 30 per page;
+  rows `dedupeById`). Order: `sortTree` on render (name with `Intl.Collator(language)`, by count when searching, pinned
+  rows then the «بدون تصنيف فرعي» bucket last): a language switch re-sorts without a request.
+- **What is shown:** the tree's state (`View`: the search and source of its answer, open categories, open buckets)
+  changes only on the **first answer** of a new (search, source): everything closes, the scroll panel goes back to its
+  top (M1.7c C36), then `autoOpenBucket` opens the lone bucket and its category, and with a search `singleDrugBuckets` also opens every category whose only subcategory holds a single drug, with that subcategory (M1.7 review R3). A refetch of the same key (a drug saved) changes nothing (C12), so a bucket the user
+  closed stays closed. The open buckets keep the shown tree's search and source until the new answer replaces it.
+  Closing a bucket (or its category, which closes its buckets, or a new tree) removes its query
+  (`queryClient.removeQueries`, after the commit), so reopening starts at page 1.
+- **Rows:** ARIA `tree` / `treeitem` (`aria-level` 1–3, `aria-expanded`, names `drugTree.nodeLabel` «الاسم، العدد» for
+  nodes, the drug name for drugs) with nested `role="group"` (a bucket's has `aria-busy` while a page loads). Node line:
+  chevron `IconButton` (`tabIndex -1`, `drugTree.open`/`close` as tooltip and `aria-label`; closed: `ChevronRight` LTR /
+  `ChevronLeft` RTL; open: `ExpandMore`), the name (wraps anywhere), the count (grouped digits); at least 44 px tall
+  below `sm`. Drug line: name, the ingredients on one line from `sm` (ellipsis, full text in a `TapTooltip` without tap,
+  since a tap adds the drug; wraps on a phone), an own drug's `DosingText`, the «خاص بالعيادة» chip on an own drug
+  (a shared drug has no chip, M1.7 review R2), «مُضاف» or ⊕; no description. The name sits in a `<bdi>` (M1.7b D27: a Latin name reads left to right in the Arabic UI). The
+  ingredients line is `dir="auto"` with the text directly inside it, no `<bdi>` (its own text's direction: its beginning
+  visible, the ellipsis at its end; `dir="auto"` skips a `<bdi>` child when it looks for the first strong character, so
+  the line would compute left to right, CAT-262) and a line that fits is aligned to the interface's start side (`textAlign: "left"`, flipped by the RTL style
+  cache; M1.7c C34). The click handler is on the `treeitem`
+  itself (a click anywhere on the row, the chevron included, toggles a node or adds a drug); a click coming from inside
+  its `role="group"` (a nested row, «تحميل المزيد», a retry) is left to them. A click whose `event.detail > 1` is
+  ignored.
+- **Paging:** after a bucket's last loaded drug a `data-testid="drug-tree-sentinel"` element, observed by an
+  `IntersectionObserver` whose root is the scroll panel (a new observer after each page; none while a page loads or after
+  an error); `fetchNextPage({cancelRefetch: false})`, so a page in flight is never asked again. Then a spinner while a page
+  loads, «تحميل المزيد» while more exist, or «تعذّر تحميل البيانات.» + «إعادة المحاولة» for a failed page (that bucket
+  only). Without `IntersectionObserver` (jsdom without the test fake) only the button loads more.
+- **Keyboard:** roving `tabIndex` (one Tab stop: the active row, else the first row); `treeKeyAction` maps the keys
+  (C3, mirrored in RTL); ↓ on the last loaded drug of a bucket with more pages loads the next page and focuses its first
+  new drug once rendered; Enter on a drug adds it and keeps the focus there; ← / Esc on a drug closes its bucket and
+  focuses it. «تحميل المزيد» does the same as ↓ (the focus goes to the bucket's last loaded drug at once, then to the
+  first new drug); only these two move the focus to the first new drug. A next-page retry (pressed on its button)
+  focuses the bucket's last loaded drug and the focus stays there when the page arrives (C33: an arriving page never
+  takes the focus); a first-page retry focuses the subcategory row; the tree's own retry focuses the search field (C28), so the focus never falls to `<body>` when the button gives way to the spinner. A focus waiting for a
+  row that isn't rendered yet is dropped by any other key action, another row taking the focus, a new tree (search or
+  source), a failed or closed bucket, or the focus leaving the tree's panel: it never steals the focus later.
+- **States instead of the tree:** first load spinner; the tree request failed → `common.loadFailed` + retry; no category →
+  `drugs.noOwnDrugs` (source own, no search) or `drugs.noResults`.
+- **Look** (M1.7 review R4): a pictogram tile per category (`categoryIcons.tsx`, by catalog id; generic for others), count pills, guide lines
+  from an open node to its children, the open category's row pinned at the panel's top (`scroll-margin-top` on rows), ⊕ as a round target.
+
 ## Edge cases & limitations
-- Lines keep a **snapshot** of the drug; later edits/deletes of the drug are not reflected until
-  the line is removed and re-added.
-- The pickers (`useDrugPicker`, `useProtocolPicker`) show what they loaded: a drug or protocol changed or deleted in
-  another window or on another computer stays as it was until the picker loads again (a search change or the page
+- Lines keep a **snapshot** of the drug (`DrugSnapshot`: id, name, description, default dosing, and since M1.7b
+  `isShared` / `withdrawn`, optional: lines stored before M1.7 lack them and still load, edit and copy); later
+  edits/deletes of the drug (a rename by the super admin, a withdraw) are not reflected until the line is removed and
+  re-added. A line added before its drug was disabled keeps no chip and works as before (⊕ included).
+- The tree and the protocol picker (`useDrugTree` / `useDrugBucket`, `useProtocolPicker`) show what they loaded: a drug
+  or protocol changed, deleted or disabled in another window or on another computer stays as it was until they load
+  again (a disabled drug clicked meanwhile is added, CAT-166) (a search change or the page
   opened again once the data is older than the 30 s `staleTime`; no refetch on focus), or the browser page is
   reloaded; adding it meanwhile uses the old lines and dosings. Accepted (M1.6.1, Q3).
 - A protocol added twice for different chosen eyes produces separate lines per eye (by design).

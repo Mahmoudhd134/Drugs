@@ -1,6 +1,7 @@
 # Every test tier on GitHub Actions (docs/testing/README.md "Continuous integration"); the laptop only builds, type
 # checks, lints and runs the one test being written.
-# Runs on: every pull request (the full tier; "Gates" is the required check) and by hand, any tier, on any pushed branch
+# Runs on: every pull request (into main: the release tier; into any other branch: full; "Gates" is the required check)
+# and by hand, any tier, on any pushed branch
 # (./ci.ps1 -Tier step|full|release, or Actions -> CI -> Run workflow, or gh workflow run CI --ref <branch> -f tier=...).
 # No push trigger: on a PR's branch it would add a second, skipped run to the PR's checks.
 #   step     unit + integration tests, Vitest, the e2e smoke tests, the traceability report    (≈ 5 min, 4 jobs)
@@ -62,7 +63,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - id: plan
         env:
-          TIER: ${{ inputs.tier || 'full' }}
+          # By hand: the tier asked for; a pull request into main: release; any other pull request: full
+          TIER: ${{ inputs.tier || (github.base_ref == 'main' && 'release' || 'full') }}
           MUTATE: ${{ inputs.mutate }}
           AREAS: ${{ inputs.areas }}
         run: |
@@ -109,6 +111,12 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
+      # load_catalog.py (the shared drug catalog, D11/D12) runs in the integration harness and the e2e setup
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python + psycopg (the shared catalog loader)
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]"
       - name: PostgreSQL (docker compose)
         run: &postgres |
           # A slow pull or start fails in 2 minutes and is tried again (seen: a runner stuck on it for 6+ minutes)
@@ -239,6 +247,12 @@ jobs:
           node-version: 26
           cache: npm
           cache-dependency-path: ClinicHub.Web/package-lock.json
+      # load_catalog.py (the shared drug catalog, D11/D12) runs in the integration harness and the e2e setup
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python + psycopg (the shared catalog loader)
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]"
       - name: PostgreSQL (docker compose)
         working-directory: .
         run: *postgres
@@ -317,6 +331,12 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'nuget.config', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
+      # load_catalog.py (the shared drug catalog, D11/D12) runs in the integration harness and the e2e setup
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python + psycopg (the shared catalog loader)
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]"
       - name: PostgreSQL (docker compose)
         run: *postgres
       - name: Tools
@@ -460,7 +480,7 @@ jobs:
           [ -f artifacts/traceability.json ] && jq -r '"## Traceability", "| Priority | Covered | Known bug | Missing | % |", "|---|---:|---:|---:|---:|",
             (.gate[] | "| \(.Priority) | \(.Covered) | \(.KnownBug) | \(.Missing) | \(.Percent)% |")' artifacts/traceability.json >> "$GITHUB_STEP_SUMMARY"
           true
-      # Mutation jobs are skipped when the run has none; every other job must succeed
+      # Mutation jobs are skipped when the run has none (never on release); every other job must succeed
       - name: Verdict
         if: ${{ always() }}
         env:
@@ -475,7 +495,7 @@ jobs:
             name=${pair%%=*}; result=${pair#*=}
             case "$name:$result" in
               *:success) ;;
-              mutation-*:skipped) ;;
+              mutation-*:skipped) if [ "$TIER" = release ]; then echo "::error::$name: skipped on release"; ok=false; fi ;;
               *) echo "::error::$name: $result"; ok=false ;;
             esac
           done

@@ -15,8 +15,8 @@
 
 .PARAMETER Tier
   step (default): unit + integration tests, Vitest, the e2e smoke tests, the traceability report (about 5 min).
-  full: + coverage gates, the whole e2e suite, the traceability gate (about 8 min; what every pull request runs).
-  release: full + Stryker.NET on the critical files (one job per file) + StrykerJS.
+  full: + coverage gates, the whole e2e suite, the traceability gate (about 8 min; what every pull request runs, except into main: release).
+  release: full + Stryker.NET on the critical files (one job per file) + StrykerJS (what every pull request into main runs).
 
 .PARAMETER Mutate
   Backend files to mutate with Stryker.NET on any tier (repo-relative, comma separated or repeated), e.g.

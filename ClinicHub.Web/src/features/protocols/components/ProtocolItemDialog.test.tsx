@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, within} from "@testing-library/react";
-import {aDrug, choose, hoverTooltip, isRed, renderWithProviders} from "../../../test";
+import {aDrug, aSharedDrug, choose, hoverTooltip, isRed, renderWithProviders} from "../../../test";
 import type {Dosing, TaperStep} from "../../dosing/types.ts";
 import type {Drug} from "../../drugs/types.ts";
 import {newItemKey} from "../editorItem.ts";
@@ -166,5 +166,39 @@ describe("protocol line dialog: the drug's taper @area:catalog", () => {
         expect(onSave).toHaveBeenCalledWith(item.key, expect.objectContaining({
             taperSteps: [expect.objectContaining({frequencyValue: 4}), expect.objectContaining({frequencyValue: 3})],
         }));
+    });
+});
+
+// A shared drug has no default dosing (design M1.7 D3, D9): its line dialog has nothing to inherit. The inherit pieces
+// of GRP-066 / GRP-067 / GRP-070 are an own drug's line only (the tests above, on own drugs).
+describe("protocol line dialog: a shared drug's line @area:catalog", () => {
+    test("no «افتراضي الدواء» anywhere, no inherit hint or ⓘ, no «استخدام جرعة الدواء الافتراضية»; the empty preview says «لا توجد جرعة محددة» @CAT-171 @GRP-066 @GRP-067 @GRP-070",
+        async () => {
+            await renderDialog(aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"}));
+            expect(screen.getByRole("heading", {name: /الجرعة في هذا البروتوكول/})).toHaveTextContent("VIGAMOX 0.5% EYE DROPS 5 ML");
+            expect(screen.queryByText("افتراضي الدواء")).not.toBeInTheDocument();
+            for (const select of ["الوحدة", "عدد المرات", "الفترة"]) expect(combo(select)).not.toHaveTextContent("افتراضي الدواء");
+            expect(number("الجرعة")).not.toHaveAttribute("placeholder", "افتراضي الدواء");
+            expect(screen.queryByText("الحقول الفارغة تأخذ الجرعة الافتراضية للدواء.")).not.toBeInTheDocument();
+            expect(screen.queryByRole("img", {name: "«افتراضي الدواء» يعني أن القيمة تؤخذ من الجرعة الافتراضية للدواء وتتغير معها."}))
+                .not.toBeInTheDocument();
+            expect(screen.queryByRole("button", {name: "استخدام جرعة الدواء الافتراضية"})).not.toBeInTheDocument();
+            expect(dosingPreview()).toHaveTextContent(/^لا توجد جرعة محددة$/);
+        });
+
+    test("in English: no \"Drug default\", no \"Empty fields use the drug's default dosing.\", and the preview \"No dosing set\" @CAT-171", async () => {
+        await renderDialog(aSharedDrug(), {}, "en");
+        expect(screen.queryByText("Drug default")).not.toBeInTheDocument();
+        for (const select of ["Unit", "Frequency", "Period"]) expect(combo(select)).not.toHaveTextContent("Drug default");
+        expect(number("Dose")).not.toHaveAttribute("placeholder", "Drug default");
+        expect(screen.queryByText("Empty fields use the drug's default dosing.")).not.toBeInTheDocument();
+        expect(dosingPreview("Prescription text")).toHaveTextContent(/^No dosing set$/);
+    });
+
+    test("an override on a shared drug's line: the preview is the override's sentence alone @CAT-171", async () => {
+        const {user, onSave, item} = await renderDialog(aSharedDrug(), {doseAmount: 1, doseUnit: "drop", eye: "right"});
+        expect(dosingPreview()).toHaveTextContent(/^نقطة واحدة في العين اليمنى$/);
+        await user.click(screen.getByRole("button", {name: "حفظ"}));
+        expect(onSave).toHaveBeenCalledWith(item.key, expect.objectContaining({doseAmount: 1, doseUnit: "drop", eye: "right"}));
     });
 });

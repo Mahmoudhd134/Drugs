@@ -1,6 +1,7 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
+import {pickCategory} from "../test/pages/drugDialog.ts";
 import {
     aClinicContext,
     aDrug,
@@ -8,6 +9,7 @@ import {
     anAccessToken,
     aPage,
     api,
+    drugCategoriesHandler,
     expectPath,
     expectToasts,
     meByContext,
@@ -19,12 +21,18 @@ import {
     sessionIn,
     startApp,
     toastTexts,
+    drugsHandlers,
+    treeOf,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 
 // The session in the running app: docs/features/auth/tech.md "Frontend" (session.ts, api/client.ts, AuthProvider,
 // RequireAuth), docs/tech/overview.md "Data fetching".
 
 const clinicA = aClinicContext({clinicId: 1, clinicName: "Clinic A"});
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("staying logged in @area:auth", () => {
     test("an expired access token: the request answering 401 is refreshed once and retried, the user sees the data @AUTH-163 @smoke", async () => {
@@ -42,7 +50,7 @@ describe("staying logged in @area:auth", () => {
                     : problem(401, "unauthorized");
             }),
         );
-        await startApp({route: "/drugs"});
+        await startApp({route: "/drugs?view=list"});
 
         expect(await screen.findByText("Tobradex")).toBeInTheDocument();
         // Page load + the one refresh of the 401
@@ -56,20 +64,24 @@ describe("staying logged in @area:auth", () => {
         const fresh = {...stale, accessToken: anAccessToken(1).replace("signature", "fresh")};
         const refresh = refreshSequence(stale, fresh);
         const isFresh = (request: Request) => request.headers.get("Authorization") === `Bearer ${fresh.accessToken}`;
-        // The prescription page loads both pickers at once
+        // The prescription page loads its drug tree and protocol picker at once
+        const tobradex = aDrug({name: "Tobradex"});
         server.use(
             refresh.handler,
             meByContext(),
-            http.get(api("/drugs"), ({request}) =>
-                (isFresh(request) ? HttpResponse.json(aPage([aDrug({name: "Tobradex"})])) : problem(401, "unauthorized"))),
+            // Before drugsHandlers: their `/drugs/:id` would answer `/drugs/tree` too
+            http.get(api("/drugs/tree"), ({request}) =>
+                (isFresh(request) ? HttpResponse.json(treeOf([tobradex])) : problem(401, "unauthorized"))),
+            ...drugsHandlers([tobradex]),
             http.get(api("/protocols"), ({request}) =>
                 (isFresh(request) ? HttpResponse.json(aPage([aProtocol({name: "Post cataract"})])) : problem(401, "unauthorized"))),
         );
         const requests = recordRequests();
+        installIntersectionObserver();
         await startApp({route: "/"});
 
         expect(await screen.findByText("Post cataract")).toBeInTheDocument();
-        await waitFor(() => expect(requests.requests.filter(r => r.path === "/drugs")).toHaveLength(2));
+        await waitFor(() => expect(requests.requests.filter(r => r.path === "/drugs/tree")).toHaveLength(2));
         expect(refresh.calls()).toBe(2);
         expect(requests.requests.filter(r => r.path === "/protocols")).toHaveLength(2);
     });
@@ -78,7 +90,7 @@ describe("staying logged in @area:auth", () => {
         const refresh = refreshSequence(problem(500, "unexpected"));
         server.use(refresh.handler);
         const requests = recordRequests();
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
 
         expect(await screen.findByText("تعذّر الاتصال بالخادم. تحقّق من الاتصال.")).toBeInTheDocument();
         expect(screen.getByRole("button", {name: "إعادة المحاولة"})).toBeInTheDocument();
@@ -95,13 +107,16 @@ describe("staying logged in @area:auth", () => {
             meByContext(),
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})]))),
             http.post(api("/drugs"), () => networkError()),
+            drugCategoriesHandler(),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Tobradex");
 
         await app.user.click(screen.getByRole("button", {name: "إضافة دواء"}));
         await app.user.click(await screen.findByRole("textbox", {name: /^الاسم/}));
         await app.user.paste("Vigamox");
+        // A new drug needs a category (design M1.7 D3)
+        await pickCategory(app.user, {scope: screen.getByRole("dialog")});
         await app.user.click(screen.getByRole("button", {name: "حفظ"}));
 
         await expectToasts("تعذّر الاتصال بالخادم. تحقّق من الاتصال.");
@@ -122,7 +137,7 @@ describe("logging out @area:auth", () => {
             http.get(api("/protocols"), () => problem(401, "unauthorized")),
             http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         expect(await screen.findByText("Tobradex")).toBeInTheDocument();
 
         // The next call answers 401 (the access token gone stale): the in-session refresh, not a page load
@@ -145,7 +160,7 @@ describe("logging out @area:auth", () => {
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})]))),
             http.post(api("/auth/logout"), () => networkError()),
         );
-        const app = await startApp({route: "/drugs", lang: "ar"});
+        const app = await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Tobradex");
 
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));

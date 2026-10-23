@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.Application.Features.Access.Roles;
 using ClinicHub.Application.Features.Catalog.Protocols;
@@ -21,7 +22,7 @@ namespace ClinicHub.IntegrationTests.Admin;
 [Trait("Area", "admin")]
 public class LockoutAfterAdminChangeTests(AppFixture app) : IntegrationTest(app)
 {
-    private static object NewDrug() => new { name = Unique.Name("Drug", "دواء"), description = "", defaultDosing = Dosings.Drops() };
+    private static object NewDrug() => new { categoryId = CategoryIds.Eye, name = Unique.Name("Drug", "دواء"), description = "", defaultDosing = Dosings.Drops() };
 
     private async Task<(ClinicHandle Clinic, ApiClient Admin, RoleDto Writers, StaffHandle Staff, ApiClient Browser)> WarmStaffAsync()
     {
@@ -260,11 +261,11 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
         var (_, owner) = await ClinicFromTemplateAsync();
         var drug = (await owner.DrugsAsync()).Items[0];
 
-        (await (await owner.PostAsync("/api/v1/drugs", new { name = "NUL desc", description = "x\u0000y", defaultDosing = drug.DefaultDosing }))
+        (await (await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "NUL desc", description = "x\u0000y", defaultDosing = drug.DefaultDosing }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidText")).Errors.Select(e => (e.Code, e.Field)).ShouldBe([("invalidText", "description")]);
-        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { name = drug.Name, description = "x\u0000y", defaultDosing = drug.DefaultDosing }))
+        await (await owner.PutAsync($"/api/v1/drugs/{drug.Id}", new { categoryId = CategoryIds.Eye, name = drug.Name, description = "x\u0000y", defaultDosing = drug.DefaultDosing }))
             .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidText");
-        var kept = await owner.PostAsync("/api/v1/drugs", new { name = Unique.Name("Desc ok", "وصف"), description = "line1\nline2\tx", defaultDosing = drug.DefaultDosing });
+        var kept = await owner.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = Unique.Name("Desc ok", "وصف"), description = "line1\nline2\tx", defaultDosing = drug.DefaultDosing });
         await kept.ShouldBeAsync(HttpStatusCode.Created);
         (await kept.ReadAsync<DrugDto>()).Description.ShouldBe("line1\nline2\tx");
     }
@@ -303,7 +304,7 @@ public class CatalogRegressionPortTests(AppFixture app) : IntegrationTest(app)
         var viewer = await Login.WithPermissionsAsync(clinic, "drugs.list", "drugs.details", "protocols.list", "protocols.details");
 
         (await viewer.MeAsync()).Permissions.ShouldBe(["drugs.list", "drugs.details", "protocols.list", "protocols.details"], ignoreOrder: true);
-        (await viewer.PostAsync("/api/v1/drugs", new { name = "x", description = (string)null, defaultDosing = (object)null })).StatusCode
+        (await viewer.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name = "x", description = (string)null, defaultDosing = (object)null })).StatusCode
             .ShouldBe(HttpStatusCode.Forbidden);
         (await viewer.DrugsAsync()).TotalCount.ShouldBe(2);
     }

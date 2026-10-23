@@ -8,7 +8,7 @@ import {aClinicContext, aDrug, drugsHandlers, meByContext, refreshSequence, serv
 describe("dismissing a toast @area:ux", () => {
     test("the toast's × («إغلاق») closes that toast at once, the other one stays @UX-038", async () => {
         server.use(refreshSequence(sessionIn(aClinicContext())).handler, meByContext(), ...drugsHandlers([aDrug({name: "Tobradex"})]));
-        await startApp({route: "/drugs", lang: "ar"});
+        await startApp({route: "/drugs?view=list", lang: "ar"});
         await screen.findByText("Tobradex");
         // The app's own copy of react-hot-toast (startApp loads the app on fresh modules), so its Toaster shows them
         const {default: appToast} = await import("react-hot-toast");

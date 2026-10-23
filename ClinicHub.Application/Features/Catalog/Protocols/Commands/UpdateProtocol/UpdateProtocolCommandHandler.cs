@@ -6,23 +6,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Catalog.Protocols.Commands.UpdateProtocol;
 
+/// <summary>
+/// After the validator: <see cref="ProtocolLineRules"/> (a withdrawn drug keeps as many lines as the protocol stores),
+/// then 404: like every validation error, they are reported before an unknown protocol.
+/// </summary>
 internal sealed class UpdateProtocolCommandHandler(IAppDbContext db)
     : ICommandHandler<UpdateProtocolCommand, ProtocolDto>
 {
     public async Task<Result<ProtocolDto>> Handle(UpdateProtocolCommand command, CancellationToken cancellationToken)
     {
-        // Like every validation error, an unknown drug or a duplicate line is reported before an unknown protocol
         var items = SaveProtocolItem.Normalize(command.Items);
-        var drugIds = items.Select(x => x.DrugId).Distinct().ToList();
-        // Each drug's default eye: a line without an eye of its own takes it (the effective eye)
-        var defaultEyes = await db.Drugs.AsNoTracking()
-            .Where(d => drugIds.Contains(d.Id))
-            .Select(d => new { d.Id, d.DefaultDosing.Eye })
-            .ToDictionaryAsync(d => d.Id, d => d.Eye, cancellationToken);
-        if (defaultEyes.Count != drugIds.Count)
-            return ProtocolErrors.DrugNotFound;
-        if (SaveProtocolItem.HasDuplicate(items, defaultEyes))
-            return ProtocolErrors.DuplicateItem;
+        var lineError = await ProtocolLineRules.CheckAsync(db, command.Items, items, command.Id, cancellationToken);
+        if (lineError is not null)
+            return lineError;
 
         var protocol = await db.Protocols.Include(g => g.Items).FirstOrDefaultAsync(g => g.Id == command.Id, cancellationToken);
         if (protocol is null)

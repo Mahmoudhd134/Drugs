@@ -1,3 +1,4 @@
+using ClinicHub.Application.Features.Catalog.Categories;
 using System.Net;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
@@ -82,7 +83,7 @@ public class LogoutTests(AppFixture app) : IntegrationTest(app)
         await Data.DeactivateStaffAsync(inA);
         var name = Unique.Name("Lost", "مفقود");
 
-        var response = await user.PostAsync("/api/v1/drugs", new { name, description = (string)null, defaultDosing = (object)null });
+        var response = await user.PostAsync("/api/v1/drugs", new { categoryId = CategoryIds.Eye, name, description = (string)null, defaultDosing = (object)null });
 
         await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "noAccess");
         // The refresh moves the session to B; nothing was written in A, in B or anywhere

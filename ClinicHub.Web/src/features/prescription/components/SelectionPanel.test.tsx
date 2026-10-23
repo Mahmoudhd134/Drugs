@@ -1,6 +1,17 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen} from "@testing-library/react";
-import {aDrug, aLine, hoverPastDelay, hoverTooltip, leaveTooltip, renderWithProviders} from "../../../test";
+import {
+    aDrug,
+    aLine,
+    ARABIC_DRUG_NAME,
+    aSharedDrug,
+    DIGITS_FIRST_NAME,
+    expectOwnDirection,
+    hoverPastDelay,
+    hoverTooltip,
+    leaveTooltip,
+    renderWithProviders,
+} from "../../../test";
 import type {PrescriptionLine} from "../types.ts";
 import {SelectionPanel} from "./SelectionPanel.tsx";
 
@@ -57,5 +68,23 @@ describe("line icon buttons @area:ux", () => {
         await openPanel([line], "en");
         for (const name of ["Edit dosing", "Add for the other eye", "Remove", "Drag to reorder"])
             expect(screen.getByRole("button", {name})).toBeInTheDocument();
+    });
+});
+
+describe("prescription lines: each name keeps its own direction @area:i18n", () => {
+    test("in Arabic, the lines of «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and of an Arabic name each isolate the name with its own direction @CAT-233",
+        async () => {
+            await openPanel([aLine(aSharedDrug({name: DIGITS_FIRST_NAME}), {eye: "right"}), aLine(aDrug({name: ARABIC_DRUG_NAME}))]);
+            // Every place the panel shows each name
+            expectOwnDirection(document.body, DIGITS_FIRST_NAME);
+            expectOwnDirection(document.body, ARABIC_DRUG_NAME);
+        });
+});
+
+describe("prescription lines: no «مشترك» chip @area:catalog", () => {
+    test.each([["ar", "مشترك"], ["en", "Shared"]] as const)("(%s) a shared drug's line has no «%s» chip @CAT-278", async (lang, chip) => {
+        await openPanel([aLine(aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML"})), aLine(aDrug({name: "Tobradex"}))], lang);
+        expect(await screen.findByText("VIGAMOX 0.5% EYE DROPS 5 ML")).toBeInTheDocument();
+        expect(screen.queryByText(chip)).not.toBeInTheDocument();
     });
 });

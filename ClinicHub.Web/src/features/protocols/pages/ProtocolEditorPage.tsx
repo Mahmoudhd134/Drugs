@@ -23,7 +23,7 @@ import {EmptyState} from "../../../components/common/EmptyState.tsx";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {getErrorMessage} from "../../../api/errors.ts";
-import {DrugPicker} from "../../drugs/components/DrugPicker.tsx";
+import {DrugTree} from "../../drugs/components/DrugTree.tsx";
 import {DosingLineList} from "../../dosing/components/DosingLineList.tsx";
 import {LineDetails} from "../../dosing/components/LineDetails.tsx";
 import {ASK_EYE, eyeKey, isDosingEmpty, otherEye, type Dosing} from "../../dosing/types.ts";
@@ -45,6 +45,8 @@ import {PERMISSIONS} from "../../access/permissions.ts";
 import {usePermissions} from "../../access/usePermissions.ts";
 import {PermissionButton} from "../../access/components/PermissionControls.tsx";
 import {TapTooltip} from "../../../components/common/TapTooltip.tsx";
+import {WithdrawnChip} from "../../drugs/components/WithdrawnChip.tsx";
+import {withdrawnLineName} from "../withdrawnError.ts";
 
 // Long chip labels wrap onto a second line instead of being cut off on narrow screens
 const wrappingChip = {maxWidth: "100%", height: "auto", "& .MuiChip-label": {whiteSpace: "normal", py: 0.25}};
@@ -137,7 +139,11 @@ const ProtocolEditor = ({protocolId, initial}: { protocolId: number | null; init
         return true;
     };
 
+    // A drug disabled by the admin keeps its lines but gets no new one (design M1.7 D6: the API refuses it)
+    const hasWithdrawn = items.some(i => i.drug.withdrawn);
+
     const canAddOtherEye = (item: EditorItem) => {
+        if (item.drug.withdrawn) return false;
         const eye = otherEye(effectiveDosing(item).eye);
         return eye !== null && !items.some(i => i.drug.id === item.drug.id && eyeKey(effectiveDosing(i)) === eye);
     };
@@ -179,16 +185,19 @@ const ProtocolEditor = ({protocolId, initial}: { protocolId: number | null; init
             return;
         }
 
+        // The lines as sent: a `drugWithdrawn` error names its line by its index in this request
+        const sent = items;
         try {
             await save.mutateAsync({
                 id: protocolId,
                 name: name.trim(),
-                items: toSaveItems(items),
+                items: toSaveItems(sent),
             });
             toast.success(protocolId === null ? t("protocols.created") : t("protocols.updated"));
             navigate(exitTo);
         } catch (error) {
-            toast.error(getErrorMessage(error));
+            const withdrawnName = withdrawnLineName(error, sent);
+            toast.error(withdrawnName !== null ? t("protocols.drugWithdrawnNamed", {name: withdrawnName}) : getErrorMessage(error));
         }
     });
 
@@ -262,6 +271,9 @@ const ProtocolEditor = ({protocolId, initial}: { protocolId: number | null; init
                             {!readOnly && clashingKeys.size > 0 && (
                                 <Alert severity="error" sx={{mb: 2}}>{t("protocols.eyeClashSave")}</Alert>
                             )}
+                            {hasWithdrawn && (
+                                <Alert severity="warning" sx={{mb: 2}}>{t("protocols.withdrawnAlert")}</Alert>
+                            )}
                             {items.length === 0 ? (
                                 <EmptyState
                                     compact
@@ -282,8 +294,15 @@ const ProtocolEditor = ({protocolId, initial}: { protocolId: number | null; init
                                         const effective = effectiveDosing(item);
                                         return (
                                             <>
-                                                <LineDetails dosing={effective} description={item.drug.description}/>
+                                                <LineDetails dosing={effective} description={item.drug.description} showEmpty={item.drug.isShared}/>
                                                 <Stack direction="row" sx={{gap: 0.5, flexWrap: "wrap", mt: 0.5}}>
+                                                    {item.drug.withdrawn && (
+                                                        // A tap shows its tooltip, it doesn't open the line's dialog
+                                                        <Box component="span" sx={{display: "inline-flex", maxWidth: "100%"}}
+                                                             onClick={(e) => e.stopPropagation()}>
+                                                            <WithdrawnChip/>
+                                                        </Box>
+                                                    )}
                                                     {clashingKeys.has(item.key) && (
                                                         <Chip size="small" color="error" icon={<ErrorIcon/>} label={t("protocols.eyeClash")} sx={wrappingChip}/>
                                                     )}
@@ -312,7 +331,7 @@ const ProtocolEditor = ({protocolId, initial}: { protocolId: number | null; init
                         <Paper variant="outlined" sx={{p: 2.5, position: {md: "sticky"}, top: {md: 88}}}>
                             <Typography variant="subtitle1" sx={{fontWeight: 700}}>{t("protocols.addDrugs")}</Typography>
                             <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>{t("protocols.addDrugsHint")}</Typography>
-                            <DrugPicker onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>
+                            <DrugTree onSelect={addDrug} selectedIds={selectedIds} maxHeight="55vh"/>
                         </Paper>
                     </Grid>
                 )}

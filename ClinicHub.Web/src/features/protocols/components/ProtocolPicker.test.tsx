@@ -1,6 +1,20 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, within} from "@testing-library/react";
-import {aDrug, aProtocol, anItem, protocolsHandlers, renderWithProviders, server} from "../../../test";
+import {
+    aDrug,
+    anItem,
+    aProtocol,
+    ARABIC_DRUG_NAME,
+    alignedSide,
+    aSharedDrug,
+    blockOf,
+    DIGITS_FIRST_NAME,
+    expectOwnDirection,
+    lineOf,
+    protocolsHandlers,
+    renderWithProviders,
+    server,
+} from "../../../test";
 import type {Protocol} from "../types.ts";
 import {ProtocolPicker} from "./ProtocolPicker.tsx";
 
@@ -17,7 +31,10 @@ describe("protocol picker @area:catalog", () => {
         await renderPicker([aProtocol({name: "Post cataract", items: [anItem(aDrug({name: "Tobradex"})), anItem(aDrug({name: "Vigamox"})), anItem(aDrug({name: "قطرة مرطبة"}))]})]);
         const option = within((await screen.findByText("Post cataract")).closest("[role=option]") as HTMLElement);
         expect(option.getByText("الأدوية: 3")).toBeInTheDocument();
-        expect(option.getByText("Tobradex · Vigamox · قطرة مرطبة")).toBeInTheDocument();
+        // The names line as a whole (each name sits in its own element, CAT-233): same names, same order, " · " between
+        const namesLine = option.getByText((_, element) => element?.textContent === "Tobradex · Vigamox · قطرة مرطبة"
+            && Array.from(element.children).every(child => child.textContent !== element.textContent));
+        expect(namesLine).toBeInTheDocument();
     });
 
     test("in English the count reads \"Drugs: N\" @GRP-044", async () => {
@@ -43,4 +60,24 @@ describe("protocol picker @area:catalog", () => {
         await renderPicker([], "en");
         expect(await screen.findByText("This clinic has no protocols yet.")).toBeInTheDocument();
     });
+});
+
+describe("protocol picker: each drug name keeps its own direction @area:i18n", () => {
+    test("in Arabic, a protocol card's drug names «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction (not one joined text) @CAT-233",
+        async () => {
+            await renderPicker([aProtocol({name: "Post cataract", items: [anItem(aSharedDrug({name: DIGITS_FIRST_NAME})), anItem(aDrug({name: ARABIC_DRUG_NAME}))]})]);
+            const option = (await screen.findByText("Post cataract")).closest("[role=option]") as HTMLElement;
+            expectOwnDirection(option, DIGITS_FIRST_NAME);
+            expectOwnDirection(option, ARABIC_DRUG_NAME);
+        });
+
+    test("in Arabic, a card's drug names «A · B» (a Latin one first) are each isolated and their line is aligned to the right, the interface's start side (decision C37) @CAT-266",
+        async () => {
+            await renderPicker([aProtocol({name: "Post cataract", items: [anItem(aSharedDrug({name: DIGITS_FIRST_NAME})), anItem(aDrug({name: ARABIC_DRUG_NAME}))]})]);
+            const option = (await screen.findByText("Post cataract")).closest("[role=option]") as HTMLElement;
+            for (const name of [DIGITS_FIRST_NAME, ARABIC_DRUG_NAME]) {
+                expectOwnDirection(option, name);
+                expect(alignedSide(blockOf(lineOf(option, name))), `${name}: its line aligned to the right`).toBe("right");
+            }
+        });
 });
