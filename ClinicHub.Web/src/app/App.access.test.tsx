@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
@@ -17,7 +17,9 @@ import {
     sessionIn,
     startApp,
     toastTexts,
+    drugCategoriesHandler,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 
 // Permissions and errors in the running app: docs/features/access/tech.md "Frontend" (RequirePermission, 403
 // handling in AppProviders, usePermissions), docs/tech/overview.md "Data fetching" (retries).
@@ -26,6 +28,9 @@ const clinicA = aClinicContext({clinicId: 1, clinicName: "A"});
 const clinicB = aClinicContext({clinicId: 2, clinicName: "B"});
 
 const drugsOk = () => http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})])));
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("permissions in the app @area:access", () => {
     /** /drugs while /me fails; `retry()` makes /me answer (held until `release()`) and presses «إعادة المحاولة». */
@@ -79,16 +84,17 @@ describe("permissions in the app @area:access", () => {
         server.use(
             refreshSequence(sessionIn(clinicA)).handler,
             meByContext(),
-            http.get(api("/drugs"), () => problem(403, "forbidden")),
+            http.get(api("/drugs/tree"), () => problem(403, "forbidden")),
             http.get(api("/protocols"), () => problem(403, "forbidden")),
         );
         const requests = recordRequests();
+        installIntersectionObserver();
         await startApp({route: "/", lang: "ar"});
 
         await waitFor(() => expect(toastTexts()).toEqual(["غير مسموح لك بهذا الإجراء."]));
         await waitFor(() => expect(requests.requests.filter(r => r.path === "/me").length).toBeGreaterThanOrEqual(2));
-        // Both pickers failed, still one toast
-        expect(requests.requests.filter(r => r.path === "/drugs")).toHaveLength(1);
+        // The drug tree and the protocol picker failed, still one toast
+        expect(requests.requests.filter(r => r.path === "/drugs/tree")).toHaveLength(1);
         expect(requests.requests.filter(r => r.path === "/protocols")).toHaveLength(1);
         await act(() => new Promise(resolve => setTimeout(resolve, 20)));
         expect(toastTexts()).toHaveLength(1);

@@ -5,9 +5,12 @@ import {
     anItem,
     aProtocol,
     ARABIC_DRUG_NAME,
+    alignedSide,
     aSharedDrug,
+    blockOf,
     DIGITS_FIRST_NAME,
     expectOwnDirection,
+    lineOf,
     protocolsHandlers,
     renderWithProviders,
     server,
@@ -66,5 +69,15 @@ describe("protocol picker: each drug name keeps its own direction @area:i18n", (
             const option = (await screen.findByText("Post cataract")).closest("[role=option]") as HTMLElement;
             expectOwnDirection(option, DIGITS_FIRST_NAME);
             expectOwnDirection(option, ARABIC_DRUG_NAME);
+        });
+
+    test("in Arabic, a card's drug names «A · B» (a Latin one first) are each isolated and their line is aligned to the right, the interface's start side (decision C37) @CAT-266",
+        async () => {
+            await renderPicker([aProtocol({name: "Post cataract", items: [anItem(aSharedDrug({name: DIGITS_FIRST_NAME})), anItem(aDrug({name: ARABIC_DRUG_NAME}))]})]);
+            const option = (await screen.findByText("Post cataract")).closest("[role=option]") as HTMLElement;
+            for (const name of [DIGITS_FIRST_NAME, ARABIC_DRUG_NAME]) {
+                expectOwnDirection(option, name);
+                expect(alignedSide(blockOf(lineOf(option, name))), `${name}: its line aligned to the right`).toBe("right");
+            }
         });
 });

@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
@@ -23,7 +23,10 @@ import {
     sessionIn,
     startApp,
     toastTexts,
+    drugTreeHandler,
+    drugCategoriesHandler,
 } from "../test";
+import {installIntersectionObserver} from "../test/intersection.ts";
 import type {AuthResult, Context} from "../features/auth/types.ts";
 
 // Switching context: docs/features/auth/tech.md "Frontend" (SelectClinicPage, session.ts: switchSessionContext and the
@@ -63,6 +66,9 @@ const openPicker = async (contexts: Context[], answer: () => Response) => {
     return {...app, pick};
 };
 
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
+
 describe("picking a clinic that can't be entered any more @area:auth", () => {
     test("suspended meanwhile: «العيادة «A» موقوفة.» and the user stays on the picker @AUTH-129", async () => {
         const app = await openPicker([clinicA, clinicB], () => problem(403, "clinicSuspended", {clinicNames: ["A"]}));
@@ -98,8 +104,10 @@ describe("a stale tab after another sign-in @area:auth", () => {
         server.use(
             refreshSequence(sessionIn(null, [clinicA, clinicB]), {...sameUser, accessToken: sameUser.accessToken.replace("sig-", "sig9-")}).handler,
             http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug()]))),
+            drugTreeHandler([aDrug()]),
             http.get(api("/protocols"), () => HttpResponse.json(aPage([]))),
         );
+        installIntersectionObserver();
         await app.pick("^B$");
 
         await expectPath("/");
@@ -166,8 +174,9 @@ describe("a stale tab after another sign-in @area:auth", () => {
         const requests = recordRequests();
         // U2 lands in a clinic with the same id as U1's template: only the change of user tells the cached /me apart
         const u2 = sessionIn(template, [template], 2);
-        // U2's home is the prescription page, whose protocol picker loads the protocols
-        server.use(...protocolsHandlers([]));
+        // U2's home is the prescription page, whose protocol picker loads the protocols and drug tree its tree
+        server.use(...protocolsHandlers([]), drugTreeHandler([]));
+        installIntersectionObserver();
         const app = await staleTemplateTab(u2);
         await app.user.click(screen.getByRole("button", {name: "الحساب"}));
         expect(within(await screen.findByRole("menu")).getByText("U1 name")).toBeInTheDocument();

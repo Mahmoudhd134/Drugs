@@ -2,6 +2,9 @@ import {expect, type Locator, type Page} from "@playwright/test";
 import type {ClinicHandle, Data} from "./data.ts";
 import type {CatalogTexts} from "./texts-catalog.ts";
 import {ownDrugBody} from "./shared.ts";
+import type {Lang} from "./texts.ts";
+import {TREE_TEXTS} from "./texts-rx.ts";
+import {DrugTreeUi} from "./tree.ts";
 
 /**
  * Helpers of the catalog journeys (drugs, protocols, dosing, tapering): data through the API as an owner (with
@@ -103,9 +106,20 @@ export const protocolCards = (page: Page) => page.locator(".MuiCard-root");
 export const editorLines = (page: Page, ct: CatalogTexts) =>
     page.getByRole("button", {name: ct.dragToReorder}).locator("..");
 
-/** A picker option (drug or protocol) by its name. */
+/**
+ * A picker option (a protocol) by its name, or a drug row of a drug tree (accessible name: the drug's name; shown once
+ * its subcategory is open, `DrugTreeUi.show`).
+ */
 export const option = (page: Page, name: string) =>
-    page.getByRole("option").filter({has: page.getByText(name, {exact: true})});
+    page.getByRole("option").filter({has: page.getByText(name, {exact: true})})
+        .or(page.getByRole("treeitem", {name, exact: true}).and(page.locator('[aria-level="3"]')));
+
+/** The protocol editor's drug tree (contract M1.7c § 3.2: where the drug picker was; editable editor only). */
+export const editorTree = (page: Page, lang: Lang) => new DrugTreeUi(page, page.locator("main"), TREE_TEXTS[lang]);
+
+/** Adds a drug to the protocol being edited through its tree (search, the bucket that opens or the drug's path, click). */
+export const addToProtocol = (page: Page, lang: Lang, name: string, where?: { category: string; subCategory: string }) =>
+    editorTree(page, lang).addDrug(name, where);
 
 /** Chooses `value` in the MUI select labelled `label` (nth when several). */
 export const choose = async (page: Page, scope: Locator, label: string, value: string, nth = 0) => {
@@ -128,7 +142,7 @@ export const dialog = (page: Page, title: string) => page.getByRole("dialog", {n
  * must not be cached yet (or the cache must have been invalidated), else no request is sent.
  */
 export const search = async (page: Page, field: Locator, term: string) => {
-    const answered = page.waitForResponse(r => /\/api\/v1\/(drugs|protocols)$/.test(new URL(r.url()).pathname)
+    const answered = page.waitForResponse(r => /\/api\/v1\/(drugs|drugs\/tree|protocols)$/.test(new URL(r.url()).pathname)
         && new URL(r.url()).searchParams.get("search") === term.trim());
     await field.fill(term);
     await answered;

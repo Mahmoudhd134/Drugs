@@ -51,6 +51,39 @@ Clinic routes: [drugs § API](../drugs/tech.md) (`source`, category
 filters, `GET /drug-categories`, 409 on shared drugs) and [protocols § API](../protocols/tech.md) (`ProtocolDrugDto`,
 `drugWithdrawn`).
 
+### Drug tree (`GET /drugs/tree`, design D7, D8; M1.7c)
+`GET /api/v1/drugs/tree?search=&source=` → `DrugsController.GetTree`, policy `ClinicContext`, permission `drugs.list`
+(missing → 403 `forbidden`; a platform token → 403). `GetDrugTreeQueryValidator`: `source` must pass `DrugSource.IsValid`
+→ 400 `invalidRequest` (field `source`), as `GET /drugs`. No new error.
+
+- **Handler** (`Catalog/Drugs/Queries/GetDrugTree/GetDrugTreeQueryHandler`): loads `Categories` / `SubCategories` once
+  (≤ ~205 rows, untracked), then `DrugQueries.ListedAsync(db, new DrugListFilter(search, source, null, null),
+  new CatalogNames(categories, subCategories))` (the one composition: visible + not withdrawn + source + search incl.
+  category names, matched against the rows passed in instead of loading them again; `GET /drugs` keeps the overload
+  without them), then **one** aggregate query `GroupBy(CategoryId, SubCategoryId)` with `Count()`; joined in memory
+  with the same rows. `pinnedLast` = `CategoryIds.IsPinnedLast(id)` /
+  `SubCategoryIds.IsPinnedLast(id)`; the bucket (null subcategory, «بدون تصنيف فرعي») has `pinnedLast: false` and null
+  names.
+- **Answer** (`DrugTreeDto`): only rows with `count > 0` (without a search too). Categories by `id`; their subcategories
+  by `id`, the bucket last; a category's `count` = the sum of its subcategories' counts. No match →
+  `{ "categories": [] }`. The SPA sorts for display (D5). JSON: `{ categories: [{ id, nameEn, nameAr, pinnedLast, count,
+  subCategories: [{ id | null, nameEn | null, nameAr | null, pinnedLast, count }] }] }`.
+- **Invariant with `GET /drugs`**: for any search and source, a bucket's `count` = `GET /drugs?categoryId=&subCategoryId=<id>|none`
+  (same search and source) `totalCount`, and the sum over categories = `GET /drugs` `totalCount`: both go through
+  `ListedAsync`.
+- **Isolation**: the clinic query filter (another clinic's own drugs are never counted); withdrawn drugs are never
+  counted.
+
+### Performance measure (design D7; M1.7c)
+Budget: < 100 ms per tree or list request, warm, median of 20 requests on the dev machine. Measured by the integration
+test `tests/ClinicHub.IntegrationTests/Catalog/Tree/TreePerformanceTests`, which **reports and never fails on time**: it
+writes `artifacts/performance/m1.7c-tree.md` (one row per request: route, query, median, p90, max, ms) for
+`GET /drugs/tree` and `GET /drugs` with no search, "a" and «ا» (page 1 and the last page), on the loaded catalog and on
+a clinic with 5,000 own drugs added (inserted through the app's `DbContext` in that clinic's scope, so the interceptor
+fills the search columns). If the budget fails, the fix is decided with the user (D7; a trigram index would be a
+PostgreSQL-only piece, D4).
+
+### Admin routes
 Admin routes (`ClinicHub.Api/Features/Platform/AdminDrugsController.cs`, `AdminCategoriesController.cs`; `PlatformAdmin`
 policy; a platform request sees only shared drugs, so an own drug's id is 404):
 
@@ -90,6 +123,7 @@ policy; a platform request sees only shared drugs, so an own drug's id is 404):
 | `DeleteCategoryCommand` / `DeleteSubCategoryCommand` | 404 → in use (`Drugs.IgnoreQueryFilters()` count) → real delete; a category's (empty) subcategories are deleted with it |
 | `GetAdminCategoriesQuery` | categories with subcategories by id + two grouped counts over every drug (all, and those of deleted clinics) summed in memory |
 | `GetCategoriesQuery` (clinic) | every category with all its subcategories, by id |
+| `GetDrugTreeQuery` (clinic, + validator, `Catalog/Drugs/Queries/GetDrugTree/`) | see [Drug tree](#drug-tree-get-drugstree-design-d7-d8-m17c) |
 
 **Provisioning** (`Platform/Provisioning/Seeders/TemplateCatalogSeeder`, step 30): copies the template's **own** drugs
 (`IgnoreQueryFilters().Where(ClinicId == template)`: name, active ingredients, description, dosing, category,

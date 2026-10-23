@@ -20,6 +20,15 @@ configure({asyncUtilTimeout: 20_000});
 // jsdom has no layout, hence no scrollIntoView (the pickers scroll the highlighted row into view): nothing to scroll.
 // A test that checks the calls spies on it (vi.spyOn), restored after the test.
 Element.prototype.scrollIntoView = () => undefined;
+// Nor `scrollTo` / `scroll` on elements: they set scrollTop / scrollLeft (which jsdom keeps), as a browser would without
+// layout limits, so a test reads where a panel was scrolled whichever API the code uses (CAT-264)
+function scrollElementTo(this: Element, xOrOptions?: number | ScrollToOptions, y?: number) {
+    const options = typeof xOrOptions === "object" ? xOrOptions : {left: xOrOptions, top: y};
+    if (options.top !== undefined) this.scrollTop = options.top;
+    if (options.left !== undefined) this.scrollLeft = options.left;
+}
+Element.prototype.scrollTo = scrollElementTo as Element["scrollTo"];
+Element.prototype.scroll = scrollElementTo as Element["scroll"];
 
 installMatchMedia();
 setViewportWidth();

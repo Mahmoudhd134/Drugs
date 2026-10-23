@@ -545,6 +545,13 @@ const ar: Translations = {
         subRenamed: "تم تعديل التصنيف الفرعي",
         subDeleted: "تم حذف التصنيف الفرعي",
     },
+    drugTree: {
+        label: "كتالوج الأدوية",
+        searchPlaceholder: "ابحث بالاسم أو المادة الفعالة أو التصنيف…",
+        nodeLabel: "{{name}}، {{count, count}}",
+        open: "فتح «⁨{{name}}⁩»",
+        close: "إغلاق «⁨{{name}}⁩»",
+    },
     roles: {
         title: "الأدوار",
         subtitle: "ما يسمح به كل دور لموظفيه. من له أكثر من دور يحصل على صلاحياتها كلها.",

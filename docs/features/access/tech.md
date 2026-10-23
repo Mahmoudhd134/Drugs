@@ -220,8 +220,9 @@ whatever its `Status`.
   wrapped in `RequirePermission`. `/` (prescription) uses `denied: <FirstAllowedPage/>`
   (`app/FirstAllowedPage.tsx`): the first `NAV_ITEMS` page the user may open, or the no-permission page without its home link (`/` would loop).
 - `NAV_ITEMS` moved to `app/navigation.tsx` with a `permission`; the sidebar hides the rest.
-- Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugPicker`,
-  `useProtocols`, `useProtocolPicker`, `useProtocol`; `DrugPicker` / `ProtocolPicker` take `enabled`.
+- Query hooks take `{enabled}` (`QueryOptions` in `api/types.ts`): `useDrugs`, `useDrugTree` (its `useDrugBucket`s
+  run only under an open tree), `useProtocols`, `useProtocolPicker`, `useProtocol`; `DrugTree` / `ProtocolPicker` take
+  `enabled`.
 - A 403 `noAccess`/`clinicSuspended` (the clinic itself may be lost) never reaches the pages first: the API client
   refreshes the session and either follows it (picker, the only clinic left, or login, with a message;
   [auth](../auth/tech.md), design D7) or, when the clinic is still there (e.g. re-added under a new staff record),

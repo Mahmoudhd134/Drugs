@@ -5,14 +5,16 @@ import type {Permission} from "../../features/access/permissions.ts";
 import {ProtocolEditorPage} from "../../features/protocols/pages/ProtocolEditorPage.tsx";
 import type {Protocol, SaveProtocolItem} from "../../features/protocols/types.ts";
 import type {Drug, ProtocolDrug} from "../../features/drugs/types.ts";
-import {aProtocolDrug, nextId} from "../data.ts";
-import {api, protocolsHandlers, drugsHandlers} from "../msw.ts";
+import {aProtocolDrug, asDrug, nextId} from "../data.ts";
+import {api, protocolsHandlers, drugsHandlers, drugTreeHandler} from "../msw.ts";
+import {installIntersectionObserver} from "../intersection.ts";
+import {addDrugThroughTree} from "./drugTree.tsx";
 import {renderWithProviders} from "../render.tsx";
 import {server} from "../server.ts";
 
 /*
  * The protocol editor page (`/protocols/new`, `/protocols/:id`) with the API of docs/features/protocols/tech.md "API":
- * GET /drugs (the picker), GET /protocols/:id, and POST / PUT answering the saved protocol (`ProtocolDto`: each item
+ * GET /drugs/tree and GET /drugs (the drug tree), GET /protocols/:id, and POST / PUT answering the saved protocol (`ProtocolDto`: each item
  * with its `drug`, in the sent order).
  */
 
@@ -44,18 +46,19 @@ export const protocolSaveHandlers = (drugs: Array<Drug | ProtocolDrug>) => {
 type EditorOptions = {
     /** The protocol to edit (none: a new protocol) */
     protocol?: Protocol;
-    /** The drugs the picker lists (default: the protocol's) */
+    /** The drugs the tree lists (default: the protocol's) */
     drugs?: Array<Drug | ProtocolDrug>;
     lang?: "ar" | "en";
     /** `/me` permissions (default: the Owner's, every one) */
     permissions?: Permission[];
 };
 
-/** Opens the editor and waits until its form shows. */
+/** Opens the editor (with the IntersectionObserver fake, `io`) and waits until its form shows. */
 export const openEditor = async ({protocol, drugs, lang = "ar", permissions}: EditorOptions = {}) => {
     const pickerDrugs = drugs ?? protocol?.items.map(i => i.drug).filter((d, i, all) => all.indexOf(d) === i) ?? [];
     const saves = protocolSaveHandlers(pickerDrugs);
-    server.use(...drugsHandlers(pickerDrugs), ...protocolsHandlers(protocol ? [protocol] : []), ...saves.handlers);
+    server.use(drugTreeHandler(pickerDrugs), ...drugsHandlers(pickerDrugs), ...protocolsHandlers(protocol ? [protocol] : []), ...saves.handlers);
+    const io = installIntersectionObserver();
     const rendered = await renderWithProviders(<ProtocolEditorPage/>, {
         lang,
         route: protocol ? `/protocols/${protocol.id}` : "/protocols/new",
@@ -64,7 +67,10 @@ export const openEditor = async ({protocol, drugs, lang = "ar", permissions}: Ed
     });
     // A text query: role queries are slow on a big page (the 1001-line protocol)
     await screen.findByText(lang === "ar" ? "أدوية هذا البروتوكول" : "Drugs in this protocol");
-    return {...rendered, bodies: saves.bodies};
+    /** Adds `name` through the tree (searched by its name; see `addDrugThroughTree`). */
+    const addDrug = (name: string) =>
+        addDrugThroughTree(rendered.user, pickerDrugs.map(d => ("category" in d ? d : asDrug(d))), name, lang);
+    return {...rendered, bodies: saves.bodies, addDrug, io};
 };
 
 /** The «أدوية هذا البروتوكول» panel. */
@@ -84,9 +90,8 @@ export const lineDetails = (row: HTMLElement) => {
     return Array.from(body.children).slice(1).map(c => c.textContent).join("");
 };
 
-/** The drug picker's option of a drug. */
-export const pickerOption = (name: string) =>
-    within(screen.getByRole("listbox")).getByText(name).closest("[role=option]") as HTMLElement;
+/** Waits for a drug's row in the editor's drug tree (its subcategory open). */
+export const treeDrug = async (name: string) => within(await screen.findByRole("tree")).findByRole("treeitem", {name});
 
 /** The «تجاهل التغييرات؟» question (an MUI dialog), or null when it isn't shown. */
 export const discardDialog = () => screen.queryByRole("dialog", {name: /تجاهل التغييرات؟|Discard changes\?/});

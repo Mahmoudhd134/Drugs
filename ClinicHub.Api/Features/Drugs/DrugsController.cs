@@ -11,6 +11,7 @@ using ClinicHub.Application.Features.Catalog.Drugs.Commands.UpdateDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrug;
 using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugProtocolNames;
 using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugs;
+using ClinicHub.Application.Features.Catalog.Drugs.Queries.GetDrugTree;
 using ClinicHub.Domain.Catalog;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -35,6 +36,16 @@ public class DrugsController(ISender sender) : BaseApiController
     public async Task<ActionResult<PagedResult<DrugDto>>> GetAll(string search = "", string source = "", int? categoryId = null,
         string subCategoryId = "", int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>
         (await sender.Send(new GetDrugsQuery(search, source, categoryId, subCategoryId, page, pageSize), cancellationToken)).ToOk();
+
+    /// <summary>
+    /// The drug tree's counts per category and subcategory for <paramref name="search"/> and <paramref name="source"/>
+    /// (design M1.7 D7, D8); <paramref name="source"/> binds as a string like <see cref="GetAll"/>.
+    /// </summary>
+    [HttpGet("tree")]
+    [HasPermission(Permissions.Drugs.List)]
+    public async Task<ActionResult<DrugTreeDto>> GetTree(string search = "", string source = "",
+        CancellationToken cancellationToken = default) =>
+        (await sender.Send(new GetDrugTreeQuery(search, source), cancellationToken)).ToOk();
 
     /// <summary>Own or shared (a withdrawn shared drug too: <c>withdrawn: true</c>).</summary>
     [HttpGet("{id:int}")]

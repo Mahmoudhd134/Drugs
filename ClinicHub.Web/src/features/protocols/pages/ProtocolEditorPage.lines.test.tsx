@@ -1,10 +1,11 @@
 import {describe, expect, test} from "vitest";
-import {screen, waitFor, within} from "@testing-library/react";
-import {aDrug, aProtocol, anItem, choose, findToast, hoverTooltip, isolate, tapTooltip, toastTexts} from "../../../test";
+import {act, screen, waitFor, within} from "@testing-library/react";
+import {aDrug, aProtocol, anItem, aSharedDrug, choose, findToast, hoverTooltip, isolate, pastExitTransition, tapTooltip, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
 import type {Permission} from "../../access/permissions.ts";
 import {dosingPreview} from "../../../test/pages/dosing.ts";
-import {lineDetails, lineRows, lineSummary, openEditor, pickerOption} from "../../../test/pages/protocolEditor.tsx";
+import {discardDialog, lineDetails, lineRows, lineSummary, openEditor, treeDrug} from "../../../test/pages/protocolEditor.tsx";
+import {CATARACT} from "../../../test/pages/drugTree.tsx";
 
 // The protocol editor's lines: docs/features/protocols/business.md ("إنشاء بروتوكول", "جرعة خاصة بالبروتوكول",
 // "نفس الدواء للعينين", "الرسائل") and tech.md "Frontend" (editor page, DosingLineList, LineDetails, chips, ⊕).
@@ -12,28 +13,45 @@ import {lineDetails, lineRows, lineSummary, openEditor, pickerOption} from "../.
 const fourTimesTwoWeeks: Dosing = {doseAmount: 1, doseUnit: "drop", frequency: "daily", frequencyValue: 4, durationUnit: "weeks", durationValue: 2};
 const alreadyThere = (name: string) => `«${isolate(name)}» موجود بالفعل في هذا البروتوكول لنفس العين`;
 
-describe("protocol editor: adding drugs from the picker @area:catalog", () => {
-    test("a clicked drug is appended with no override (its default sentence) and marked «مُضاف» @GRP-051 @smoke", async () => {
+describe("protocol editor: adding drugs from the drug tree @area:catalog", () => {
+    test("a drug clicked in the tree is appended with no override and marked «مُضاف»; an own drug shows its default sentence, a shared one «لا توجد جرعة محددة» or its description @GRP-051 @smoke", async () => {
         const tobradex = aDrug({name: "Tobradex", defaultDosing: fourTimesTwoWeeks});
-        const vigamox = aDrug({name: "Vigamox"});
-        const {user, bodies} = await openEditor({drugs: [tobradex, vigamox]});
-        await user.click(await screen.findByText("Vigamox"));
-        await user.click(pickerOption("Tobradex"));
-        expect(lineSummary()).toEqual([["1", "Vigamox"], ["2", "Tobradex"]]);
-        expect(lineDetails(lineRows()[1])).toBe("نقطة واحدة 4 مرات يوميًا لمدة أسبوعين");
-        expect(within(pickerOption("Tobradex")).getByText("مُضاف")).toBeInTheDocument();
-        expect(within(pickerOption("Vigamox")).getByText("مُضاف")).toBeInTheDocument();
+        const vigamox = aSharedDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML", description: null});
+        const alemox = aSharedDrug({name: "ALEMOX 1 GM 12 F.C.TABS.", description: "Antibiotic"});
+        const {user, bodies} = await openEditor({drugs: [tobradex, vigamox, alemox]});
+        await user.click(await treeDrug(vigamox.name));
+        expect(screen.getByRole("tree", {name: "كتالوج الأدوية"})).toBeInTheDocument();
+        await user.click(await treeDrug("Tobradex"));
+        await user.click(await treeDrug(alemox.name));
+        expect(lineSummary()).toEqual([["1", vigamox.name], ["2", "Tobradex"], ["3", alemox.name]]);
+        const [shared, own, described] = lineRows();
+        expect(within(shared).getByText("لا توجد جرعة محددة")).toBeInTheDocument();
+        expect(lineDetails(own)).toBe("نقطة واحدة 4 مرات يوميًا لمدة أسبوعين");
+        expect(within(described).getByText("Antibiotic")).toBeInTheDocument();
+        expect(within(described).queryByText("لا توجد جرعة محددة")).not.toBeInTheDocument();
+        for (const name of ["Tobradex", vigamox.name, alemox.name]) expect(within(await treeDrug(name)).getByText("مُضاف")).toBeInTheDocument();
 
         await user.type(screen.getByRole("textbox", {name: "اسم البروتوكول"}), "Post cataract");
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(bodies).toHaveLength(1));
-        expect(bodies[0]).toEqual({name: "Post cataract", items: [{drugId: vigamox.id, dosing: null}, {drugId: tobradex.id, dosing: null}]});
+        expect(bodies[0]).toEqual({
+            name: "Post cataract",
+            items: [{drugId: vigamox.id, dosing: null}, {drugId: tobradex.id, dosing: null}, {drugId: alemox.id, dosing: null}],
+        });
     });
 
-    test("a drug already in the protocol for its eye: ««Tobradex» موجود بالفعل في هذا البروتوكول لنفس العين», no line added @GRP-053", async () => {
+    test("found through the tree's search: the drug's category and subcategory opened, then the drug clicked @GRP-051", async () => {
+        // "Tears gel" alone opens its subcategory by itself; "Tears" also matches "Tears gel" in another subcategory
+        const {addDrug} = await openEditor({drugs: [aDrug({name: "Tears"}), aDrug({name: "Tears gel", subCategory: CATARACT})]});
+        await addDrug("Tears gel");
+        await addDrug("Tears");
+        expect(lineSummary()).toEqual([["1", "Tears gel"], ["2", "Tears"]]);
+    });
+
+    test("a drug already in the protocol for its eye, clicked again in the tree: ««Tobradex» موجود بالفعل في هذا البروتوكول لنفس العين», no line added @GRP-053", async () => {
         const tobradex = aDrug({name: "Tobradex", defaultDosing: {eye: "right"}});
         const {user} = await openEditor({protocol: aProtocol({items: [anItem(tobradex)]})});
-        await user.click(await screen.findByText("Tobradex", {selector: "[role=option] *"}));
+        await user.click(await treeDrug("Tobradex"));
         expect(await findToast()).toBe(alreadyThere("Tobradex"));
         expect(lineSummary()).toEqual([["1", "Tobradex"]]);
     });
@@ -41,28 +59,44 @@ describe("protocol editor: adding drugs from the picker @area:catalog", () => {
     test("in English: \"“Tobradex” is already in this protocol for that eye\" @GRP-053", async () => {
         const tobradex = aDrug({name: "Tobradex"});
         const {user} = await openEditor({protocol: aProtocol({items: [anItem(tobradex)]}), lang: "en"});
-        await user.click(await screen.findByText("Tobradex", {selector: "[role=option] *"}));
+        await user.click(await treeDrug("Tobradex"));
         expect(await findToast()).toBe(`“${isolate("Tobradex")}” is already in this protocol for that eye`);
     });
 
-    test("a double click on a drug adds one line and no «موجود بالفعل» toast follows @GRP-054", async () => {
+    test("a double click on a drug in the tree adds one line and no «موجود بالفعل» toast follows @GRP-054", async () => {
         const {user} = await openEditor({drugs: [aDrug({name: "Tobradex"})]});
-        await screen.findByText("Tobradex");
-        await user.dblClick(pickerOption("Tobradex"));
+        await user.dblClick(await treeDrug("Tobradex"));
         expect(lineSummary()).toEqual([["1", "Tobradex"]]);
+        await act(() => new Promise(resolve => setTimeout(resolve, 50)));
         expect(toastTexts()).toEqual([]);
+        expect(lineSummary()).toEqual([["1", "Tobradex"]]);
     });
 
-    test("drug A overridden to the left while its default is right: clicking A adds a right line with no override @GRP-055", async () => {
-        const a = aDrug({name: "Tobradex", defaultDosing: {doseUnit: "drop", eye: "right"}});
+    test("own drug A overridden to the left while its default is right: clicking A in the tree adds a right line with no override @GRP-055", async () => {
+        const a = aDrug({name: "Tobradex", isShared: false, defaultDosing: {doseUnit: "drop", eye: "right"}});
         const {user, bodies} = await openEditor({protocol: aProtocol({items: [anItem(a, {eye: "left"})]})});
-        await user.click(await screen.findByText("Tobradex", {selector: "[role=option] *"}));
+        await user.click(await treeDrug("Tobradex"));
         expect(lineSummary()).toEqual([["1", "Tobradex"], ["2", "Tobradex"]]);
         expect(lineDetails(lineRows()[1])).toBe("نقطة واحدة في العين اليمنى");
         expect(toastTexts()).toEqual([]);
         await user.click(screen.getByRole("button", {name: "حفظ"}));
         await waitFor(() => expect(bodies).toHaveLength(1));
         expect(bodies[0].items).toEqual([{drugId: a.id, dosing: expect.objectContaining({eye: "left"})}, {drugId: a.id, dosing: null}]);
+    });
+
+    test("Esc in the tree's search clears it and nothing else: no «تجاهل التغييرات؟», the editor and its changes stay @CAT-106", async () => {
+        const protocol = aProtocol({name: "Post cataract", items: [anItem(aDrug({name: "Tobradex"}))]});
+        const {user, location} = await openEditor({protocol});
+        await user.type(screen.getByRole("textbox", {name: "اسم البروتوكول"}), " 2");
+        const search = screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"});
+        await user.click(search);
+        await user.paste("Tob");
+        await user.keyboard("{Escape}");
+        expect(search).toHaveValue("");
+        await pastExitTransition();
+        expect(discardDialog()).not.toBeInTheDocument();
+        expect(location().pathname).toBe(`/protocols/${protocol.id}`);
+        expect(screen.getByRole("textbox", {name: "اسم البروتوكول"})).toHaveValue("Post cataract 2");
     });
 });
 

@@ -79,3 +79,28 @@ export type DrugFilters = {
     categoryId?: number | null;
     subCategoryId?: SubCategoryFilter | null;
 };
+
+/** A subcategory of the drug tree (`GET /drugs/tree`, design M1.7 D8), or (id and names null) «بدون تصنيف فرعي». */
+export interface DrugTreeSubCategory {
+    id: number | null;
+    nameEn: string | null;
+    nameAr: string | null;
+    pinnedLast: boolean;
+    /** Matching drugs of this clinic (own + active shared) for the tree's search and source */
+    count: number;
+}
+
+/** A category of the drug tree: only those with matches; `count` = the sum of its subcategories' counts. */
+export interface DrugTreeCategory {
+    id: number;
+    nameEn: string;
+    nameAr: string;
+    pinnedLast: boolean;
+    count: number;
+    subCategories: DrugTreeSubCategory[];
+}
+
+/** `GET /drugs/tree?search=&source=` (unsorted: categories and subcategories by id, the bucket last). */
+export interface DrugTreeData {
+    categories: DrugTreeCategory[];
+}

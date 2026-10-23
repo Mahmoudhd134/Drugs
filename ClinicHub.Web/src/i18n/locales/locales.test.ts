@@ -45,8 +45,9 @@ describe("locale files @area:i18n", () => {
 
     test("a name interpolated in a message sits inside the bidi isolates U+2068…U+2069 @I18N-017", () => {
         // {{name}}/{{names}}/{{from}}/{{to}} are clinic content (drug, protocol, clinic, role, staff names), except the
-        // pagination's numbers and the permission labels of "Needed by"
-        const notNames = new Set(["common.displayedRows", "roles.editor.requiredBy"]);
+        // pagination's numbers, the permission labels of "Needed by" and the tree node's accessible name (decision C27:
+        // an accessible name, not a displayed sentence; the e2e locators match it from its start)
+        const notNames = new Set(["common.displayedRows", "roles.editor.requiredBy", "drugTree.nodeLabel"]);
         let checked = 0;
         for (const texts of [enTexts, arTexts]) {
             for (const [key, value] of Object.entries(texts)) {
@@ -68,6 +69,9 @@ describe("locale files @area:i18n", () => {
     test("the names not checked are not names", () => {
         expect(arTexts["roles.editor.requiredBy"]).toBe("مطلوبة لـ: {{names}}");
         expect(enTexts["common.displayedRows"]).toBe("{{from}}–{{to}} of {{count}}");
+        // The tree node's accessible name, without isolates (contract M1.7c § 3.1, decisions C8 and C27)
+        expect(arTexts["drugTree.nodeLabel"]).toBe("{{name}}، {{count, count}}");
+        expect(enTexts["drugTree.nodeLabel"]).toBe("{{name}}, {{count, count}}");
     });
 
     test("every API error code has its text, except the transport codes and noContexts @ERR-030", () => {

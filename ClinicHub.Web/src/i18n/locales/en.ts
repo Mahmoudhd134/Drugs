@@ -569,6 +569,15 @@ const en = {
         subRenamed: "Subcategory renamed",
         subDeleted: "Subcategory deleted",
     },
+    // The drug catalog tree of the prescription page and the protocol editor (M1.7c)
+    drugTree: {
+        label: "Drug catalog",
+        searchPlaceholder: "Search by name, active ingredient or category…",
+        // A category's or subcategory's accessible name: its name and its count of matches
+        nodeLabel: "{{name}}, {{count, count}}",
+        open: "Open “⁨{{name}}⁩”",
+        close: "Close “⁨{{name}}⁩”",
+    },
     // A clinic's roles and staff (reusable components; the platform admin's clinic page shows them today)
     roles: {
         title: "Roles",

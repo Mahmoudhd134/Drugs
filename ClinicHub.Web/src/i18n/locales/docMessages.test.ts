@@ -127,6 +127,12 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["لا يمكن تعديل الأدوية المشتركة.", () => t("errors.sharedDrugReadOnly")],
             ["الاسم مطلوب.", () => t("errors.nameRequired")],
             ["لا توجد أدوية مطابقة للبحث.", () => t("drugs.noResults")],
+            // M1.7c: the drugs page's empty states (contract § 2.3 drugListEmptyState) and their buttons
+            ["لا توجد أدوية خاصة بالعيادة بعد.", () => t("drugs.noOwnDrugs")],
+            ["لا توجد أدوية مطابقة للفلاتر.", () => t("drugs.noFilterResults")],
+            ["«مسح الفلاتر»", () => `«${t("drugs.clearFilters")}»`],
+            ["لا توجد أدوية بعد", () => t("drugs.emptyTitle")],
+            ["«إضافة دواء»", () => `«${t("drugs.add")}»`],
         ],
         // The fields turn red: a behavior, not a text
         descriptions: ["تظهر الحقول الناقصة باللون الأحمر ولا يتم الحفظ"],

@@ -10,6 +10,9 @@ namespace ClinicHub.Application.Features.Catalog.Drugs;
 /// <param name="SubCategoryId">A positive int, <see cref="SubCategoryFilter.None"/>, or null/empty.</param>
 public record DrugListFilter(string Search, string Source, int? CategoryId, string SubCategoryId);
 
+/// <summary>Every category and subcategory row, already loaded by the caller.</summary>
+internal sealed record CatalogNames(IReadOnlyCollection<Category> Categories, IReadOnlyCollection<SubCategory> SubCategories);
+
 /// <summary>
 /// The one query composition of the clinic drug lists (design M1.7 D7): <c>GetDrugs</c> and (M1.7c) <c>GetDrugTree</c>
 /// use it, so a tree bucket's count always equals the drugs it pages.
@@ -27,11 +30,19 @@ public static class DrugQueries
         FilteredAsync(db, db.Drugs.AsNoTracking().Where(d => !d.IsWithdrawn), filter, cancellationToken);
 
     /// <summary>
+    /// <see cref="ListedAsync(IAppDbContext, DrugListFilter, CancellationToken)"/> with the category and subcategory rows the
+    /// caller already loaded (the tree needs them for its names): a search matches their names without loading them again.
+    /// </summary>
+    internal static Task<IQueryable<Drug>> ListedAsync(IAppDbContext db, DrugListFilter filter, CatalogNames names,
+        CancellationToken cancellationToken) =>
+        FilteredAsync(db, db.Drugs.AsNoTracking().Where(d => !d.IsWithdrawn), filter, cancellationToken, names);
+
+    /// <summary>
     /// <see cref="ListedAsync"/>'s source, category and search filters on <paramref name="drugs"/> (the admin list starts
     /// from its status filter instead of "not withdrawn").
     /// </summary>
     internal static async Task<IQueryable<Drug>> FilteredAsync(IAppDbContext db, IQueryable<Drug> drugs,
-        DrugListFilter filter, CancellationToken cancellationToken)
+        DrugListFilter filter, CancellationToken cancellationToken, CatalogNames names = null)
     {
         if (filter.Source == DrugSource.Shared)
             drugs = drugs.Where(d => d.ClinicId == null);
@@ -56,16 +67,22 @@ public static class DrugQueries
         var otherTerm = SearchText.OtherTerm(filter.Search);
         var matchOther = !string.IsNullOrWhiteSpace(otherTerm);
 
-        // The ≤ ~205 category names, folded in memory with the columns' function
-        var categoryIds = (await db.Categories.AsNoTracking()
-                .Select(c => new { c.Id, c.NameEn, c.NameAr })
-                .ToListAsync(cancellationToken))
+        // The ≤ ~205 category names (the caller's, else loaded here), folded in memory with the columns' function
+        // Stryker disable once all : equivalent mutant (without the caller's names the same rows are loaded here: one query more, the same answer)
+        var categoryNames = names?.Categories.Select(c => new NameRow(c.Id, c.NameEn, c.NameAr)).ToList()
+                            ?? await db.Categories.AsNoTracking()
+                                .Select(c => new NameRow(c.Id, c.NameEn, c.NameAr))
+                                .ToListAsync(cancellationToken);
+        // Stryker disable once all : equivalent mutant (without the caller's names the same rows are loaded here: one query more, the same answer)
+        var subCategoryNames = names?.SubCategories.Select(s => new NameRow(s.Id, s.NameEn, s.NameAr)).ToList()
+                               ?? await db.SubCategories.AsNoTracking()
+                                   .Select(s => new NameRow(s.Id, s.NameEn, s.NameAr))
+                                   .ToListAsync(cancellationToken);
+        var categoryIds = categoryNames
             .Where(c => NameMatches(c.NameEn, c.NameAr, term))
             .Select(c => c.Id)
             .ToList();
-        var subCategoryIds = (await db.SubCategories.AsNoTracking()
-                .Select(s => new { s.Id, s.NameEn, s.NameAr })
-                .ToListAsync(cancellationToken))
+        var subCategoryIds = subCategoryNames
             .Where(s => NameMatches(s.NameEn, s.NameAr, term))
             .Select(s => (int?)s.Id)
             .ToList();
@@ -100,7 +117,10 @@ public static class DrugQueries
             .ThenBy(d => d.Id);
     }
 
+    private sealed record NameRow(int Id, string NameEn, string NameAr);
+
     private static bool NameMatches(string nameEn, string nameAr, string term) =>
-        SearchText.Fold(nameEn ?? "").Contains(term, StringComparison.Ordinal)
-        || SearchText.Fold(nameAr ?? "").Contains(term, StringComparison.Ordinal);
+        // Both names are required (D5): never null
+        SearchText.Fold(nameEn).Contains(term, StringComparison.Ordinal)
+        || SearchText.Fold(nameAr).Contains(term, StringComparison.Ordinal);
 }

@@ -57,9 +57,12 @@ export const ProtocolPicker = ({onSelect, autoFocus, maxHeight, enabled = true}:
                             color="text.secondary"
                             sx={{display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere"}}
                         >
-                            {/* Each name with its own direction (a Latin name inside Arabic text, design M1.7b D27) */}
+                            {/* Each name with its own direction (a Latin name inside Arabic text, design M1.7b D27) and kept
+                                whole on a line when it fits, aligned to the interface's start side: a wrapped name's end
+                                never lands beside the next name (M1.7c C37). `left` is flipped to `right` in Arabic by the
+                                RTL style cache */}
                             {protocol.items.map((i, index) => (
-                                <Fragment key={index}>{index > 0 && " · "}<bdi>{i.drug.name}</bdi></Fragment>
+                                <Fragment key={index}>{index > 0 && " · "}<Box component="bdi" sx={{display: "inline-block", maxWidth: "100%", textAlign: "left"}}>{i.drug.name}</Box></Fragment>
                             ))}
                         </Typography>
                     </Box>

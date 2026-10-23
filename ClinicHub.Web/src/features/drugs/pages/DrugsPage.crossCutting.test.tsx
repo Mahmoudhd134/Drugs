@@ -5,6 +5,7 @@ import {
     aDrug,
     api,
     aSharedDrug,
+    drugCategoriesHandler,
     drugsHandlers,
     findToast,
     hoverTooltip,
@@ -185,6 +186,7 @@ describe("drugs page: dialogs and keyboard @area:ux", () => {
         let release!: () => void;
         const gate = new Promise<void>(resolve => (release = resolve));
         server.use(
+            drugCategoriesHandler(),
             http.get(api("/drugs"), async ({request}) => {
                 const search = new URL(request.url).searchParams.get("search");
                 if (search) await gate;

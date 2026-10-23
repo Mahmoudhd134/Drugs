@@ -1,5 +1,5 @@
 import type {Page} from "@playwright/test";
-import {createDrug, createProtocol, deleteProtocol, option, search} from "../support/catalog.ts";
+import {addToProtocol, createDrug, createProtocol, deleteProtocol, search} from "../support/catalog.ts";
 import type {ClinicHandle, Data} from "../support/data.ts";
 import {expect, settled, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
@@ -61,7 +61,7 @@ test.describe("No «مجموعة» or \"group\" left on the screens @area:i18n",
         await pageChecks(page, "role editor");
     });
     test("the protocol editor's save toasts: an edited protocol «تم تحديث البروتوكول», a new one «تم إنشاء البروتوكول» @GRP-102",
-        async ({page, t, data}) => {
+        async ({page, t, lang, data}) => {
             const clinic = await data.clinic();
             const drug = await createDrug(data, clinic, `Tobradex ${unique()}`);
             const protocol = await createProtocol(data, clinic, `Before ${unique()}`, [{drug}]);
@@ -75,8 +75,7 @@ test.describe("No «مجموعة» or \"group\" left on the screens @area:i18n",
             await page.getByRole("link", {name: t.newProtocol}).click();
             await expect(page).toHaveURL(/\/protocols\/new$/);
             await page.getByRole("textbox", {name: t.protocolName}).fill(`New ${unique()}`);
-            await page.getByPlaceholder(t.searchDrugs).fill(drug.name);
-            await option(page, drug.name).click();
+            await addToProtocol(page, lang, drug.name);
             await page.getByRole("button", {name: t.save, exact: true}).click();
             await expectToast(page, t.protocolCreated);
             await expectNoGroupWord(page, "protocol created toast");

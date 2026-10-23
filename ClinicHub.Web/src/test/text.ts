@@ -39,3 +39,72 @@ export const expectOwnDirection = (scope: Element, name: string) => {
 export const DIGITS_FIRST_NAME = "1 2 3 (ONE TWO THREE) 20 F.C.TABS.";
 /** An own drug typed in Arabic (it stays right to left). */
 export const ARABIC_DRUG_NAME = "قطرة مرطبة 10 مل.";
+
+const RTL_CHAR = /[֐-ࣿיִ-﷿ﹰ-ﻼ]/;
+const LTR_CHAR = /[A-Za-zÀ-ɏ]/;
+
+/** The direction of a text's first strong character (the bidi algorithm's rule P2), null when it has none. */
+export const firstStrongDirection = (text: string): "ltr" | "rtl" | null => {
+    for (const ch of text) {
+        if (RTL_CHAR.test(ch)) return "rtl";
+        if (LTR_CHAR.test(ch)) return "ltr";
+    }
+    return null;
+};
+
+/**
+ * The direction `element`'s content runs in, as a browser resolves it (jsdom computes no `direction`): the nearest
+ * `dir` on it or an ancestor; `dir="auto"` takes its own text's first strong character (none: as its parent).
+ */
+export const directionOf = (element: Element): "ltr" | "rtl" => {
+    for (let e: Element | null = element; e; e = e.parentElement) {
+        const dir = e.getAttribute("dir");
+        if (dir === "ltr" || dir === "rtl") return dir;
+        if (dir === "auto") {
+            const found = firstStrongDirection(e.textContent ?? "");
+            if (found) return found;
+        }
+    }
+    return "ltr";
+};
+
+const INLINE_TAGS = new Set(["BDI", "BDO", "SPAN", "B", "I", "EM", "STRONG", "SMALL", "A", "LABEL", "MARK", "ABBR", "CODE", "S", "U", "SUB", "SUP"]);
+const isInline = (e: Element) => {
+    const display = getComputedStyle(e).display;
+    return display ? display.startsWith("inline") : INLINE_TAGS.has(e.tagName);
+};
+
+/** The block whose lines hold `element`: itself, or the nearest ancestor that isn't inline (past a `<bdi>` or `<span>`). */
+export const blockOf = (element: Element): Element => {
+    let e: Element = element;
+    while (isInline(e) && e.parentElement) e = e.parentElement;
+    return e;
+};
+
+/** The outermost element in `scope` whose whole text is `text` (the line holding it, past any `<bdi>` inside). */
+export const lineOf = (scope: Element, text: string): HTMLElement => {
+    const whole = (e: Element) => (e.textContent ?? "").trim() === text;
+    let found = Array.from(scope.querySelectorAll("*")).find(whole);
+    if (!found) throw new Error(`"${text}" is not shown as a text of its own in: ${scope.textContent}`);
+    while (found.parentElement && found.parentElement !== scope && whole(found.parentElement)) found = found.parentElement;
+    return found as HTMLElement;
+};
+
+/**
+ * The side a block's lines are aligned to: its `text-align` (inherited from the nearest ancestor that sets one other than
+ * `start`), with `start` / `end` resolved against the block's own direction (as a browser does).
+ */
+export const alignedSide = (block: Element): "left" | "right" | "center" | "justify" => {
+    let align = "";
+    for (let e: Element | null = block; e && !align; e = e.parentElement) {
+        const value = getComputedStyle(e).textAlign;
+        if (value && value !== "start" && value !== "inherit" && value !== "initial") align = value;
+    }
+    const dir = directionOf(block);
+    if (align === "left" || align === "right" || align === "center" || align === "justify") return align;
+    if (align === "end") return dir === "ltr" ? "right" : "left";
+    return dir === "ltr" ? "left" : "right";
+};
+
+/** The interface's start side: the right in Arabic, the left in English. */
+export const startSide = (lang: "ar" | "en") => (lang === "ar" ? "right" : "left");

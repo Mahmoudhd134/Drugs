@@ -7,12 +7,14 @@ import {
     aSharedDrug,
     DIGITS_FIRST_NAME,
     drugsHandlers,
+    drugTreeHandler,
     expectOwnDirection,
     protocolsHandlers,
     recordRequests,
     renderWithProviders,
     server,
 } from "../../../test";
+import {installIntersectionObserver} from "../../../test/intersection.ts";
 import type {Permission} from "../../access/permissions.ts";
 import {CatalogPanel} from "./CatalogPanel.tsx";
 
@@ -20,12 +22,15 @@ import {CatalogPanel} from "./CatalogPanel.tsx";
 // access business.md «الصلاحيات». A picker the user can't use is neither shown nor loaded (an unhandled request fails).
 
 
-const openPanel = (permissions: Permission[]) =>
-    renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectProtocol={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "ar", user: {permissions}});
+const openPanel = (permissions: Permission[]) => {
+    installIntersectionObserver();
+    return renderWithProviders(<CatalogPanel selectedIds={new Set()} onSelectProtocol={vi.fn()} onSelectDrug={vi.fn()}/>, {lang: "ar", user: {permissions}});
+};
 
 describe("catalog panel by permission @area:access", () => {
     test("with both: the Protocols and Drugs tabs, Protocols first with the focus @ACC-068 @smoke", async () => {
-        server.use(...protocolsHandlers([aProtocol({name: "Post cataract"})]), ...drugsHandlers([aDrug({name: "Tobradex"})]));
+        const tobradex = aDrug({name: "Tobradex"});
+        server.use(...protocolsHandlers([aProtocol({name: "Post cataract"})]), drugTreeHandler([tobradex]), ...drugsHandlers([tobradex]));
         await openPanel(["protocols.list", "drugs.list", "prescriptions.create"]);
         expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["البروتوكولات", "الأدوية"]);
         expect(screen.getByRole("tab", {name: "البروتوكولات"})).toHaveAttribute("aria-selected", "true");
@@ -33,13 +38,15 @@ describe("catalog panel by permission @area:access", () => {
         expect(await screen.findByText("Post cataract")).toBeInTheDocument();
     });
 
-    test("with drugs.list only: only the Drugs tab, its search has the focus, and protocols are never loaded @ACC-068", async () => {
-        server.use(...drugsHandlers([aDrug({name: "Tobradex"})]));
+    test("with drugs.list only: only the Drugs tab, its tree's search has the focus, and protocols are never loaded @ACC-068", async () => {
+        const tobradex = aDrug({name: "Tobradex"});
+        server.use(drugTreeHandler([tobradex]), ...drugsHandlers([tobradex]));
         const requests = recordRequests();
         await openPanel(["drugs.list", "prescriptions.create"]);
         expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["الأدوية"]);
         expect(screen.getByRole("searchbox", {name: "ابحث بالاسم أو المادة الفعالة أو التصنيف…"})).toHaveFocus();
-        expect(await screen.findByText("Tobradex")).toBeInTheDocument();
+        expect(await screen.findByRole("treeitem", {name: "Tobradex"})).toBeInTheDocument();
+        expect(screen.getByRole("tree", {name: "كتالوج الأدوية"})).toBeInTheDocument();
         expect(requests.requests.some(r => r.path === "/protocols")).toBe(false);
     });
 
@@ -51,7 +58,7 @@ describe("catalog panel by permission @area:access", () => {
         expect(screen.getByRole("searchbox", {name: "ابحث عن بروتوكول بالاسم…"})).toHaveFocus();
         expect(await screen.findByText("Post cataract")).toBeInTheDocument();
         await waitFor(() => expect(requests.requests.some(r => r.path === "/protocols")).toBe(true));
-        expect(requests.requests.some(r => r.path === "/drugs")).toBe(false);
+        expect(requests.requests.some(r => r.path === "/drugs" || r.path === "/drugs/tree")).toBe(false);
     });
 
     test("with neither: «ليست لديك صلاحية للبحث في الأدوية أو البروتوكولات.» and nothing loaded @ACC-069", async () => {
@@ -69,13 +76,13 @@ describe("catalog panel by permission @area:access", () => {
 });
 
 describe("prescription drugs tab: each name keeps its own direction @area:i18n", () => {
-    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in the drugs tab @CAT-233",
+    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in the drugs tab's tree rows @CAT-233",
         async () => {
-            server.use(...drugsHandlers([aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})]));
+            // M1.7c: the tab is the drug tree (contract § 3.2); both drugs in «العيون › المياه الزرقاء», which opens by itself
+            const drugs = [aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})];
+            server.use(drugTreeHandler(drugs), ...drugsHandlers(drugs));
             await openPanel(["drugs.list", "prescriptions.create"]);
-            await screen.findByText(DIGITS_FIRST_NAME);
-            const optionOf = (name: string) => screen.getByText(name).closest("[role=option]") as HTMLElement;
-            expectOwnDirection(optionOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
-            expectOwnDirection(optionOf(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+            expectOwnDirection(await screen.findByRole("treeitem", {name: DIGITS_FIRST_NAME}), DIGITS_FIRST_NAME);
+            expectOwnDirection(await screen.findByRole("treeitem", {name: ARABIC_DRUG_NAME}), ARABIC_DRUG_NAME);
         });
 });

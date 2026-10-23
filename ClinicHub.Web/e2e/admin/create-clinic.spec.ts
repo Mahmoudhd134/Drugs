@@ -1,9 +1,12 @@
 import {expect, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {localPhone, unique, uniquePhone} from "../support/phones.ts";
 import {runState} from "../support/run.ts";
-import {ApiSession} from "../support/api.ts";
-import {UX_TEXTS} from "../support/texts-ux.ts";
 import {expectContextLabel, expectToast, navTo, recordRequests} from "../support/ui.ts";
+import {ApiSession} from "../support/api.ts";
+import {drugRow, drugRows} from "../support/catalog.ts";
+import {listDrugs} from "../support/shared.ts";
+import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
+import {SHARED_TEXTS} from "../support/texts-shared.ts";
 
 test.describe("Platform admin: creating a clinic @area:admin", () => {
     test("a double click on «إنشاء العيادة» sends one POST and makes one clinic; its page opens with the toast, and Back doesn't return to the form @ADM-085 @ADM-087 @smoke",
@@ -32,9 +35,11 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             await expect(page.getByRole("textbox", {name: t.ownerPhone})).toHaveCount(0);
         });
 
-    test("SA creates «عيادة النور» in the Arabic UI; its new owner logs in to the template's 2 drugs and its protocol of 2 lines @ADM-088 @smoke",
+    test("SA creates «عيادة النور» in the Arabic UI; its new owner logs in to the template's 2 own drugs (on «أدوية العيادة», first among the shared catalog on «الكل») and its protocol of 2 lines @ADM-088 @smoke",
         async ({page, t, lang, newBrowser}) => {
             test.skip(lang !== "ar", "the Arabic UI");
+            const ct = CATALOG_TEXTS.ar;
+            const st = SHARED_TEXTS.ar;
             const {template} = runState();
             const ownerPhone = uniquePhone();
             await signInSuperAdmin(page, "/admin/clinics/new");
@@ -47,25 +52,24 @@ test.describe("Platform admin: creating a clinic @area:admin", () => {
             const owner = await newBrowser();
             await signIn(owner.page, ownerPhone);
             await expectContextLabel(owner.page, "عيادة النور");
-            // The template's 2 drugs are the clinic's own; the total also counts the shared catalog (M1.7b contract § 4.4),
-            // so it is compared with the API's answer of this run
+            await navTo(owner.page, t, t.navDrugs);
+            // «الكل»: T's 2 own drugs first, then the shared catalog (design M1.7 D7); the total is the API's answer of
+            // the same run (never a literal of the catalog, D12)
             const ownerApi = await ApiSession.login(runState().baseURL, ownerPhone);
-            try {
-                const own = await ownerApi.ok<{ totalCount: number; items: { name: string }[] }>("GET", "/api/v1/drugs?source=own&pageSize=50");
-                expect(own.totalCount).toBe(2);
-                expect(own.items.map(d => d.name).sort()).toEqual([...template.drugs].sort());
-                const all = await ownerApi.ok<{ totalCount: number }>("GET", "/api/v1/drugs");
-                await navTo(owner.page, t, t.navDrugs);
-                await expect(owner.page.getByText(UX_TEXTS.ar.drugsSubtitle(all.totalCount), {exact: true})).toBeVisible();
-            } finally {
-                await ownerApi.dispose();
-            }
+            const all = (await listDrugs(ownerApi, {pageSize: 20})).totalCount;
+            const own = (await listDrugs(ownerApi, {pageSize: 20, source: "own"}));
+            await ownerApi.dispose();
+            expect(own.items.map(d => d.name).sort()).toEqual([...template.drugs].sort());
+            await expect(owner.page.getByText(ct.drugsSubtitle(all), {exact: true})).toBeVisible();
+            const firstNames = await drugRows(owner.page).locator("td:first-child p:first-child").allTextContents();
+            expect(firstNames.slice(0, template.drugs.length).sort()).toEqual([...template.drugs].sort());
+            await expect(drugRows(owner.page).nth(template.drugs.length).getByText(st.chipShared, {exact: true})).toBeVisible();
+            // «أدوية العيادة»: exactly T's 2 own drugs
+            await owner.page.getByRole("group", {name: ct.sourceLabel}).getByRole("button", {name: ct.sourceOwn, exact: true}).click();
+            await expect(owner.page.getByText(ct.drugsSubtitle(template.drugs.length), {exact: true})).toBeVisible();
+            await expect(drugRows(owner.page)).toHaveCount(template.drugs.length);
             for (const drug of template.drugs) {
-                const answered = owner.page.waitForResponse(r => new URL(r.url()).pathname === "/api/v1/drugs"
-                    && new URL(r.url()).searchParams.get("search") === drug);
-                await owner.page.getByPlaceholder(t.searchDrugs).fill(drug);
-                await answered;
-                await expect(owner.page.locator("tbody tr").filter({has: owner.page.getByText(drug, {exact: true})})).toBeVisible();
+                await expect(drugRow(owner.page, drug).getByText(st.chipOwn, {exact: true})).toBeVisible();
             }
             await navTo(owner.page, t, t.navProtocols);
             await expect(owner.page.getByText("إجمالي البروتوكولات: 1", {exact: true})).toBeVisible();

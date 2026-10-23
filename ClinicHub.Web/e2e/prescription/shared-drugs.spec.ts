@@ -14,12 +14,10 @@ import {expectToast} from "../support/ui.ts";
  * edited. The imported drugs are only read (design D12).
  */
 
-/** Adds a drug from the Drugs tab after searching its exact name (the imported catalog is far longer than a page). */
+/** Adds a drug from the Drugs tab's tree after searching its exact name (the imported catalog is far longer than a page). */
 const addShared = async (rx: RxPage, name: string) => {
     await rx.openDrugsTab();
-    await rx.search("drugs").fill(name);
-    const option = rx.catalog.getByRole("option").filter({has: rx.page.getByText(name, {exact: true})});
-    await option.click();
+    await rx.addDrug(name);
     await expect(rx.linesOf(name)).toHaveCount(1);
 };
 
