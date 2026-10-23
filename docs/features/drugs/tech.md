@@ -145,8 +145,8 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
     `drugs.noResults`; «أدوية العيادة» with no category and no search → `drugs.noOwnDrugs` + «إضافة دواء» (with
     `drugs.create`); any other filter, no search → `drugs.noFilterResults` + a `drugs.clearFilters` button (back to the
     defaults, the search emptied); nothing filtered → `drugs.emptyTitle` + description + «إضافة دواء».
-  - **Saving a new own drug while «المشتركة» is chosen** switches the toggle to «أدوية العيادة», page 1, so the new
-    drug shows (CAT-137), through `DrugFormDialog`'s `onSaved(drug, created)` (called after a successful save, before
+  - **Saving a new own drug while «المشتركة» is chosen** switches the toggle to «أدوية العيادة», clears the search (the
+    typed one too) and goes to page 1, so the new drug shows (CAT-137, M1.7c C35), through `DrugFormDialog`'s `onSaved(drug, created)` (called after a successful save, before
     the toast; `created` true for a new drug).
   - Stale answers: the query key holds the search, page, size and filters, so an older, slower answer never replaces a
     newer one (CAT-144); the old rows (and count) stay as placeholder until the new ones arrive, only while their query
@@ -168,7 +168,8 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
   fields). `maxWidth="md"` (room for tapering steps); full-screen on small screens.
 - **Read-only details** (`DrugDetails`, title `drugs.details`, one button «إغلاق»): name, «المادة الفعالة: …»,
   «التصنيف: العيون › المياه الزرقاء» (`drugs.categoryLine` + `categoryPath`; the category alone without a subcategory),
-  description, and an own drug's default dosing; empty rows are left out, long text wraps. Always used for a shared
+  description, and an own drug's default dosing; empty rows are left out, long text wraps. The name is a block `<bdi>`
+  (its own direction) aligned to the interface's start side (M1.7c C37). Always used for a shared
   drug (`DrugFormDialog` shows it whenever `drug.isShared`).
 - **`WithdrawnChip`** (`components/WithdrawnChip.tsx`): the one «معطّل من الإدارة» mark (protocol editor lines,
   protocol cards with `count`, prescription lines, admin rows). A focusable chip whose `TapTooltip` (hover, focus, tap

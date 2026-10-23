@@ -84,7 +84,9 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
     (M1.6.1, Q1): Undo restores the prescription as it was.
   - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
 - `components/CatalogPanel.tsx`: tabs **Protocols** (default) / **Drugs**; both stay mounted (the tree keeps its search,
-  open nodes and scroll position across tab switches, CAT-124). The Drugs tab is
+  open nodes and scroll position across tab switches, CAT-124: `DrugTree` keeps the panel's `scrollTop` from its
+  last scroll while shown and puts it back when a `ResizeObserver` sees the panel get a size again, since Chromium's own
+  restore of a `display: none` box came back ~2 px per loaded row too far down, T5 AC-2). The Drugs tab is
   `<DrugTree onSelect selectedIds autoFocus={tab === "drugs"} maxHeight="58vh" enabled={canDrugs}/>` (see
   [The drug tree](#the-drug-tree-drugtree) below). Selecting a drug keeps the search, the open nodes, the
   loaded pages and the scroll position (the old picker cleared its search). Each tab shows only
@@ -100,7 +102,9 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   its name alone, RX-060), note, and `WithdrawnChip` («معطّل من الإدارة» with its tooltip) when the line's snapshot has
   `withdrawn: true` (a tap on it shows the tooltip without opening the line); actions ✎ edit, ⊕ add for the other eye
   (only when possible), ✕ remove. Clicking the row text also edits.
-- The protocols tab's rows (`ProtocolPicker`) show «الأدوية: N» (every line) and, when some lines' drugs are disabled,
+- The protocols tab's rows (`ProtocolPicker`) list their drugs «A · B», each name an inline-block `<bdi>` (its own
+  direction, kept whole on a line when it fits, aligned to the interface's start side; M1.7b D27, M1.7c C37), show
+  «الأدوية: N» (every line) and, when some lines' drugs are disabled,
   `WithdrawnChip count={n}` («معطّل من الإدارة: n»; inside the option, so not a Tab stop of its own).
 - `components/useProtocolAddDialogs.tsx`: promise-based dialogs `askEye` and `askConflict`
   (render `dialogs` in the page). On a phone (375 px) the conflict dialog's two boxes («الحالي» / «من البروتوكول») are
@@ -155,8 +159,8 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
   rows `dedupeById`). Order: `sortTree` on render (name with `Intl.Collator(language)`, by count when searching, pinned
   rows then the «بدون تصنيف فرعي» bucket last): a language switch re-sorts without a request.
 - **What is shown:** the tree's state (`View`: the search and source of its answer, open categories, open buckets)
-  changes only on the **first answer** of a new (search, source): everything closes, then `autoOpenBucket` opens the
-  lone bucket and its category. A refetch of the same key (a drug saved) changes nothing (C12), so a bucket the user
+  changes only on the **first answer** of a new (search, source): everything closes, the scroll panel goes back to its
+  top (M1.7c C36), then `autoOpenBucket` opens the lone bucket and its category. A refetch of the same key (a drug saved) changes nothing (C12), so a bucket the user
   closed stays closed. The open buckets keep the shown tree's search and source until the new answer replaces it.
   Closing a bucket (or its category, which closes its buckets, or a new tree) removes its query
   (`queryClient.removeQueries`, after the commit), so reopening starts at page 1.
@@ -167,7 +171,9 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
   below `sm`. Drug line: name, the ingredients on one line from `sm` (ellipsis, full text in a `TapTooltip` without tap,
   since a tap adds the drug; wraps on a phone), an own drug's `DosingText`, the «مشترك» / «خاص بالعيادة» chip, «مُضاف»
   or ⊕; no description. The name and the ingredients each sit in a `<bdi>` (M1.7b D27: a Latin name reads left to right
-  in the Arabic UI; the ingredients line follows the interface's alignment). The click handler is on the `treeitem`
+  in the Arabic UI). The ingredients line is `dir="auto"` (its own text's direction: its beginning visible, the ellipsis at
+  its end) and a line that fits is aligned to the interface's start side (`textAlign: "left"`, flipped by the RTL style
+  cache; M1.7c C34). The click handler is on the `treeitem`
   itself (a click anywhere on the row, the chevron included, toggles a node or adds a drug); a click coming from inside
   its `role="group"` (a nested row, «تحميل المزيد», a retry) is left to them. A click whose `event.detail > 1` is
   ignored.
