@@ -1,7 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import toast from "react-hot-toast";
-import {aDrug, aLine, anItem, aProtocol, aSharedDrug, aProtocolDrug, expectToasts, fillIn, findToast, isolate, toastTexts} from "../../../test";
+import {aDrug, aLine, anItem, aProtocol, aSharedDrug, aProtocolDrug, expectToasts, fillIn, findToast, isolate, pastExitTransition, toastTexts} from "../../../test";
 import type {Dosing} from "../../dosing/types.ts";
 import type {PrescriptionLine} from "../types.ts";
 import {openPrescription, storedLines} from "../../../test/pages/prescription.tsx";
@@ -50,7 +50,10 @@ describe("adding a protocol with a disabled drug @area:prescription", () => {
             // Newest first: the ⚠ toast follows the protocol toast
             await expectToasts(warning(1), protocolToast);
             expect(success).toHaveBeenCalledTimes(1);
+            // Once the answered dialogs have finished closing, no question is open (none asked again)
+            await pastExitTransition();
             expect(screen.queryByText("أي عين؟")).not.toBeInTheDocument();
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
             expect(summary()).toEqual([
                 ["Same", null, false], ["Replaced", null, false], [withdrawn.name, "right", true], ["Nevanac", "left", false],
             ]);

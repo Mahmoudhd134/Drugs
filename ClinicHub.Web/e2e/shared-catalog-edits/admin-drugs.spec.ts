@@ -48,7 +48,7 @@ test.describe("The super admin's shared drugs @area:admin", () => {
             const drug = await sharedDrug(admin);
             await signInSuperAdmin(page);
             await openAdminOn(page, drug.name);
-            await adminDrugRow(page, drug.name).getByRole("button", {name: st.withdraw}).click();
+            await adminDrugRow(page, drug.name).getByRole("button", {name: st.withdrawRow(drug.name)}).click();
             const confirm = page.getByRole("dialog", {name: st.withdrawTitle(drug.name)});
             await expect(confirm).toBeVisible();
             await expect(confirm).toContainText(st.withdrawMessage);
@@ -69,7 +69,7 @@ test.describe("The super admin's shared drugs @area:admin", () => {
             const row = adminDrugRow(page, drug.name);
             await expectMarkTooltip(page, markIn(row, st.withdrawnChip), "ar", "admin row");
             await healthy();
-            await row.getByRole("button", {name: st.restore}).click();
+            await row.getByRole("button", {name: st.restoreRow(drug.name)}).click();
             await expect(page.getByRole("dialog")).toHaveCount(0);
             await expectToast(page, st.restoredToast);
             await expect(adminDrugRow(page, drug.name)).toHaveCount(0);
@@ -91,7 +91,7 @@ test.describe("The super admin's shared drugs @area:admin", () => {
 
         const withdraws = recordRequests(page, "POST", /^\/api\/v1\/admin\/drugs\/\d+\/withdraw$/);
         await searchAdmin(page, "ar", name);
-        await adminDrugRow(page, name).getByRole("button", {name: st.withdraw}).click();
+        await adminDrugRow(page, name).getByRole("button", {name: st.withdrawRow(name)}).click();
         await confirmButton(page.getByRole("dialog", {name: st.withdrawTitle(name)})).dblclick();
         await expectToast(page, st.withdrawnToast);
         expect(withdraws).toHaveLength(1);
@@ -133,7 +133,7 @@ test.describe("The super admin's shared drugs @area:admin", () => {
             await openAdminOn(page, drug.name);
             await demoteOn(page, "POST", /\/api\/v1\/admin\/drugs\/\d+\/withdraw$/);
             const forbidden = page.waitForResponse(r => /\/withdraw$/.test(r.url()) && r.status() === 403);
-            await adminDrugRow(page, drug.name).getByRole("button", {name: st.withdraw}).click();
+            await adminDrugRow(page, drug.name).getByRole("button", {name: st.withdrawRow(drug.name)}).click();
             await confirmButton(page.getByRole("dialog", {name: st.withdrawTitle(drug.name)})).click();
             await forbidden;
             await expectSignedOutOfPlatform(page);

@@ -199,14 +199,14 @@ describe("a page across a context switch @area:auth", () => {
         );
         const app = await startApp({route: "/drugs", lang: "ar"});
         await screen.findByText("A drug");
-        const search = screen.getByPlaceholderText("ابحث عن دواء بالاسم…");
+        const search = screen.getByPlaceholderText("ابحث بالاسم أو المادة الفعالة أو التصنيف…");
         await app.user.type(search, "Tob");
         expect(search).toHaveValue("Tob");
 
         act(() => app.session.setSession(sessionIn(clinicB, [clinicA, clinicB])));
 
         expect(await screen.findByText("B drug")).toBeInTheDocument();
-        const remounted = screen.getByPlaceholderText("ابحث عن دواء بالاسم…");
+        const remounted = screen.getByPlaceholderText("ابحث بالاسم أو المادة الفعالة أو التصنيف…");
         expect(remounted).not.toBe(search);
         expect(search).not.toBeInTheDocument();
         expect(remounted).toHaveValue("");

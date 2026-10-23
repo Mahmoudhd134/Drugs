@@ -13,6 +13,7 @@ import {
 import {adminCategories, type AdminDrug, grouped, IMPORTED, type Paged} from "../support/shared.ts";
 import type {Lang} from "../support/texts.ts";
 import {SHARED_TEXTS} from "../support/texts-shared.ts";
+import {expectNoCutOrOverlap, expectPlaceholderNotCut} from "../support/ux.ts";
 
 /**
  * The super admin's shared catalog screens, read only (design M1.7 D9; M1.7b contract "Admin drugs page", "Admin
@@ -152,7 +153,7 @@ test.describe("Platform admin: the categories page @area:admin", () => {
 
             for (const open of ["add", "rename", "add subcategory"] as const) {
                 if (open === "add") await page.getByRole("button", {name: st.addCategory, exact: true}).click();
-                else await row.getByRole("button", {name: open === "rename" ? st.renameCategory : st.addSubCategory}).first().click();
+                else await row.getByRole("button", {name: open === "rename" ? st.renameRow(name(oncology)) : st.addSubCategory}).first().click();
                 const form = page.getByRole("dialog");
                 await expect(form, open).toBeVisible();
                 const english = form.getByRole("textbox", {name: st.nameEn});
@@ -169,5 +170,21 @@ test.describe("Platform admin: the categories page @area:admin", () => {
                 await form.getByRole("button", {name: t.cancel}).click();
                 await expect(form).toHaveCount(0);
             }
+        });
+});
+
+test.describe("Platform admin: the shared drugs search at 800 px @area:admin", () => {
+    test("at 800 × 900 (sidebar shown), the search's placeholder «ابحث في الكتالوج المشترك…» / \"Search the shared catalog…\" is shown whole, and the filters row has no cut text @CAT-237",
+        async ({page, lang, isMobile}) => {
+            test.skip(isMobile, "a desktop width: the desktop projects (Arabic, English)");
+            const st = SHARED_TEXTS[lang];
+            await page.setViewportSize({width: 800, height: 900});
+            await signInSuperAdmin(page, "/admin/drugs");
+            await expect(page.getByRole("heading", {name: st.adminDrugsTitle})).toBeVisible();
+            await settled(page);
+            const search = page.getByPlaceholder(st.adminSearch, {exact: true});
+            await expect(search).toBeVisible();
+            await expectPlaceholderNotCut(search, `${lang} admin drugs search at 800 px`);
+            await expectNoCutOrOverlap(page.locator("main"), `${lang} admin drugs at 800 px`);
         });
 });

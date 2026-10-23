@@ -13,7 +13,7 @@ type Props = {
 /** Drug name with its description underneath. */
 export const DrugText = ({drug, descriptionLines, showDosing}: Props) => (
     <Box sx={{minWidth: 0}}>
-        <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{drug.name}</Typography>
+        <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{drug.name}</bdi></Typography>
         {showDosing && <DosingText dosing={drug.defaultDosing}/>}
         {drug.description && (
             <Typography

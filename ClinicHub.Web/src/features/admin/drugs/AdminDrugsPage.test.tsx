@@ -10,14 +10,17 @@ import {
     api,
     choose,
     clickOutside,
-    EYE,
+    DIGITS_FIRST_NAME,
+    expectOwnDirection,
     expectStillOpen,
     expectToasts,
+    EYE,
     fillIn,
     GLAUCOMA,
     holdTimers,
     pastExitTransition,
     recordRequests,
+    rowAction,
     server,
     toastTexts,
 } from "../../../test";
@@ -64,14 +67,14 @@ describe("admin drugs: disabling on «الكل» and «مفعّل» @area:admin"
             const {user} = await openPage([drug, anAdminDrug({name: "OTHER DROPS 5 ML"})]);
             await choose(user, statusField(), "الكل");
             let row = await rowOf(drug.name);
-            await user.click(within(row).getByRole("button", {name: "تعطيل الدواء"}));
+            await user.click(within(row).getByRole("button", {name: rowAction("تعطيل", drug.name)}));
             const dialog = await screen.findByRole("dialog");
             await user.click(confirmButton(dialog));
             await waitFor(() => expect(toastTexts()).toContain("تم تعطيل الدواء"));
 
             row = await rowOf(drug.name);
-            await waitFor(() => expect(within(row).getByRole("button", {name: "تفعيل الدواء"})).toBeInTheDocument());
-            expect(within(row).queryByRole("button", {name: "تعطيل الدواء"})).not.toBeInTheDocument();
+            await waitFor(() => expect(within(row).getByRole("button", {name: rowAction("تفعيل", drug.name)})).toBeInTheDocument());
+            expect(within(row).queryByRole("button", {name: rowAction("تعطيل", drug.name)})).not.toBeInTheDocument();
             await expectWithdrawnTooltip(withdrawnMark(row, WITHDRAWN.ar.chip));
             expect(within(await rowOf("OTHER DROPS 5 ML")).queryByText(WITHDRAWN.ar.chip)).not.toBeInTheDocument();
         });
@@ -91,7 +94,7 @@ describe("admin drugs: disabling on «الكل» and «مفعّل» @area:admin"
         const last = await rowOf("DRUG 101");
         expect(screen.getAllByRole("row").slice(1)).toHaveLength(1);
 
-        await user.click(within(last).getByRole("button", {name: "تعطيل الدواء"}));
+        await user.click(within(last).getByRole("button", {name: rowAction("تعطيل", "DRUG 101")}));
         await user.click(confirmButton(await screen.findByRole("dialog")));
         await waitFor(() => expect(screen.queryByText("DRUG 101")).not.toBeInTheDocument());
         // The page shown is the one before (its rows may come from the refreshed cache, without a new request)
@@ -178,7 +181,7 @@ describe("admin drugs: the shared drug dialog locked while saving, fresh on each
     test("✎ on a drug opens «تعديل الدواء المشترك» from that drug: its name, ingredients, category and subcategory, no dosing @UX-044", async () => {
         const drug = anAdminDrug({name: "VIGAMOX 0.5% EYE DROPS 5 ML", activeIngredients: "MOXIFLOXACIN"});
         const {user} = await openPage([drug]);
-        await user.click(within(await rowOf(drug.name)).getByRole("button", {name: /^تعديل/}));
+        await user.click(within(await rowOf(drug.name)).getByRole("button", {name: rowAction("تعديل", drug.name)}));
         const dialog = await screen.findByRole("dialog", {name: "تعديل الدواء المشترك"});
         expect(within(dialog).getByRole("textbox", {name: "الاسم"})).toHaveValue(drug.name);
         expect(ingredientsField(dialog)).toHaveValue("MOXIFLOXACIN");
@@ -193,10 +196,10 @@ describe("admin drugs: the toasts can be dismissed @area:ux", () => {
         const drug = anAdminDrug({name: "TEST DROPS 5 ML"});
         const {user} = await openPage([drug], "/admin/drugs?status=all");
         const row = await rowOf(drug.name);
-        await user.click(within(row).getByRole("button", {name: "تعطيل الدواء"}));
+        await user.click(within(row).getByRole("button", {name: rowAction("تعطيل", drug.name)}));
         await user.click(confirmButton(await screen.findByRole("dialog")));
-        await waitFor(() => expect(within(row).getByRole("button", {name: "تفعيل الدواء"})).toBeInTheDocument());
-        await user.click(within(row).getByRole("button", {name: "تفعيل الدواء"}));
+        await waitFor(() => expect(within(row).getByRole("button", {name: rowAction("تفعيل", drug.name)})).toBeInTheDocument());
+        await user.click(within(row).getByRole("button", {name: rowAction("تفعيل", drug.name)}));
         await expectToasts("تم تفعيل الدواء", "تم تعطيل الدواء");
 
         const disabled = screen.getByText("تم تعطيل الدواء").closest("[role=status]")!.parentElement!;
@@ -206,4 +209,35 @@ describe("admin drugs: the toasts can be dismissed @area:ux", () => {
         await act(async () => within(enabled).getByRole("button", {name: "إغلاق"}).click());
         await waitFor(() => expect(toastTexts()).toEqual([]), {timeout: 1000});
     });
+});
+
+describe("admin drugs: each name keeps its own direction @area:i18n", () => {
+    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» is isolated with its own direction in its row @CAT-233", async () => {
+        await openPage([anAdminDrug({name: DIGITS_FIRST_NAME})]);
+        expectOwnDirection(await rowOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
+    });
+});
+
+describe("admin drugs: row buttons name their drug @area:admin", () => {
+    test("✎ and «تعطيل» / «تفعيل» of each row end with that row's drug name, so no two rows share a button name (ar, en) @CAT-236",
+        async () => {
+            const active = anAdminDrug({name: DIGITS_FIRST_NAME});
+            const other = anAdminDrug({name: "OTHER DROPS 5 ML"});
+            const withdrawn = anAdminDrug({name: "WITHDRAWN DROPS 5 ML", withdrawn: true, withdrawnAt: "2026-10-20T10:00:00Z"});
+            const {unmount} = await openPage([active, other, withdrawn], "/admin/drugs?status=all");
+            for (const drug of [active, other, withdrawn]) {
+                const row = await rowOf(drug.name);
+                // One button on the whole page answers to each name, and it is in that drug's row
+                expect(row).toContainElement(screen.getByRole("button", {name: rowAction("تعديل", drug.name)}));
+                expect(row).toContainElement(screen.getByRole("button", {name: rowAction(drug.withdrawn ? "تفعيل" : "تعطيل", drug.name)}));
+            }
+            unmount();
+
+            await openPage([active, withdrawn], "/admin/drugs?status=all", "en");
+            for (const drug of [active, withdrawn]) {
+                const row = await rowOf(drug.name);
+                expect(within(row).getByRole("button", {name: rowAction("Edit", drug.name, "en")})).toBeInTheDocument();
+                expect(within(row).getByRole("button", {name: rowAction(drug.withdrawn ? "Enable" : "Disable", drug.name, "en")})).toBeInTheDocument();
+            }
+        });
 });

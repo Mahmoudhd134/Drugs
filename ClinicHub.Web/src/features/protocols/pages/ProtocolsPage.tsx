@@ -152,7 +152,7 @@ export const ProtocolsPage = () => {
                                         <Box component="ol" sx={{m: 0, paddingInlineStart: 2.5, color: "text.secondary"}}>
                                             {protocol.items.slice(0, PREVIEW_DRUGS).map(({drug}, index) => (
                                                 <Typography component="li" variant="body2" key={index} sx={{overflowWrap: "anywhere"}}>
-                                                    {drug.name}
+                                                    <bdi>{drug.name}</bdi>
                                                 </Typography>
                                             ))}
                                         </Box>

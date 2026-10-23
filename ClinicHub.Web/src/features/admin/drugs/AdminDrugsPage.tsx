@@ -181,8 +181,12 @@ export const AdminDrugsPage = () => {
             />
 
             <Paper variant="outlined" sx={{overflow: "hidden"}}>
-                <Stack direction={{xs: "column", md: "row"}} sx={{p: 2, gap: 1.5}}>
-                    <SearchField value={search} onChange={setSearch} placeholder={t("adminDrugs.searchPlaceholder")}/>
+                {/* One row only when the search keeps room for its whole placeholder next to the three filters (with the
+                    sidebar shown, a row below 1200 px squeezed it to "Search the sh…"); else the filters go under it */}
+                <Stack direction={{xs: "column", lg: "row"}} sx={{p: 2, gap: 1.5}}>
+                    <Box sx={{flex: 1, minWidth: {lg: 280}}}>
+                        <SearchField value={search} onChange={setSearch} placeholder={t("adminDrugs.searchPlaceholder")}/>
+                    </Box>
                     <Stack direction={{xs: "column", sm: "row"}} sx={{gap: 1.5}}>
                         <TextField
                             select
@@ -268,7 +272,7 @@ export const AdminDrugsPage = () => {
                                                 sx={{cursor: "pointer", "& td": {py: 1.25}, verticalAlign: "top"}}
                                             >
                                                 <TableCell>
-                                                    <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{drug.name}</Typography>
+                                                    <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{drug.name}</bdi></Typography>
                                                     {/* On a phone the ingredients and the category go under the name */}
                                                     {drug.activeIngredients && (
                                                         <Typography variant="body2" color="text.secondary" dir="auto"
@@ -290,21 +294,21 @@ export const AdminDrugsPage = () => {
                                                 <TableCell sx={{display: {xs: "none", sm: "table-cell"}, overflowWrap: "anywhere"}}>{path}</TableCell>
                                                 <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{whiteSpace: "nowrap"}}>
                                                     <Tooltip title={t("adminDrugs.edit")}>
-                                                        <IconButton size="small" onClick={() => openEdit(drug)} aria-label={t("adminDrugs.edit")}>
+                                                        <IconButton size="small" onClick={() => openEdit(drug)} aria-label={t("adminDrugs.editNamed", {name: drug.name})}>
                                                             <EditIcon fontSize="small"/>
                                                         </IconButton>
                                                     </Tooltip>
                                                     {drug.withdrawn ? (
                                                         <Tooltip title={t("adminDrugs.restore")}>
                                                             <IconButton size="small" color="success" onClick={() => void toggleWithdrawn(drug)}
-                                                                        aria-label={t("adminDrugs.restore")}>
+                                                                        aria-label={t("adminDrugs.restoreNamed", {name: drug.name})}>
                                                                 <RestoreIcon fontSize="small"/>
                                                             </IconButton>
                                                         </Tooltip>
                                                     ) : (
                                                         <Tooltip title={t("adminDrugs.withdraw")}>
                                                             <IconButton size="small" color="error" onClick={() => void toggleWithdrawn(drug)}
-                                                                        aria-label={t("adminDrugs.withdraw")}>
+                                                                        aria-label={t("adminDrugs.withdrawNamed", {name: drug.name})}>
                                                                 <BlockIcon fontSize="small"/>
                                                             </IconButton>
                                                         </Tooltip>

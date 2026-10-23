@@ -39,7 +39,7 @@ export const DosingLineList = <T extends Line>(props: Props<T>) => {
                 sx={{flex: 1, minWidth: 0, cursor: readOnly ? undefined : "pointer"}}
                 onClick={readOnly ? undefined : () => onEdit(line)}
             >
-                <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{line.drug.name}</Typography>
+                <Typography sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{line.drug.name}</bdi></Typography>
                 {renderDetails(line)}
             </Stack>
             {!readOnly && (

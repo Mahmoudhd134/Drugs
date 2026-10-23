@@ -46,6 +46,56 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
         stored.Description.ShouldBe("Shared description");
     }
 
+    [Fact]
+    [Trait("Case", "CAT-024")]
+    [Trait("Case", "ISO-032")]
+    public async Task A_clinic_request_saving_a_detached_shared_drug_with_ClinicId_0_throws_and_writes_nothing()
+    {
+        // A ClinicId of 0 counts as none (shared), as on an added row (CAT-025): the row stays read-only in a clinic
+        var shared = await Data.SharedDrug().Described("Shared description");
+        var clinic = await Data.Clinic();
+
+        await InScopeAsync(clinic.Id, writingShared: false, async db =>
+        {
+            db.Drugs.Update(new Drug
+            {
+                Id = shared.Id, Name = "Overwritten by a clinic", ClinicId = 0,
+                CategoryId = CategoryIds.Eye, SubCategoryId = SubCategoryIds.Glaucoma,
+            });
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+
+        var stored = await StoredAsync(shared.Id);
+        stored.Name.ShouldBe(shared.Name);
+        stored.Description.ShouldBe("Shared description");
+        stored.ClinicId.ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Case", "CAT-231")]
+    public async Task With_no_clinic_and_outside_UseSharedCatalog_changing_a_shared_drug_throws_and_writes_nothing()
+    {
+        var shared = await Data.SharedDrug().Described("Shared description");
+
+        await InScopeAsync(null, writingShared: false, async db =>
+        {
+            var loaded = await db.Drugs.SingleAsync(d => d.Id == shared.Id);
+            loaded.Name = "Changed outside the admin use cases";
+            loaded.Description = "Changed outside the admin use cases";
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+        await InScopeAsync(null, writingShared: false, async db =>
+        {
+            (await db.Drugs.SingleAsync(d => d.Id == shared.Id)).Withdraw(Clock.GetUtcNow().UtcDateTime);
+            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        });
+
+        var stored = await StoredAsync(shared.Id);
+        stored.Name.ShouldBe(shared.Name);
+        stored.Description.ShouldBe("Shared description");
+        stored.IsWithdrawn.ShouldBeFalse();
+    }
+
     [Theory]
     [Trait("Case", "CAT-025")]
     [Trait("Case", "ISO-031")]

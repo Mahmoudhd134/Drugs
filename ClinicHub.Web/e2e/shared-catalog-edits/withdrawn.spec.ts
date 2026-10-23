@@ -350,9 +350,9 @@ test.describe("The «معطّل من الإدارة» mark and its tooltip every
             await expect(adm.getByRole("option")).toHaveText([st.statusActive, st.statusWithdrawn, st.statusAll]);
             await adm.keyboard.press("Escape");
             const row = adminDrugRow(adm, w.name);
-            await row.getByRole("button", {name: st.restore}).click();
+            await row.getByRole("button", {name: st.restoreRow(w.name)}).click();
             await expect(toast(adm, st.restoredToast)).toBeVisible();
-            await row.getByRole("button", {name: st.withdraw}).click();
+            await row.getByRole("button", {name: st.withdrawRow(w.name)}).click();
             const confirm = namedDialog(adm, st.withdrawTitle(w.name));
             await expect(confirm).toBeVisible();
             await confirm.getByRole("button").filter({hasNotText: "Cancel"}).click();

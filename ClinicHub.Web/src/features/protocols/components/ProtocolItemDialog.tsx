@@ -50,7 +50,7 @@ const ItemForm = ({item, onClose, onSave}: { item: EditorItem } & Omit<Props, "i
         <>
             <DialogTitle>
                 {t("protocols.itemDosing")}
-                <Typography color="text.secondary" sx={{fontWeight: 600, overflowWrap: "anywhere"}}>{item.drug.name}</Typography>
+                <Typography color="text.secondary" sx={{fontWeight: 600, overflowWrap: "anywhere"}}><bdi>{item.drug.name}</bdi></Typography>
             </DialogTitle>
             <DialogContent>
                 <Stack sx={{gap: 1.5, pt: 1}}>

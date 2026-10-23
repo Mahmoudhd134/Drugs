@@ -66,6 +66,22 @@ public class SharedDrugListTests(AppFixture app) : IntegrationTest(app)
         problem.ShouldHaveError("status", "invalidRequest");
     }
 
+    [Theory]
+    [Trait("Case", "CAT-057")]
+    [InlineData("subCategoryId=5")]
+    [InlineData("subCategoryId=none")]
+    [InlineData("subCategoryId=5&status=all")]
+    public async Task A_subcategory_filter_without_a_category_is_400_invalidRequest_on_subCategoryId(string query)
+    {
+        // Like the clinic list (design M1.7 D8)
+        var admin = await AdminAsync();
+
+        var problem = await (await admin.GetAsync($"{AdminDrugs}?{query}"))
+            .ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidRequest");
+
+        problem.ShouldHaveError("subCategoryId", "invalidRequest");
+    }
+
     [Fact]
     [Trait("Case", "CAT-183")]
     public async Task Searching_tobra_lists_the_34_shared_matches_those_starting_with_it_first_then_by_name()
