@@ -221,7 +221,7 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             for (const [i, drug] of firstPage.slice(0, 8).entries()) {
                 const row = drugRows(page).nth(i);
                 await expect(row).toContainText(drug.name);
-                const path = row.getByText(pathOf(drug, lang), {exact: true});
+                const path = row.getByText(pathOf(drug, lang), {exact: true}).filter({visible: true});
                 await expect(path, drug.name).toBeVisible();
                 await expect(row, drug.name).not.toContainText(pathOf(drug, otherLang(lang)));
                 expect(await path.evaluate(e => getComputedStyle(e).direction), `${drug.name}: direction`).toBe(lang === "ar" ? "rtl" : "ltr");
@@ -230,7 +230,7 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             const alemox = (await listDrugs(api, {search: IMPORTED.alemox1g, source: "shared"})).items.find(d => d.name === IMPORTED.alemox1g)!;
             await search(page, page.getByPlaceholder(t.searchDrugs), IMPORTED.alemox1g);
             const row = drugRow(page, IMPORTED.alemox1g);
-            await expect(row.getByText(pathOf(alemox, lang), {exact: true})).toBeVisible();
+            await expect(row.getByText(pathOf(alemox, lang), {exact: true}).filter({visible: true})).toBeVisible();
             await expect(row).not.toContainText(pathOf(alemox, otherLang(lang)));
             await healthy();
         });
@@ -295,7 +295,7 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             // Below `sm` the category column is hidden: the path shows under the name
             await expect(page.getByRole("columnheader", {name: st.category, exact: true})).toBeHidden();
             const first = (await listDrugs(await data.ownerApi(clinic), {pageSize: 20})).items[0];
-            await expect(drugRows(page).first().getByText(pathOf(first, lang), {exact: true})).toBeVisible();
+            await expect(drugRows(page).first().getByText(pathOf(first, lang), {exact: true}).filter({visible: true})).toBeVisible();
             for (const source of ["shared", "own"] as const) {
                 await sourceButton(page, ct, source).click();
                 await expectPressed(page, ct, source);

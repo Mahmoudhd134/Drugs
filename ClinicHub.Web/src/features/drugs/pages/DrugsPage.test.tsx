@@ -5,6 +5,7 @@ import {http, HttpResponse} from "msw";
 import {
     aDrug,
     api,
+    drugCategoriesHandler,
     drugsHandlers,
     findToast,
     isolate,
@@ -85,6 +86,7 @@ describe("drugs page: the list @area:catalog", () => {
     test("the list fails to load: «تعذّر تحميل البيانات.» with «إعادة المحاولة», which reloads @DRUG-057", async () => {
         let fail = true;
         server.use(
+            drugCategoriesHandler(),
             http.get(api("/drugs"), () => (fail ? problem(500, "unexpected") : HttpResponse.json({items: [aDrug({name: "Vigamox"})], totalCount: 1, page: 1, pageSize: 20}))),
         );
         const {user} = await renderWithProviders(<DrugsPage/>, {lang: "ar"});
@@ -97,7 +99,7 @@ describe("drugs page: the list @area:catalog", () => {
     });
 
     test("in English the load error reads \"Couldn't load data.\" with \"Retry\" @DRUG-057", async () => {
-        server.use(http.get(api("/drugs"), () => networkError()));
+        server.use(drugCategoriesHandler(), http.get(api("/drugs"), () => networkError()));
         await renderWithProviders(<DrugsPage/>, {lang: "en"});
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent("Couldn't load data.");

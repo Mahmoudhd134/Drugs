@@ -26,8 +26,12 @@ const CATEGORIES: Category[] = [
     },
 ];
 
-const read = (query: string, categories: Category[] | undefined = CATEGORIES) =>
+/** Read with the categories loaded (`CATEGORIES`, or the given list). */
+const read = (query: string, categories: Category[] = CATEGORIES) =>
     readDrugListParams(new URLSearchParams(query), categories);
+
+/** Read while the categories load (`undefined`): a default parameter would swallow an explicit `undefined`. */
+const readLoading = (query: string) => readDrugListParams(new URLSearchParams(query), undefined);
 
 const params = (fields: Partial<DrugListParams> = {}): DrugListParams => ({...DEFAULT_DRUG_LIST_PARAMS, ...fields});
 
@@ -38,7 +42,7 @@ describe("drugs page URL: reading the query @area:catalog", () => {
     test("an empty query: the defaults (search empty, «الكل», no category, page 1) @CAT-134", () => {
         expect(DEFAULT_DRUG_LIST_PARAMS).toEqual({search: "", source: "all", categoryId: null, subCategoryId: null, page: 1});
         expect(read("")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
-        expect(read("", undefined)).toEqual(DEFAULT_DRUG_LIST_PARAMS);
+        expect(readLoading("")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
     });
 
     test("every value set and valid is read as it is (the search as typed) @CAT-134", () => {
@@ -68,12 +72,12 @@ describe("drugs page URL: reading the query @area:catalog", () => {
     test.each(["0", "-1", "-17", "1.5", "17.0", "abc", "", "17abc", "1e2", "0x11", "2147483648", "99999999999"])(
         "categoryId «%s» is not a positive 32-bit integer: no category, and its subcategory dropped with it @CAT-135",
         (value) => {
-            expect(read(`categoryId=${value}&subCategoryId=138`, undefined)).toEqual(DEFAULT_DRUG_LIST_PARAMS);
+            expect(readLoading(`categoryId=${value}&subCategoryId=138`)).toEqual(DEFAULT_DRUG_LIST_PARAMS);
             expect(read(`categoryId=${value}&subCategoryId=138`)).toEqual(DEFAULT_DRUG_LIST_PARAMS);
         });
 
     test("the largest 32-bit id (2147483647) is a valid id while the categories load @CAT-135", () => {
-        expect(read("categoryId=2147483647&subCategoryId=2147483647", undefined))
+        expect(readLoading("categoryId=2147483647&subCategoryId=2147483647"))
             .toEqual(params({categoryId: 2147483647, subCategoryId: 2147483647}));
     });
 
@@ -89,12 +93,12 @@ describe("drugs page URL: reading the query @area:catalog", () => {
 
     test("subCategoryId without categoryId is dropped (loaded or not) @CAT-135", () => {
         expect(read("subCategoryId=138")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
-        expect(read("subCategoryId=138", undefined)).toEqual(DEFAULT_DRUG_LIST_PARAMS);
+        expect(readLoading("subCategoryId=138")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
     });
 
     test("subCategoryId=none alone is dropped (loaded or not) @CAT-135", () => {
         expect(read("subCategoryId=none")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
-        expect(read("subCategoryId=none", undefined)).toEqual(DEFAULT_DRUG_LIST_PARAMS);
+        expect(readLoading("subCategoryId=none")).toEqual(DEFAULT_DRUG_LIST_PARAMS);
     });
 
     test("a subcategory of another category is dropped, the category kept @CAT-135", () => {
@@ -109,13 +113,13 @@ describe("drugs page URL: reading the query @area:catalog", () => {
     test.each(["None", "NONE", "0", "-138", "1.5", "abc", "", "138x", "2147483648"])(
         "a malformed subCategoryId «%s» is dropped, the category kept (loaded or not) @CAT-135", (value) => {
             expect(read(`categoryId=17&subCategoryId=${value}`)).toEqual(params({categoryId: 17}));
-            expect(read(`categoryId=17&subCategoryId=${value}`, undefined)).toEqual(params({categoryId: 17}));
+            expect(readLoading(`categoryId=17&subCategoryId=${value}`)).toEqual(params({categoryId: 17}));
         });
 
     test("while the categories load (undefined), syntactically valid ids are kept, even unknown ones @CAT-135", () => {
-        expect(read("categoryId=99&subCategoryId=777", undefined)).toEqual(params({categoryId: 99, subCategoryId: 777}));
-        expect(read("categoryId=17&subCategoryId=40", undefined)).toEqual(params({categoryId: 17, subCategoryId: 40}));
-        expect(read("categoryId=99&subCategoryId=none", undefined)).toEqual(params({categoryId: 99, subCategoryId: "none"}));
+        expect(readLoading("categoryId=99&subCategoryId=777")).toEqual(params({categoryId: 99, subCategoryId: 777}));
+        expect(readLoading("categoryId=17&subCategoryId=40")).toEqual(params({categoryId: 17, subCategoryId: 40}));
+        expect(readLoading("categoryId=99&subCategoryId=none")).toEqual(params({categoryId: 99, subCategoryId: "none"}));
     });
 
     test("the same URL once the categories are loaded: the unknown ids are dropped @CAT-135", () => {

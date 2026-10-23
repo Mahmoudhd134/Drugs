@@ -159,6 +159,7 @@ test.describe("The drug tree: pages while scrolling @area:catalog", () => {
             await rx.tree.settle();
             await expect(rx.tree.drugsIn(subRow)).toHaveCount(TREE_PAGE_SIZE);
             expect(requested, "no page loaded while the page scrolled").toEqual([]);
+            await rx.tree.restMouse();
             await healthy();
         });
 });

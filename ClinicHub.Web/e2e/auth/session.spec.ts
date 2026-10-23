@@ -324,13 +324,28 @@ test.describe("Several tabs and sessions @area:auth", () => {
             });
             const searches = recordRequests(other, "GET", /\/api\/v1\/drugs$/);
             const lost = toast(other, t.clinicLostChoose(a.name).slice(0, 12));
+            // The moment B shows in tab 2's banner (epoch ms, the clock of the requests' timing): the page remounted in B
+            // sends its own search after it (the search is in the URL, C2), which is not a replay
+            await other.evaluate(name => {
+                const w = window as unknown as { bShownAt?: number };
+                const shown = () => [...document.querySelectorAll("header")].some(el => el.textContent?.includes(name));
+                new MutationObserver((_, observer) => {
+                    if (!shown()) return;
+                    w.bShownAt = Date.now();
+                    observer.disconnect();
+                }).observe(document.body, {subtree: true, childList: true, characterData: true});
+            }, b.name);
             await other.getByPlaceholder(t.searchDrugs).fill(term);
 
             await expect.poll(() => refused).toBe(true);
             // The refresh brought B: tab 2 follows it, the A request is not sent again in B
             await expectContextLabel(other, b.name);
             await expect(other.getByRole("cell", {name: drugA.name})).toHaveCount(0);
-            expect(searches.filter(r => r.url().includes(term))).toHaveLength(1);
+            const bShownAt = await other.evaluate(() => (window as unknown as { bShownAt?: number }).bShownAt ?? null);
+            expect(bShownAt, "B shows in tab 2's banner").not.toBeNull();
+            const termSearches = searches.filter(r => r.url().includes(term));
+            await Promise.all(termSearches.map(r => r.response()));
+            expect(termSearches.filter(r => r.timing().startTime < bShownAt!), "the term's requests before B shows").toHaveLength(1);
             await expect(lost).toHaveCount(0);
             await expect(toasts(other).filter({hasText: a.name})).toHaveCount(0);
         });

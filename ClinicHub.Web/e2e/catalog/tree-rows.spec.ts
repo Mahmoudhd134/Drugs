@@ -8,7 +8,7 @@ import {SENTENCES} from "../support/texts-catalog.ts";
 import {RX_TEXTS} from "../support/texts-rx.ts";
 import type {Lang} from "../support/texts.ts";
 import {bucketPage, categoryIds, categoryName} from "../support/tree.ts";
-import {expectNoCutOrOverlap} from "../support/ux.ts";
+import {expectNoCutOrOverlap, textRect} from "../support/ux.ts";
 
 /*
  * The drug tree's rows and keys (design M1.7 D9; contract M1.7c § 3.3 and decision C3): what a drug row shows, a double
@@ -22,6 +22,17 @@ const openDrugsTab = async (page: Page, lang: Lang, phone: string) => {
     await rx.tree.settle();
     return rx;
 };
+
+/**
+ * The chevron icons by their drawing (Material icons' svg path `d`): MUI's `data-testid` on icons exists only in
+ * development builds, never in the production build e2e runs against (T4 A-G4).
+ */
+const ICON_PATHS = {
+    chevronLeft: "M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z",
+    chevronRight: "M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z",
+    expandMore: "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z",
+} as const;
+const iconPath = (icon: keyof typeof ICON_PATHS) => `svg:has(path[d="${ICON_PATHS[icon]}"])`;
 
 /** Lines of a row as read (its visible text, top to bottom). */
 const linesOf = async (row: import("@playwright/test").Locator) =>
@@ -50,10 +61,14 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             await expect(rich).not.toContainText(`وصف لا يظهر ${u}`);
             const shown = rich.getByText(ingredients, {exact: true});
             await expect(shown).toBeVisible();
-            const layout = await shown.evaluate(el => ({
-                cut: el.scrollWidth > el.clientWidth, noWrap: getComputedStyle(el).whiteSpace === "nowrap",
-                height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) || 20,
-            }));
+            // Measured on the ingredients' line (the block around a `<bdi>` isolating them, CAT-262)
+            const layout = await shown.evaluate(found => {
+                const el = found.tagName === "BDI" ? found.parentElement! : found;
+                return {
+                    cut: el.scrollWidth > el.clientWidth, noWrap: getComputedStyle(el).whiteSpace === "nowrap",
+                    height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) || 20,
+                };
+            });
             if ((page.viewportSize()?.width ?? 1280) >= 600) {
                 // From `sm`: one line with an ellipsis, the full text in a tooltip
                 expect(layout.noWrap && layout.cut, "the ingredients on one cut line").toBe(true);
@@ -82,6 +97,39 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             if (alemox.activeIngredients) await expect(shared).toContainText(alemox.activeIngredients);
             await expect(shared).not.toContainText("أليموكس");
             await expect(sentenceIn(shared)).toHaveCount(0);
+        });
+
+    test("Latin and Arabic active ingredients each keep their own direction and start at the interface's start (the right in Arabic, the left in English) @CAT-262",
+        async ({page, lang, data}) => {
+            const u = unique();
+            const clinic = await data.clinic();
+            const latin = `TIMOLOL 0.5% ${u}.`;
+            const arabic = `كلوريد الصوديوم 0.9٪ ${u}.`;
+            const timolol = await ownDrugIn(data, clinic, {name: `Latin ${u}`, activeIngredients: latin});
+            const saline = await ownDrugIn(data, clinic, {name: `Arabic ${u}`, activeIngredients: arabic});
+            const rx = await openDrugsTab(page, lang, clinic.owner.phone);
+            // Both in «العيون › المياه الزرقاء»: the one subcategory opens by itself
+            await rx.tree.search(u);
+            for (const [drug, text] of [[timolol, latin], [saline, arabic]] as const) {
+                const row = rx.drug(drug.name);
+                await expect(row.getByText(text, {exact: true})).toBeVisible();
+                // The line holding the text (the block around it, past any inline <bdi>) and where the text itself sits
+                const line = await row.getByText(text, {exact: true}).evaluate(found => {
+                    let el: HTMLElement = found as HTMLElement;
+                    while (getComputedStyle(el).display.startsWith("inline")) el = el.parentElement!;
+                    const box = el.getBoundingClientRect();
+                    const style = getComputedStyle(el);
+                    return {
+                        left: box.left + parseFloat(style.paddingLeft), right: box.right - parseFloat(style.paddingRight),
+                        isolated: !!found.closest("bdi") || found.closest("[dir]")?.getAttribute("dir") === "auto",
+                    };
+                });
+                const shown = await textRect(row, text);
+                expect(line.isolated, `${text}: in a <bdi> or dir="auto"`).toBe(true);
+                expect(shown.width, `${text}: shorter than its line`).toBeLessThan(line.right - line.left - 20);
+                if (lang === "ar") expect(Math.abs(line.right - shown.right), `${text}: starts at the right`).toBeLessThanOrEqual(2);
+                else expect(Math.abs(shown.left - line.left), `${text}: starts at the left`).toBeLessThanOrEqual(2);
+            }
         });
 
     test("at 375 px a long drug name wraps inside the tree's panel, never past it @CAT-112", async ({page, lang, data}) => {
@@ -149,13 +197,13 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             // A closed category's chevron points the reading direction («فتح «العيون»»); open, it points down
             const chevron = (name: string, open: boolean) => eye.getByRole("button", {name: open ? tt.close(name) : tt.open(name), exact: true});
             await expect(chevron(EYE[lang], false)).toBeVisible();
-            await expect(chevron(EYE[lang], false).getByTestId(lang === "ar" ? "ChevronLeftIcon" : "ChevronRightIcon")).toBeVisible();
+            await expect(chevron(EYE[lang], false).locator(iconPath(lang === "ar" ? "chevronLeft" : "chevronRight"))).toBeVisible();
 
             await rx.tree.searchBox.press("ArrowDown");
             await expect(eye).toBeFocused();
             await page.keyboard.press(opening);
             await rx.tree.expectOpen(eye);
-            await expect(chevron(EYE[lang], true).getByTestId("ExpandMoreIcon")).toBeVisible();
+            await expect(chevron(EYE[lang], true).locator(iconPath("expandMore"))).toBeVisible();
             await page.keyboard.press("ArrowDown");
             const glaucoma = rx.tree.subCategory(EYE[lang], GLAUCOMA[lang]);
             await expect(glaucoma).toBeFocused();

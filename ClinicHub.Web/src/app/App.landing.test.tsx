@@ -61,12 +61,13 @@ const logInFrom = async (route: string, auth: AuthResult) => {
 };
 
 describe("where the login lands @area:auth", () => {
-    test("opened /drugs?q=amox, the login lands in a clinic: /drugs?q=amox opens, the home / never opened @AUTH-169", async () => {
-        const {paths} = await logInFrom("/drugs?q=amox", sessionIn(clinicA));
+    // The drugs page's own URL key (`search`, M1.7c contract § 2.3, decision C2): an unknown key would be dropped by the page
+    test("opened /drugs?search=amox, the login lands in a clinic: /drugs?search=amox opens, the home / never opened @AUTH-169", async () => {
+        const {paths} = await logInFrom("/drugs?search=amox", sessionIn(clinicA));
 
         expect(await screen.findByRole("heading", {name: "الأدوية"})).toBeInTheDocument();
         await expectPath("/drugs");
-        expect(window.location.search).toBe("?q=amox");
+        expect(window.location.search).toBe("?search=amox");
         expect(paths).not.toContain("/");
     });
 

@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {act, screen, waitFor} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {pickCategory} from "../test/pages/drugDialog.ts";
@@ -30,6 +30,9 @@ import {installIntersectionObserver} from "../test/intersection.ts";
 // RequireAuth), docs/tech/overview.md "Data fetching".
 
 const clinicA = aClinicContext({clinicId: 1, clinicName: "Clinic A"});
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("staying logged in @area:auth", () => {
     test("an expired access token: the request answering 401 is refreshed once and retried, the user sees the data @AUTH-163 @smoke", async () => {

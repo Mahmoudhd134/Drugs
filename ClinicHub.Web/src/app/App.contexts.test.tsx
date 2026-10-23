@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {beforeEach, describe, expect, test} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
@@ -24,6 +24,7 @@ import {
     startApp,
     toastTexts,
     drugTreeHandler,
+    drugCategoriesHandler,
 } from "../test";
 import {installIntersectionObserver} from "../test/intersection.ts";
 import type {AuthResult, Context} from "../features/auth/types.ts";
@@ -64,6 +65,9 @@ const openPicker = async (contexts: Context[], answer: () => Response) => {
     const pick = async (name: string) => app.user.click(await screen.findByRole("button", {name: new RegExp(name)}));
     return {...app, pick};
 };
+
+// The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
+beforeEach(() => void server.use(drugCategoriesHandler()));
 
 describe("picking a clinic that can't be entered any more @area:auth", () => {
     test("suspended meanwhile: «العيادة «A» موقوفة.» and the user stays on the picker @AUTH-129", async () => {

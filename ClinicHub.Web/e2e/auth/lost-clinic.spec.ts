@@ -18,7 +18,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
     test("deactivated in A with two other places: «…اختر أين تريد المتابعة.» and the picker opens @AUTH-182 @smoke",
         async ({page, t, data, healthy, allowApiErrors}) => {
             // The clinic lost: its next request is refused (the test's subject)
-            allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+            allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
             const u = unique();
             const [a, b, c] = [await data.clinic({name: `A ${u}`}), await data.clinic({name: `B ${u}`}), await data.clinic({name: `C ${u}`})];
             const inA = await data.staff(a);
@@ -39,7 +39,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("lost A with exactly one other clinic B: «…أنت الآن في «B».» and B's / opens @AUTH-183", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -58,7 +58,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("lost A with no other place: «…ولا أي عيادة أخرى.» and /login opens @AUTH-184", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await signIn(page, staff.phone);
@@ -73,7 +73,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("the clinic suspended while working in it: the lost-clinic message, never a «موقوفة» one @AUTH-185", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const a = await data.clinic({name: `A ${u}`});
         const b = await data.clinic({name: `B ${u}`});
@@ -92,7 +92,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("the clinic deleted while working in it: the lost-clinic message @AUTH-186", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const clinic = await data.clinic();
         const staff = await data.staff(clinic);
         await signIn(page, staff.phone);
@@ -107,7 +107,7 @@ test.describe("Losing the clinic while working in it @area:auth", () => {
 
     test("removed from the clinic while working in it: the lost-clinic message @AUTH-187", async ({page, t, data, allowApiErrors}) => {
         // The clinic lost: its next request is refused (the test's subject)
-        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/});
+        allowApiErrors({status: 403, method: "GET", path: /^\/api\/v1\/drugs$/}, {status: 403, method: "GET", path: /^\/api\/v1\/drug-categories$/});
         const u = unique();
         const [a, b, c] = [await data.clinic({name: `A ${u}`}), await data.clinic({name: `B ${u}`}), await data.clinic({name: `C ${u}`})];
         const inA = await data.staff(a);

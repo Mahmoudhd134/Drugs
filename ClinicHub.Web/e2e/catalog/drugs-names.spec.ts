@@ -63,7 +63,7 @@ test.describe("Category names in the UI language @area:i18n", () => {
             await search(page, page.getByPlaceholder(t.searchDrugs), IMPORTED.alemox1g);
             const row = drugRow(page, IMPORTED.alemox1g);
             await expect(row.getByText(IMPORTED.alemox1g, {exact: true})).toBeVisible();
-            await expect(row.getByText(pathOf(alemox, "ar"), {exact: true})).toBeVisible();
+            await expect(row.getByText(pathOf(alemox, "ar"), {exact: true}).filter({visible: true})).toBeVisible();
 
             // The read-only details
             await row.getByRole("cell").first().click();
@@ -96,7 +96,7 @@ test.describe("Category names in the UI language @area:i18n", () => {
             const admin = await newBrowser();
             await signInSuperAdmin(admin.page, "/admin/drugs");
             await searchAdmin(admin.page, "ar", IMPORTED.alemox1g);
-            await expect(adminDrugRow(admin.page, IMPORTED.alemox1g).getByText(pathOf(alemox, "ar"), {exact: true})).toBeVisible();
+            await expect(adminDrugRow(admin.page, IMPORTED.alemox1g).getByText(pathOf(alemox, "ar"), {exact: true}).filter({visible: true})).toBeVisible();
             await admin.page.goto("/admin/categories");
             await settled(admin.page);
             for (const category of categories) {
