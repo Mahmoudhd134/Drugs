@@ -43,6 +43,8 @@ describe("adding a protocol with a disabled drug @area:prescription", () => {
 
             expect(await screen.findByText("أي عين؟")).toBeInTheDocument();
             await page.answer("اليسرى");
+            // The answered «أي عين؟» dialog leaves before the next question is answered (while it fades out, two dialogs show)
+            await waitFor(() => expect(screen.queryByText("أي عين؟")).not.toBeInTheDocument());
             expect(await screen.findByText("موجود بالفعل في الروشتة")).toBeInTheDocument();
             await page.answer("استخدام جرعة البروتوكول");
 
