@@ -1,4 +1,4 @@
-import {type FocusEvent, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState} from "react";
+import {type FocusEvent, type KeyboardEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {Alert, Box, Button, CircularProgress, LinearProgress, Stack, ToggleButton, ToggleButtonGroup, Typography} from "@mui/material";
 import {useQueryClient} from "@tanstack/react-query";
 import {useTranslation} from "react-i18next";
@@ -298,6 +298,39 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
     const shownSource = view?.source ?? source;
     const shownSearch = view?.search ?? term;
     const hasTree = data !== undefined && data.categories.length > 0;
+    const showsPanel = enabled && hasTree;
+
+    // The panel's scroll position while it is shown (never the 0 of a hidden panel)
+    const savedScroll = useRef(0);
+    const onPanelScroll = () => {
+        const panel = panelRef.current;
+        if (panel && panel.clientHeight > 0) savedScroll.current = panel.scrollTop;
+    };
+
+    // A new tree (a new search or source, on its first answer) starts at the panel's top; a refetch of the same search
+    // and source keeps it (M1.7c C36, C12)
+    const viewKey = view?.key;
+    useLayoutEffect(() => {
+        savedScroll.current = 0;
+        if (panelRef.current) panelRef.current.scrollTop = 0;
+    }, [viewKey]);
+
+    // Hidden (`display: none`, the prescription's other tab) then shown again: the panel comes back exactly where it was.
+    // Chromium restores a `display: none` box's scroll offset itself, but in the app it came back ~2 px per loaded row too
+    // far down (T5 acceptance AC-2), so the position kept from the last scroll is put back as soon as the panel has a
+    // size again, after its layout and before it is painted (CAT-124)
+    useEffect(() => {
+        const panel = panelRef.current;
+        if (!showsPanel || !panel || typeof ResizeObserver === "undefined") return;
+        let hidden = panel.clientHeight === 0;
+        const observer = new ResizeObserver(() => {
+            const nowHidden = panel.clientHeight === 0;
+            if (hidden && !nowHidden) panel.scrollTop = savedScroll.current;
+            hidden = nowHidden;
+        });
+        observer.observe(panel);
+        return () => observer.disconnect();
+    }, [showsPanel]);
 
     return (
         <Box>
@@ -350,7 +383,8 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
                     {shownSource === "own" && shownSearch === "" ? t("drugs.noOwnDrugs") : t("drugs.noResults")}
                 </Typography>
             ) : (
-                <Box ref={panelRef} sx={{maxHeight, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 2}}>
+                <Box ref={panelRef} onScroll={onPanelScroll}
+                     sx={{maxHeight, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 2}}>
                     <Box role="tree" id={treeId} aria-label={t("drugTree.label")} onKeyDown={onTreeKeyDown} onFocus={onTreeFocus}
                          onBlur={onTreeBlur}
                          sx={{py: 0.5}}>
