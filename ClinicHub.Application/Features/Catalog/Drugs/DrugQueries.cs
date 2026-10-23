@@ -68,10 +68,12 @@ public static class DrugQueries
         var matchOther = !string.IsNullOrWhiteSpace(otherTerm);
 
         // The ≤ ~205 category names (the caller's, else loaded here), folded in memory with the columns' function
+        // Stryker disable once all : equivalent mutant (without the caller's names the same rows are loaded here: one query more, the same answer)
         var categoryNames = names?.Categories.Select(c => new NameRow(c.Id, c.NameEn, c.NameAr)).ToList()
                             ?? await db.Categories.AsNoTracking()
                                 .Select(c => new NameRow(c.Id, c.NameEn, c.NameAr))
                                 .ToListAsync(cancellationToken);
+        // Stryker disable once all : equivalent mutant (without the caller's names the same rows are loaded here: one query more, the same answer)
         var subCategoryNames = names?.SubCategories.Select(s => new NameRow(s.Id, s.NameEn, s.NameAr)).ToList()
                                ?? await db.SubCategories.AsNoTracking()
                                    .Select(s => new NameRow(s.Id, s.NameEn, s.NameAr))
@@ -118,6 +120,7 @@ public static class DrugQueries
     private sealed record NameRow(int Id, string NameEn, string NameAr);
 
     private static bool NameMatches(string nameEn, string nameAr, string term) =>
-        SearchText.Fold(nameEn ?? "").Contains(term, StringComparison.Ordinal)
-        || SearchText.Fold(nameAr ?? "").Contains(term, StringComparison.Ordinal);
+        // Both names are required (D5): never null
+        SearchText.Fold(nameEn).Contains(term, StringComparison.Ordinal)
+        || SearchText.Fold(nameAr).Contains(term, StringComparison.Ordinal);
 }
