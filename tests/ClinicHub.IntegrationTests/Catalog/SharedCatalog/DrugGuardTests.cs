@@ -82,12 +82,12 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
             var loaded = await db.Drugs.SingleAsync(d => d.Id == shared.Id);
             loaded.Name = "Changed outside the admin use cases";
             loaded.Description = "Changed outside the admin use cases";
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot change a shared Drug outside the shared catalog use cases.");
         });
         await InScopeAsync(null, writingShared: false, async db =>
         {
             (await db.Drugs.SingleAsync(d => d.Id == shared.Id)).Withdraw(Clock.GetUtcNow().UtcDateTime);
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot change a shared Drug outside the shared catalog use cases.");
         });
 
         var stored = await StoredAsync(shared.Id);
@@ -108,7 +108,7 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
         await InScopeAsync(null, writingShared: false, async db =>
         {
             db.Drugs.Add(NewDrug(name, clinicId));
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot add a shared Drug outside the shared catalog use cases: no clinic in context.");
         });
 
         (await CountNamedAsync(name)).ShouldBe(0);
@@ -141,12 +141,12 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
         await InScopeAsync(clinic.Id, writingShared: false, async db =>
         {
             db.Drugs.Remove(await db.Drugs.SingleAsync(d => d.Id == shared.Id));
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot delete a shared Drug: shared rows are withdrawn, never deleted.");
         });
         await InScopeAsync(null, writingShared: true, async db =>
         {
             db.Drugs.Remove(await db.Drugs.SingleAsync(d => d.Id == shared.Id));
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot delete a shared Drug: shared rows are withdrawn, never deleted.");
         });
 
         (await StoredAsync(shared.Id)).ShouldNotBeNull("the shared drug is still there");
@@ -167,23 +167,23 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
             await InScopeAsync(a.Id, writingShared: false, async db =>
             {
                 (await db.Drugs.SingleAsync(d => d.Id == own.Id)).ClinicId = newOwner;
-                await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+                await ShouldRefuseAsync(db, $"Cannot move Drug {own.Id} from clinic {a.Id} to {newOwner?.ToString() ?? "(shared)"}.");
             });
             await InScopeAsync(null, writingShared: true, async db =>
             {
                 (await db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == own.Id)).ClinicId = newOwner;
-                await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+                await ShouldRefuseAsync(db, $"Cannot move Drug {own.Id} from clinic {a.Id} to {newOwner?.ToString() ?? "(shared)"}.");
             });
         }
         await InScopeAsync(a.Id, writingShared: false, async db =>
         {
             (await db.Drugs.SingleAsync(d => d.Id == shared.Id)).ClinicId = a.Id;
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot move Drug {shared.Id} from clinic (shared) to {a.Id}.");
         });
         await InScopeAsync(null, writingShared: true, async db =>
         {
             (await db.Drugs.SingleAsync(d => d.Id == shared.Id)).ClinicId = a.Id;
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot move Drug {shared.Id} from clinic (shared) to {a.Id}.");
         });
 
         (await StoredAsync(own.Id)).ClinicId.ShouldBe(a.Id);
@@ -206,7 +206,7 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
         await InScopeAsync(null, writingShared: true, async db =>
         {
             (await db.Drugs.SingleAsync(d => d.Id == shared.Id)).DefaultDosing = OneColumn(column);
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save shared drug {shared.Id} with a default dosing.");
         });
         // Also on an otherwise valid admin update (a rename)
         await InScopeAsync(null, writingShared: true, async db =>
@@ -214,12 +214,33 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
             var loaded = await db.Drugs.SingleAsync(d => d.Id == shared.Id);
             loaded.Name = shared.Name + " renamed";
             loaded.DefaultDosing = OneColumn(column);
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save shared drug {shared.Id} with a default dosing.");
         });
 
         var stored = await StoredAsync(shared.Id);
         stored.DefaultDosing.ShouldBeNull();
         stored.Name.ShouldBe(shared.Name);
+    }
+
+    [Fact]
+    [Trait("Case", "CAT-028")]
+    public async Task Inside_UseSharedCatalog_a_shared_drug_with_an_empty_dosing_is_saved_with_no_dosing()
+    {
+        // The D2 rule is "any DefaultDosing_* set": an empty dosing (no column set) is no dosing
+        var shared = await Data.SharedDrug();
+        var renamed = shared.Name + " renamed";
+
+        await InScopeAsync(null, writingShared: true, async db =>
+        {
+            var loaded = await db.Drugs.SingleAsync(d => d.Id == shared.Id);
+            loaded.Name = renamed;
+            loaded.DefaultDosing = new Dosing();
+            await db.SaveChangesAsync();
+        });
+
+        var stored = await StoredAsync(shared.Id);
+        stored.Name.ShouldBe(renamed);
+        stored.DefaultDosing.ShouldBeNull();
     }
 
     [Fact]
@@ -233,7 +254,7 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
         await InScopeAsync(clinic.Id, writingShared: false, async db =>
         {
             (await db.Drugs.SingleAsync(d => d.Id == own.Id)).Withdraw(Clock.GetUtcNow().UtcDateTime);
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save drug {own.Id} of clinic {clinic.Id} as withdrawn: only shared drugs are.");
         });
 
         (await StoredAsync(own.Id)).IsWithdrawn.ShouldBeFalse();
@@ -256,6 +277,13 @@ public class DrugGuardTests(AppFixture app) : IntegrationTest(app)
 
     private static Drug NewDrug(string name, int? clinicId) =>
         new() { Name = name, ClinicId = clinicId, CategoryId = CategoryIds.Eye, SubCategoryId = SubCategoryIds.Glaucoma };
+
+    /// <summary>
+    /// The save is refused with exactly <paramref name="message"/>: the guard's message names the broken rule (decision
+    /// D31: part of the contract).
+    /// </summary>
+    private static async Task ShouldRefuseAsync(AppDbContext db, string message) =>
+        (await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync())).Message.ShouldBe(message);
 
     /// <summary>
     /// Runs <paramref name="work"/> on a fresh app DbContext acting in <paramref name="clinicId"/> (none when null),

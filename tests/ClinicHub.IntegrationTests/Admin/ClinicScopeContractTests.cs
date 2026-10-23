@@ -67,4 +67,63 @@ public class ClinicScopeContractTests(AppFixture app) : IntegrationTest(app)
 
         context.ClinicId.ShouldBeNull();
     }
+
+    // UseSharedCatalog() (design M1.7 D2): a request never mixes a clinic and shared-catalog writing
+
+    [Fact]
+    [Trait("Case", "CAT-029")]
+    public async Task UseSharedCatalog_with_a_clinic_in_context_throws_and_writing_stays_closed()
+    {
+        var clinic = await Data.Clinic();
+        await using var scope = App.Factory.Services.CreateAsyncScope();
+        var clinicScope = scope.ServiceProvider.GetRequiredService<IClinicScope>();
+        var context = scope.ServiceProvider.GetRequiredService<IClinicContext>();
+        using var _ = clinicScope.Use(clinic.Id);
+
+        Should.Throw<InvalidOperationException>(() => clinicScope.UseSharedCatalog());
+
+        context.WritingSharedCatalog.ShouldBeFalse();
+        context.ClinicId.ShouldBe(clinic.Id);
+    }
+
+    [Fact]
+    [Trait("Case", "CAT-029")]
+    public async Task Use_or_EnterAsync_inside_UseSharedCatalog_throws_and_sets_no_clinic()
+    {
+        var clinic = await Data.Clinic();
+        await using var scope = App.Factory.Services.CreateAsyncScope();
+        var clinicScope = scope.ServiceProvider.GetRequiredService<IClinicScope>();
+        var context = scope.ServiceProvider.GetRequiredService<IClinicContext>();
+
+        using (clinicScope.UseSharedCatalog())
+        {
+            Should.Throw<InvalidOperationException>(() => clinicScope.Use(clinic.Id));
+            await Should.ThrowAsync<InvalidOperationException>(() => clinicScope.EnterAsync(clinic.Id));
+            context.ClinicId.ShouldBeNull();
+            context.WritingSharedCatalog.ShouldBeTrue();
+        }
+
+        context.WritingSharedCatalog.ShouldBeFalse();
+        (await clinicScope.EnterAsync(clinic.Id)).IsSuccess.ShouldBeTrue("once the block is closed, a clinic can be entered");
+        context.ClinicId.ShouldBe(clinic.Id);
+    }
+
+    [Fact]
+    [Trait("Case", "CAT-029")]
+    public async Task A_nested_UseSharedCatalog_keeps_writing_open_until_the_outer_one_and_a_second_dispose_changes_nothing()
+    {
+        await using var scope = App.Factory.Services.CreateAsyncScope();
+        var clinicScope = scope.ServiceProvider.GetRequiredService<IClinicScope>();
+        var context = scope.ServiceProvider.GetRequiredService<IClinicContext>();
+
+        var outer = clinicScope.UseSharedCatalog();
+        var inner = clinicScope.UseSharedCatalog();
+        inner.Dispose();
+        context.WritingSharedCatalog.ShouldBeTrue("the inner block disposed, the outer one still open");
+        outer.Dispose();
+        context.WritingSharedCatalog.ShouldBeFalse("the outer block disposed");
+        inner.Dispose();
+
+        context.WritingSharedCatalog.ShouldBeFalse("disposing the inner block again doesn't reopen writing");
+    }
 }

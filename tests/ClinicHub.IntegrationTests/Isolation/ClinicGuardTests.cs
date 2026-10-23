@@ -56,18 +56,18 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         await InClinicAsync(null, async db =>
         {
             db.Drugs.Add(new Drug { Name = name, CategoryId = CategoryIds.Eye });
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot add a shared Drug outside the shared catalog use cases: no clinic in context.");
         });
         await InClinicAsync(null, async db =>
         {
             var loaded = await db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == drug.Id);
             loaded.Name = name;
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save Drug of clinic {clinic.Id} in clinic (none).");
         });
         await InClinicAsync(null, async db =>
         {
             db.Drugs.Remove(await db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == drug.Id));
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save Drug of clinic {clinic.Id} in clinic (none).");
         });
 
         (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.Name == name))).ShouldBe(0);
@@ -86,13 +86,13 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         await InClinicAsync(a.Id, async db =>
         {
             db.Drugs.Add(new Drug { Name = name, ClinicId = b.Id, CategoryId = CategoryIds.Eye });
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save Drug of clinic {b.Id} in clinic {a.Id}.");
         });
         await InClinicAsync(a.Id, async db =>
         {
             var loaded = await db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == bDrug.Id);
             loaded.Name = name;
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save Drug of clinic {b.Id} in clinic {a.Id}.");
         });
         var bProtocol = await Data.Protocol(b).With(bDrug);
         await InClinicAsync(a.Id, async db =>
@@ -105,7 +105,7 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         await InClinicAsync(a.Id, async db =>
         {
             db.Drugs.Remove(await db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == bDrug.Id));
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save Drug of clinic {b.Id} in clinic {a.Id}.");
         });
 
         var stored = await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().SingleAsync(d => d.Id == bDrug.Id));
@@ -114,6 +114,44 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.Name == name))).ShouldBe(0);
         (await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters().SingleAsync(i => i.ProtocolId == bProtocol.Id)))
             .ClinicId.ShouldBe(b.Id);
+    }
+
+    [Fact]
+    [Trait("Case", "ISO-032")]
+    public async Task In_one_clinic_adding_a_protocol_of_another_clinic_throws_and_writes_nothing()
+    {
+        // Drug is clinic-or-shared since M1.7 (D2): the plain clinic-owned rule is proved on a protocol
+        var a = await Data.Clinic();
+        var b = await Data.Clinic();
+        var name = Unique.Name("Intruder protocol", "بروتوكول دخيل");
+
+        await InClinicAsync(a.Id, async db =>
+        {
+            db.Protocols.Add(new Protocol { Name = name, ClinicId = b.Id });
+            await ShouldRefuseAsync(db, $"Cannot save Protocol of clinic {b.Id} in clinic {a.Id}.");
+        });
+
+        (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(g => g.Name == name))).ShouldBe(0);
+    }
+
+    [Fact]
+    [Trait("Case", "ISO-032")]
+    public async Task In_one_clinic_deleting_another_clinics_protocol_line_by_its_id_alone_throws_and_keeps_it()
+    {
+        var a = await Data.Clinic();
+        var b = await Data.Clinic();
+        var bProtocol = await Data.Protocol(b).With(await Data.Drug(b));
+        var lineId = await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters()
+            .Where(i => i.ProtocolId == bProtocol.Id).Select(i => i.Id).SingleAsync());
+
+        await InClinicAsync(a.Id, async db =>
+        {
+            // A stub (no clinic set, nothing loaded): the delete would match the id alone
+            db.ProtocolItems.Remove(new ProtocolItem { Id = lineId });
+            await ShouldRefuseAsync(db, $"Cannot save ProtocolItem of clinic 0 in clinic {a.Id}.");
+        });
+
+        (await App.QueryDbAsync(db => db.ProtocolItems.IgnoreQueryFilters().SingleAsync(i => i.Id == lineId))).ClinicId.ShouldBe(b.Id);
     }
 
     [Fact]
@@ -128,22 +166,22 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         await InClinicAsync(null, async db =>
         {
             db.Protocols.Add(new Protocol { Name = name });
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot save Protocol: no clinic in context.");
         });
         await InClinicAsync(null, async db =>
         {
             db.Protocols.Add(new Protocol { Name = name, ClinicId = clinic.Id });
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot save Protocol: no clinic in context.");
         });
         await InClinicAsync(null, async db =>
         {
             (await db.Protocols.IgnoreQueryFilters().SingleAsync(p => p.Id == protocol.Id)).Name = name;
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot save Protocol: no clinic in context.");
         });
         await InClinicAsync(null, async db =>
         {
             db.Protocols.Remove(await db.Protocols.IgnoreQueryFilters().SingleAsync(p => p.Id == protocol.Id));
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, "Cannot save Protocol: no clinic in context.");
         });
 
         (await App.QueryDbAsync(db => db.Protocols.IgnoreQueryFilters().CountAsync(p => p.Name == name))).ShouldBe(0);
@@ -165,7 +203,7 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
             using var _ = writingShared ? scope.ServiceProvider.GetRequiredService<IClinicScope>().UseSharedCatalog() : null;
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.Drugs.Add(new Drug { Name = name, ClinicId = clinic.Id, CategoryId = CategoryIds.Eye });
-            await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+            await ShouldRefuseAsync(db, $"Cannot save Drug of clinic {clinic.Id} in clinic (none).");
         }
 
         (await App.QueryDbAsync(db => db.Drugs.IgnoreQueryFilters().CountAsync(d => d.Name == name))).ShouldBe(0);
@@ -309,6 +347,13 @@ public class ClinicGuardTests(AppFixture app) : IntegrationTest(app)
         error.ConstraintName.ShouldContain("IsTemplate");
         (await App.QueryDbAsync(db => db.Clinics.CountAsync(c => c.IsTemplate))).ShouldBe(1);
     }
+
+    /// <summary>
+    /// The save is refused with exactly <paramref name="message"/>: the guard's message names the broken rule (decision
+    /// D31: part of the contract).
+    /// </summary>
+    private static async Task ShouldRefuseAsync(AppDbContext db, string message) =>
+        (await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync())).Message.ShouldBe(message);
 
     /// <summary>Runs <paramref name="work"/> on a fresh app DbContext acting in <paramref name="clinicId"/> (none when null).</summary>
     private async Task InClinicAsync(int? clinicId, Func<AppDbContext, Task> work)

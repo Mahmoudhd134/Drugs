@@ -172,6 +172,32 @@ public class DrugCategoryAdminTests(AppFixture app) : IntegrationTest(app)
 
     [Theory]
     [Trait("Case", "CAT-194")]
+    [InlineData("category", "nameEn", "", "nameRequired")]
+    [InlineData("category", "nameAr", "LONG101", "nameTooLong")]
+    [InlineData("subcategory", "nameEn", "Bad\0name", "nameInvalid")]
+    [InlineData("subcategory", "nameAr", "  ", "nameRequired")]
+    public async Task A_rename_to_an_invalid_name_is_400_on_its_field_and_keeps_both_names(string kind, string field, string value, string code)
+    {
+        var admin = await AdminAsync();
+        var category = await Data.Category();
+        var sub = await Data.SubCategory(category.Id);
+        if (value == "LONG101")
+            value = TextOfLength(101);
+        var nameEn = field == "nameEn" ? value : Unique.Name("Valid", "x");
+        var nameAr = field == "nameAr" ? value : Unique.Name("صالح", "ص");
+        var url = kind == "category" ? AdminCategory(category.Id) : AdminSubCategory(sub.Id);
+
+        var problem = await (await admin.PutAsync(url, CategoryBody(nameEn, nameAr))).ShouldBeProblemAsync(HttpStatusCode.BadRequest, code);
+
+        problem.ShouldHaveError(field, code);
+        var stored = await admin.AdminCategoryAsync(category.Id);
+        (stored.NameEn, stored.NameAr).ShouldBe((category.NameEn, category.NameAr));
+        var storedSub = stored.SubCategories.ShouldHaveSingleItem();
+        (storedSub.NameEn, storedSub.NameAr).ShouldBe((sub.NameEn, sub.NameAr));
+    }
+
+    [Theory]
+    [Trait("Case", "CAT-194")]
     [InlineData("category")]
     [InlineData("subcategory")]
     public async Task Names_of_100_characters_with_spaces_around_are_201_and_stored_trimmed(string kind)
@@ -323,6 +349,8 @@ public class DrugCategoryAdminTests(AppFixture app) : IntegrationTest(app)
         var admin = await AdminAsync();
         var category = await Data.Category();
         var sub = await Data.SubCategory(category.Id);
+        // Empty: none of the drugs below is counted in it (each count is its own category's)
+        var empty = await Data.Category();
         var a = await Data.Clinic();
         var b = await Data.Clinic();
         var deleted = await Data.Clinic();
@@ -339,8 +367,15 @@ public class DrugCategoryAdminTests(AppFixture app) : IntegrationTest(app)
         var response = await admin.GetAsync(AdminCategories);
 
         var body = await response.ShouldBeOkAsync();
-        var counted = (await response.ReadAsync<List<AdminCategoryDto>>()).Single(c => c.Id == category.Id);
+        var all = await response.ReadAsync<List<AdminCategoryDto>>();
+        // By id, their subcategories too (shared-catalog tech § Backend: the SPA sorts by name)
+        all.Select(c => c.Id).ShouldBeInOrder();
+        foreach (var listed in all)
+            listed.SubCategories.Select(s => s.Id).ShouldBeInOrder();
+        var counted = all.Single(c => c.Id == category.Id);
         (counted.DrugCount, counted.NoSubCategoryDrugCount, counted.DeletedClinicsDrugCount).ShouldBe((5, 1, 1));
+        var countedEmpty = all.Single(c => c.Id == empty.Id);
+        (countedEmpty.DrugCount, countedEmpty.NoSubCategoryDrugCount, countedEmpty.DeletedClinicsDrugCount).ShouldBe((0, 0, 0));
         var countedSub = counted.SubCategories.ShouldHaveSingleItem();
         (countedSub.Id, countedSub.DrugCount, countedSub.DeletedClinicsDrugCount).ShouldBe((sub.Id, 4, 1));
         foreach (var name in drugs.Concat([a.Name, b.Name, deleted.Name]))
