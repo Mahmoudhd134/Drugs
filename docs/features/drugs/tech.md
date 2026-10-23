@@ -116,9 +116,12 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
     `none` alone, malformed, or not of that category → none; a bad `page` → 1. Once the categories are loaded the URL is
     rewritten once without them. While the URL holds a `categoryId` and the categories aren't loaded, the list query
     waits (no request with an unchecked id). A page past the end (an old link, the last rows deleted or filtered away)
-    is replaced by the last one (`clampPage`); a page sent to the API is capped at 999,999.
+    is replaced by the last one (`clampPage`); until that page arrives no rows and no range show (neither an older
+    page's rows nor «41–45 من 45» over an empty table: a page beyond the known total, or an empty page of a non-empty
+    list, renders nothing under the progress bar, CAT-143). A page sent to the API is capped at 999,999.
   - **Search** (`drugs.searchPlaceholder`): debounced 300 ms, trimmed, then written to the URL (page 1); a search
-    changed from outside (Back, a link, «مسح الفلاتر») replaces the typed one. The thin progress bar also shows while
+    changed from outside (Back, a link, «مسح الفلاتر») replaces the typed one. Searches are compared trimmed, so a link's
+    `search=amox%20&page=3` is kept as it is (no rewrite, no jump to page 1). The thin progress bar also shows while
     the typed search waits to be sent.
   - **Filter bar** (`components/DrugListFilters.tsx`): the search, then the **source toggle** (MUI `ToggleButtonGroup`
     `exclusive`, `size="small"`, `aria-label` `drugs.source.label`, buttons `drugs.source.all|shared|own`, never
@@ -132,8 +135,8 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
   - **Table** (MUI, cells top-aligned): name (`DrugText`: name, the own drug's dosing sentence, 2-line description;
     shared drugs have no dosing so no sentence) + the row chip «مشترك» / "Shared" or «خاص بالعيادة» / "Clinic"
     (`drugs.chip.*`); **category** (`drugs.category`, cell `categoryPath` in the UI language: «العيون › المياه
-    الزرقاء», the category alone without a subcategory; below `sm` the column is hidden and the path goes under the
-    name); actions (own rows only: edit, delete). Long names and paths wrap (`overflowWrap: "anywhere"`), no sideways
+    الزرقاء», the category alone without a subcategory; below `sm` the column and its header aren't rendered and the path goes
+    under the name instead: one copy per row, chosen with `useMediaQuery(theme.breakpoints.down("sm"))`, C26); actions (own rows only: edit, delete). Long names and paths wrap (`overflowWrap: "anywhere"`), no sideways
     scroll at 375 px. `TablePagination` (numbers grouped, «1–20 من 23,414»). Confirm before delete (`useConfirm`).
     Clicking an own row opens edit (read-only details without `drugs.update`). **Shared rows** (M1.7b) have no edit or
     delete button at all; with `drugs.details` a click or Enter/Space opens the read-only details (also for a user with
@@ -143,10 +146,11 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
     `drugs.create`); any other filter, no search → `drugs.noFilterResults` + a `drugs.clearFilters` button (back to the
     defaults, the search emptied); nothing filtered → `drugs.emptyTitle` + description + «إضافة دواء».
   - **Saving a new own drug while «المشتركة» is chosen** switches the toggle to «أدوية العيادة», page 1, so the new
-    drug shows (CAT-137). The page watches the query client's mutation cache for a successful `useSaveDrug` create
-    (`id: null`, the answer an own drug); `DrugFormDialog` has no save callback.
+    drug shows (CAT-137), through `DrugFormDialog`'s `onSaved(drug, created)` (called after a successful save, before
+    the toast; `created` true for a new drug).
   - Stale answers: the query key holds the search, page, size and filters, so an older, slower answer never replaces a
-    newer one (CAT-144); `keepPreviousData` keeps the old rows (and count) until the new ones arrive.
+    newer one (CAT-144); the old rows (and count) stay as placeholder until the new ones arrive, only while their query
+    is still cached (C20's guard, as `useDrugTree`: after a context switch nothing of the other clinic shows).
 - **Dialog** `components/DrugFormDialog.tsx`: create/edit an own drug through `DrugEditForm` (shared with the admin's
   `SharedDrugDialog`): Name (required), Active ingredients (`dir="auto"`, one line, ≤ 1,000), Category (required
   select) and Subcategory (optional select of the chosen category's subcategories, first option «بدون تصنيف فرعي»;
@@ -173,15 +177,20 @@ Every action needs a clinic token (`ClinicContext` policy) and its permission: `
   picker option) `WithdrawnChipInsideControl` makes it no Tab stop of its own (nested interactive ARIA); the tooltip
   still opens on hover and tap there.
 - **Reusable components** (used by other features):
-  - `DrugPicker`: `SearchableList` over `useDrugPicker` (infinite, 30/page). Optional
-    `selectedIds` shows an "Added" chip. Clears search after selecting.
+  - `DrugTree` (M1.7c, replaces `DrugPicker`): search + source toggle + categories → subcategories → drugs, 30 at a
+    time per open subcategory, over `useDrugTree` / `useDrugBucket` (`treeApi.ts`, keys `drugTreeKeys`). Optional
+    `selectedIds` shows «مُضاف»; selecting keeps the search and the open nodes. Details:
+    [prescription](../prescription/tech.md#the-drug-tree-drugtree).
   - `DrugText`: name (bold), optional dosing sentence (`showDosing`), description (`pre-line`,
     optional line clamp). The table and the picker show the dosing sentence; the description is always shown here
-    (also when the default dosing has only an eye: the sentence is then just the eye part). Prescription and protocol
+    (also when the default dosing has only an eye: the sentence is then just the eye part). The name sits in a `<bdi>`
+    (M1.7b D27). Prescription and protocol
     lines follow another rule (`LineDetails`, [prescription](../prescription/tech.md#text-formats-prescriptiontextts)).
-- **`api.ts`**: `drugKeys` (`all`, `list`, `picker`, `categories`); hooks `useDrugs`, `useDrugPicker`,
+- **`api.ts`**: `drugKeys` (`all`, `list`, `categories`); hooks `useDrugs`,
   `useDrugCategories` (`GET /drug-categories`, `staleTime` 30 s), `useSaveDrug` (POST/PUT by `id === null`),
   `useDeleteDrug`. Both mutations invalidate `drugKeys.all` **and** `protocolKeys.all` (protocols embed drug data).
+- **`treeApi.ts`** (M1.7c): `drugTreeKeys` (`tree`, `bucket`, under `drugKeys.all`, so a drug save refreshes them);
+  `useDrugTree` (`GET /drugs/tree`), `useDrugBucket` (one open subcategory's drugs, infinite, 30/page).
 - **`categories.ts`**: `categoryName` (the UI language's name), `sortCategories`, `categoryPath` («… › …»).
 - **Admin screens** (`src/features/admin/drugs`, `src/features/admin/categories`, super admin, M1.7b):
   `/admin/drugs` (`AdminDrugsPage`: search, status «مفعّل» / «معطّل» / «الكل» default «مفعّل», category and subcategory
@@ -223,5 +232,5 @@ tests.
 | unit | `tests/ClinicHub.UnitTests/Catalog/Drugs/` (validators), `Common/Search/` (`SearchText` folding), `Common/Validation/` |
 | api | `tests/ClinicHub.IntegrationTests/Catalog/Drugs/` (CRUD, validation, list, search), `Catalog/Migrations/` (`AddSearchNames` up → down → up with data, DRUG-101) (`./test.ps1 -Area catalog`) |
 | unit | `ClinicHub.Web/src/features/drugs/pages/drugListParams.test.ts` (the URL helpers; `PURE_LOGIC` gate, StrykerJS) |
-| ui | `ClinicHub.Web/src/features/drugs/` (`DrugFormDialog`, `DrugPicker`, `DrugsPage`) |
+| ui | `ClinicHub.Web/src/features/drugs/` (`DrugFormDialog`, `DrugTree`, `DrugsPage`) |
 | e2e | `ClinicHub.Web/e2e/catalog/drugs-crud.spec.ts`, `drugs-list.spec.ts`, `inheritance.spec.ts` |

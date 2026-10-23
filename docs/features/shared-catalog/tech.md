@@ -56,10 +56,12 @@ filters, `GET /drug-categories`, 409 on shared drugs) and [protocols § API](../
 (missing → 403 `forbidden`; a platform token → 403). `GetDrugTreeQueryValidator`: `source` must pass `DrugSource.IsValid`
 → 400 `invalidRequest` (field `source`), as `GET /drugs`. No new error.
 
-- **Handler** (`Catalog/Drugs/Queries/GetDrugTree/GetDrugTreeQueryHandler`): `DrugQueries.ListedAsync(db, new
-  DrugListFilter(search, source, null, null))` (the one composition: visible + not withdrawn + source + search incl.
-  category names), then **one** aggregate query `GroupBy(CategoryId, SubCategoryId)` with `Count()`; joined in memory
-  with `Categories` / `SubCategories` (≤ ~205 rows, untracked). `pinnedLast` = `CategoryIds.IsPinnedLast(id)` /
+- **Handler** (`Catalog/Drugs/Queries/GetDrugTree/GetDrugTreeQueryHandler`): loads `Categories` / `SubCategories` once
+  (≤ ~205 rows, untracked), then `DrugQueries.ListedAsync(db, new DrugListFilter(search, source, null, null),
+  new CatalogNames(categories, subCategories))` (the one composition: visible + not withdrawn + source + search incl.
+  category names, matched against the rows passed in instead of loading them again; `GET /drugs` keeps the overload
+  without them), then **one** aggregate query `GroupBy(CategoryId, SubCategoryId)` with `Count()`; joined in memory
+  with the same rows. `pinnedLast` = `CategoryIds.IsPinnedLast(id)` /
   `SubCategoryIds.IsPinnedLast(id)`; the bucket (null subcategory, «بدون تصنيف فرعي») has `pinnedLast: false` and null
   names.
 - **Answer** (`DrugTreeDto`): only rows with `count > 0` (without a search too). Categories by `id`; their subcategories

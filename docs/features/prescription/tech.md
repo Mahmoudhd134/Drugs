@@ -163,10 +163,14 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
 - **Rows:** ARIA `tree` / `treeitem` (`aria-level` 1–3, `aria-expanded`, names `drugTree.nodeLabel` «الاسم، العدد» for
   nodes, the drug name for drugs) with nested `role="group"` (a bucket's has `aria-busy` while a page loads). Node line:
   chevron `IconButton` (`tabIndex -1`, `drugTree.open`/`close` as tooltip and `aria-label`; closed: `ChevronRight` LTR /
-  `ChevronLeft` RTL; open: `ExpandMore`), the name (wraps anywhere), the count (grouped digits). Drug line: name, the
-  ingredients on one line from `sm` (ellipsis, full text in a `TapTooltip` without tap, since a tap adds the drug; wraps
-  on a phone), an own drug's `DosingText`, the «مشترك» / «خاص بالعيادة» chip, «مُضاف» or ⊕; no description. A click
-  whose `event.detail > 1` is ignored.
+  `ChevronLeft` RTL; open: `ExpandMore`), the name (wraps anywhere), the count (grouped digits); at least 44 px tall
+  below `sm`. Drug line: name, the ingredients on one line from `sm` (ellipsis, full text in a `TapTooltip` without tap,
+  since a tap adds the drug; wraps on a phone), an own drug's `DosingText`, the «مشترك» / «خاص بالعيادة» chip, «مُضاف»
+  or ⊕; no description. The name and the ingredients each sit in a `<bdi>` (M1.7b D27: a Latin name reads left to right
+  in the Arabic UI; the ingredients line follows the interface's alignment). The click handler is on the `treeitem`
+  itself (a click anywhere on the row, the chevron included, toggles a node or adds a drug); a click coming from inside
+  its `role="group"` (a nested row, «تحميل المزيد», a retry) is left to them. A click whose `event.detail > 1` is
+  ignored.
 - **Paging:** after a bucket's last loaded drug a `data-testid="drug-tree-sentinel"` element, observed by an
   `IntersectionObserver` whose root is the scroll panel (a new observer after each page; none while a page loads or after
   an error); `fetchNextPage({cancelRefetch: false})`, so a page in flight is never asked again. Then a spinner while a page
@@ -175,7 +179,11 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
 - **Keyboard:** roving `tabIndex` (one Tab stop: the active row, else the first row); `treeKeyAction` maps the keys
   (C3, mirrored in RTL); ↓ on the last loaded drug of a bucket with more pages loads the next page and focuses its first
   new drug once rendered; Enter on a drug adds it and keeps the focus there; ← / Esc on a drug closes its bucket and
-  focuses it.
+  focuses it. «تحميل المزيد» and a next-page retry do the same as ↓ (the focus goes to the bucket's last loaded drug at
+  once, then to the first new drug); a first-page retry focuses the subcategory row; the tree's own retry focuses the
+  search field, so the focus never falls to `<body>` when the button gives way to the spinner. A focus waiting for a
+  row that isn't rendered yet is dropped by any other key action, another row taking the focus, a new tree (search or
+  source), a failed or closed bucket, or the focus leaving the tree's panel: it never steals the focus later.
 - **States instead of the tree:** first load spinner; the tree request failed → `common.loadFailed` + retry; no category →
   `drugs.noOwnDrugs` (source own, no search) or `drugs.noResults`.
 
