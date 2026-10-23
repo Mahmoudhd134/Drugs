@@ -24,8 +24,8 @@ round) and, at most, runs the one test being written ([below](#running-a-single-
 | Tier | When | On CI | ≈ |
 |---|---|---|---|
 | `step` | after every implementation or fix round: `./ci.ps1` | all backend unit and integration tests, all Vitest, the e2e **smoke** tests, the traceability report | 5 min, 4 jobs |
-| `full` | a step's report run (T2), every pull request (step → feature, feature → `main`), before the dress rehearsal: `./ci.ps1 -Tier full` | everything with coverage, the whole e2e suite (Chromium), every gate | 8 min, 11 jobs |
-| `release` | at the end of a milestone, before launch: `./ci.ps1 -Tier release` | `full` + Stryker.NET on the 6 critical backend files (one job each) + StrykerJS | the slowest file |
+| `full` | a step's report run (T2), every pull request but into `main` (step → feature), before the dress rehearsal: `./ci.ps1 -Tier full` | everything with coverage, the whole e2e suite (Chromium), every gate | 8 min, 11 jobs |
+| `release` | every pull request into `main` (feature → `main`), at the end of a milestone, before launch: `./ci.ps1 -Tier release` | `full` + Stryker.NET on the 6 critical backend files (one job each) + StrykerJS | the slowest file |
 
 The tiers don't replace the other checks (`npx tsc -b`, `npx eslint src`, `dotnet build ClinicHub.sln`:
 [CLAUDE.md](../../CLAUDE.md), [tech overview](../tech/overview.md#development-workflow)).
@@ -33,15 +33,15 @@ The tiers don't replace the other checks (`npx tsc -b`, `npx eslint src`, `dotne
 ## Continuous integration (GitHub Actions)
 
 `.github/workflows/ci.yml` runs on Linux runners (the repository is public: minutes are free). It runs on every **pull
-request** (`full`) and **by hand**, any tier, on any pushed branch. A push alone runs nothing. A newer run of the same
+request** (into `main`: `release`; into any other branch: `full`) and **by hand**, any tier, on any pushed branch. A push alone runs nothing. A newer run of the same
 pull request or branch cancels the older one.
 
 ### `ci.ps1`: a tier from the laptop
 
 ```powershell
 ./ci.ps1                        # step tier on the current branch (commit first)
-./ci.ps1 -Tier full             # what every pull request runs
-./ci.ps1 -Tier release          # + mutation of the critical files
+./ci.ps1 -Tier full             # what every pull request runs, except into main
+./ci.ps1 -Tier release          # + mutation of the critical files (what every pull request into main runs)
 ./ci.ps1 -Mutate 'ClinicHub.Application/Features/Identity/Login/Commands/VerifyOtp/VerifyOtpCommandHandler.cs' -Area auth   # + Stryker.NET, scored by the auth tests
 ./ci.ps1 -Tier full -NoWait     # start it and return (the link is printed)
 ```
@@ -61,7 +61,7 @@ the GitHub CLI signed in (`gh auth login`). The same by hand: Actions → CI →
 | track → step branch | the track's own `step` runs while it works; the merge itself: none |
 | step branch ready, and each fix round | `./ci.ps1 -Tier full` as a **report run**: every job runs to the end, a failure report, not a gate |
 | step → feature (pull request) | `full`, **required** green |
-| feature → `main` (pull request, after rebasing on `main`) | `full`, **required** green, + the user's merge OK |
+| feature → `main` (pull request, after rebasing on `main`) | `release` (`full` + mutation), **required** green, + the user's merge OK |
 
 ### Jobs
 
@@ -75,9 +75,9 @@ All at once; none stops the others (so one run reports every failure).
 | E2E (smoke) | `step`: the `@smoke` tests of every project in one job | 4 min |
 | E2E (1/6 … 6/6) | `full`/`release`: the three main Playwright projects (`ar-desktop`, `en-desktop`, `ar-phone`) in 6 shards, each with its own API and database | 5 min each |
 | E2E (template) | `full`/`release`: `ar-desktop-template` alone (`--no-deps`): its `dependencies` in `playwright.config.ts` would keep the whole suite in one shard | 1.5 min |
-| Mutation (`<file>`) | `release` (the 6 critical files) or `-Mutate`: Stryker.NET on one file per job, 85% gate (`tests/tools/mutation/mutation-score.ps1`) | minutes per file |
-| Mutation (frontend pure logic) | `release`: StrykerJS (`npm run test:mutation`), 85% overall | |
-| Gates | merges the e2e reports (fails if fewer tests reported than planned), traceability (`step`: the report; `full`/`release`: the self-test and the gate); fails when any job failed. **The one required check** | 1 min |
+| Mutation (`<file>`) | `release`, so every pull request into `main` (the 6 critical files), or `-Mutate`: Stryker.NET on one file per job, 85% gate (`tests/tools/mutation/mutation-score.ps1`) | minutes per file |
+| Mutation (frontend pure logic) | `release` (every pull request into `main`): StrykerJS (`npm run test:mutation`), 85% overall | |
+| Gates | merges the e2e reports (fails if fewer tests reported than planned), traceability (`step`: the report; `full`/`release`: the self-test and the gate); fails when any job failed (or, on `release`, a mutation job was skipped). **The one required check** | 1 min |
 
 - The run's summary page shows the tier, the seed, the counts, the coverage gates, the e2e totals, the mutation scores
   and the traceability table; the artifacts (14 days): `backend`, `frontend` (results and coverage), `e2e-report` (the
@@ -89,9 +89,9 @@ All at once; none stops the others (so one run reports every failure).
 - `step` on CI runs **every** integration test (they take ≈ 30 s there), not the areas `test.ps1` picks from the diff.
 - The free plan runs 20 jobs at once: a `full` run takes 11, so runs of several sessions at the same moment queue a
   few minutes; `step` (4 jobs) is the one to use while working.
-- A push to the branch of an open pull request (drafts too) also starts that pull request's `full` run: on such a
-  branch, `./ci.ps1 -Tier full` would run it twice, so wait for the pull request's run instead (`gh pr checks --watch`);
-  `step` and `release` runs come on top of it (and may queue behind it).
+- A push to the branch of an open pull request (drafts too) also starts that pull request's run (`full`; into `main`:
+  `release`): on such a branch, `./ci.ps1` with the same tier would run it twice, so wait for the pull request's run instead (`gh pr checks --watch`);
+  other tiers' runs come on top of it (and may queue behind it).
 
 ## Running the tests locally: `test.ps1`
 

@@ -146,7 +146,7 @@ tests/                         automated tests (docs/testing/README.md)
   stryker-config.json, coverage.runsettings   Stryker.NET (the 6 critical files) and coverage settings
 ci.ps1                         runs a test tier on GitHub Actions (-Tier step | full | release, -Mutate): how tests run
 test.ps1                       the same tiers on the laptop, to debug the runner (reports in artifacts/, git-ignored)
-.github/workflows/ci.yml       the CI workflow (every pull request: full; by hand: any tier)
+.github/workflows/ci.yml       the CI workflow (pull requests: full, into main release; by hand: any tier)
 docs/                          this documentation (docs/testing/: the test guide, catalog, known bugs, dress rehearsal)
 deploy.ps1, DEPLOY.md          production build + IIS guide
 ```
@@ -745,7 +745,7 @@ Checks before committing (the laptop, seconds), then the tests on GitHub Actions
 cd ClinicHub.Web && npx tsc -b && npx eslint src
 dotnet build ClinicHub.sln             # all projects; use -c Release if Rider is running the Debug build
 ./ci.ps1                               # the step tier on CI (pushes the branch, waits), ≈ 5 min
-./ci.ps1 -Tier full                    # the full tier on CI (also every pull request), ≈ 8 min
+./ci.ps1 -Tier full                    # the full tier on CI (also every pull request but into main), ≈ 8 min
 ```
 
 Tests: tiers, reports, gates and how to add a test at each level are in the [testing README](../testing/README.md);
@@ -790,7 +790,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
-- Tests run on GitHub Actions (`ci.ps1`, `.github/workflows/ci.yml`; every pull request runs `full`). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
+- Tests run on GitHub Actions (`ci.ps1`, `.github/workflows/ci.yml`; every pull request runs `full`, into `main` `release`). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist
 
