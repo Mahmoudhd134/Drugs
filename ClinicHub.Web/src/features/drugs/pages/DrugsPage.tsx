@@ -132,10 +132,14 @@ export const DrugsPage = () => {
     // a page beyond the known total, or an empty page of a non-empty list
     const awaitingClamp = drugs.data !== undefined && totalCount > 0 && (page > lastPage || items.length === 0);
 
-    // Saving a new own drug while «المشتركة» is chosen switches to «أدوية العيادة», page 1, so the drug shows (CAT-137)
+    // Saving a new own drug while «المشتركة» is chosen switches to «أدوية العيادة», clears the search, page 1, so the
+    // drug shows (CAT-137, M1.7c C35)
     const onSaved = (saved: Drug, created: boolean) => {
-        if (created && !saved.isShared)
-            update(current => (current.source === "shared" ? {...current, source: "own", page: 1} : current));
+        if (!created || saved.isShared || params.source !== "shared") return;
+        // The typed search too (even one not in the URL yet): it never comes back after the switch
+        lastSearch.current = "";
+        setSearch("");
+        update(current => ({...current, source: "own", search: "", page: 1}));
     };
 
     const openCreate = () => setDialog({open: true, drug: null});
