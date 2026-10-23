@@ -114,7 +114,7 @@ test.describe("The drug tree: categories, subcategories, search @area:catalog", 
             expect(drugRequests.map(r => r.url()), "no request when a category opens").toEqual([]);
         });
 
-    test("\"amox\": «النتائج: N» and the categories by match count (ties by name), as the API's tree for \"amox\"; nothing opens by itself @CAT-074",
+    test("\"amox\": «النتائج: N» and the categories by match count (ties by name), as the API's tree for \"amox\"; only the categories whose one subcategory holds one drug open by themselves (R3) @CAT-074 @CAT-279",
         async ({page, lang, data}) => {
             const clinic = await data.clinic();
             const api = await data.ownerApi(clinic);
@@ -122,12 +122,17 @@ test.describe("The drug tree: categories, subcategories, search @area:catalog", 
             const tt = rx.tree.tt;
             await rx.tree.search("amox");
             const answer = await treeOf(api, "amox");
-            const expected = (await sortedCategories(page, answer, lang, true)).map(c => tt.node(categoryName(c, lang), c.count));
+            const sorted = await sortedCategories(page, answer, lang, true);
+            const expected = sorted.map(c => tt.node(categoryName(c, lang), c.count));
             await expect.poll(() => rx.tree.labels(rx.tree.rows(1)), {message: "the categories by count"}).toEqual(expected);
             await expect(rx.tree.total).toHaveText(tt.results(treeTotal(answer)));
             expect(answer.categories.flatMap(c => c.subCategories).length, "more than one subcategory").toBeGreaterThan(1);
-            for (const state of await rx.tree.rows(1).evaluateAll(els => els.map(el => el.getAttribute("aria-expanded")))) expect(state).toBe("false");
-            await expect(rx.tree.rows(2)).toHaveCount(0);
+            // M1.7 review R3: a category whose only subcategory holds a single drug opens with it; every other stays closed
+            const single = sorted.map(c => c.subCategories.length === 1 && c.subCategories[0].count === 1);
+            expect(single, "some categories stay closed").toContain(false);
+            await expect.poll(() => rx.tree.rows(1).evaluateAll(els => els.map(el => el.getAttribute("aria-expanded"))))
+                .toEqual(single.map(open => String(open)));
+            await expect(rx.tree.rows(2)).toHaveCount(single.filter(Boolean).length);
         });
 
     test("\"glaucoma\" and «المياه الزرقاء» (no drug name holds them): the one subcategory «العيون › المياه الزرقاء» opens by itself under the API's count, its first drugs listed @CAT-073",

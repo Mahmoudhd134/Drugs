@@ -120,7 +120,8 @@ test.describe("The drugs page's toggle and filters @area:catalog", () => {
             await expect(drugRows(page)).toHaveCount(20);
             // M1.7 review R2: a shared row has no chip at all
             await expect(drugRows(page).filter({has: page.getByText(st.chipOwn, {exact: true})})).toHaveCount(0);
-            await expect(page.getByText(st.chipShared, {exact: true})).toHaveCount(0);
+            // Within the rows: the source toggle keeps its own «المشتركة» / "Shared" button
+            await expect(drugRows(page).getByText(st.chipShared, {exact: true})).toHaveCount(0);
 
             await page.getByRole("button", {name: t.nextPage}).click();
             await expect(page.getByText(ct.displayedRows(21, 40, shared), {exact: true})).toBeVisible();

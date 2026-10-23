@@ -1,6 +1,6 @@
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
-import {createDrug, createDrugs, createProtocol, dialog, drugRow, protocolCard, protocolCards, option} from "../support/catalog.ts";
+import {createDrug, createDrugs, createProtocol, dialog, drugRow, protocolCard, protocolCards, option, showDrugsList} from "../support/catalog.ts";
 import {CATALOG_TEXTS} from "../support/texts-catalog.ts";
 import {expectToast, navTo} from "../support/ui.ts";
 import {expectHealthyPage} from "../support/checks.ts";
@@ -102,6 +102,7 @@ test.describe("The protocols list @area:catalog", () => {
             await expect(confirm).toHaveCount(0);
 
             await navTo(page, t, t.navDrugs);
+            await showDrugsList(page, ct);
             await expect(drugRow(page, drug.name)).toBeVisible();
         });
 
