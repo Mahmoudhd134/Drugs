@@ -114,6 +114,10 @@ const keyOf = (url: string) => {
 /**
  * What a page received, shared by every tree helper of that page: its tree answers by (search, source) since its last
  * full load (a reload empties the SPA's cache too), and its last bearer token (to look a drug up like the page does).
+ * Watched from the page's creation (`watchTree`, called by the fixtures): a helper made later (after `signIn`, whose
+ * page already received the first tree) would miss the answers the SPA keeps in its cache (staleTime 30 s) and serves
+ * again without any request, e.g. «الكل» toggled back (CAT-115). Cleared on `domcontentloaded`, before the new
+ * document's SPA can ask for anything (its first request waits for the session's refresh).
  */
 type Watch = { answers: Map<string, Promise<TreeAnswer | null>>; authorization: string | null };
 const watches = new WeakMap<Page, Watch>();
@@ -122,7 +126,7 @@ const watch = (page: Page): Watch => {
     if (found) return found;
     const created: Watch = {answers: new Map(), authorization: null};
     watches.set(page, created);
-    page.on("load", () => created.answers.clear());
+    page.on("domcontentloaded", () => created.answers.clear());
     page.on("request", request => {
         const value = request.headers()["authorization"];
         if (value && new URL(request.url()).pathname.startsWith("/api/v1/")) created.authorization = value;
@@ -132,6 +136,11 @@ const watch = (page: Page): Watch => {
         created.answers.set(keyOf(response.url()), response.json().then(body => body as TreeAnswer, () => null));
     });
     return created;
+};
+
+/** Starts recording a page's tree answers (every page the fixtures make: `page`, `newTab`, `newBrowser`). */
+export const watchTree = (page: Page) => {
+    watch(page);
 };
 
 /** The drug tree inside `scope` (the prescription's catalog panel, the protocol editor's page). */

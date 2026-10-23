@@ -74,7 +74,10 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
                 expect(layout.noWrap && layout.cut, "the ingredients on one cut line").toBe(true);
                 expect(layout.height).toBeLessThan(layout.line * 1.5);
                 if (!isMobile) {
-                    await shown.hover();
+                    // The pointer on the cut line itself (the tooltip's anchor): the `<bdi>` inside runs past the line's
+                    // clipped end, so its centre is hidden and the row would take the hover
+                    const line = await shown.evaluate(found => found.tagName === "BDI") ? shown.locator("xpath=..") : shown;
+                    await line.hover();
                     await expect(page.getByRole("tooltip").filter({visible: true})).toHaveText(ingredients);
                     await page.mouse.move(1, 1);
                 }

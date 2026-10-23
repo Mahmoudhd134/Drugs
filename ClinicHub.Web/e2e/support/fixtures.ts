@@ -5,6 +5,7 @@ import {Data} from "./data.ts";
 import {claimSuperAdminPhone} from "./phones.ts";
 import {runState} from "./run.ts";
 import {type Lang, TEXTS, type Texts} from "./texts.ts";
+import {watchTree} from "./tree.ts";
 
 /** Where a fast login (`signIn`) lands: the login's own answer, a clinic, the platform or the template. */
 export type SignInTarget = "asIs" | "platform" | "template" | { clinicId: number };
@@ -80,6 +81,7 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     },
     page: async ({page, consoleErrors, consolePolicy, opened, lang}, provide, testInfo) => {
         watchConsole(page, consoleErrors, consolePolicy);
+        watchTree(page);
         await provide(page);
         // Every test ends with the page checks on each page it left open (besides its own `healthy()` calls)
         if (testInfo.status !== "passed") return;
@@ -96,6 +98,7 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
         await provide(async () => {
             const tab = await context.newPage();
             watchConsole(tab, consoleErrors, consolePolicy);
+            watchTree(tab);
             opened.pages.push(tab);
             return tab;
         });
@@ -109,6 +112,7 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
             opened.contexts.push(context);
             const page = await context.newPage();
             watchConsole(page, consoleErrors, consolePolicy);
+            watchTree(page);
             opened.pages.push(page);
             return {context, page};
         });

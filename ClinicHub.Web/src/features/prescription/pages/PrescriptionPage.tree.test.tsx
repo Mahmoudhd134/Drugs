@@ -11,6 +11,7 @@ import {
     openNode,
     pastDebounce,
     searchTree,
+    theTree,
     treeSearch,
     treeTexts,
 } from "../../../test/pages/drugTree.tsx";
@@ -21,18 +22,25 @@ import {
 
 const ar = treeTexts("ar");
 
+const scrollPanelOf = (tree: HTMLElement): HTMLElement | undefined => {
+    for (let el: HTMLElement | null = tree; el; el = el.parentElement) if (getComputedStyle(el).overflowY === "auto") return el;
+    return undefined;
+};
+
 describe("the prescription's drug tree @area:prescription", () => {
     test("«البروتوكولات» and back: the tree's search, open nodes and scroll position are kept, nothing reloaded @CAT-124", async () => {
         const drugs = [aDrug({name: "Timolol"}), aDrug({name: "Tiopex", subCategory: CATARACT}), aDrug({name: "Xalatan"})];
-        const {user, io} = await openPrescription({protocols: [aProtocol({name: "Post cataract"})], drugs});
+        const {user} = await openPrescription({protocols: [aProtocol({name: "Post cataract"})], drugs});
         await screen.findByText("Post cataract");
         await user.click(screen.getByRole("tab", {name: "الأدوية"}));
         await searchTree(user, "ti");
         await openNode(user, await findNodeRow("العيون", "ar", 2));
         const glaucoma = await openNode(user, nodeRow("المياه الزرقاء", "ar", 1));
         await findDrugRow("Timolol");
-        const panel = io.roots().find((root): root is HTMLElement => root instanceof HTMLElement);
-        expect(panel, "the scroll panel (the observers' root)").toBeDefined();
+        // The scroll panel (contract § 3.3 item 5): the nearest element around the tree whose overflowY is auto. Not
+        // read from the observers' roots: a bucket observes its end only while it has a next page (Timolol is alone)
+        const panel = scrollPanelOf(theTree());
+        expect(panel, "the tree's scroll panel").toBeDefined();
         panel!.scrollTop = 120;
         const recorded = recordRequests();
 
