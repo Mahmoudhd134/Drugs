@@ -1,7 +1,24 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
-import {aDrug, aSharedDrug, aTreeCategory, aTreeSubCategory, api, drugsHandlers, EYE, GLAUCOMA, hoverTooltip, leaveTooltip, OTHER, server, UNCLASSIFIED} from "../../../test";
+import {
+    aDrug,
+    ARABIC_DRUG_NAME,
+    aSharedDrug,
+    aTreeCategory,
+    aTreeSubCategory,
+    api,
+    DIGITS_FIRST_NAME,
+    drugsHandlers,
+    expectOwnDirection,
+    EYE,
+    GLAUCOMA,
+    hoverTooltip,
+    leaveTooltip,
+    OTHER,
+    server,
+    UNCLASSIFIED,
+} from "../../../test";
 import {
     CATARACT,
     childrenOf,
@@ -19,6 +36,7 @@ import {
     searchTree,
     sourceButton,
     theTree,
+    treeSearch,
     treeTexts,
 } from "../../../test/pages/drugTree.tsx";
 
@@ -304,4 +322,34 @@ describe("drug tree: the states instead of the tree @area:catalog", () => {
         expect(await findDrugRow("Timolol")).toBeInTheDocument();
         expect(screen.queryByText(ar.loadFailed)).not.toBeInTheDocument();
     });
+});
+
+describe("drug tree: each name keeps its own direction @area:i18n", () => {
+    // Both drugs in «العيون › المياه الزرقاء», the one subcategory: it opens by itself (D7)
+    test("in Arabic (protocol editor and prescription), «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in their tree row @CAT-233",
+        async () => {
+            await renderTree({drugs: [aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})]});
+            expectOwnDirection(await findDrugRow(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
+            expectOwnDirection(await findDrugRow(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+        });
+
+    test("in Arabic, Latin and Arabic active ingredients are each isolated with their own direction in their tree row @CAT-262",
+        async () => {
+            const latin = "TIMOLOL MALEATE 0.5% (AS BASE).";
+            const arabic = "كلوريد الصوديوم 0.9٪.";
+            await renderTree({drugs: [aDrug({name: "Timolol", activeIngredients: latin}), aDrug({name: "Saline", activeIngredients: arabic})]});
+            expectOwnDirection(await findDrugRow("Timolol"), latin);
+            expectOwnDirection(await findDrugRow("Saline"), arabic);
+        });
+});
+
+describe("drug tree: the search's placeholder @area:catalog", () => {
+    test("the tree's search (protocol editor, prescription) says what it matches: «ابحث بالاسم أو المادة الفعالة أو التصنيف…» / \"Search by name, active ingredient or category…\" @CAT-235",
+        async () => {
+            const {unmount} = await renderTree({drugs: eyeDrugs()});
+            expect(treeSearch()).toHaveAttribute("placeholder", "ابحث بالاسم أو المادة الفعالة أو التصنيف…");
+            unmount();
+            await renderTree({drugs: eyeDrugs(), lang: "en"});
+            expect(treeSearch("en")).toHaveAttribute("placeholder", "Search by name, active ingredient or category…");
+        });
 });

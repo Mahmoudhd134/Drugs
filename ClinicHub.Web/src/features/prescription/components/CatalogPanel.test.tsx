@@ -76,13 +76,13 @@ describe("catalog panel by permission @area:access", () => {
 });
 
 describe("prescription drugs tab: each name keeps its own direction @area:i18n", () => {
-    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in the drugs tab @CAT-233",
+    test("in Arabic, «1 2 3 (ONE TWO THREE) 20 F.C.TABS.» and an Arabic name are each isolated with their own direction in the drugs tab's tree rows @CAT-233",
         async () => {
-            server.use(...drugsHandlers([aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})]));
+            // M1.7c: the tab is the drug tree (contract § 3.2); both drugs in «العيون › المياه الزرقاء», which opens by itself
+            const drugs = [aSharedDrug({name: DIGITS_FIRST_NAME}), aDrug({name: ARABIC_DRUG_NAME})];
+            server.use(drugTreeHandler(drugs), ...drugsHandlers(drugs));
             await openPanel(["drugs.list", "prescriptions.create"]);
-            await screen.findByText(DIGITS_FIRST_NAME);
-            const optionOf = (name: string) => screen.getByText(name).closest("[role=option]") as HTMLElement;
-            expectOwnDirection(optionOf(DIGITS_FIRST_NAME), DIGITS_FIRST_NAME);
-            expectOwnDirection(optionOf(ARABIC_DRUG_NAME), ARABIC_DRUG_NAME);
+            expectOwnDirection(await screen.findByRole("treeitem", {name: DIGITS_FIRST_NAME}), DIGITS_FIRST_NAME);
+            expectOwnDirection(await screen.findByRole("treeitem", {name: ARABIC_DRUG_NAME}), ARABIC_DRUG_NAME);
         });
 });
