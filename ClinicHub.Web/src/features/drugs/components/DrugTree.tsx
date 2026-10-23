@@ -260,7 +260,10 @@ export const DrugTree = ({onSelect, selectedIds, autoFocus, maxHeight = "58vh", 
         if (event.target.isConnected && !(to instanceof Node && panelRef.current?.contains(to))) setPendingFocus(null);
     };
 
-    /** «تحميل المزيد» / a retry: the focus stays in the bucket while its button is replaced by the spinner (R3-1). */
+    /**
+     * «تحميل المزيد» / a retry: the focus stays in the bucket while its button is replaced by the spinner (R3-1); only
+     * «تحميل المزيد» moves it on to the first new drug, a retry leaves it there (C33).
+     */
     const holdFocus = (bucket: BucketKey, nextIndex: number | null) => {
         const drugs = loaders.current.get(bucket)?.drugs ?? [];
         const last = drugs[drugs.length - 1] as Drug | undefined;

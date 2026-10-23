@@ -30,7 +30,8 @@ type Props = {
     onState: (bucket: BucketKey, state: BucketState | null) => void;
     /**
      * Before «تحميل المزيد» or a retry (whose button goes away while it loads): the focus moves to the bucket's last loaded
-     * drug (else its subcategory row), then to the first new drug at `nextIndex` once it shows (null: stays there)
+     * drug (else its subcategory row), then to the first new drug at `nextIndex` once it shows (null: stays there, as
+     * after a retry, C33)
      */
     onHoldFocus: (bucket: BucketKey, nextIndex: number | null) => void;
 };
@@ -84,13 +85,11 @@ export const DrugTreeBucket = ({search, source, categoryId, subCategoryId, bucke
                     action={
                         <Button color="inherit" size="small"
                                 onClick={() => {
-                                    if (isFetchNextPageError) {
-                                        onHoldFocus(bucket, drugs.length);
-                                        void fetchNextPage({cancelRefetch: false});
-                                    } else {
-                                        onHoldFocus(bucket, null);
-                                        void refetch();
-                                    }
+                                    // The focus waits on the last loaded drug (else the subcategory row) and stays there
+                                    // when the page arrives: an arriving page never takes the focus (C33)
+                                    onHoldFocus(bucket, null);
+                                    if (isFetchNextPageError) void fetchNextPage({cancelRefetch: false});
+                                    else void refetch();
                                 }}>
                             {t("common.retry")}
                         </Button>

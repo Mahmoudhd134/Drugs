@@ -179,9 +179,10 @@ editor ([protocols](../protocols/tech.md)); props `onSelect`, `selectedIds`, `au
 - **Keyboard:** roving `tabIndex` (one Tab stop: the active row, else the first row); `treeKeyAction` maps the keys
   (C3, mirrored in RTL); ↓ on the last loaded drug of a bucket with more pages loads the next page and focuses its first
   new drug once rendered; Enter on a drug adds it and keeps the focus there; ← / Esc on a drug closes its bucket and
-  focuses it. «تحميل المزيد» and a next-page retry do the same as ↓ (the focus goes to the bucket's last loaded drug at
-  once, then to the first new drug); a first-page retry focuses the subcategory row; the tree's own retry focuses the
-  search field, so the focus never falls to `<body>` when the button gives way to the spinner. A focus waiting for a
+  focuses it. «تحميل المزيد» does the same as ↓ (the focus goes to the bucket's last loaded drug at once, then to the
+  first new drug); only these two move the focus to the first new drug. A next-page retry (pressed on its button)
+  focuses the bucket's last loaded drug and the focus stays there when the page arrives (C33: an arriving page never
+  takes the focus); a first-page retry focuses the subcategory row; the tree's own retry focuses the search field (C28), so the focus never falls to `<body>` when the button gives way to the spinner. A focus waiting for a
   row that isn't rendered yet is dropped by any other key action, another row taking the focus, a new tree (search or
   source), a failed or closed bucket, or the focus leaving the tree's panel: it never steals the focus later.
 - **States instead of the tree:** first load spinner; the tree request failed → `common.loadFailed` + retry; no category →
