@@ -9,7 +9,7 @@ import {aClinicContext, aMe, anAccessToken, anAuthResult} from "./data.ts";
 import {api} from "./msw.ts";
 
 /*
- * The whole app (App.tsx: BrowserRouter, AppProviders with its real QueryClient and 403 handling, AuthProvider, the
+ * The whole app (App.tsx: its router, AppProviders with its real QueryClient and 403 handling, AuthProvider, the
  * session store, the API client and its refresh interceptor) on a fresh copy of its modules, as on a page load. For the
  * session, lost-clinic and error-handling cases that a page rendered alone with a mocked `useAuth()` can't show.
  */
@@ -35,6 +35,7 @@ const LAZY_PAGES = [
     () => import("../features/admin/pages/ClinicPage.tsx"),
     () => import("../features/admin/components/ClinicRolesTab.tsx"),
     () => import("../features/admin/components/ClinicStaffTab.tsx"),
+    () => import("../features/admin/components/ClinicPrintTemplateTab.tsx"),
     () => import("../features/prescription/pages/PrescriptionPage.tsx"),
     () => import("../features/drugs/pages/DrugsPage.tsx"),
     () => import("../features/protocols/pages/ProtocolsPage.tsx"),

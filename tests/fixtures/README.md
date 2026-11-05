@@ -60,3 +60,32 @@ Take the expected values from the docs. Mark a row `apiOnly` only when the SPA c
 line) is not `apiOnly`, so the TypeScript side checks it too. When C# and TypeScript disagree on a row, the docs decide which one is wrong
 (a known bug, [D9](../../docs/design/m1.6-test-foundation.md#d9-bugs-found-while-writing-tests)); a rule the docs
 don't settle is a question for the user, and the row stays out until it is answered.
+
+## `print-layout-cases.json`: print template rule parity
+
+The layout rules exist twice: C# `SavePrescriptionTemplateCommandValidator` + `PrescriptionLayoutRules` and TypeScript
+`features/printTemplates/layout.ts` ([contract § 1.4](../../docs/design/prescription-templates.contract.md#14-validation-rule-order-codes-fields)). Both test
+suites run every row (TPL-048), so the two can't drift:
+
+- **xUnit** (`tests/ClinicHub.UnitTests/Prescriptions/Templates`): `SavePrescriptionTemplateCommand.From(layout)` + the validator; the
+  `errors` are compared in order. `PrescriptionLayoutRules.Round` on `rounding`.
+- **Vitest** (`ClinicHub.Web/src/features/printTemplates/layout.parity.test.ts`): `validateLayout(layout)`, in order; `roundTenth` on `rounding`.
+  Stryker leaves it out (it reads a file outside `ClinicHub.Web`).
+
+```json
+{
+  "rounding": [{ "value": 12.35, "rounded": 12.4 }],
+  "cases": [
+    {
+      "ids": ["TPL-024"],
+      "name": "0.1 mm past the right edge",
+      "valid": false,
+      "layout": { "schemaVersion": 1, "page": { "size": "A5", "widthMm": 148, "heightMm": 210 }, "items": [] },
+      "errors": [{ "field": "items[0].xMm", "code": "templateItemOutsidePage" }]
+    }
+  ]
+}
+```
+
+`layout` is the body as the API takes it, `errors` the API's full list for it (empty when `valid`). No row has a wrong type or a missing
+number: those are binding or API rules, proved by the integration tests. Invisible characters are written as `\uXXXX` escapes.

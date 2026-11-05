@@ -39,6 +39,16 @@ public static class ValidationExtensions
         rule.Must(text => text is null || !text.Contains('\0')).WithError(CommonErrors.InvalidText);
 
     /// <summary>
+    /// Multi-line text (design prescription-templates § 5, a template's static text): the characters
+    /// <see cref="ValidName{T}"/> refuses (control characters, line/paragraph separators, bidi overrides and isolates) answer
+    /// <see cref="CommonErrors.InvalidText"/>, except line breaks and tabs (<c>\n</c>, <c>\r</c>, <c>\t</c>). Null passes:
+    /// whether the text is required is the caller's rule.
+    /// </summary>
+    public static IRuleBuilderOptions<T, string> ValidMultilineText<T>(this IRuleBuilder<T, string> rule) =>
+        rule.Must(text => text is null || !text.Any(c => c is not ('\n' or '\r' or '\t') && (IsLineOrControl(c) || IsBidiControl(c))))
+            .WithError(CommonErrors.InvalidText);
+
+    /// <summary>
     /// Optional one-line text (design M1.7 D3, a drug's active ingredients): no control characters, line breaks and tabs
     /// included (<see cref="CommonErrors.InvalidText"/>), and at most <paramref name="maxLength"/> characters once
     /// trimmed (<see cref="CommonErrors.TextTooLong"/>). Null or blank passes (the handler stores null).

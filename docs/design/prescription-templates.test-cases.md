@@ -81,7 +81,7 @@ full date).
 | TPL-208 | Given two items with the same box, when saved, then 200 and both stay | P1 | unit | business file, § 3 |
 | TPL-209 | Given 12.34 in a position or size, then the request holds and GET answers 12.3; the server applies the same rule to a body sent with 12.34 | P1 | unit+ui | § 5 |
 | TPL-210 | Given a custom page 210.1 mm wide and an item at X 0.3, width 209.8 (as doubles the sum is 210.10000000000002), then it passes on the server and in `layout.ts`; X 0.4 is refused on both | P2 | unit | § 3 |
-| TPL-211 | Given a name of only invisible format characters (zero-width space), then `templateItemNameRequired`; with U+200E, U+200F, U+061C or ZWNJ inside (pasted Arabic), then it passes; with U+202A-U+202E or U+2066-U+2069 inside, then it's refused (code: contradiction C3) | P1 | unit | § 5, `ValidationExtensions.cs:19-34` |
+| TPL-211 | Given a name of only invisible format characters (zero-width space), then `nameRequired`; with U+200E, U+200F, U+061C or ZWNJ inside (pasted Arabic), then it passes; with U+202A-U+202E or U+2066-U+2069 inside, then `nameInvalid` | P1 | unit | § 5, `ValidationExtensions.cs:19-34` |
 | TPL-212 | Given static text pasted with `\r\n` line breaks, or with a tab, then the line breaks are kept and the save doesn't answer `invalidText` for them | P2 | unit | D9, `ValidationExtensions.cs:36-39` |
 | TPL-213 | Given a name of 60 characters with spaces around it, then it passes and GET answers it trimmed | P2 | unit | § 3 |
 | TPL-214 | Given `items: []` or missing, then `templateTextCount`; an item with a missing or empty `id`, then `templateLayoutInvalid` | P2 | unit | § 5 |
@@ -117,7 +117,7 @@ full date).
 | TPL-240 | Given the panel, when an item is double-clicked, then one item is added, as on the prescription page (`event.detail > 1`) | P1 | ui | double clicks, RX-012 |
 | TPL-241 | Given «إنشاء قالب» double-clicked, then one new sheet; given the delete confirm double-clicked, then one DELETE and no error toast | P2 | ui | UX-028 |
 | TPL-242 | Given a save in flight, when a field is edited before the answer, then the edit stays and the screen still counts as unsaved | P2 | ui | § 6 |
-| TPL-243 | Given each case, then the exact texts in both languages: «لا يوجد قالب طباعة لهذه العيادة.», «حذف قالب الطباعة؟ سيختفي زر «طباعة» من العيادة، ولا يمكن التراجع عن ذلك.», «الاسم مطلوب.», «هذا الاسم مستخدم في عنصر آخر.», «الاسم أطول من 60 حرفًا.», «اكتب النص.», «العنصر خارج حدود الورقة.» (English texts in the contract) | P1 | ui | «الرسائل» |
+| TPL-243 | Given each case, then the exact texts in both languages: «لا يوجد قالب طباعة لهذه العيادة.», «حذف قالب الطباعة؟ سيختفي زر «طباعة» من العيادة، ولا يمكن التراجع عن ذلك.», «الاسم مطلوب.», «هذا الاسم مستخدم في عنصر آخر.», «الاسم طويل جدًا.», «اكتب النص.», «العنصر خارج حدود الورقة.» (English texts in the contract) | P1 | ui | «الرسائل» |
 | TPL-244 | Given every new `template*` code, then `errors.<code>` is in `en.ts` and `ar.ts` | P1 | unit | § 5, ERR-030 |
 | TPL-245 | Given clinic A's designer with unsaved edits, when going to clinic B's tab by history, then none of A's sheet, selection or edits shows under B | P1 | ui | ADM-100, `ClinicPage.tsx:87` |
 | TPL-246 | Given 375 px in both languages, then the four clinic tabs are reachable, the message wraps, and the page has no horizontal scroll | P1 | e2e | D12, ADM-283 |
@@ -260,7 +260,7 @@ full date).
 | UX-004 | «نسخ» / «تعديل ونسخ» stacked at 375 px: Print joins them when a template exists. `e2e/ux/phone.spec.ts:117` uses a clinic with none, so it still passes; TPL-305 covers the rest |
 | UX-014 | Tooltips of the two buttons: Print joins them with the 100% hint. `SelectionPanel.test.tsx:37,45` |
 | UX-036 | "every page" adds the designer and the pop-up (no text change; TPL-056, TPL-348) |
-| ERR-030 | The code list in `locales.test.ts:79-87` must add the 12 `template*` codes (TPL-244) |
+| ERR-030 | The code list in `locales.test.ts:79-87` must add the 10 `template*` codes (TPL-244) |
 | I18N-006 | Its page and dialog list adds the designer and the pop-up |
 | I18N-013 | `docMessages.test.ts:291` checks a `DOCS` list and fails on an unmapped row: the new `business.md` joins it, and any row added to the prescription table must be mapped |
 

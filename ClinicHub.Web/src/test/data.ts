@@ -11,6 +11,7 @@ import type {
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory, AdminSubCategory} from "../features/admin/categories/types.ts";
 import type {PrescriptionLine} from "../features/prescription/types.ts";
+import type {PrintLayout, PrintTemplate, TemplateItem, TemplateItemKind} from "../features/printTemplates/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
 
@@ -218,6 +219,36 @@ export const aMe = (fields: Partial<Omit<Me, "user">> & { user?: Partial<Me["use
         ...rest,
     };
 };
+
+/** The default of each kind, inside an A5 sheet (the design's example layout, § 5); ids from `nextId`. */
+const TEMPLATE_ITEM_DEFAULTS: { [K in TemplateItemKind]: Omit<Extract<TemplateItem, { kind: K }>, "id"> } = {
+    prescriptionText: {kind: "prescriptionText", xMm: 14, yMm: 80, wMm: 120, hMm: 90, fontSizePt: 11},
+    manualInput: {kind: "manualInput", name: "الاسم", xMm: 58, yMm: 46, wMm: 72, hMm: 8, fontSizePt: 11},
+    function: {kind: "function", function: "fullDate", name: "التاريخ", xMm: 14, yMm: 46, wMm: 30, hMm: 8, fontSizePt: 11},
+    staticText: {kind: "staticText", text: "يُصرف مرة واحدة", xMm: 14, yMm: 175, wMm: 60, hMm: 8, fontSizePt: 11},
+};
+
+/** An item of a print layout, e.g. `aTemplateItem("manualInput", {name: "السن", xMm: 10})`. */
+export const aTemplateItem = <K extends TemplateItemKind>(kind: K, fields: Partial<Extract<TemplateItem, { kind: K }>> = {}) =>
+    ({id: `i${nextId()}`, ...TEMPLATE_ITEM_DEFAULTS[kind], ...fields}) as unknown as Extract<TemplateItem, { kind: K }>;
+
+/**
+ * The catalog's layout L (design § 5): A5, one prescription text, a manual input «الاسم» and a full date. Valid as it
+ * stands (`validateLayout` answers nothing); `items` or `page` replace its own.
+ */
+export const aPrintLayout = (fields: Partial<PrintLayout> = {}): PrintLayout => ({
+    schemaVersion: 1,
+    page: {size: "A5", widthMm: 148, heightMm: 210},
+    items: [aTemplateItem("prescriptionText"), aTemplateItem("manualInput"), aTemplateItem("function")],
+    ...fields,
+});
+
+/** A clinic's template (`GET …/prescription-template`). */
+export const aPrintTemplate = (fields: Partial<PrintTemplate> = {}): PrintTemplate => ({
+    layout: aPrintLayout(),
+    updatedAt: "2026-11-05T10:00:00Z",
+    ...fields,
+});
 
 /** A clinic's role (`GET /admin/clinics/{id}/roles`). */
 export const aRole = (fields: Partial<Role> = {}): Role => ({

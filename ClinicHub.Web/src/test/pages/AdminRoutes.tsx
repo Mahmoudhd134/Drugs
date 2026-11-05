@@ -11,6 +11,7 @@ import {setNavigate} from "./adminNavigation.ts";
 // Loaded with the helper (the tabs stay lazy, as in the app): a test's first wait isn't spent loading them
 import "../../features/admin/components/ClinicRolesTab.tsx";
 import "../../features/admin/components/ClinicStaffTab.tsx";
+import "../../features/admin/components/ClinicPrintTemplateTab.tsx";
 
 /** Keeps the router's `navigate` for navigateInApp (a link or Back somewhere else in the app). */
 const NavigateProbe = () => {
