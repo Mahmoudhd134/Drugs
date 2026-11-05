@@ -129,7 +129,7 @@ whole numbers (`toTenths(x) + toTenths(w) <= toTenths(W)`). The shared rows: `ro
 | 8c | function | `Function` is one of the six | `templateLayoutInvalid` | `items[i].function` |
 | 8d | manual input, function | `ValidName(60)`: `nameRequired`, `nameInvalid`, `nameTooLong` (the shared rule, chained as it is) | those | `items[i].name` |
 | 8e | manual input, function; name not blank | `NameKey` differs from every earlier manual input's and function's (the later one is refused; static text isn't a name) | `templateItemNameTaken` | `items[i].name` |
-| 8f | static text | Not blank (only spaces or invisible format characters count as blank, as `ValidName`) | `templateStaticTextRequired` | `items[i].text` |
+| 8f | static text | Not blank (`ValidationExtensions.IsBlank`, internal, the one `ValidName` uses: only spaces or invisible format characters) | `templateStaticTextRequired` | `items[i].text` |
 | 8g | static text | `ValidMultilineText()` (done): control characters, U+2028, U+2029, bidi overrides and isolates refused; `\n`, `\r`, `\t` allowed | `invalidText` | `items[i].text` |
 | 8h | static text | At most 1000 characters **as typed** (`Length`, no trim; `\r\n` counts 2) | `templateStaticTextTooLong` | `items[i].text` |
 | 8i | | X, then Y: not null (`invalidRequest`); when the page passed rules 2–5, `Fits(x, w, page width)` / `Fits(y, h, page height)` | `templateItemOutsidePage` | `items[i].xMm`, `items[i].yMm` |
@@ -312,10 +312,10 @@ The page never scrolls sideways (TPL-227).
 
 One renderer for the designer and for printing (step 2):
 - Root: `div` `data-testid="template-sheet"`, `dir="ltr"`, inline `style` `{position: "relative", width: "<W>mm", height: "<H>mm", fontFamily: PRINT_FONT_FAMILY, overflow: "hidden"}` (cut at the sheet's edge, § 4.7), white, with a 1 mm grid as a background image (designer only). It imports `printFont.css`.
-- Each item: native `<button type="button">`, `aria-pressed={id === selectedId}`, `data-item-id={id}`, inline `style` `{position: "absolute", left: "<x>mm", top: "<y>mm", width: "<w>mm", height: "<h>mm", fontSize: "<pt>pt", boxSizing: "border-box", overflow: "visible"}`; **position always inline, never `sx`**: the RTL style cache flips `left` and `right`. A selected box has an `outline` (never a border: it stays exactly its size, TPL-228).
+- Each item: native `<button type="button">`, `aria-pressed={id === selectedId}`, `data-item-id={id}`, inline `style` `{position: "absolute", left: "<x>mm", top: "<y>mm", width: "<w>mm", height: "<h>mm", fontSize: "<pt>pt", fontFamily: "inherit", padding: 0, border: 0, background: "transparent", color: "inherit", textAlign: "start", display: "block", boxSizing: "border-box", overflow: "visible"}` (a native button inherits no font and centers its text: the content starts at the box's top, at its text's own start, in the print font); **position always inline, never `sx`**: the RTL style cache flips `left` and `right`. A selected box has an `outline` (never a border: it stays exactly its size, TPL-228).
 - Content in an inner `<span dir="auto">` aligned to its start, `white-space: pre-wrap`, `overflow-wrap: anywhere`, never clipped by the box (TPL-239):
   - prescription text: `sampleText`; the button's `aria-label` = `kinds.prescriptionText`.
-  - manual input, function: the name; empty: the kind's label, dimmed.
+  - manual input, function: the name; empty: `kinds.manualInput`, or the function's `functions.<function>`, dimmed.
   - static text: the text with its line breaks; empty: `kinds.staticText`, dimmed.
 - Accessible name: the prescription text's `aria-label`, otherwise the content.
 
@@ -370,6 +370,7 @@ const blocker = useBlocker(({currentLocation, nextLocation}) => blocksExit({
 // blocked → ask → blocker.proceed() or blocker.reset()
 // dirty → window "beforeunload" listener calling preventDefault(), as ProtocolEditorPage
 // registerLeaveCheck(() => dirty ? ask() : Promise.resolve(true)), read through a ref
+// ask(): one question at a time: while one is open, a second ask() returns the same promise
 ```
 
 The question: `useConfirm` `{title: t("printTemplates.unsavedMessage"), confirmText: t("printTemplates.leave"), destructive: true}`: buttons `common.cancel` (stays, the focus starts here; Esc too) and `printTemplates.leave`.
@@ -389,6 +390,8 @@ The question: `useConfirm` `{title: t("printTemplates.unsavedMessage"), confirmT
 | Context lost (clinic or platform access gone, another tab's switch, another user) | `RequireAuth`'s `<Navigate>`, `AuthProvider`'s `navigate` | **Never blocked** | |
 
 - **A forced move is told apart by the session**: `blocksExit` compares `currentContextKey()` (`"none"` when logged out) with its value when the guard mounted. Every forced move changes it before navigating, and the move's own toast already says why. Usually the designer has unmounted by then as well (`RequireAuth` stops rendering the outlet, and effect clean-ups run before the `Navigate`'s effect); the check covers `AuthProvider`'s direct `navigate`, which runs before React re-renders (TPL-249).
+- **One question at a time**: `useConfirm`'s second `ask` would overwrite the first and its promise would never resolve, so the guard keeps the open promise and hands it to any later `ask` (say browser Back while the "Edit template clinic" question is open); `useConfirm` itself doesn't change.
+- **Accepted, not tested**: `currentContextKey()` holds no user, so another super admin signing in from another tab keeps the key `"platform"` and the question can show on that forced move. Near impossible (one super admin), and harmless: it asks once.
 - **A confirmed exit doesn't ask twice**: `blocker.proceed()` navigates with the blocker in `proceeding`, which the router doesn't consult. Logout and "Edit template clinic" ask through `confirmLeave()`; their later `navigate` happens with the session changed, so `blocksExit` is false. A logout or switch that **fails** changes nothing: the screen stays dirty and the next exit asks again.
 - **`Navigate` redirects**: none renders inside the designer. The ones above it (`RequireAuth`) are forced moves. A same-path navigation (query, hash, the current tab pressed again) isn't an exit.
 - **Under `renderWithProviders`** the session store is never started: `currentContextKey()` stays `"none"`, so the guard blocks, as it should. Forced moves need the real session: `startApp` (TPL-249). The same goes for the second half of logging out and "Edit template clinic".
@@ -418,7 +421,7 @@ Expected values from § 1.4, schema in `tests/fixtures/README.md`: `{ids, name, 
 
 ### 4.4 E2E
 
-`e2e/admin/print-template.spec.ts` and friends, tagged `@area:admin`. Locators by the names of § 3 (`getByRole("region", {name: "إضافة إلى الورقة"})`, `getByTestId("template-sheet")`, `[data-item-id]`); measuring a box: its bounding box against 1 mm = 96 / 25.4 CSS px.
+`e2e/admin/print-template.spec.ts` and friends, tagged `@area:admin`. Locators by the names of § 3 (`getByRole("region", {name: "إضافة إلى الورقة"})`, `getByTestId("template-sheet")`, `[data-item-id]`); measuring a box: its bounding box against 1 mm = 96 / 25.4 CSS px. **The cut-text check** (`expectNoCutOrOverlap`, `e2e/support/ux.ts`) leaves out `[data-testid=template-sheet]` and everything inside it: its boxes are buttons that scroll inside the sheet's own area and may overlap (TPL-208), and their true geometry has its own cases (TPL-227, TPL-228, TPL-239). The rest of the page is still checked.
 
 ### 4.5 Existing tests that must change
 
@@ -545,7 +548,7 @@ Also ERR-030's C# half (`ErrorCodeTextsTests`), P1, unit, and `Catalog/Migration
 | TPL-231 | P2 | ui |  |
 | TPL-232 | P1 | ui+e2e | both levels |
 | TPL-247 | P1 | e2e |  |
-| TPL-248 | P1 | ui+e2e | both levels; the leaving half through `startApp` |
+| TPL-248 | P1 | ui+e2e | both levels; the leaving half through `startApp`; covers "Edit template clinic" too |
 | TPL-249 | P1 | ui | `startApp`: the real session |
 | TPL-250 | P0 | e2e |  |
 | TPL-233 | P2 | ui |  |

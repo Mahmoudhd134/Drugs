@@ -59,7 +59,7 @@ public static class ValidationExtensions
             .Must(text => text is null || !text.Any(IsLineOrControl)).WithError(CommonErrors.InvalidText)
             .Must(text => text is null || text.Trim().Length <= maxLength).WithError(CommonErrors.TextTooLong);
 
-    private static bool IsBlank(string name) =>
+    internal static bool IsBlank(string name) =>
         name is null || name.All(c => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) == UnicodeCategory.Format);
 
     private static bool IsLineOrControl(char c) =>

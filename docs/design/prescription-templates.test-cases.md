@@ -104,7 +104,7 @@ full date).
 | TPL-231 | Given a new sheet not saved yet, then no «حذف»; once saved, it shows | P2 | ui | business file |
 | TPL-232 | Given unsaved changes, when the header's Back, another clinic tab, a sidebar entry or the logo is used, then «لديك تغييرات لم تُحفظ. هل تريد الخروج؟» asks; staying keeps the edits, leaving drops them. A reload or closing the page shows the browser's prompt | P1 | ui+e2e | D16 |
 | TPL-247 | Given unsaved changes, when the browser's Back or Forward is used, then the same question asks; staying keeps the URL, the screen and the edits | P1 | e2e | D16 |
-| TPL-248 | Given unsaved changes, when switching clinic or logging out from the user menu, then the question asks first; staying does neither and keeps the edits | P1 | ui+e2e | D16 |
+| TPL-248 | Given unsaved changes, when switching clinic or logging out from the user menu, or using «تعديل العيادة النموذجية» in the sidebar, then the question asks first; staying does none of them and keeps the edits | P1 | ui+e2e | D16 |
 | TPL-249 | Given unsaved changes and the session or the context lost (a forced move), then no question blocks it: the move's own message shows | P1 | ui | D16 |
 | TPL-250 | Given the data router, then deep links, reloads on a nested route, redirects and browser Back still work for a clinic user and the super admin | P0 | e2e | § 6 |
 | TPL-233 | Given a value changed and typed back, when leaving, then no warning | P2 | ui | § 6, GRP-091 |
