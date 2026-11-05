@@ -17,6 +17,7 @@ import type {PrescriptionLine} from "../types.ts";
 import type {Protocol} from "../../protocols/types.ts";
 import type {Drug, DrugSnapshot} from "../../drugs/types.ts";
 import {useClinic} from "../../auth/useAuth.ts";
+import {usePrintPrescription} from "../../printTemplates/usePrintPrescription.tsx";
 
 export const PrescriptionPage = () => {
     const {t} = useTranslation();
@@ -28,6 +29,7 @@ export const PrescriptionPage = () => {
     const protocolDialogs = useProtocolAddDialogs();
     // A protocol is added once per click: a fast double click must not run the flow (and its dialogs) twice
     const once = useSingleFlight();
+    const printer = usePrintPrescription();
 
     /**
      * Adds a protocol's lines: each drug's default dosing with the protocol's override on top.
@@ -192,12 +194,19 @@ export const PrescriptionPage = () => {
                         onClear={clear}
                         onEdit={() => setEditorOpen(true)}
                         onQuickCopy={() => void quickCopy()}
+                        onPrint={printer.available ? () => void printer.print(linesToHtml(prescription.lines)) : undefined}
                     />
                 </Grid>
             </Grid>
             <LineEditDialog line={editingLine} onClose={() => setEditingLine(null)} onSave={prescription.updateLine}/>
-            <EditorDialog open={editorOpen} lines={prescription.lines} onClose={() => setEditorOpen(false)}/>
+            <EditorDialog
+                open={editorOpen}
+                lines={prescription.lines}
+                onClose={() => setEditorOpen(false)}
+                onPrint={printer.available ? (html) => void printer.print(html) : undefined}
+            />
             {protocolDialogs.dialogs}
+            {printer.element}
         </>
     );
 };

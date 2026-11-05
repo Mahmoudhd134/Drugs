@@ -112,6 +112,7 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   DependencyInjection.cs       AddApi(): lowercase URLs, controllers, invalid-body 400, ProblemDetails safety
                                net, 500 handler
   Features/Drugs, Protocols/   thin controllers (+ their request records)
+  Features/Prescriptions/      PrescriptionTemplateController (the clinic's own read, /prescription-template)
   Features/Identity/           AuthController (+ the refresh cookie), MeController, CurrentUser (ICurrentUser
                                from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
   Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy),
@@ -136,6 +137,8 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
                                <RequirePermission>, api.ts (the permission catalog)
   src/features/roles/, staff/  reusable role and staff lists + editors; data only through an adapter (no URLs)
   src/features/admin/          admin layout, clinic pages and tabs, adapters.ts (adminRolesApi / adminStaffApi)
+  src/features/printTemplates/ the template designer and printing: layout.ts, functions.ts, printHtml.ts, pagination.ts,
+                               printMeasure.ts, usePrintPrescription, TemplateSheet, TemplateDesigner, PrintDialog, PrintRoot
   src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight, useDialogSave, useOpeningKey
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
@@ -434,6 +437,7 @@ Drugs                       Protocols
 | POST | `/protocols` | Create `{ name, items: [{ drugId, dosing }] }` → 201 + protocol |
 | PUT | `/protocols/{id}` | Replace name and items (order + overrides) → protocol; a withdrawn shared drug keeps its stored lines only (`drugWithdrawn`) |
 | DELETE | `/protocols/{id}` | Delete → 204 |
+| GET | `/prescription-template` | The clinic's own print template `{ layout, updatedAt }`, or 204 when it has none (`prescriptions.create`; no clinic id: the clinic query filter decides) |
 | GET | `/admin/clinics?search=&status=&page=1&pageSize=20` | Paged `ClinicSummary` (no template, no deleted), by name (prefix matches first when searching); `status` = `active` / `suspended` |
 | GET | `/admin/clinics/{id}` | `ClinicDetails` (+ `owners`) |
 | POST | `/admin/clinics` | Create `{ name, owner: { phone, fullName } }` → 201 + `ClinicDetails`, provisioned from the template (roles, owner, drugs and protocols copied; all or nothing) |
@@ -687,6 +691,12 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 | `withPermission(Component)` | Gate any control that takes `disabled` the same way |
 | `<RequirePermission>` | Route guard with the "No permission" page |
 
+### Printing and the print root
+
+The prescription prints through the browser, on the front end ([print templates](../features/prescription-templates/tech.md#printing)): `usePrintPrescription` renders `PrintRoot`, one
+element directly under `body` (`#clinichub-print-root`, `display: none` on screen) holding the sheets and a `<style>` with the `@page` rule and the rules that hide its siblings under `@media print`.
+Those rules exist only with the root, so Ctrl+P elsewhere prints the app as it does today. It goes on `afterprint`, at the next print or with the page; `window.print` may return at once on a phone, so nothing else removes it.
+
 ### Browser storage
 
 | Key | Content |
@@ -811,6 +821,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
+- Printing: alignment on real paper and the real print dialog are not verified, since no printer is available for now; TPL-190, TPL-191 and TPL-347 stay manual cases for the dress rehearsal, not a gate for merging. CI proves the PDF's page size, item positions and every drug present once across the pages ([print templates](../features/prescription-templates/tech.md)).
 - Tests run on GitHub Actions (`ci.ps1`, `.github/workflows/ci.yml`; every pull request runs `full`, into `main` `release`). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist

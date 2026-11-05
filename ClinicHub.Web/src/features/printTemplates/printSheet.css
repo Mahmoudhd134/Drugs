@@ -23,9 +23,12 @@
     font-weight: 700;
 }
 
-.print-text ol,
-.print-text ul {
-    padding-inline-start: 1.5em;
+/*
+ * The marker's room is on the item, on the item's own side: Quill puts `dir` on the `li`, not on its list, so room on the list would be
+ * on the wrong side, and the marker would stand outside the box, where the sheet's edge can cut it.
+ */
+.print-text li {
+    margin-inline-start: 2em;
 }
 
 .print-text ol {
