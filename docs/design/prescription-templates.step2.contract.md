@@ -199,9 +199,7 @@ Rules: nobody edits another track's files; a rule or contract change goes throug
 - unit: TPL-127, 317 (`functions.test.ts`, frozen clocks and locales); TPL-328, 329, 330 and the unit half of 123, 133 (`printHtml.test.ts`, with `linesToHtml` and `htmlForPaste` as they are); `pagination.test.ts`, tagged with the unit half of TPL-140–145, 147, 326, 327, 335, 340: every rule of § 2.4 with a fake `fits`.
 - ui (Vitest on `renderPrescriptionPage`, `installPrint`): TPL-103, 104, 105, 110–116, 125, 132, 150, 151, 152, 302, 303, 304, 306–316, 319, 320, 322, 324, 341–345. Changed: UX-014 (`SelectionPanel.test.tsx`).
 
-**T5 additions:** TPL-349 P0 unit+e2e and TPL-350 P1 unit+e2e. Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box (349). Given static text `Dr. Ahmed
-دكتور أحمد
-Consultant`, then each line starts from its own language's side (350).
+**T5 additions:** TPL-349 P0 unit+e2e and TPL-350 P1 unit+e2e. Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box (349). Given static text on three lines, `Dr. Ahmed`, `دكتور أحمد`, `Consultant`, then each line starts from its own language's side (350).
 
 TPL-351 P1 ui+e2e: given `a    b` and a tab typed in the editor, when printed, then the spaces and the tab print as typed, on the sheet and in the measuring box alike, and no sheet's text runs past its box.
 
