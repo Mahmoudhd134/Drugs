@@ -256,7 +256,7 @@ test.describe("Print template: designing @area:admin", () => {
 
             const expected = {x: 20, y: 30, w: 50, h: 20};
             expectClose(await placeOf(designer.box("m"), designer.sheet), expected, "on the screen");
-            // A selected box has an outline, never a border: it stays exactly its size
+            // A selected box has an inset shadow, never a border: it stays exactly its size
             await designer.box("m").click();
             expectClose(await placeOf(designer.box("m"), designer.sheet), expected, "selected");
 
@@ -291,7 +291,7 @@ test.describe("Print template: designing @area:admin", () => {
                 const c = content.getBoundingClientRect();
                 const sheet = box.closest("[data-testid=template-sheet]")!.getBoundingClientRect();
                 return {
-                    boxHeight: b.height, boxWidth: b.width, contentHeight: c.height, contentWidth: c.width,
+                    boxHeight: b.height, contentHeight: c.height, contentOverflow: content.scrollWidth - content.clientWidth,
                     insideSheet: c.bottom <= sheet.bottom, overflow: getComputedStyle(box).overflow, text: content.textContent,
                 };
             });
@@ -302,7 +302,8 @@ test.describe("Print template: designing @area:admin", () => {
                     expect(measured.text).toBe(shown);
                     expect(measured.overflow).toBe("visible");
                     expect(measured.contentHeight, "it shows past the box").toBeGreaterThan(measured.boxHeight);
-                    expect(measured.contentWidth, "it wraps inside the box's width").toBeLessThanOrEqual(measured.boxWidth + 1);
+                    // The content is as wide as its box by its own style: only what sticks out of it shows a line that didn't wrap
+                    expect(measured.contentOverflow, "it wraps inside the box's width").toBeLessThanOrEqual(1);
                     expect(measured.insideSheet, "no line lost at the sheet's edge").toBe(true);
                 });
             }
@@ -359,6 +360,11 @@ test.describe("Print template: a computer only @area:admin", () => {
             await page.setViewportSize({width: 900, height: 800});
             await designerShown(designer);
             await expect(page.getByText(designer.pt.desktopOnly, {exact: true})).toHaveCount(0);
+            await noHorizontalScroll(page, "the designer at 900 px");
+            await expectNoCutOrOverlap(page.locator("main"), "the designer at 900 px");
+            const area = (await designer.area.boundingBox())!;
+            const settings = (await designer.settings.boundingBox())!;
+            expect(settings.y, "the settings sit below the sheet's area").toBeGreaterThanOrEqual(area.y + area.height);
         });
 
     test("375 px in both languages: the four clinic tabs are reachable, the message wraps, no horizontal scroll @TPL-246",

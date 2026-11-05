@@ -191,6 +191,13 @@ public class TemplateItemNameRulesTests
     }
 
     [Fact]
+    [Trait("Case", "TPL-027")]
+    public void A_null_name_before_another_name_is_only_nameRequired_on_it()
+    {
+        ShouldFail(OnA5(Manual(null, "m1"), Manual("الاسم", "m2"), PrescriptionText()), ("items[0].name", "nameRequired"));
+    }
+
+    [Fact]
     [Trait("Case", "TPL-029")]
     public void A_refused_name_still_counts_as_taken()
     {
