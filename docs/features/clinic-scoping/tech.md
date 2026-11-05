@@ -55,15 +55,16 @@ No new endpoints, no contract changes. Behavior inside a clinic:
 - `AppDbContext` (`ClinicHub.Infrastructure/Database`) takes `IClinicContext` and exposes `ClinicId`. For
   every non-owned entity type implementing `IClinicOwned` it adds the FK to `Clinics` (restrict) and the filter
   `ClinicId != null && e.ClinicId == ClinicId`: **fails closed**, no clinic = no rows.
-  `IgnoreQueryFilters()` is reserved for Platform code and the Access module's read-only membership queries and
-  cache loads by id.
+  `IgnoreQueryFilters()` is reserved for Platform code, the Access module's read-only membership queries and
+  cache loads by id, and the read-only lookup of a failed upload's cleanup ([attachments](../attachments/tech.md)).
 - `ClinicAndTimestampsInterceptor` (`ClinicHub.Infrastructure/Database`; one singleton, added in
   `AddInfrastructure`), before every save:
   - `IClinicOwned` (added, modified or deleted): no clinic in context → `InvalidOperationException`.
     New rows with `ClinicId == 0` get the context's clinic; a row whose `ClinicId` differs from the
     context, or was loaded from another clinic (original `ClinicId`), throws. So Platform code that works on a clinic's rows must set `ClinicContext` first.
-  - *(M1.7b)* `IClinicOrShared` (`Drug` only; `ClinicId` null = a shared drug of the platform catalog,
-    [shared catalog](../shared-catalog/tech.md)), the table of design M1.7 D2:
+  - *(M1.7b)* `IClinicOrShared` (`ClinicId` null = a platform row: `Drug`, a shared drug of the platform catalog,
+    [shared catalog](../shared-catalog/tech.md); `Attachment`, a platform file, [attachments](../attachments/tech.md)), the
+    table of design M1.7 D2 (the last row is `Drug`'s only; "drug" reads "row" for an attachment):
 
     | Row | Clinic in context | No clinic |
     |---|---|---|
@@ -113,7 +114,9 @@ No new endpoints, no contract changes. Behavior inside a clinic:
   `AppDbContext.IsWritingSharedCatalog`) is true only inside `IClinicScope.UseSharedCatalog()`: it sets the flag for a
   block and restores the previous value on dispose (nestable: open until the outermost block is disposed); it throws
   when a clinic is in context, and `Use(clinicId)` / `EnterAsync` throw inside it (a request never mixes a clinic with
-  shared-catalog writing). Only the admin shared-drug handlers (`Features/Platform/SharedDrugs`) call it.
+  shared-catalog writing). The admin shared-drug handlers (`Features/Platform/SharedDrugs`) call it, and so will a feature's
+  handler that writes platform files; the attachment service never opens it itself, and throws without it when there is no clinic.
+  It keeps its name: renaming would touch shipped handlers, tests and docs for no behavior.
 - *(M1.7b)* Query filter of `IClinicOrShared` (`AppDbContext.ConfigureClinicOrShared`, FK to `Clinics` restrict,
   nullable): `x.ClinicId == null || (ClinicId != null && x.ClinicId == ClinicId)`: a clinic sees the shared drugs and
   its own; a platform request (no clinic) sees only the shared drugs.

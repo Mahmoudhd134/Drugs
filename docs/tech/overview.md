@@ -36,6 +36,7 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Access/                      Staff, Role (+ RolePermission, StaffRole)
   Platform/                    Clinic (+ ClinicStatus)
   Prescriptions/               PrescriptionTemplate, PrescriptionTemplateLimits, PrescriptionTemplateCodes
+  Attachments/                 Attachment (a stored file's metadata; IClinicOrShared)
 ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
   Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner,
                                IPostCommitActions (after-commit side effects), IClinicScope (sets the current
@@ -43,7 +44,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Messaging/            ICommand, ICommand<T>, IQuery<T> (+ ICommandBase, ICommitOnFailure) and their
                                handler interfaces
   Common/Results/              Result, Result<T>, Error, ErrorType, CommonErrors, TooManyRequestsError
-  Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
+  Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings, AttachmentSettings (+ AttachmentRootRule)
+                               (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
   Common/Validation/           .WithError(error), the shared ValidName(maxLength = 256) (nameRequired; nameInvalid: control, line/paragraph
                                separator or bidi override or isolate characters; nameTooLong), ValidText() (invalidText),
@@ -87,6 +89,9 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                PrescriptionLayoutRules (rounding, normalizing, the column's JSON); Commands/
                                (SavePrescriptionTemplate, DeletePrescriptionTemplate), Queries/GetPrescriptionTemplate; no
                                clinic id anywhere: the current clinic's template
+  Features/Attachments/        AttachmentErrors; Files/ (IAttachmentService/AttachmentService, IAttachmentFileProvider, AttachmentRecords,
+                               AttachmentModules, AttachmentFileName), FileTypes/ (AttachmentType, AttachmentTypes, AttachmentContentCheck);
+                               no use cases: features call the service from their own
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
@@ -101,6 +106,7 @@ ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
   Identity/                    TokenService (JWT; ITokenService) + AuthClaims, JwtValidation, DisplayOtpSender, OtpLock
                                (pg_advisory_xact_lock)
   Access/AccessCache.cs        IAccessCache on HybridCache
+  Attachments/                 PhysicalAttachmentFileProvider (IAttachmentFileProvider: files under Attachments:Physical:RootPath)
   Platform/StartupSeeder.cs    IStartupSeeder: template clinic, super admins (IIdentitySeeder), dev data (template
                                content + two clinics through CreateClinicCommand)
   DependencyInjection.cs       AddInfrastructure(configuration): DbContext + interceptor, TransactionRunner,
@@ -122,6 +128,8 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, PlatformAdminHandler, the 403 answers
                                (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
                                PermissionsController, AccessSetup (DI)
+  Features/Attachments/        [AttachmentUpload(module)] + AttachmentUploadFilter (owns an upload's form read), ToAttachmentUpload(); no routes:
+                               each feature brings its own
   Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
   Program.cs                   settings, DI, middleware, migrate-on-startup, seeding (IStartupSeeder)
 ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot. Also holds a stub
@@ -177,8 +185,8 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   the connection string (e.g. env var `ConnectionStrings__DefaultConnection`).
   `Program.cs` validates the settings (missing/short secrets, a missing JWT issuer/audience, out-of-range OTP
   numbers or token/session lifetimes, any `Otp:Mode` other than `Display` (no SMS sender yet), an invalid seeded
-  phone, or no `MediatR:LicenseKey` outside Development stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
-  `Platform`: see [login § Configuration](../features/auth/tech.md#configuration)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
+  phone, no `MediatR:LicenseKey` outside Development, or bad `Attachments` settings stop the app; OTP display mode outside Development only logs a warning; sections `Auth`, `Otp`,
+  `Platform`: see [login § Configuration](../features/auth/tech.md#configuration); `Attachments`: see [attachments § Backend](../features/attachments/tech.md#backend)), then runs `Database.MigrateAsync()` and the startup seeding on every startup: the
   template clinic and the super admins from `Platform:SuperAdminPhones`; in Development, an empty DB
   also gets sample **template** content (2 own eye drops with categories, Prednisolone and Timolol, and the protocol
   "After cataract surgery" = the shared "VIGAMOX 0.5% EYE DROPS 5 ML" + Prednisolone with a taper override) and two clinics
@@ -188,6 +196,9 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   Assistant" (Assistant in the first, read-only "Viewer" in the second). An empty `DevOwnerPhone` skips only the demo
   clinics (a warning: a clinic needs an owner; the template is still filled when empty). Without the shared catalog loaded nothing is seeded (no template content, no
   demo clinic) and a warning names `data/drug-catalog/tools/load_catalog.py`; the first start after the load seeds all.
+- **Files:** attachments live on the server's disk under `Attachments:Physical:RootPath`, an absolute folder outside the site (env var
+  `Attachments__Physical__RootPath`; required outside Development, in Development it defaults to `LocalApplicationData/ClinicHub/attachments`), with
+  their metadata in the `Attachments` table. So one server only ([attachments](../features/attachments/tech.md)).
 - **Login:** phone + one-time code; a JWT access token per context (a clinic, or the platform for a
   super admin) and a rotating refresh token in an HttpOnly cookie ([login](../features/auth/tech.md)).
 - **Clinic scoping:** every catalog row belongs to a clinic and every query is filtered to the
@@ -253,7 +264,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `ProtocolErrors`,
   `CategoryErrors`, `SharedDrugErrors`, `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`,
-  `StaffErrors`, `PrescriptionTemplateErrors`). Add new codes
+  `StaffErrors`, `PrescriptionTemplateErrors`, `AttachmentErrors`). Add new codes
   there **and** under `errors.*` in both locale files. A code that may name a clinic (`clinicSuspended`,
   `staffInactive`: the `clinicNames` field below) also has `errors.<code>_named` (plural forms, `{{clinics}}`). The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;
@@ -264,7 +275,11 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
   query filter, the `ClinicId` FK (restrict) and filling on insert are then automatic. Look rows up
   with `FirstOrDefaultAsync(x => x.Id == id)`, never `FindAsync` (it can skip the filter). Never
   take a `clinicId` from the client in clinic routes. Only Platform code (and the Access module's
-  membership queries and access-cache loads by id, read-only) may `IgnoreQueryFilters()`.
+  membership queries and access-cache loads by id, read-only, and the attachment cleanup's one lookup by ID, read-only) may `IgnoreQueryFilters()`.
+- **Attachments:** a feature stores files only through `IAttachmentService`, from its own commands and queries, and exposes its own routes with its own permission: there is no
+  generic route. Mark the upload action `[AttachmentUpload(module)]`, pass `file.ToAttachmentUpload()`, answer a download with `ToFile()`, and call `DeleteAllAsync` when the owning
+  record is deleted. A new module with its own limits is a constant in `AttachmentModules` plus a `Modules` entry in config. With no clinic, the feature's handler opens
+  `UseSharedCatalog()` itself. The original file name is never logged: logs use the attachment's ID ([attachments](../features/attachments/tech.md)).
 - **Auth:** clinic controllers carry `[Authorize(Policy = AuthPolicies.ClinicContext)]` (a clinic-context
   token whose staff member and clinic are still active; platform tokens get 403). Admin controllers
   (`Api/Features/Platform`, routes `api/v1/admin/…`) carry `[Authorize(Policy = AuthPolicies.PlatformAdmin)]`
@@ -323,6 +338,7 @@ Every error response, whatever produces it, is built by `ClinicHub.Api/Errors/Ap
 | No/invalid/expired token | JwtBearer `OnChallenge` | `unauthorized` (401; the SPA refreshes by status) |
 | Permission / context | `AccessAuthorizationResultHandler`, JwtBearer `OnForbidden` | `forbidden`, `noAccess`, `clinicSuspended` (login and the clinic picker also `staffInactive`, from the use cases) |
 | Malformed JSON, wrong types, empty body, unreadable query values (`?page=first`) | `InvalidModelStateResponseFactory` (`AddApi`) | `invalidRequest` (one error per model-state error, with its `field`; the parser's message only in Development) |
+| An upload's body over the limit, or not one multipart form | `AttachmentUploadFilter` (`[AttachmentUpload]`) | `attachmentTooLarge`, `invalidRequest` |
 | Unknown route / wrong method | `UseProblemStatusCodePages` | `notFound` 404 / `methodNotAllowed` 405 |
 | Unhandled exception | `UnexpectedExceptionHandler` | `unexpected` 500; message and stack only in Development |
 | Anything else (MVC `Problem()`, `Unauthorized()`…) | `AddProblemDetails` → `ApiProblemFactory.Complete` | from the status |
@@ -369,10 +385,14 @@ PrescriptionTemplates (Prescriptions)
                        ClinicId (clinic-owned, restrict; unique: one per clinic), Layout (text: the layout's JSON
                        { schemaVersion, page, items }, written only by PrescriptionLayoutRules.Serialize from the
                        validated DTO; nothing queries inside it)
+Attachments (Attachments)
+                       Id (uuid, from the service), ClinicId (null = a platform file; restrict), Module (<=50), RefId (<=64; no
+                       database link), OriginalFileName (<=256), TypeKey, SizeBytes, StorageKey (unique), CreatedByUserId and
+                       DeletedByUserId (Users, restrict), DeletedAt (set = deleted; the file stays); index (ClinicId, Module, RefId)
 ```
 
 Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md),
-[print templates tech](../features/prescription-templates/tech.md).
+[print templates tech](../features/prescription-templates/tech.md), [attachments tech](../features/attachments/tech.md).
 
 Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
 (`timestamptz`, UTC, set on save). `Drugs`, `Protocols`
@@ -509,7 +529,8 @@ Swagger UI is available in Development at `/swagger`.
   dropped, the composite subcategory FK, the four `SearchName` columns turned into ordinary columns filled by the app
   and `SearchOther` added; no rows (the shared catalog is loaded by `data/drug-catalog/tools/load_catalog.py`, once);
   down restores the generated columns and fails, rolled back, while shared drugs exist) → `AddPrescriptionTemplates`
-  (print templates, step 1: one new empty table, no existing row touched; down drops it).
+  (print templates, step 1: one new empty table, no existing row touched; down drops it) → `AddAttachments` (one new
+  empty table, no existing row touched; down drops it).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`, then `python data/drug-catalog/tools/load_catalog.py --connection
   "host=localhost port=5432 dbname=drags user=drags password=drags"` before the first start (the dev seed's template
@@ -812,6 +833,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - HTTP only on the LAN. The async Clipboard API needs HTTPS, so copying uses an
   `execCommand` fallback (works, but HTTPS is recommended).
 - No automated database backups yet.
+- Attachments assume one server and only grow on disk: no purge job, and a deleted or replaced file stays ([attachments](../features/attachments/tech.md)).
 - Name ordering follows the database's default collation (not tuned for Arabic). With the `postgres:17` image's default
   (`en_US.utf8`: dev and tests) letters compare ignoring case first (`alpha` before `Zeta`) and Latin names come before
   Arabic ones; a database created with another collation (e.g. `C`, or a Windows locale) orders them differently, so

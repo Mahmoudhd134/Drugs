@@ -1,6 +1,6 @@
 # Attachments part 1: compiled contract and work split
 
-Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md), [the business file](attachments.business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 1 = design §§ 3-8, cases ATT-001 to ATT-184.
+Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 1 = design §§ 3-8, cases ATT-001 to ATT-184.
 
 ## 1. What the contract commit holds
 
