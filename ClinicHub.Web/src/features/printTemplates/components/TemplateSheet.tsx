@@ -70,6 +70,9 @@ const VALUE_STYLE: CSSProperties = {
     overflowWrap: "anywhere",
 };
 
+/** A value that follows its language: each line of a static text takes its own direction and start (F5). */
+const AUTO_VALUE_STYLE: CSSProperties = {...VALUE_STYLE, unicodeBidi: "plaintext"};
+
 /** A printed sheet (contract § 3.4): plain boxes holding values, set as text but for the cleaned prescription text. A name never prints. */
 const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintContent }) => (
     <div data-testid="print-sheet" dir="ltr" style={sheetStyle(layout)}>
@@ -79,11 +82,11 @@ const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintC
                 <div key={item.id} data-item-id={item.id} style={boxStyle(item)}>
                     {item.kind === "prescriptionText" ? (
                         <div className="print-text" style={printTextStyle(item.fontSizePt)} dangerouslySetInnerHTML={{__html: print.textHtml}}/>
-                    ) : value ? (
-                        <span dir={item.kind === "function" && isLeftToRightValue(item.function) ? "ltr" : "auto"} style={VALUE_STYLE}>
-                            {value}
-                        </span>
-                    ) : null}
+                    ) : !value ? null : item.kind === "function" && isLeftToRightValue(item.function) ? (
+                        <span dir="ltr" style={VALUE_STYLE}>{value}</span>
+                    ) : (
+                        <span dir="auto" style={AUTO_VALUE_STYLE}>{value}</span>
+                    )}
                 </div>
             );
         })}
@@ -152,7 +155,7 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
                         {/* Out of the button's flow: a button centers its content, this starts at the box's top */}
                         <span
                             dir="auto"
-                            style={{...VALUE_STYLE, color: dimmed ? DIMMED_COLOR : undefined}}
+                            style={{...AUTO_VALUE_STYLE, color: dimmed ? DIMMED_COLOR : undefined}}
                         >
                             {text}
                         </span>

@@ -6,7 +6,7 @@ const escapeHtml = (text: string) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** A right-to-left script letter (Hebrew, Arabic and their presentation forms). */
-const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+export const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
 
 /**
  * The name's own direction in the copied HTML (design M1.7b D27): from its first letter, "rtl" for Arabic, else "ltr"

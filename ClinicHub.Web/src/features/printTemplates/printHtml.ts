@@ -1,3 +1,5 @@
+import {RTL_LETTER} from "../prescription/prescriptionText.ts";
+
 /** Tags that stay, as they are. */
 const KEPT = new Set(["p", "br", "strong", "em", "u", "ol", "ul", "li", "h1", "h2", "h3", "span"]);
 /** Tags removed with their content. */
@@ -7,6 +9,9 @@ const BECOME_P = new Set(["div", "blockquote", "pre", "h4", "h5", "h6", "address
 
 /** The tags that open a block of their own once cleaned: a `p` or a heading can't hold them, the parser would close it. */
 const BLOCKS = "p, h1, h2, h3, ol, ul, li";
+
+/** The lines a right-to-left direction can reorder. */
+const RTL_LINES = ["p", "li", "h1", "h2", "h3"].map(tag => `${tag}[dir="rtl"]`).join(", ");
 
 const DIRECTIONS = new Set(["ltr", "rtl", "auto"]);
 const ALIGNMENT = /^(left|right|center|justify|start|end)$/;
@@ -127,6 +132,20 @@ const tidyList = (list: Element) => {
 };
 
 /**
+ * A line with no right-to-left letter reads left to right, at its own alignment (F1): Quill drops a name's `dir="ltr"` on load, and `5-FU 1%` would print
+ * `FU 1%-5`. With no alignment of its own it stays on the right, where it was. A blank line has nothing to reorder and stays as it is.
+ */
+const leftToRightWithoutRtlLetter = (root: Element) => {
+    root.querySelectorAll(RTL_LINES).forEach(line => {
+        const text = line.textContent!;
+        if (!isPrintableText(text) || RTL_LETTER.test(text)) return;
+        line.setAttribute("dir", "ltr");
+        const style = line.getAttribute("style");
+        if (!style?.includes("text-align")) line.setAttribute("style", style ? `${style};text-align:right` : "text-align:right");
+    });
+};
+
+/**
  * The allow list before the print root (design § 4, contract § 2.3): tags `p br strong em u ol ul li h1 h2 h3 span`; attribute
  * `dir` (`ltr`, `rtl`, `auto`); `style` with `text-align` and `margin-*` only, never negative, a deep side margin capped. Everything else is dropped, its text kept.
  * Input: what `htmlForPaste` gives. Output: an HTML string safe for `dangerouslySetInnerHTML`. Parsed with `DOMParser`, never in the
@@ -153,6 +172,7 @@ export const cleanPrintHtml = (html: string): string => {
             clean.append(wrapper);
         }
     }
+    leftToRightWithoutRtlLetter(clean);
     return clean.innerHTML;
 };
 
