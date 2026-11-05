@@ -148,7 +148,7 @@ MUI `Dialog`, open when `items` is not null, `fullWidth maxWidth="xs"`, `fullScr
 `TemplateSheet`, as § 3.4 of step 1 but with `print`:
 - Root `data-testid="print-sheet"` (not `template-sheet`), no grid, no hover mark.
 - Each item a plain `<div data-item-id={id}>` at the same inline geometry, no `aria-pressed`, no handler, no shadow.
-- Prescription text: inside the box, `<div class="print-text" dangerouslySetInnerHTML={{__html: textHtml}}>` with `printTextStyle(fontSizePt)`: `lineHeight: PRINT_LINE_HEIGHT`, `overflowWrap: "anywhere"`, `textAlign: "start"`. `textHtml` is always `paginate`'s output of `cleanPrintHtml`.
+- Prescription text: inside the box, `<div class="print-text" dangerouslySetInnerHTML={{__html: textHtml}}>` with `printTextStyle(fontSizePt)`: `lineHeight: PRINT_LINE_HEIGHT`, `whiteSpace: "pre-wrap"`, `overflowWrap: "anywhere"`, `textAlign: "start"`. `textHtml` is always `paginate`'s output of `cleanPrintHtml`.
 - Short items: the same inner `span`, set as **text** (TPL-313), `dir="auto"`, `dir="ltr"` when `isLeftToRightValue` (TPL-318). With `dir="auto"` also `unicodeBidi: "plaintext"`, in both modes, so each line of a static text takes its own language's direction and start («يبدأ النص من اتجاه لغته», F5, TPL-350). An empty value: nothing inside. The name never prints (TPL-132).
 - The root's `overflow: hidden` cuts at the sheet's edge, so a value can't make a page (TPL-339).
 - **Both modes:** `lineHeight: PRINT_LINE_HEIGHT` on every item (a `button` resets it), so the designer shows what prints. `printSheet.css` is imported here, beside `printFont.css`.
@@ -202,6 +202,8 @@ Rules: nobody edits another track's files; a rule or contract change goes throug
 دكتور أحمد
 Consultant`, then each line starts from its own language's side (350).
 
+TPL-351 P1 ui+e2e: given `a    b` and a tab typed in the editor, when printed, then the spaces and the tab print as typed, on the sheet and in the measuring box alike, and no sheet's text runs past its box.
+
 **`tests-e2e`**
 - e2e: TPL-103, 112, 117, 120–124, 126, 128–131, 133, 140–145, 147, 153, 305, 318, 321, 323, 325–327, 331–333, 335–340, 346, 348. Changed: RX-075, UX-004, UX-036, I18N-006.
 - **The proof** (`e2e/prescription/print-proof.spec.ts`, tagged TPL-120, 121, 141, 142): a real template and 40 drugs with unique Latin names, through the real API and the real page: `page.pdf` page size, every item's position read from the PDF's text within 1 mm, every drug present exactly once across the pages, the short items on every page, the page number on each. Screenshots and PDFs attached for the ready report (Arabic, English, phone).
@@ -230,7 +232,7 @@ Consultant`, then each line starts from its own language's side (350).
 
 16. **Margins** (T3): no negatives, no shorthand, deep side margins capped by `min(…, 50%)`. Text pushed past the sheet would be lost with `fits` still true.
 17. **`htmlForPaste` also converts `h4 h5 h6 blockquote pre`** (T3), so their direction and alignment reach both Copy and print; those tags weren't handled before. A Copy gains `dir` and `style` on them and loses their `class`, as RX-069 asks of every block.
-18. **Repeated spaces collapse in print**, as they do in Copy's paste (design § 4, same text as Copy). Asked to the design session; a change is one line of `printSheet.css`.
+18. **Print keeps repeated spaces and tabs typed in the editor** (user, 2026-11-05; TPL-351): `printTextStyle` has `whiteSpace: "pre-wrap"`, so the sheet and the hidden box that measures it agree and page breaks stay right. It can differ from Copy's paste, which collapses them in Word.
 
 19. **Numbers-only values start at the box's left** (user, 2026-11-05; F10): digits read left to right, and the box's place is the designer's choice.
 20. **Known limits, as Copy or the editor have them** (user, 2026-11-05): Arabic lines pasted as plain text print as the editor shows them, left (F2); an indented numbered item prints 1, 2, 3, 4 where the editor shows 1, a, b, 2 (F4); a slow read gives no feedback on the button, and a list cleared during it still prints the text taken at the click (F7); plain table cells glue together (F9). Also from the last review: an indented list item in a narrow box at the sheet's edge can leave the sheet, since a side margin of `6em` or less isn't capped and `fits` measures height only. Rare, and capping every margin would break TPL-328's equality with Copy.
