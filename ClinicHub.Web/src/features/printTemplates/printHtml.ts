@@ -133,15 +133,19 @@ const tidyList = (list: Element) => {
 
 /**
  * A line with no right-to-left letter reads left to right, at its own alignment (F1): Quill drops a name's `dir="ltr"` on load, and `5-FU 1%` would print
- * `FU 1%-5`. With no alignment of its own it stays on the right, where it was. A blank line has nothing to reorder and stays as it is.
+ * `FU 1%-5`. With no alignment of its own it stays on the right, where it was; a list item's number stays beside its text, not at the box's far side.
+ * A blank line has nothing to reorder and stays as it is. U+FEFF (Quill's cursor) is in `RTL_LETTER`'s range but isn't a letter.
  */
 const leftToRightWithoutRtlLetter = (root: Element) => {
     root.querySelectorAll(RTL_LINES).forEach(line => {
         const text = line.textContent!;
-        if (!isPrintableText(text) || RTL_LETTER.test(text)) return;
+        if (!isPrintableText(text) || RTL_LETTER.test(text.replace(/\uFEFF/g, ""))) return;
         line.setAttribute("dir", "ltr");
         const style = line.getAttribute("style");
-        if (!style?.includes("text-align")) line.setAttribute("style", style ? `${style};text-align:right` : "text-align:right");
+        const declarations = style ? [style] : [];
+        if (!style?.includes("text-align")) declarations.push("text-align:right");
+        if (line.localName === "li") declarations.push("list-style-position:inside");
+        line.setAttribute("style", declarations.join(";"));
     });
 };
 
