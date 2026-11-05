@@ -77,8 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 37 | 115 | 37 | 189 | 44 | 25 | 85 | 56 | 4 |
-| **All** | **472** | **763** | **441** | **1676** | **254** | **706** | **457** | **361** | **14** |
+| [TPL](#tpl--prescription-print-templates) | 37 | 116 | 37 | 190 | 44 | 25 | 86 | 57 | 4 |
+| **All** | **472** | **764** | **441** | **1677** | **254** | **706** | **458** | **362** | **14** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2494,3 +2494,4 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-348 | Given the pop-up and the page with Print in Arabic, in English and on a phone, then axe and the cut-text check pass | P1 | e2e | test rules |
 | TPL-349 | Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box; a line holding both scripts doesn't change | P0 | unit+e2e | User, 2026-11-05 (F1) |
 | TPL-350 | Given a static text `Dr. Ahmed`, `دكتور أحمد`, `Consultant` on three lines, then each line starts from its own language's side | P1 | unit+e2e | Business file (F5) |
+| TPL-351 | Given repeated spaces and a tab typed in the editor, when printed, then they print as typed, and every sheet's text stays inside its box: the page breaks were measured with them | P1 | ui+e2e | User, 2026-11-05 |

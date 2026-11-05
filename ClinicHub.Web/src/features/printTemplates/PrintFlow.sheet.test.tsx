@@ -1,8 +1,13 @@
 import {describe, expect, test, vi} from "vitest";
 import {screen, waitFor} from "@testing-library/react";
 import {aPrintLayout, aTemplateItem, fillIn, recordRequests, renderWithProviders, toastTexts} from "../../test";
+import {textOf} from "../../test/htmlShape.ts";
 import {storedLines} from "../../test/pages/prescription.tsx";
 import {TemplateSheet} from "./components/TemplateSheet.tsx";
+import {paginate} from "./pagination.ts";
+import {cleanPrintHtml} from "./printHtml.ts";
+import {createTextMeasurer, printTextStyle} from "./printMeasure.ts";
+import type {PrescriptionTextItem} from "./types.ts";
 import {
     aPrintedLine,
     confirmButton,
@@ -154,6 +159,71 @@ describe("each line of a short item takes its own language's direction @area:pre
             expect(span).toHaveAttribute("dir", "auto");
             expect(span.style.unicodeBidi).toBe("plaintext");
         }
+    });
+});
+
+describe("repeated spaces and tabs print as typed @area:prescription", () => {
+    const TYPED = "a    b\tc";
+
+    test("the printed text's style keeps them, beside its other rules @TPL-351", () => {
+        expect(printTextStyle(14)).toMatchObject({whiteSpace: "pre-wrap", overflowWrap: "anywhere", textAlign: "start", fontSize: "14pt"});
+    });
+
+    test("the sheet's `.print-text` has white-space: pre-wrap @TPL-351 @smoke", async () => {
+        const page = await openWithTemplate(templateOf());
+        await page.pressPrint();
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        expect(textBox(page.sheets()[0])?.style.whiteSpace).toBe("pre-wrap");
+    });
+
+    test("the hidden box that measures it has it too, so the two agree @TPL-351 @smoke", async () => {
+        const item = aTemplateItem("prescriptionText", {id: "text", fontSizePt: 14}) as PrescriptionTextItem;
+        const html = `<p>${TYPED}</p>`;
+        await renderWithProviders(<TemplateSheet layout={aPrintLayout({items: [item]})} sampleText="" print={{textHtml: html, values: {}}}/>);
+        const onTheSheet = screen.getByTestId("print-sheet").querySelector<HTMLElement>(".print-text")!;
+
+        const measurer = createTextMeasurer(item);
+        try {
+            const measuring = Array.from(document.querySelectorAll<HTMLElement>(".print-text")).find(box => box !== onTheSheet)!;
+            measurer.fits(html);
+            expect(measuring.innerHTML).toBe(html);
+            expect(measuring.style.whiteSpace).toBe("pre-wrap");
+            expect(measuring.style.whiteSpace).toBe(onTheSheet.style.whiteSpace);
+            expect(measuring.style.fontSize).toBe(onTheSheet.style.fontSize);
+        } finally {
+            measurer.dispose();
+        }
+    });
+
+    test("they reach the sheet's HTML through the cleaning and `paginate`, as typed @TPL-351", () => {
+        expect(paginate(cleanPrintHtml(`<p>${TYPED}</p>`), () => true)).toEqual([`<p>${TYPED}</p>`]);
+    });
+
+    test("spaces at a line's two ends and inside a bold tag stay too @TPL-351", () => {
+        const html = "<p>  a  <strong>b    c</strong>\t</p>";
+        expect(paginate(cleanPrintHtml(html), () => true)).toEqual([html]);
+    });
+
+    test.each([
+        ["spaces", "<p>aaa    bbb\tccc</p>", 7, ["<p>aaa    </p>", "<p>bbb\tccc</p>"]],
+        ["tabs", "<p>aaa\t\tbbb</p>", 5, ["<p>aaa\t\t</p>", "<p>bbb</p>"]],
+        ["inside a kept tag", "<p><strong>aaa  bbb</strong></p>", 5, ["<p><strong>aaa  </strong></p>", "<p><strong>bbb</strong></p>"]],
+    ])("across a cut, %s stay whole, on the first part: nothing is lost @TPL-351", (_name, html, characters, sheets) => {
+        expect(paginate(cleanPrintHtml(html), sheet => textOf(sheet).length <= characters)).toEqual(sheets);
+    });
+
+    test("typed in the editor, they reach the sheet as typed @TPL-351", async () => {
+        const page = await openWithTemplate(templateOf());
+        const editor = await openEditor(page);
+        typeInEditor(TYPED);
+        await waitFor(() => expect(editorText()).toBe(TYPED));
+        await waitFor(() => expect(editorPrint(editor)).toBeEnabled());
+
+        await page.user.click(editorPrint(editor));
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        expect(textBox(page.sheets()[0])?.textContent).toBe(TYPED);
     });
 });
 
