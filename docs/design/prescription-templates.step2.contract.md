@@ -61,6 +61,8 @@ once and reloads `/me` (TPL-343); on its own key so a failed click doesn't put t
 - **Attributes:** only `dir` with `ltr`, `rtl` or `auto`, and `style` filtered property by property: `text-align` with `left right center justify start end`; `margin-top`, `margin-bottom`, `margin-left`, `margin-right`,
   `margin-inline-start`, `margin-inline-end` with a number that isn't negative and `em`, `px`, `pt`, `mm` or none. The `margin` shorthand goes. A side margin above `6em` (deep Tab indents) is written as `min(<value>, 50%)`, so it can't push text off the sheet, where `fits`, which measures height only, wouldn't see it. Everything else goes (`color`, `font-*`, `position`, `background`, `onerror`, `class`, `href`, `src`). No style left: no attribute.
 - Text outside any block at the top level is wrapped in a `p`.
+- **The result re-parses to itself** (T1): a block nested in a `p`, a heading or an inline tag is lifted out, around its siblings; a list's child that isn't a `li` is wrapped in one; white space between top-level blocks goes.
+- The cap's `6em` compares other units at `1em` = 16 px, 1 pt = 4/3 px, 1 mm = 96/25.4 px, so `margin-left:500px` is capped too. A value with no unit is never capped: the browser ignores it. A leading `+` is allowed.
 
 `hasPrintableText(html)`: after removing the elements above, the text holds something other than white space, U+00A0, U+FEFF (Quill's cursor), U+200B–U+200F, U+061C. `htmlToPlainText` isn't used for it: it gives `1.` for one empty list item (TPL-304). **Print's check only**: the editor's Copy stays as it is.
 
