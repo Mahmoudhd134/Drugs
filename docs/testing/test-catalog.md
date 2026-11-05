@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 60 | 53 | 12 | 125 | 51 | 81 | 0 | 0 | 1 |
-| **All** | **544** | **914** | **489** | **1947** | **335** | **787** | **500** | **441** | **15** |
+| [ATT](#att--attachments) | 60 | 56 | 15 | 131 | 58 | 82 | 0 | 0 | 1 |
+| **All** | **544** | **917** | **492** | **1953** | **342** | **788** | **500** | **441** | **15** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2692,10 +2692,11 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-028 | Given a clinic file, when a platform route lists, opens, replaces or deletes it, then none or 404 | P0 | api | § 4 |
 | ATT-029 | Given a platform file, when opened through a clinic route of a different module, then 404 | P0 | api | § 4 |
 | ATT-030 | Given the super admin uploads, then `CreatedByUserId` is their user ID though they have no staff row; deleting sets `DeletedByUserId` | P1 | api | § 4 |
-| ATT-031 | Given a platform file, no clinic and outside `UseSharedCatalog()`, when replaced or deleted, then it throws before anything is written: the row is unchanged and there's no new file | P0 | api | § 4 |
+| ATT-031 | Given a platform file, no clinic and outside `UseSharedCatalog()`, when replaced or deleted, then it throws before anything is written: the row is unchanged and there's no new file | P0 | unit+api | § 4 |
 | ATT-032 | Given an `Attachment` through EF, when `ClinicId` changes, or a platform row changes in a clinic, then the save throws | P1 | api | § 4 |
 | ATT-033 | Given a clinic token on a platform route, then 403, no row or file | P0 | api | «لا يكتبها إلا مدير المنصة» |
 | ATT-034 | Given owner O with a platform file and A's file, when A runs `DeleteAllAsync`, then only A's is marked and nothing throws | P0 | api | § 4 |
+| ATT-035 | Given no user in context, when a file is added, then it throws before anything is written | P1 | unit | § 4 |
 
 ### Types (content checked)
 
@@ -2729,17 +2730,19 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-062 | Given `MaxFileSizeMb` 0 or negative, global or module, then the app won't start | P1 | unit | § 5 |
 | ATT-063 | Given a module's size above the global, or a type outside the global list, then the app won't start; the size equal to the global starts | P0 | unit | A6 |
 | ATT-064 | Given a module with only a size, or only types, then the other value comes from the global | P1 | unit | § 5 |
-| ATT-065 | Given a module with no entry, then the global values apply | P0 | unit+api | § 5 |
+| ATT-065 | Given a module with no entry, or a key with no value, then the global values apply | P0 | unit+api | § 5 |
 | ATT-066 | Given an empty `AllowedTypes`, global or module, then every upload is refused | P1 | unit | § 5 |
 | ATT-067 | Given type keys with spaces or different case (`" PNG , jpeg "`), then they work | P2 | unit | § 5 |
 | ATT-068 | Given a later config source with a shorter list, then only that list applies, nothing kept from the base | P1 | api | § 5 |
 | ATT-069 | Given a relative `RootPath`, or one inside the content root or web root, then the app won't start; a root differing only by case from the content root is refused on Windows and starts on Linux | P0 | unit | § 5 |
 | ATT-070 | Given the pure path rule with Windows separators and case rule, `C:\inetpub\ClinicHubFiles` under the content root `C:\inetpub\ClinicHub` passes: only a real parent counts; `..` (also above the root or the drive) and case are resolved first | P1 | unit | § 5 |
 | ATT-071 | Given an empty `RootPath`, then Development uses the default folder and any other environment won't start | P0 | unit | § 5 |
-| ATT-072 | Given a root that is really a file, so it can't be created or written to, then the app won't start | P1 | api | § 5 |
+| ATT-072 | Given a root that is really a file, or a folder the app has no write permission on, so it can't be created or written to, then the app won't start | P1 | unit+api | § 5 |
 | ATT-073 | Given a root equal to the content root, then the app won't start; given a trailing slash, or no web root (null), then it's judged correctly | P1 | unit | § 5 |
 | ATT-074 | Given 1 MB in config, then the limit is 1,048,576 bytes | P1 | unit | § 5 |
 | ATT-075 | Given a `Modules` key in the wrong case, then the app won't start | P2 | unit | § 4 |
+| ATT-076 | Given any startup refusal (a size, a type list, a root that's empty, relative, inside the site or not writable), then the message names the setting that's wrong | P1 | unit | § 5 |
+| ATT-077 | Given a good root, then the write check at startup leaves nothing in it | P2 | unit | § 5 |
 
 ### Size and upload
 
@@ -2763,7 +2766,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-094 | Given a wrong field name, two `file` parts, a non-multipart body, a name past the multipart header limit, or no closing boundary, then 400 and nothing written | P1 | api | § 5 |
 | ATT-096 | Given a blank name, a name ending in a slash, or only `.png`, then `attachmentTypeNotAllowed`; `CON.png`, `a.exe.png` and `a.exe:.png` are judged by the last extension and never touch the path; 256 Arabic characters download intact | P1 | unit+api | § 5, § 7 |
 | ATT-097 | Given any upload, then `SizeBytes` is the stream's real length, not what the client declared | P1 | api | § 6 |
-| ATT-099 | Given an upload, a refusal, a failed save and a download, then no log line holds the original file name | P1 | api | § 5 |
+| ATT-099 | Given an upload, a refusal, a failed save and a download, then no log line holds the original file name; the cleanup's line holds the attachment's ID | P1 | api | § 5 |
 | ATT-185 | Given a form read that fails with a server-side `IOException` (a full disk, an unusable temp folder), then the exception goes on and the unexpected handler answers 500 `unexpected`, not 400; a client's missing closing boundary or a body cut short still answers 400 `invalidRequest` | P1 | unit | § 11, T3 V1 |
 | ATT-186 | Given a multipart body with the wrong boundary and a preamble over 16 KB, within the module's limit, then 400 `invalidRequest`, not `attachmentTooLarge` | P1 | unit | § 5, T3 V2 |
 
@@ -2781,6 +2784,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-107 | Given a source scan of the backend, then the cleanup is the only caller of the provider's `DeleteAsync` (outside the module only the dependency registration names the provider, its concrete class included) and the module's only `IgnoreQueryFilters()`, and no production file but `AttachmentService.cs` uses `db.Attachments`, apart from the context and its interface | P0 | unit | A8, § 4, § 6 |
 | ATT-108 | Given a replace whose save throws, with or without a transaction, then the old row stays live and the new file is removed; the new row and the old row's mark go in one save | P1 | api | § 6 |
 | ATT-111 | Given a download in flight, when the file is deleted, then all bytes arrive and the next open is 404 | P2 | api | A8 |
+| ATT-112 | Given an owner with no files, when `DeleteAllAsync` runs, then nothing is saved and nothing throws | P2 | api | § 6 |
 
 ### Failure and cleanup
 
@@ -2798,7 +2802,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-130 | Given an upload, then the content check and the write each read from the start of a fresh stream | P1 | unit | § 6 |
 | ATT-131 | Given the service called with no transaction, then the immediate cleanup keeps the committed file | P0 | api | § 6 |
 | ATT-132 | Given a save that committed and then lost its connection, then the lookup finds the row and the file stays | P1 | api | § 6 |
-| ATT-133 | Given a cancel during the provider's write, then no file or row | P0 | unit | § 3 |
+| ATT-133 | Given a cancel during the provider's write, then no file or row; a token already cancelled creates nothing, not even a folder | P0 | unit | § 3 |
 | ATT-134 | Given a cancel during the row's save, then the file is still removed | P0 | api | § 6 |
 
 ### Serving
@@ -2817,11 +2821,13 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | ATT-160 | Given a save then an open, then the bytes match; folders are created as needed | P0 | unit | § 3 |
-| ATT-161 | Given an unknown key, when opened, then null | P1 | unit | § 3 |
+| ATT-161 | Given an unknown key, or a file gone between the check and the open, when opened, then null | P1 | unit | § 3 |
 | ATT-162 | Given a write that fails midway, then no file remains under the key | P0 | unit | § 3 |
-| ATT-163 | Given keys `..\x`, `../x`, `C:x`, `\\s\x`, `x:ads`, `CON`, `x.`, upper case, and empty, then each is refused before touching the disk, the same on every OS | P0 | unit | § 3 |
+| ATT-163 | Given keys `..\x`, `../x`, `C:x`, `\\s\x`, `x:ads`, `CON`, `x.`, upper case, and empty, then each is refused with an `ArgumentException` naming `key` before touching the disk, the same on every OS | P0 | unit | § 3 |
 | ATT-164 | Given a delete of an unknown key, then no error | P2 | unit | § 3 |
 | ATT-166 | Given a save to an existing key, then it throws and the first file is kept | P0 | unit | A8 |
+| ATT-167 | Given a token already cancelled, when opening or deleting, then `OperationCanceledException` and the file stays | P1 | unit | § 3 |
+| ATT-168 | Given a failed write whose removal fails too, then the write's own failure is reported | P2 | unit | § 3, § 6 |
 
 ### Docs and data
 

@@ -12,6 +12,7 @@ namespace ClinicHub.UnitTests.Attachments.Settings;
 public sealed class AttachmentSettingsValidateTests : IDisposable
 {
     private const string Paper = AttachmentModules.ClinicPaper;
+    private const string RootSetting = "Attachments:Physical:RootPath";
 
     private readonly string sandbox = Path.Combine(Path.GetTempPath(), "clinichub-att-" + Guid.NewGuid().ToString("N"));
     private readonly string contentRoot;
@@ -88,19 +89,27 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     [Fact]
     [Trait("Case", "ATT-060")]
+    [Trait("Case", "ATT-076")]
     public void An_unknown_type_key_in_the_global_list_stops_the_app_and_the_message_names_it()
     {
         var settings = Valid();
         settings.AllowedTypes = "png,exe";
 
-        ShouldNotStart(settings).Message.ShouldContain("exe");
+        var message = ShouldNotStart(settings).Message;
+
+        message.ShouldContain("exe");
+        message.ShouldContain("Attachments:AllowedTypes");
     }
 
     [Fact]
     [Trait("Case", "ATT-060")]
+    [Trait("Case", "ATT-076")]
     public void An_unknown_type_key_in_a_modules_list_stops_the_app_and_the_message_names_it()
     {
-        ShouldNotStart(WithPaper(types: "png,svg")).Message.ShouldContain("svg");
+        var message = ShouldNotStart(WithPaper(types: "png,svg")).Message;
+
+        message.ShouldContain("svg");
+        message.ShouldContain($"Attachments:Modules:{Paper}:AllowedTypes");
     }
 
     [Fact]
@@ -149,6 +158,7 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     [Theory]
     [Trait("Case", "ATT-062")]
+    [Trait("Case", "ATT-076")]
     [InlineData(0)]
     [InlineData(-1)]
     public void A_global_size_below_1_stops_the_app(int mb)
@@ -156,16 +166,17 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
         var settings = Valid();
         settings.MaxFileSizeMb = mb;
 
-        ShouldNotStart(settings);
+        ShouldNotStart(settings).Message.ShouldContain($"Attachments:MaxFileSizeMb is {mb}");
     }
 
     [Theory]
     [Trait("Case", "ATT-062")]
+    [Trait("Case", "ATT-076")]
     [InlineData(0)]
     [InlineData(-1)]
     public void A_modules_size_below_1_stops_the_app(int mb)
     {
-        ShouldNotStart(WithPaper(mb: mb));
+        ShouldNotStart(WithPaper(mb: mb)).Message.ShouldContain($"Attachments:Modules:{Paper}:MaxFileSizeMb is {mb}");
     }
 
     [Fact]
@@ -182,9 +193,13 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     [Fact]
     [Trait("Case", "ATT-063")]
+    [Trait("Case", "ATT-076")]
     public void A_modules_size_above_the_global_stops_the_app()
     {
-        ShouldNotStart(WithPaper(mb: 21));
+        var message = ShouldNotStart(WithPaper(mb: 21)).Message;
+
+        message.ShouldContain($"Attachments:Modules:{Paper}:MaxFileSizeMb is 21");
+        message.ShouldContain("Attachments:MaxFileSizeMb (20)");
     }
 
     [Fact]
@@ -196,9 +211,13 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     [Fact]
     [Trait("Case", "ATT-063")]
+    [Trait("Case", "ATT-076")]
     public void A_modules_known_type_outside_the_global_list_stops_the_app_and_the_message_names_it()
     {
-        ShouldNotStart(WithPaper(types: "png,gif")).Message.ShouldContain("gif");
+        var message = ShouldNotStart(WithPaper(types: "png,gif")).Message;
+
+        message.ShouldContain("gif");
+        message.ShouldContain($"Attachments:Modules:{Paper}:AllowedTypes");
     }
 
     [Fact]
@@ -215,6 +234,20 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
     {
         ShouldStart(WithPaper(mb: 2));
         ShouldStart(WithPaper(types: "png"));
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-065")]
+    public void A_modules_key_with_no_value_starts_and_takes_the_global_values()
+    {
+        var settings = Valid();
+        settings.Modules[Paper] = null;
+
+        ShouldStart(settings);
+
+        var rules = settings.RulesFor(Paper);
+        rules.MaxFileSizeBytes.ShouldBe(20 * AttachmentSettings.BytesPerMb);
+        rules.TypeKeys.ShouldBe(["png", "jpeg", "pdf"], ignoreOrder: true);
     }
 
     // ---- Empty and untidy lists ----
@@ -247,31 +280,43 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     [Theory]
     [Trait("Case", "ATT-069")]
+    [Trait("Case", "ATT-076")]
     [InlineData("attachments")]
     [InlineData("./attachments")]
     [InlineData("../attachments")]
     public void A_relative_root_stops_the_app(string relative)
     {
-        ShouldNotStart(Valid(relative));
-        ShouldNotStart(Valid(relative), isDevelopment: true);
+        ShouldNotStart(Valid(relative)).Message.ShouldContain($"{RootSetting} '{relative}' is relative");
+        ShouldNotStart(Valid(relative), isDevelopment: true).Message.ShouldContain($"{RootSetting} '{relative}' is relative");
     }
 
     [Fact]
     [Trait("Case", "ATT-069")]
+    [Trait("Case", "ATT-076")]
     public void A_root_inside_the_content_root_stops_the_app()
     {
-        ShouldNotStart(Valid(Path.Combine(contentRoot, "files")));
+        var inside = Path.Combine(contentRoot, "files");
+
+        var message = ShouldNotStart(Valid(inside)).Message;
+
+        message.ShouldContain($"{RootSetting} '{inside}'");
+        message.ShouldContain("content root");
         ShouldNotStart(Valid(Path.Combine(contentRoot, "deep", "down", "files")));
     }
 
     [Fact]
     [Trait("Case", "ATT-069")]
+    [Trait("Case", "ATT-076")]
     public void A_root_inside_the_web_root_stops_the_app()
     {
         var aWebRootOutsideTheSite = Directory.CreateDirectory(Path.Combine(sandbox, "public")).FullName;
-        var settings = Valid(Path.Combine(aWebRootOutsideTheSite, "files"));
+        var inside = Path.Combine(aWebRootOutsideTheSite, "files");
+        var settings = Valid(inside);
 
-        Should.Throw<InvalidOperationException>(() => settings.Validate(false, contentRoot, aWebRootOutsideTheSite));
+        var message = Should.Throw<InvalidOperationException>(() => settings.Validate(false, contentRoot, aWebRootOutsideTheSite)).Message;
+
+        message.ShouldContain($"{RootSetting} '{inside}'");
+        message.ShouldContain("web root");
     }
 
     [Fact]
@@ -313,6 +358,7 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     [Theory]
     [Trait("Case", "ATT-071")]
+    [Trait("Case", "ATT-076")]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
@@ -321,7 +367,7 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
         var settings = Valid();
         settings.Physical.RootPath = empty;
 
-        ShouldNotStart(settings);
+        ShouldNotStart(settings).Message.ShouldContain($"{RootSetting} is empty");
     }
 
     [Theory]
@@ -410,5 +456,48 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
         Should.NotThrow(() => Valid().Validate(false, contentRoot, null));
         Should.Throw<InvalidOperationException>(() => Valid(Path.Combine(contentRoot, "files")).Validate(false, contentRoot, null));
         Directory.Exists(root).ShouldBeTrue();
+    }
+
+    // ---- Can't be written to ----
+
+    [Fact]
+    [Trait("Case", "ATT-072")]
+    [Trait("Case", "ATT-076")]
+    public void A_root_that_is_really_a_file_stops_the_app_and_the_message_names_it()
+    {
+        File.WriteAllBytes(root, [1]);
+
+        var error = ShouldNotStart(Valid());
+
+        error.Message.ShouldContain($"{RootSetting} '{root}' can't be created or written to");
+        error.InnerException.ShouldBeAssignableTo<IOException>();
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-072")]
+    [Trait("Case", "ATT-076")]
+    public void A_folder_it_can_not_write_to_stops_the_app_and_the_message_names_it()
+    {
+        // Windows has no such mode, and root writes anywhere: there the folder wouldn't refuse, so this check would prove nothing
+        if (OperatingSystem.IsWindows() || Environment.IsPrivilegedProcess)
+            return;
+        Directory.CreateDirectory(root);
+        File.SetUnixFileMode(root, UnixFileMode.UserRead | UnixFileMode.UserExecute
+            | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+
+        var error = ShouldNotStart(Valid());
+
+        error.Message.ShouldContain($"{RootSetting} '{root}' can't be created or written to");
+        error.InnerException.ShouldBeOfType<UnauthorizedAccessException>();
+        Directory.GetFileSystemEntries(root).ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-077")]
+    public void The_write_probe_leaves_the_root_empty()
+    {
+        ShouldStart(Valid());
+
+        Directory.GetFileSystemEntries(root).ShouldBeEmpty();
     }
 }

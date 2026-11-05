@@ -1,8 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
+using ClinicHub.Application.Common.Abstractions;
+using ClinicHub.Application.Features.Attachments.Files;
 using ClinicHub.IntegrationTests.Attachments.TestHost;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace ClinicHub.IntegrationTests.Attachments;
@@ -58,6 +61,21 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
         Disk.Read(oldRow.StorageKey).ShouldBeTheBytes(oldBytes);
         Disk.Read((await RowAsync(replacement.Id)).StorageKey).ShouldBeTheBytes(newBytes);
         Seams.Removed.ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-112")]
+    public async Task Delete_all_of_an_owner_with_no_files_does_nothing()
+    {
+        var clinic = await Data.Clinic();
+        await using var scope = Host.Factory.Services.CreateAsyncScope();
+        using var inClinic = scope.ServiceProvider.GetRequiredService<IClinicScope>().Use(clinic.Id);
+        var attachments = scope.ServiceProvider.GetRequiredService<IAttachmentService>();
+
+        // No request here, so no user: with nothing to mark, nothing asks who is deleting
+        await attachments.DeleteAllAsync(new AttachmentOwner(G, NewRef()));
+
+        Seams.Saves.ShouldBeEmpty();
     }
 
     [Fact]
