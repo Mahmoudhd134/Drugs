@@ -77,8 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 49 | 212 | 73 | 334 | 74 | 25 | 127 | 135 | 4 |
-| **All** | **484** | **860** | **477** | **1821** | **284** | **706** | **499** | **440** | **14** |
+| [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
+| **All** | **484** | **861** | **477** | **1822** | **284** | **706** | **500** | **441** | **14** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2492,6 +2492,9 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-346 | Given 375 px and no manual input, when Print, then `window.print` runs and the PDF page is the template's size with items at their mm | P1 | e2e | D12 |
 | TPL-347 | Given real Chrome on Windows, then the dialog's preview shows the template's size, no browser header or footer at margin none; Cancel returns to the app | P1 | manual | § 8 |
 | TPL-348 | Given the pop-up and the page with Print in Arabic, in English and on a phone, then axe and the cut-text check pass | P1 | e2e | test rules |
+| TPL-349 | Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box; a line holding both scripts doesn't change | P0 | unit+e2e | User, 2026-11-05 (F1) |
+| TPL-350 | Given a static text `Dr. Ahmed`, `دكتور أحمد`, `Consultant` on three lines, then each line starts from its own language's side | P1 | unit+e2e | Business file (F5) |
+| TPL-351 | Given repeated spaces and a tab typed in the editor, when printed, then they print as typed, and every sheet's text stays inside its box: the page breaks were measured with them | P1 | ui+e2e | User, 2026-11-05 |
 
 ### Designer: drag, resize, keyboard, undo and zoom (step 3)
 

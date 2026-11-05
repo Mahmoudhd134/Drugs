@@ -11,7 +11,7 @@ import {useDeletePrintTemplate, usePrintTemplate, useSavePrintTemplate} from "..
 import {itemIndexOfField, newLayout, normalizeLayout, parseMmInput, validateLayout} from "../layout.ts";
 import {endRun, isDirty} from "../layoutHistory.ts";
 import type {LayoutError, PrintTemplateAdapter, TemplateItem} from "../types.ts";
-import {type Draft, startDraft, useDesignerDraft} from "../useDesignerDraft.ts";
+import {type Draft, startDraft, useDesignerDraft, withTypedPageCommitted} from "../useDesignerDraft.ts";
 import {useUnsavedGuard} from "../useUnsavedGuard.ts";
 import {TemplateWorkspace} from "./TemplateWorkspace.tsx";
 
@@ -56,7 +56,7 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
     const answered = template.isFetchedAfterMount && template.isSuccess;
     if (!draft && answered && template.data) setDraft(startDraft(template.data.layout, template.data.layout));
 
-    const dirty = draft !== null && isDirty(draft.layout, draft.baseline, draft.rawInputs);
+    const dirty = draft !== null && isDirty(draft.layout, draft.baseline, {...draft.rawInputs, ...draft.typedPage});
     const {dialog: guardDialog} = useUnsavedGuard(dirty);
 
     const layout = draft?.layout;
@@ -65,16 +65,16 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
     const handleSave = () => once(async () => {
         if (!draft) return;
         // The field's blur usually did this already; not when no blur came (the window narrowed and widened while typing)
-        const committed = commitTypedPage(draft);
+        const committed = withTypedPageCommitted(draft);
         const problems = validateLayout(committed.layout);
         if (problems.length > 0 || Object.keys(committed.rawInputs).length > 0) {
             const hidden = new Set(problems.filter(problem => !SHOWN_FIELD.test(problem.field)).map(problem => problem.code));
             hidden.forEach(code => toast.error(t(`errors.${code}`)));
             setDraft({
-                ...draft,
+                ...committed,
                 // Save ends a run of nudges, whatever comes of it (TPL-558)
-                history: endRun(draft.history),
-                selectedId: firstProblemItem(problems, draft) ?? draft.selectedId,
+                history: endRun(committed.history),
+                selectedId: firstProblemItem(problems, committed) ?? committed.selectedId,
                 touched: new Set([
                     ...committed.touched,
                     ...problems.map(problem => keyOfField(problem.field, committed.layout.items)).filter(key => key !== null),
@@ -83,8 +83,8 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
             return;
         }
 
-        const sent = normalizeLayout(draft.layout);
-        setDraft(current => current && {...current, history: endRun(current.history)});
+        setDraft({...committed, history: endRun(committed.history)});
+        const sent = normalizeLayout(committed.layout);
         try {
             await save.mutateAsync(sent);
             toast.success(t("printTemplates.saved"));

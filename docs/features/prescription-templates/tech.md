@@ -152,7 +152,7 @@ Items may overlap: the topmost (the later in the list) takes the mouse press, an
 
 **Save** (`useSingleFlight`; disabled when not dirty or while saving): a measure still in `typedPage` commits first, so one press sends one PUT with the new size (the field's blur on mouse-down or Tab has usually done it; Save does it when no blur came, the window narrowed and widened while typing). Then any `rawInputs` or `validateLayout` error: nothing is sent, the messages show, the first problem's item becomes selected, an error no field shows (`items`, `schemaVersion`, `items[i].id`, `items[i].kind`, `items[i].function`) is toasted. Else `sent = normalizeLayout(draft)`, PUT; success: `baseline = sent`, the draft isn't replaced, so an edit made while the request is in flight stays and keeps the screen dirty. Failure: a toast, `getFieldErrors` on the named fields until the next edit, the named item selected, edits kept. A 404 reloads the clinic through `affects`.
 
-**Draft** (`useDesignerDraft`'s state, above the desktop switch, so narrowing the window keeps it): `{layout, baseline, rawInputs, selectedId, touched, serverErrors, history, openField, fitRequests}`. Seeded once, from the first answer since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, later answers are ignored while a draft exists. **Dirty** = `isDirty(layout, baseline, rawInputs)`: `baseline === null || !sameLayout(layout, baseline) || rawInputs not empty`. `ClinicPage` keys its `PageBoundary` by the clinic, so nothing of A's draft shows under B.
+**Draft** (`useDesignerDraft`'s state, above the desktop switch, so narrowing the window keeps it): `{layout, baseline, rawInputs, typedPage, selectedId, revealId, touched, serverErrors, history, openField, fitRequests}`. Seeded once, from the first answer since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, later answers are ignored while a draft exists. **Dirty** = `isDirty(layout, baseline, {...rawInputs, ...typedPage})`: `baseline === null || !sameLayout(layout, baseline) || raw or typed text not empty`. `ClinicPage` keys its `PageBoundary` by the clinic, so nothing of A's draft shows under B.
 
 **Unsaved changes (D16).** `useUnsavedGuard` is called once, above the desktop switch.
 
@@ -350,7 +350,7 @@ A ref says the page is gone; after every `await`, a flow on an unmounted page st
 - Alt + left or right is the browser's Back and Forward when nothing is selected or the focus is in a field, and D16 asks if needed.
 
 ## Testing notes
-Catalog area TPL ([test catalog](../../testing/test-catalog.md)), step 1: TPL-001…058, TPL-200…250; step 2: TPL-100…153, TPL-190, TPL-191, TPL-300…348; step 3: TPL-400…482, TPL-500…590 (and the changed TPL-054, TPL-227, TPL-228, which measure at 100%). Shared rule rows: `tests/fixtures/print-layout-cases.json`, run by both sides.
+Catalog area TPL ([test catalog](../../testing/test-catalog.md)), step 1: TPL-001…058, TPL-200…253; step 2: TPL-100…153, TPL-190, TPL-191, TPL-300…348; step 3: TPL-400…482, TPL-500…590 (and the changed TPL-054, TPL-227, TPL-228, which measure at 100%). Shared rule rows: `tests/fixtures/print-layout-cases.json`, run by both sides.
 
 | Level | Tests |
 |---|---|

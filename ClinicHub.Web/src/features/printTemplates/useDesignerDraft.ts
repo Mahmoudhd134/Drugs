@@ -8,6 +8,9 @@ import type {AddableItem, PageSize, PrintLayout, TemplateItem} from "./types.ts"
 /** The number fields of an item, in the settings' order. */
 export type BoxField = "xMm" | "yMm" | "wMm" | "hMm" | "fontSizePt";
 
+/** The sheet's measures, which commit at blur or Enter. */
+export type PageMeasure = "widthMm" | "heightMm";
+
 /** The designer's local state (contract § 3.6). Keys of `rawInputs` and `touched`: `<itemId>.<field>`, `page.widthMm`… */
 export type Draft = {
     layout: PrintLayout;
@@ -15,7 +18,11 @@ export type Draft = {
     baseline: PrintLayout | null;
     /** Text typed in a number field that the layout couldn't take */
     rawInputs: Record<string, string>;
+    /** Text typed in a sheet measure, not committed yet, that differs from the committed number: unsaved, nothing moves */
+    typedPage: Partial<Record<PageMeasure, string>>;
     selectedId: string | null;
+    /** The item just added, whose box is scrolled into view */
+    revealId: string | null;
     /** Fields changed since the load, or with a problem when Save was pressed: only these show the rules' messages */
     touched: ReadonlySet<string>;
     /** The server's messages by its field (`items[2].name`), until the next edit */
@@ -32,7 +39,9 @@ export const startDraft = (layout: PrintLayout, baseline: PrintLayout | null): D
     layout,
     baseline,
     rawInputs: {},
+    typedPage: {},
     selectedId: null,
+    revealId: null,
     touched: new Set(),
     serverErrors: {},
     history: EMPTY_HISTORY,
@@ -85,6 +94,30 @@ const withPageStep = (draft: Draft, layout: PrintLayout): Draft => ({
     fitRequests: draft.fitRequests + (sameLayout(draft.layout, layout) ? 0 : 1),
 });
 
+/** A custom measure committed: within the rules it applies, as one page step; anything else moves nothing and stays as typed. */
+const withMeasureCommitted = (draftNow: Draft, field: PageMeasure, text: string): Draft => {
+    const current = withFieldCommitted(draftNow);
+    const key = `page.${field}`;
+    const value = parseMmInput(text);
+    const touched = new Set(current.touched).add(key);
+    const typedPage = without(current.typedPage, field);
+    const [min, max] = field === "widthMm" ? [MIN_CUSTOM_WIDTH_MM, MAX_CUSTOM_WIDTH_MM] : [MIN_CUSTOM_HEIGHT_MM, MAX_CUSTOM_HEIGHT_MM];
+    if (value === null || toTenths(value) < toTenths(min) || toTenths(value) > toTenths(max)) {
+        return {...current, touched, typedPage, rawInputs: {...current.rawInputs, [key]: text}};
+    }
+    return {
+        ...withPageStep(current, applyPageSize(current.layout, {...current.layout.page, [field]: value})),
+        touched,
+        typedPage,
+        rawInputs: without(current.rawInputs, key),
+    };
+};
+
+/** The draft with every measure still typed committed: Save's, when no blur came (the window narrowed and widened while typing). */
+export const withTypedPageCommitted = (current: Draft) =>
+    (Object.entries(current.typedPage) as [PageMeasure, string][])
+        .reduce((committed, [field, text]) => withMeasureCommitted(committed, field, text), current);
+
 /**
  * The draft and every change to it (contract § 3.6): what's a step and what isn't lives here, the screen only calls these.
  * Above the desktop switch, so narrowing the window keeps the edits and the history (TPL-229, TPL-574).
@@ -104,6 +137,7 @@ export const useDesignerDraft = () => {
             ...base,
             layout: added.layout,
             selectedId: added.item.id,
+            revealId: added.item.id,
             history: recordStep(base.history, base.layout, added.layout, {kind: "add", itemId: added.item.id}),
         };
     });
@@ -186,6 +220,8 @@ export const useDesignerDraft = () => {
             ...current,
             layout,
             selectedId: null,
+            // An id is reused after a removal: the next item with this one is new again
+            revealId: null,
             rawInputs: withoutPrefix(current.rawInputs, `${item.id}.`),
             touched: new Set([...current.touched].filter(key => !key.startsWith(`${item.id}.`))),
             history: recordStep(current.history, current.layout, layout, {kind: "remove", itemId: item.id}),
@@ -197,25 +233,20 @@ export const useDesignerDraft = () => {
         return {
             ...withPageStep(current, applyPageSize(current.layout, pageOfSize(size, current.layout.page))),
             rawInputs: without(without(current.rawInputs, "page.widthMm"), "page.heightMm"),
+            typedPage: {},
         };
     });
 
-    /** A custom measure, at blur or Enter: within the rules it applies; anything else moves nothing and stays as typed. */
-    const commitPageMeasure = (field: "widthMm" | "heightMm", text: string) => edit(draftNow => {
-        const current = withFieldCommitted(draftNow);
-        const key = `page.${field}`;
+    /** A measure's keystroke: it moves nothing and counts as unsaved; typed back to the committed number, it is clean again. */
+    const typePageMeasure = (field: PageMeasure, text: string) => edit(current => {
         const value = parseMmInput(text);
-        const touched = new Set(current.touched).add(key);
-        const [min, max] = field === "widthMm" ? [MIN_CUSTOM_WIDTH_MM, MAX_CUSTOM_WIDTH_MM] : [MIN_CUSTOM_HEIGHT_MM, MAX_CUSTOM_HEIGHT_MM];
-        if (value === null || toTenths(value) < toTenths(min) || toTenths(value) > toTenths(max)) {
-            return {...current, touched, rawInputs: {...current.rawInputs, [key]: text}};
-        }
-        return {
-            ...withPageStep(current, applyPageSize(current.layout, {...current.layout.page, [field]: value})),
-            touched,
-            rawInputs: without(current.rawInputs, key),
-        };
+        return value !== null && toTenths(value) === toTenths(current.layout.page[field])
+            ? {...current, typedPage: without(current.typedPage, field), rawInputs: without(current.rawInputs, `page.${field}`)}
+            : {...current, typedPage: {...current.typedPage, [field]: text}};
     });
+
+    /** A custom measure, at blur or Enter. */
+    const commitPageMeasure = (field: PageMeasure, text: string) => edit(current => withMeasureCommitted(current, field, text));
 
     /** Selecting is no step, but it ends a run of nudges (TPL-558). */
     const select = (id: string | null) =>
@@ -233,6 +264,9 @@ export const useDesignerDraft = () => {
                 selectedId: answer.selectedId,
                 history: answer.history,
                 rawInputs: {},
+                typedPage: {},
+                // An undone add's id comes back with the next add: that item is new again
+                revealId: null,
                 serverErrors: {},
                 fitRequests: current.fitRequests + (answer.refit ? 1 : 0),
             }
@@ -257,6 +291,7 @@ export const useDesignerDraft = () => {
             commitField,
             removeSelected,
             changePageSize,
+            typePageMeasure,
             commitPageMeasure,
             select,
             undo: () => travel(undoStep),

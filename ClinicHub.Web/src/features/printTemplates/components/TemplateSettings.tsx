@@ -38,7 +38,7 @@ type Props = {
 };
 
 /** The settings panel (contract § 3.3): the sheet's, then the selected item's. */
-export const TemplateSettings = ({page, item, rawInputs, messageOf, onPageSize, onPageMeasure, onItemNumber, onItemText, onItemCommit, onRemove}: Props) => {
+export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onItemCommit, onRemove}: Props) => {
     const {t} = useTranslation();
 
     const typeLabel = (selected: TemplateItem) =>
