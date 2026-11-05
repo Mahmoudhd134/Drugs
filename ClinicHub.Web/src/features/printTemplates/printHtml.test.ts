@@ -3,6 +3,7 @@ import {aDrug, aLine, aSharedDrug} from "../../test";
 import {bodyOf, canonical, styleOf, textOf} from "../../test/htmlShape.ts";
 import type {Dosing} from "../dosing/types.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml, linesToPlainText} from "../prescription/prescriptionText.ts";
+import {paginate} from "./pagination.ts";
 import {cleanPrintHtml, hasPrintableText, singleLine} from "./printHtml.ts";
 
 // Cleaning: contract § 2.3, design § 4 "Same text as Copy" (allow list); the input is `htmlForPaste`'s output.
@@ -604,7 +605,6 @@ describe("a line with no right-to-left letter @area:prescription", () => {
     test.each([
         ["Latin and Arabic in one run", '<p dir="rtl">أموكسيسيلين Amoxicillin 500mg</p>'],
         ["a Latin name and an Arabic sentence", '<p dir="rtl"><strong dir="ltr">5-FU 1%</strong><br>رج الزجاجة</p>'],
-        ["a name with no direction and an Arabic sentence", '<p dir="rtl"><strong>Tobradex</strong><br>رج الزجاجة</p>'],
         ["a <li>", '<ol><li dir="rtl">Tobradex رج الزجاجة</li></ol>'],
         ["an <h2>", '<h2 dir="rtl">Tobradex رج الزجاجة</h2>'],
     ])("a line holding both scripts doesn't change, and gains no alignment: %s @TPL-349 @smoke", (_name, html) => {
@@ -644,6 +644,158 @@ describe("a line with no right-to-left letter @area:prescription", () => {
 
     test("Copy isn't touched: `htmlForPaste` keeps dir=rtl on a Latin line @TPL-349", () => {
         expect(htmlForPaste('<p class="ql-direction-rtl">abc</p>')).toBe('<p dir="rtl" style="margin-top:0;margin-bottom:0">abc</p>');
+    });
+});
+
+describe("a line counts at its <br>s too @area:prescription", () => {
+    const THE_DRUG = '<p dir="rtl"><strong dir="ltr">ALEMOX</strong><br>قرص<br>5-FU 1%</p>';
+    const THE_DRUG_CLEANED = '<p dir="rtl"><strong dir="ltr">ALEMOX</strong><br>قرص<br><span dir="ltr">5-FU 1%</span></p>';
+
+    /** The exact result, which the parser gives back as it is and which cleans to itself. */
+    const expectLines = (html: string, expected: string) => {
+        const cleaned = cleanPrintHtml(html);
+        expect(cleaned).toBe(expected);
+        expect(bodyOf(cleaned).innerHTML).toBe(expected);
+        expect(cleanPrintHtml(cleaned)).toBe(expected);
+    };
+
+    test("the block keeps dir=rtl, the name stays as it is, and only the Latin line is wrapped @TPL-349 @smoke", () => {
+        expectLines(THE_DRUG, THE_DRUG_CLEANED);
+    });
+
+    test.each([
+        ["bold", '<p dir="rtl"><strong>ALEMOX</strong><br>قرص</p>', '<p dir="rtl"><span dir="ltr"><strong>ALEMOX</strong></span><br>قرص</p>'],
+        ["text, then bold", '<p dir="rtl">5-FU <strong>1%</strong><br>قرص</p>', '<p dir="rtl"><span dir="ltr">5-FU <strong>1%</strong></span><br>قرص</p>'],
+        ["two inline tags", '<p dir="rtl">قرص<br><strong>5-FU</strong> <em>1%</em></p>', '<p dir="rtl">قرص<br><span dir="ltr"><strong>5-FU</strong> <em>1%</em></span></p>'],
+        ["tags inside tags", '<p dir="rtl">قرص<br><strong><em>5-FU</em></strong></p>', '<p dir="rtl">قرص<br><span dir="ltr"><strong><em>5-FU</em></strong></span></p>'],
+        ["an element with its own dir, beside more text", '<p dir="rtl"><strong dir="ltr">A</strong> 5mg<br>قرص</p>', '<p dir="rtl"><span dir="ltr"><strong dir="ltr">A</strong> 5mg</span><br>قرص</p>'],
+    ])("a line of inline tags is wrapped whole: %s @TPL-349", (_name, html, expected) => {
+        expectLines(html, expected);
+    });
+
+    test.each([
+        ["a <strong> with dir=ltr", '<p dir="rtl"><strong dir="ltr">5-FU</strong><br>قرص</p>'],
+        ["a <span> with dir=ltr", '<p dir="rtl">قرص<br><span dir="ltr">5-FU</span></p>'],
+        ["an element with dir=auto", '<p dir="rtl">قرص<br><span dir="auto">5-FU</span></p>'],
+    ])("a line that is one element with its own dir stays as it is: %s @TPL-349", (_name, html) => {
+        expectLines(html, html);
+    });
+
+    test("each Latin line is wrapped on its own, an Arabic one between them isn't @TPL-349", () => {
+        expectLines(
+            '<p dir="rtl">5-FU<br>قرص<br>ALEMOX<br>GM 12</p>',
+            '<p dir="rtl"><span dir="ltr">5-FU</span><br>قرص<br><span dir="ltr">ALEMOX</span><br><span dir="ltr">GM 12</span></p>',
+        );
+    });
+
+    test("digits are enough: a line of them is wrapped @TPL-349", () => {
+        expectLines('<p dir="rtl">قرص<br>12 - 3</p>', '<p dir="rtl">قرص<br><span dir="ltr">12 - 3</span></p>');
+    });
+
+    test("U+FEFF, Quill's cursor, doesn't make a Latin line right to left: it's wrapped, the mark kept @TPL-349", () => {
+        expectLines('<p dir="rtl">قرص<br>\uFEFF5-FU</p>', '<p dir="rtl">قرص<br><span dir="ltr">\uFEFF5-FU</span></p>');
+    });
+
+    test.each([
+        ["a <li>", '<ol><li dir="rtl">قرص<br>5-FU</li></ol>', '<ol><li dir="rtl">قرص<br><span dir="ltr">5-FU</span></li></ol>'],
+        ["an <h2>", '<h2 dir="rtl">قرص<br>5-FU</h2>', '<h2 dir="rtl">قرص<br><span dir="ltr">5-FU</span></h2>'],
+        ["a block that became a <p>", '<div dir="rtl">قرص<br>5-FU</div>', '<p dir="rtl">قرص<br><span dir="ltr">5-FU</span></p>'],
+        ["a <pre>, whose line breaks became <br>s", '<pre dir="rtl">قرص\n5-FU</pre>', '<p dir="rtl">قرص<br><span dir="ltr">5-FU</span></p>'],
+    ])("the same in %s @TPL-349", (_name, html, expected) => {
+        expectLines(html, expected);
+    });
+
+    test("its style stays, and the block gains no alignment: it holds Arabic @TPL-349", () => {
+        expectLines(
+            '<p dir="rtl" style="margin-top:0">قرص<br>5-FU</p>',
+            '<p dir="rtl" style="margin-top:0">قرص<br><span dir="ltr">5-FU</span></p>',
+        );
+    });
+
+    test.each([
+        ["both scripts on a line", '<p dir="rtl">Tobradex قرص<br>نقطة</p>'],
+        ["both scripts in two tags", '<p dir="rtl"><strong>Tobradex</strong> <em>قرص</em><br>نقطة</p>'],
+        ["Arabic in bold", '<p dir="rtl"><strong>قرص</strong><br>نقطة</p>'],
+    ])("a line with Arabic isn't wrapped: %s @TPL-349", (_name, html) => {
+        expectLines(html, html);
+    });
+
+    test("a line with Arabic stays, the Latin line beside it is wrapped @TPL-349", () => {
+        expectLines('<p dir="rtl">Tobradex قرص<br>5-FU</p>', '<p dir="rtl">Tobradex قرص<br><span dir="ltr">5-FU</span></p>');
+    });
+
+    test.each([
+        ["an empty line", '<p dir="rtl">قرص<br><br>نقطة</p>'],
+        ["at the end", '<p dir="rtl">قرص<br></p>'],
+        ["an invisible mark", '<p dir="rtl">قرص<br>\u200F<br>نقطة</p>'],
+        ["Quill's cursor", '<p dir="rtl">قرص<br>\uFEFF<br>نقطة</p>'],
+        ["punctuation, no letter or digit", '<p dir="rtl">قرص<br>...<br>نقطة</p>'],
+    ])("a blank line, or one with no letter or digit, isn't wrapped: %s @TPL-349", (_name, html) => {
+        expectLines(html, html);
+    });
+
+    test.each([
+        ["one line, Latin", '<p dir="rtl">5-FU 1%</p>', '<p dir="ltr" style="text-align:right">5-FU 1%</p>'],
+        ["several lines, all Latin", '<p dir="rtl">5-FU 1%<br>ALEMOX</p>', '<p dir="ltr" style="text-align:right">5-FU 1%<br>ALEMOX</p>'],
+        ["several lines, a name with its own dir", '<p dir="rtl"><strong dir="ltr">5-FU</strong><br>shake</p>', '<p dir="ltr" style="text-align:right"><strong dir="ltr">5-FU</strong><br>shake</p>'],
+    ])("a block with no Arabic at all flips as before, and nothing in it is wrapped: %s @TPL-349", (_name, html, expected) => {
+        expectLines(html, expected);
+    });
+
+    test.each([
+        ["one line with both scripts", '<p dir="rtl">Tobradex قرص</p>'],
+        ["no dir", "<p>قرص<br>5-FU</p>"],
+        ["dir=ltr", '<p dir="ltr">قرص<br>5-FU</p>'],
+        ["dir=auto", '<p dir="auto">قرص<br>5-FU</p>'],
+    ])("the rule is for a dir=rtl block of several lines: %s stays as it is @TPL-349", (_name, html) => {
+        expectLines(html, html);
+    });
+
+    describe("from the generated text", () => {
+        const drug = () => aLine(aDrug({name: "ALEMOX 1 GM"}), twoDropsLeft, "5-FU 1%");
+        const P = 'dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"';
+
+        test("a Latin note on a drug with an Arabic sentence is wrapped; the name and the sentence stay @TPL-349 @TPL-123 @smoke", () => {
+            const pasted = htmlForPaste(linesToHtml([drug()]));
+            expect(cleanPrintHtml(pasted)).toBe(`<p ${P}><strong dir="ltr">ALEMOX 1 GM</strong><br>${SENTENCE}<br><span dir="ltr">5-FU 1%</span></p>`);
+        });
+
+        test("Copy isn't touched: what it pastes wraps nothing @TPL-349", () => {
+            expect(htmlForPaste(linesToHtml([drug()]))).toBe(`<p ${P}><strong dir="ltr">ALEMOX 1 GM</strong><br>${SENTENCE}<br>5-FU 1%</p>`);
+        });
+
+        test("read back as plain text, it's still what Copy puts on the clipboard @TPL-349 @TPL-123", () => {
+            expect(htmlToPlainText(cleanPrintHtml(htmlForPaste(linesToHtml([drug()]))))).toBe(linesToPlainText([drug()]));
+        });
+
+        test("a drug with no Arabic at all flips whole, its note unwrapped @TPL-349", () => {
+            const pasted = htmlForPaste(linesToHtml([aLine(aDrug({name: "5-FU"}), {}, "shake")]));
+            expect(cleanPrintHtml(pasted)).toBe('<p dir="ltr" style="text-align:right;margin-top:0;margin-bottom:0"><strong dir="ltr">5-FU</strong><br>shake</p>');
+        });
+    });
+
+    describe("through `paginate`", () => {
+        /** A box of `max` characters, spaces counted. */
+        const charsFit = (max: number) => (html: string) => textOf(html).length <= max;
+        const sheetsOf = (max: number) => paginate(cleanPrintHtml(THE_DRUG), charsFit(max)).map(sheet => canonical(sheet, {trimBlocks: true}));
+
+        test("on one sheet the wrapped line stays as it is @TPL-349", () => {
+            expect(paginate(cleanPrintHtml(THE_DRUG), () => true)).toEqual([THE_DRUG_CLEANED]);
+        });
+
+        test("a cut at the <br> before it: the line moves to the next sheet, wrapped, in a block that keeps dir=rtl @TPL-349 @TPL-144", () => {
+            expect(sheetsOf(9)).toEqual([
+                '<p dir="rtl"><strong dir="ltr">ALEMOX</strong><br>قرص</p>',
+                '<p dir="rtl"><span dir="ltr">5-FU 1%</span></p>',
+            ]);
+        });
+
+        test("a cut inside it: both parts stay wrapped @TPL-349 @TPL-144", () => {
+            expect(sheetsOf(14)).toEqual([
+                '<p dir="rtl"><strong dir="ltr">ALEMOX</strong><br>قرص<br><span dir="ltr">5-FU</span></p>',
+                '<p dir="rtl"><span dir="ltr">1%</span></p>',
+            ]);
+        });
     });
 });
 
