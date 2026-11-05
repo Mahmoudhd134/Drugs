@@ -30,7 +30,7 @@ in the template clinic's context gets 204: the template clinic can never hold on
 
 ### 2.1 Data (`clinicTemplate.ts`, done)
 
-`clinicTemplateKeys.current(clinicId)` = `["printTemplate", clinicId]`, `.atPrint(clinicId)` = `[…, "atPrint"]`. `useClinicPrintTemplate(clinicId)`: `staleTime` 0, read when the page opens.
+`clinicTemplateKeys.current(clinicId)` = `["printTemplate", clinicId]`, `.atPrint(clinicId)` = `[…, "atPrint"]`. `useClinicPrintTemplate(clinicId)`: `staleTime` 0, `refetchOnReconnect: false`, read when the page opens and only then (TPL-303).
 `readTemplateAtPrint(queryClient, clinicId)`: `fetchQuery` on the `atPrint` key (`staleTime` 0, `gcTime` 0, `retry: false`), then `setQueryData` of its answer on `current`. Through the query cache so a 403 toasts
 once and reloads `/me` (TPL-343); on its own key so a failed click doesn't put the page's query in error: **Print shows when `query.isSuccess && query.data`**: hidden after a failed read when the page opened
 (TPL-105), kept after a failed click (TPL-344), gone after a click answering 204 (TPL-151, TPL-345).
@@ -58,8 +58,8 @@ once and reloads `/me` (TPL-343); on its own key so a failed click doesn't put t
 - **Removed with their content:** `script style iframe object embed svg math template noscript head title link meta` and comments.
 - **Become `p`:** `div blockquote pre h4 h5 h6 address section article` (Quill's paste keeps some of them; merging them into one line would lose the layout). In `pre`, a `\n` becomes `<br>`.
 - **Any other tag:** dropped, its children kept in place (`a`, `b`, `i`, `font`, `img` has no children so it's simply gone and never requested).
-- **Attributes:** only `dir` with `ltr`, `rtl` or `auto`, and `style` filtered property by property: `text-align` with `left right center justify start end`; `margin`, `margin-top`, `margin-bottom`, `margin-left`, `margin-right`,
-  `margin-inline-start`, `margin-inline-end` with a number and `em`, `px`, `pt`, `mm` or none. Everything else goes (`color`, `font-*`, `position`, `background`, `onerror`, `class`, `href`, `src`). No style left: no attribute.
+- **Attributes:** only `dir` with `ltr`, `rtl` or `auto`, and `style` filtered property by property: `text-align` with `left right center justify start end`; `margin-top`, `margin-bottom`, `margin-left`, `margin-right`,
+  `margin-inline-start`, `margin-inline-end` with a number that isn't negative and `em`, `px`, `pt`, `mm` or none. The `margin` shorthand goes. A side margin above `6em` (deep Tab indents) is written as `min(<value>, 50%)`, so it can't push text off the sheet, where `fits`, which measures height only, wouldn't see it. Everything else goes (`color`, `font-*`, `position`, `background`, `onerror`, `class`, `href`, `src`). No style left: no attribute.
 - Text outside any block at the top level is wrapped in a `p`.
 
 `hasPrintableText(html)`: after removing the elements above, the text holds something other than white space, U+00A0, U+FEFF (Quill's cursor), U+200B–U+200F, U+061C. `htmlToPlainText` isn't used for it: it gives `1.` for one empty list item (TPL-304). **Print's check only**: the editor's Copy stays as it is.
@@ -73,7 +73,7 @@ once and reloads `/me` (TPL-343); on its own key so a failed click doesn't put t
 1. **Blocks.** The top-level elements in order; a list counts each `li` as a block, remembering its list's tag, attributes and number. A **blank** is a `p` or heading with no printable text (§ 2.3). A **run** is the blocks between blanks: Quill makes each line its own paragraph, so a drug is a run (TPL-147); `linesToHtml`'s one-paragraph drugs are a run of one.
 2. **Blanks** at the start and end of the text and at the top of a sheet are dropped; between two runs on the same sheet they stay as typed (TPL-326).
 3. **A run** goes on the current sheet (with the blanks before it) if the result fits. Else, if the sheet isn't empty and the run fits an empty sheet, on a new sheet whole (TPL-143). Else (taller than a box, TPL-144) it fills the current sheet block by block and carries on through the next ones («وإلا ينقسم بين كلمتين»).
-4. **A block that doesn't fit** in step 3's last case is cut: the most words that fit stay, the rest starts the next sheet. `<br>` and spaces are cut points; a cut at a `<br>` drops that `<br>`. On a non-empty sheet with no word fitting, the block starts a new sheet. On an empty sheet with no word fitting, it's cut between characters (code points; TPL-340). Not even one character fitting: one character is placed anyway, so the loop always ends and nothing is lost.
+4. **A block that doesn't fit** in step 3's last case is cut: the most words that fit stay, the rest starts the next sheet. `<br>` and spaces are cut points; a cut at a `<br>` drops that `<br>` and any right after it, so a sheet never starts with a blank line (TPL-326). On a non-empty sheet with no word fitting, the block starts a new sheet. On an empty sheet with no word fitting, it's cut between characters (code points; TPL-340). Not even one character fitting: one character is placed anyway, so the loop always ends and nothing is lost.
 5. **A cut keeps the format:** both parts keep the block's tag, `dir` and `style`, and every inline tag open at the cut is closed and reopened (`<strong>`, `<em>`, `<u>`, `<span>`). Concatenating the sheets' text gives the input's text, words whole, with the dropped blanks and `<br>`s aside.
 6. **Lists.** Consecutive `li`s of one list on a sheet stay in one `ol`/`ul`. A sheet's `ol` starting after the first item has `start="<n>"`, so numbers continue (TPL-327). The second part of a cut `li` has `style="list-style:none"` and its list starts at that item's own number, so the next item still gets the next number. `start` and `list-style` are written here, after the cleaning.
 
@@ -120,7 +120,7 @@ Reused: `common.cancel`, `common.copy`, `common.close`, `getErrorMessage`.
 MUI `Dialog`, open when `items` is not null, `fullWidth maxWidth="xs"`, `fullScreen` below `sm` like `EditorDialog`, `DialogForm`, so only the content scrolls and the buttons stay (TPL-311):
 
 - `DialogTitle` `printTemplates.print.title`.
-- `DialogContent`: `Typography` `printTemplates.print.hint` first (TPL-306), then one `TextField` per item in order: `label` = `item.name`, `fullWidth`, `slotProps.htmlInput: {maxLength: MANUAL_VALUE_MAX_LENGTH, dir: "auto"}`, starts empty, `autoFocus` on the first (TPL-110). The label wrapped in `<bdi>`, so it keeps its own direction (TPL-312). `onChange` through `singleLine`. Pasted text: `onPaste` applies `singleLine` and inserts at the selection within the limit, since an `<input>` would delete the line break (TPL-114).
+- `DialogContent`: `Typography` `printTemplates.print.hint` first (TPL-306), then one `TextField` per item in order: the label **above** the field, a `<label htmlFor>` that wraps, never a floating label (MUI's cuts a long one: a name may be 60 characters, TPL-117), `fullWidth`, `slotProps.htmlInput: {maxLength: MANUAL_VALUE_MAX_LENGTH, dir: "auto"}`, starts empty, `autoFocus` on the first (TPL-110). The label's text in `<bdi>`, so it keeps its own direction (TPL-312). `onChange` through `singleLine`. Pasted text: `onPaste` applies `singleLine` and inserts at the selection within the limit, since an `<input>` would delete the line break (TPL-114); through React state, so what the field shows is always what prints (T3 F1).
 - `DialogActions`: `Button` `common.cancel`; `Button type="submit" variant="contained"` `prescription.print`. Enter submits (TPL-310). A second confirm does nothing: the flow's resolver answers once (TPL-116).
 - Closing: `onClose` ignores `backdropClick` (TPL-308); `escapeKeyDown` and Cancel call `onCancel`, which closes only the pop-up: the focus returns to Print by MUI's own restore (TPL-309).
 - Fields start empty per opening (remount by a key per opening: TPL-115). `onConfirm` gets every value trimmed (TPL-314).
@@ -220,6 +220,10 @@ Rules: nobody edits another track's files; a rule or contract change goes throug
 13. **`pdfjs-dist` is a new devDependency**, for e2e only: the task's proof needs text and positions from the PDF, which `page.pdf` alone doesn't give.
 14. **The controller is in the contract**: the query exists, so track `backend` has no code. Design § 7's four tracks become three.
 15. **`printSheet.css` is always loaded with the sheet**, scoped to `.print-text`. Only `@page` and the hiding rules are print-time.
+
+16. **Margins** (T3): no negatives, no shorthand, deep side margins capped by `min(…, 50%)`. Text pushed past the sheet would be lost with `fits` still true.
+17. **`htmlForPaste` also converts `h4 h5 h6 blockquote pre`** (T3), so their direction and alignment reach both Copy and print; those tags weren't handled before, and a Copy gains only `dir` and `style`.
+18. **Repeated spaces collapse in print**, as they do in Copy's paste (design § 4, same text as Copy). Asked to the design session; a change is one line of `printSheet.css`.
 
 ## 7. Wording approved by the user
 
