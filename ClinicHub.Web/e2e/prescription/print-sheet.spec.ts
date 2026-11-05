@@ -17,6 +17,7 @@ import {
     linesOf,
     MM_PT,
     mmToPt,
+    moveMouseOff,
     openEditor,
     openPrescription,
     pdfRun,
@@ -105,6 +106,7 @@ test.describe("Printing: the sheet @area:prescription", () => {
             await expectToast(page, rt.copied);
             const {text: copied} = await readClipboard(page);
 
+            await moveMouseOff(page);
             await printButton(rx.panel, rt).click();
             await expectPrintCalls(page, 1);
             const [sheet] = await printSheets(page);

@@ -70,11 +70,35 @@ export const printRoot = (page: Page) => page.locator(PRINT_ROOT);
  */
 export const inPrintMedia = async <T>(page: Page, read: () => Promise<T>): Promise<T> => {
     await page.emulateMedia({media: "print"});
+    let result: T;
     try {
-        return await read();
+        result = await read();
     } finally {
         await page.emulateMedia({media: null});
     }
+    await screenBackToSize(page);
+    return result;
+};
+
+/**
+ * The page back at the project's size. Print media stretches a phone's page to the sheet (mobile emulation: 559 px for an A5), and it
+ * comes back through 395 px over a few frames, later than `emulateMedia` returns; a click sent meanwhile opens nothing (TPL-140, run at 72eea87).
+ */
+const screenBackToSize = async (page: Page) => {
+    const size = page.viewportSize();
+    if (!size) return;
+    await expect.poll(() => page.evaluate(() => new Promise<number[]>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve([window.innerWidth, window.innerHeight])));
+    })), {message: "the page is back at the project's size after print media"}).toEqual([size.width, size.height]);
+};
+
+/**
+ * The mouse off whatever it clicked last, its tooltip gone. A finger never hovers, but the test's mouse stays: on a phone the tooltip of Copy or
+ * of Print lies over the next stacked button, and once the mouse moves onto that tooltip it stays open for good (TPL-103, TPL-133).
+ */
+export const moveMouseOff = async (page: Page) => {
+    await page.mouse.move(0, 0);
+    await expect(page.locator("[role=tooltip]"), "no tooltip left").toHaveCount(0);
 };
 
 export type SheetItem = {
@@ -316,6 +340,7 @@ export const printPopup = (page: Page, rt: RxTexts) =>
 
 /** Opens the editor («تعديل ونسخ») and waits for it: it's lazy-loaded. */
 export const openEditor = async (page: Page, rt: RxTexts) => {
+    await moveMouseOff(page);
     await page.getByRole("button", {name: rt.editAndCopy, exact: true}).click();
     const dialog = page.getByRole("dialog").filter({has: page.getByRole("heading", {name: rt.editorTitle, exact: true})});
     await expect(dialog.locator(".ql-editor")).toBeVisible({timeout: 30_000});
