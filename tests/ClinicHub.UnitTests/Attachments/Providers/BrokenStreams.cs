@@ -72,6 +72,12 @@ public sealed class StreamFailingAfter(byte[] content, int goodBytes) : StreamAc
     protected override void AtTheLimit() => throw new ReadBrokeException();
 }
 
+/// <summary>Delivers its first bytes, then throws the given exception: a body whose read fails midway for a named reason.</summary>
+public sealed class StreamThrowingAfter(byte[] content, int goodBytes, Exception failure) : StreamActingAfter(content, goodBytes)
+{
+    protected override void AtTheLimit() => throw failure;
+}
+
 /// <summary>
 /// The request is cancelled partway through the content: the source keeps delivering, as a client's stream might, so only a provider that passes on
 /// and honors its token stops. A provider ignoring it would finish the file.

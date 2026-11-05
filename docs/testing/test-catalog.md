@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 60 | 51 | 12 | 123 | 49 | 81 | 0 | 0 | 1 |
-| **All** | **544** | **912** | **489** | **1945** | **333** | **787** | **500** | **441** | **15** |
+| [ATT](#att--attachments) | 60 | 53 | 12 | 125 | 51 | 81 | 0 | 0 | 1 |
+| **All** | **544** | **914** | **489** | **1947** | **335** | **787** | **500** | **441** | **15** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2654,7 +2654,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 
 ## ATT — Attachments
 
-A generic module that stores files for any feature ([design](../design/attachments.md), [business](../design/attachments.business.md); the design's part 1, the backend, and part 2's cases join when the components are built). In the Source column, `§ n` and `An` are sections and decisions of the design, and «…» quotes the business file. There's no real route: `api` cases run on the test-only controllers ([testing README](README.md#attachments-test-routes-and-a-real-server)).
+A generic module that stores files for any feature ([design](../design/attachments.md), [business](../features/attachments/business.md); the design's part 1, the backend, and part 2's cases join when the components are built). In the Source column, `§ n` and `An` are sections and decisions of the design, and «…» quotes the business file. There's no real route: `api` cases run on the test-only controllers ([testing README](README.md#attachments-test-routes-and-a-real-server)).
 
 Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 MB); G = any other module string, with no entry (global list, 20 MB); owner O = (M, "1"). "Nothing written" means a clinic's own folder is unchanged: Respawn doesn't reset the disk.
 
@@ -2675,7 +2675,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-011 | Given a suspended or deleted clinic, when its staff call a route, then 403 `clinicSuspended` or `noAccess` | P1 | api | access |
 | ATT-012 | Given the real host with no test part added, when its endpoints are listed, then none carries `[AttachmentUpload]`: production has no attachment route | P0 | api | A2 |
 | ATT-013 | Given a request carrying a `clinicId` in the body or query on a clinic route, then it's ignored: the row belongs to the token's clinic | P0 | api | § 4, clinic scoping |
-| ATT-014 | Given A's file, when A replaces or deletes with a wrong ref ID or module, then 404 and it's unchanged | P0 | api | § 4 |
+| ATT-014 | Given A's file, when A replaces (also with a refused file) or deletes with a wrong ref ID or module, then 404 and it's unchanged | P0 | api | § 4 |
 
 ### Super admin and platform files
 
@@ -2701,8 +2701,8 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ATT-040 | Given a real sample of each of the 17 types with its extension(s), upper case too, then it passes and `TypeKey` is right | P0 | unit | § 5 |
-| ATT-041 | Given each signature type's bytes one byte short or one byte wrong, then it fails | P1 | unit | § 5 |
+| ATT-040 | Given a real sample of each of the 17 types with its extension(s), upper case too, then it passes and `TypeKey` is right; a signature passes from a stream handing out one byte at a time | P0 | unit | § 5 |
+| ATT-041 | Given each signature type's bytes one byte short or one byte wrong, or a new Office file with any of the ZIP start's four bytes wrong, then it fails | P1 | unit | § 5 |
 | ATT-042 | Given a PNG named `.jpg`, or a JPEG named `.png`, then `attachmentTypeNotAllowed` | P0 | unit+api | «يتحقق النظام من محتوى الملف» |
 | ATT-043 | Given an executable named `.png` or `.pdf`, then `attachmentTypeNotAllowed` and nothing is written | P0 | unit+api | «يتحقق النظام من محتوى الملف» |
 | ATT-044 | Given a declared content type of `image/png` on a `.exe`, or a PDF declared as `text/html`, then the declared type changes nothing | P0 | api | § 5 |
@@ -2712,7 +2712,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-048 | Given a corrupt or truncated ZIP named `.xlsx`, then refused, not an exception | P1 | unit | § 5 |
 | ATT-049 | Given a `.docx` whose compressed entries are corrupt, then it still passes: proof that nothing is extracted | P2 | unit | § 5 |
 | ATT-050 | Given compound-file bytes named `.doc`, `.xls`, `.ppt`, then accepted as that type; named `.docx`, then refused | P1 | unit | § 5 |
-| ATT-051 | Given text in UTF-8, Windows-1256 and UTF-16 with a mark, as `.txt` and `.csv`, then accepted | P1 | unit | § 5 |
+| ATT-051 | Given text in UTF-8, Windows-1256 and UTF-16 with a mark, as `.txt` and `.csv`, also from a stream handing out one byte at a time, or a one-byte text, then accepted | P1 | unit | § 5 |
 | ATT-052 | Given a `.txt` holding a NUL or a control character, or `MZ` bytes, then refused; tab, CR, LF and form feed pass | P1 | unit | § 5 |
 | ATT-053 | Given a `.txt` starting with `BM`, then accepted: the extension picks the type | P2 | unit | § 5 |
 | ATT-054 | Given a file shorter than a signature, then refused, not an exception | P1 | unit | § 5 |
@@ -2733,8 +2733,8 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-066 | Given an empty `AllowedTypes`, global or module, then every upload is refused | P1 | unit | § 5 |
 | ATT-067 | Given type keys with spaces or different case (`" PNG , jpeg "`), then they work | P2 | unit | § 5 |
 | ATT-068 | Given a later config source with a shorter list, then only that list applies, nothing kept from the base | P1 | api | § 5 |
-| ATT-069 | Given a relative `RootPath`, or one inside the content root or web root, then the app won't start | P0 | unit | § 5 |
-| ATT-070 | Given the pure path rule with Windows separators and case rule, `C:\inetpub\ClinicHubFiles` under the content root `C:\inetpub\ClinicHub` passes: only a real parent counts; `..` and case are resolved first | P1 | unit | § 5 |
+| ATT-069 | Given a relative `RootPath`, or one inside the content root or web root, then the app won't start; a root differing only by case from the content root is refused on Windows and starts on Linux | P0 | unit | § 5 |
+| ATT-070 | Given the pure path rule with Windows separators and case rule, `C:\inetpub\ClinicHubFiles` under the content root `C:\inetpub\ClinicHub` passes: only a real parent counts; `..` (also above the root or the drive) and case are resolved first | P1 | unit | § 5 |
 | ATT-071 | Given an empty `RootPath`, then Development uses the default folder and any other environment won't start | P0 | unit | § 5 |
 | ATT-072 | Given a root that is really a file, so it can't be created or written to, then the app won't start | P1 | api | § 5 |
 | ATT-073 | Given a root equal to the content root, then the app won't start; given a trailing slash, or no web root (null), then it's judged correctly | P1 | unit | § 5 |
@@ -2763,7 +2763,9 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-094 | Given a wrong field name, two `file` parts, a non-multipart body, a name past the multipart header limit, or no closing boundary, then 400 and nothing written | P1 | api | § 5 |
 | ATT-096 | Given a blank name, a name ending in a slash, or only `.png`, then `attachmentTypeNotAllowed`; `CON.png`, `a.exe.png` and `a.exe:.png` are judged by the last extension and never touch the path; 256 Arabic characters download intact | P1 | unit+api | § 5, § 7 |
 | ATT-097 | Given any upload, then `SizeBytes` is the stream's real length, not what the client declared | P1 | api | § 6 |
-| ATT-099 | Given an upload, a refusal and a failed save, then no log line holds the original file name | P1 | api | § 5 |
+| ATT-099 | Given an upload, a refusal, a failed save and a download, then no log line holds the original file name | P1 | api | § 5 |
+| ATT-185 | Given a form read that fails with a server-side `IOException` (a full disk, an unusable temp folder), then the exception goes on and the unexpected handler answers 500 `unexpected`, not 400; a client's missing closing boundary or a body cut short still answers 400 `invalidRequest` | P1 | unit | § 11, T3 V1 |
+| ATT-186 | Given a multipart body with the wrong boundary and a preamble over 16 KB, within the module's limit, then 400 `invalidRequest`, not `attachmentTooLarge` | P1 | unit | § 5, T3 V2 |
 
 ### Replace, delete, no hard delete
 
@@ -2772,12 +2774,12 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-100 | Given a file, when deleted, then 204, it leaves the list, opening is 404, and **the file is still on disk** with the row marked | P0 | api | A8 |
 | ATT-101 | Given a file, when replaced, then the new one has a new ID, the old ID is 404, the list shows only the new, and **the old file is still on disk** | P0 | api | A8 |
 | ATT-102 | Given a replace with a refused file, then the old one still opens and nothing new exists | P0 | api | «عند رفض الملف الجديد» |
-| ATT-103 | Given a deleted file, when deleted or replaced again, then 404 | P1 | api | § 6 |
-| ATT-104 | Given an owner with three files, when `DeleteAllAsync` runs, then all are marked, others' files are untouched, all stay on disk | P1 | api | § 6 |
+| ATT-103 | Given a deleted file, when deleted or replaced again (also with a refused file), then 404 | P1 | api | § 6 |
+| ATT-104 | Given an owner with three files, when `DeleteAllAsync` runs, then all are marked through the save (`UpdatedAt` stamped), others' files are untouched, all stay on disk | P1 | api | § 6 |
 | ATT-105 | Given a soft-deleted clinic, then its rows and files remain | P1 | api | «عند حذف عيادة» |
 | ATT-106 | Given a new clinic from a template holding attachments, then the new clinic has none | P1 | api | «ولا تُنسخ الملفات» |
-| ATT-107 | Given a source scan of the module, then the cleanup is the only caller of `IAttachmentFileProvider.DeleteAsync`, and the only `IgnoreQueryFilters()` | P0 | unit | A8, § 6 |
-| ATT-108 | Given a replace whose save throws, then the old row stays live and the new file is removed | P1 | api | § 6 |
+| ATT-107 | Given a source scan of the backend, then the cleanup is the only caller of the provider's `DeleteAsync` (outside the module only the dependency registration names the provider, its concrete class included) and the module's only `IgnoreQueryFilters()`, and no production file but `AttachmentService.cs` uses `db.Attachments`, apart from the context and its interface | P0 | unit | A8, § 4, § 6 |
+| ATT-108 | Given a replace whose save throws, with or without a transaction, then the old row stays live and the new file is removed; the new row and the old row's mark go in one save | P1 | api | § 6 |
 | ATT-111 | Given a download in flight, when the file is deleted, then all bytes arrive and the next open is 404 | P2 | api | A8 |
 
 ### Failure and cleanup
@@ -2807,7 +2809,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-141 | Given a download, then `Content-Disposition: attachment`, also for images, `nosniff`, and `Cache-Control: private, no-store` | P0 | api | § 7 |
 | ATT-142 | Given a stored file, when its key or folder is requested by URL, then the file's bytes never come back: the fallback may answer the SPA | P0 | api | A10 |
 | ATT-143 | Given a failed download, then the usual ProblemDetails, without the file headers | P2 | api | § 7 |
-| ATT-144 | Given a list, with the test clock advanced between uploads, then newest first, ties by ID, and no row exposes `StorageKey` | P1 | api | § 3, § 6 |
+| ATT-144 | Given a list, with the test clock advanced between uploads, then newest first, ties by ID, each row and the upload's answer hold the upload's time, and no row exposes `StorageKey` | P1 | api | § 3, § 6 |
 | ATT-145 | Given two opens at once, then both read; after they're disposed, the file isn't locked | P1 | unit | § 3 |
 
 ### Physical provider (the contract any provider must pass)
