@@ -60,13 +60,13 @@ public class TemplatePageAndCountRulesTests
 
     [Theory]
     [Trait("Case", "TPL-023")]
-    [InlineData("A5")]
-    [InlineData("A4")]
-    [InlineData("custom")]
-    public void A_missing_width_or_height_is_invalidRequest_naming_it_never_0(string size)
+    [InlineData("A5", 148, 210)]
+    [InlineData("A4", 210, 297)]
+    [InlineData("custom", 148, 210)]
+    public void A_missing_width_or_height_is_invalidRequest_naming_it_never_0(string size, int width, int height)
     {
-        ShouldFail(Layout(new(size, null, 210), SmallText), ("page.widthMm", "invalidRequest"));
-        ShouldFail(Layout(new(size, 148, null), SmallText), ("page.heightMm", "invalidRequest"));
+        ShouldFail(Layout(new(size, null, height), SmallText), ("page.widthMm", "invalidRequest"));
+        ShouldFail(Layout(new(size, width, null), SmallText), ("page.heightMm", "invalidRequest"));
         ShouldFail(Layout(new(size, null, null), SmallText), ("page.widthMm", "invalidRequest"), ("page.heightMm", "invalidRequest"));
     }
 
@@ -270,5 +270,14 @@ public class TemplatePageAndCountRulesTests
     public void A_list_of_only_a_null_item_has_no_prescription_text_either()
     {
         ShouldFail(OnA5([null]), ("items", "templateTextCount"), ("items[0]", "templateLayoutInvalid"));
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-021")]
+    public void A_null_item_before_others_answers_where_it_stands_and_the_later_items_are_still_checked()
+    {
+        ShouldFail(OnA5(null, PrescriptionText(), Manual("", "m1")),
+            ("items[0]", "templateLayoutInvalid"),
+            ("items[2].name", "nameRequired"));
     }
 }

@@ -210,6 +210,22 @@ describe("print template: leaving from the user menu, for real @area:admin", () 
         expect(await screen.findByRole("dialog", {name: QUESTION})).toBeInTheDocument();
     });
 
+    test("after leaving the designer for the Overview, logging out asks nothing: the check left with the designer @TPL-248", async () => {
+        const app = await dirtyDesigner();
+        server.use(http.post(api("/auth/logout"), () => new HttpResponse(null, {status: 204})));
+        await app.user.click(screen.getByRole("tab", {name: "Overview"}));
+        await answer(app.user, "Leave");
+        await expectPath(`/admin/clinics/${clinic.id}`);
+        expect(await screen.findByRole("tab", {name: "Overview", selected: true})).toBeInTheDocument();
+
+        await openMenu(app.user);
+        await app.user.click(screen.getByRole("menuitem", {name: "Log out"}));
+
+        await expectPath("/login");
+        expect(await screen.findByRole("button", {name: "Send code"})).toBeInTheDocument();
+        noQuestion();
+    });
+
     test("switching clinic, leaving: the picker opens, and no second question @TPL-248", async () => {
         const app = await dirtyDesigner();
         await openMenu(app.user);

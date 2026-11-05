@@ -8,6 +8,7 @@ import {
     aPrintLayout,
     aPrintTemplate,
     aTemplateItem,
+    choose,
     expectToasts,
     fillIn,
     networkError,
@@ -30,12 +31,14 @@ import {
     FIELD_LABEL,
     label,
     panelEntry,
+    paperSize,
     renderDesigner,
     renderNewSheet,
     renderPrintTemplateTab,
     saveButton,
     selectedIds,
     settingsField,
+    settingsPanel,
     sheetItem,
     templatePath,
     templateUrl,
@@ -383,6 +386,73 @@ describe("print template: a number field emptied or off the sheet @area:admin", 
     });
 });
 
+describe("print template: a box made too big for the sheet, before any Save @area:admin", () => {
+    test.each([
+        ["width 200", "printTemplates.config.width", "200", "printTemplates.config.x"],
+        ["a too-tall height", "printTemplates.config.height", "300", "printTemplates.config.y"],
+    ])("on A5, %s typed: the field it pushes out shows «العنصر خارج حدود الورقة.»; it goes once the box fits again @TPL-224", async (_name, typedIn, typed, pushedOut) => {
+        const {user} = await renderDesigner(layoutL(), {lang: "ar"});
+        const recorded = recordRequests();
+        await user.click(sheetItem("الاسم"));
+        await typeInField(user, settingsField(label(typedIn)), typed);
+
+        expectFieldMessage(settingsField(label(pushedOut)), "العنصر خارج حدود الورقة.");
+        await expectNothingSent(recorded);
+
+        await typeInField(user, settingsField(label(typedIn)), "20");
+        expectNoFieldMessage(settingsField(label(pushedOut)));
+    });
+
+    test("a new static text still doesn't start red: no field of it shows a message before a change or a Save @TPL-224", async () => {
+        const {user} = await renderNewSheet();
+        await user.click(panelEntry("Static text"));
+
+        for (const field of [FIELD_LABEL.text, FIELD_LABEL.x, FIELD_LABEL.y, FIELD_LABEL.width, FIELD_LABEL.height, FIELD_LABEL.font]) {
+            expectNoFieldMessage(settingsField(field));
+        }
+    });
+});
+
+describe("print template: typed text the layout couldn't take leaves with what it belonged to @area:admin", () => {
+    test("«abc» typed in an item's field, the item removed: Save sends the layout without it @TPL-224 @TPL-046", async () => {
+        const {user} = await renderDesigner(layoutL());
+        const recorded = recordRequests();
+        await user.click(sheetItem("الاسم"));
+        await typeInField(user, settingsField(FIELD_LABEL.x), "abc");
+        expectFieldMessage(settingsField(FIELD_LABEL.x), "Enter a number.");
+
+        await user.click(within(settingsPanel()).getByRole("button", {name: "Remove item"}));
+        await user.click(saveButton());
+
+        await expectToasts("Template saved");
+        expect(puts(recorded.requests)).toHaveLength(1);
+        expect((puts(recorded.requests)[0].body as PrintLayout).items.map(item => item.id)).toEqual(["t", "f"]);
+    });
+
+    test.each([
+        ["out of range", "500", "The sheet size isn't valid."],
+        ["not a number", "abc", "Enter a number."],
+    ])("a page width %s, then A4 chosen: the text goes and Save sends A4 @TPL-221 @TPL-047", async (_name, typed, message) => {
+        const {user} = await renderDesigner(aPrintLayout({
+            page: {size: "custom", widthMm: 200, heightMm: 200},
+            items: [text(), manual()],
+        }));
+        const recorded = recordRequests();
+        await typeInField(user, settingsField(FIELD_LABEL.pageWidth), typed);
+        await user.tab();
+        expectFieldMessage(settingsField(FIELD_LABEL.pageWidth), message);
+
+        await choose(user, paperSize(), "A4");
+        expect(settingsField(FIELD_LABEL.pageWidth)).toHaveValue("210");
+        expectNoFieldMessage(settingsField(FIELD_LABEL.pageWidth));
+        await user.click(saveButton());
+
+        await expectToasts("Template saved");
+        expect(puts(recorded.requests)).toHaveLength(1);
+        expect((puts(recorded.requests)[0].body as PrintLayout).page).toEqual({size: "A4", widthMm: 210, heightMm: 297});
+    });
+});
+
 describe("print template: a save that fails @area:admin", () => {
     test.each([
         ["a network error", () => networkError(), "Can't reach the server. Check your connection."],
@@ -572,6 +642,7 @@ describe("print template: Delete @area:admin", () => {
 
         await expectToasts("تم حذف القالب");
         expect(await screen.findByText("لا يوجد قالب طباعة لهذه العيادة.")).toBeInTheDocument();
+        await dialogsGone();
         expect(screen.getByRole("button", {name: "إنشاء قالب"})).toBeInTheDocument();
         expect(screen.queryByRole("region", {name: "معاينة الورقة"})).not.toBeInTheDocument();
         expect(recorded.writes()).toEqual([{method: "DELETE", path: templatePath(clinic.id), search: "", body: null}]);

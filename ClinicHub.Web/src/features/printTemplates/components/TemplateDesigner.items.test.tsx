@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {act, screen, within} from "@testing-library/react";
+import {act, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {aPrintLayout, aTemplateItem, choose, expectOwnDirection, recordRequests} from "../../../test";
 import type {TemplateItem} from "../types.ts";
@@ -497,5 +497,24 @@ describe("print template: the keyboard and accessible names @area:admin", () => 
     test("the sheet's area takes the focus: it scrolls, so the keyboard must reach it @TPL-057", async () => {
         await renderDesigner(layoutL());
         expect(sheetArea()).toHaveAttribute("tabindex", "0");
+    });
+
+    test("a selected box keeps the browser's focus ring: no inline outline, and its mark is an inset shadow of its own @TPL-057", async () => {
+        const {user} = await renderDesigner(layoutL());
+        await user.click(sheetItem("الاسم"));
+
+        const selected = boxOf("m");
+        const unselected = boxOf("f");
+        expect(selected.getAttribute("style")).not.toMatch(/outline/);
+        expect(selected.style.boxShadow).toContain("inset");
+        expect(selected.style.boxShadow).not.toBe(unselected.style.boxShadow);
+    });
+
+    test("after Remove item the focus lands on the sheet's region, not on the page's body @TPL-057", async () => {
+        const {user} = await renderDesigner(layoutL());
+        await user.click(sheetItem("الاسم"));
+        await user.click(within(settingsPanel()).getByRole("button", {name: "Remove item"}));
+
+        await waitFor(() => expect(sheetArea()).toHaveFocus());
     });
 });

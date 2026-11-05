@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react";
+import {useMemo, useRef, useState} from "react";
 import {Alert, Box, Button, CircularProgress, Stack, useMediaQuery, useTheme} from "@mui/material";
 import PrintIcon from "@mui/icons-material/Print";
 import toast from "react-hot-toast";
@@ -58,6 +58,9 @@ const keyOfField = (field: string, items: TemplateItem[]) => {
 /** The fields the settings show a message on; any other error is toasted (contract § 3.3, Save). */
 const SHOWN_FIELD = /^(page\.(size|widthMm|heightMm)|items\[\d+]\.(name|text|xMm|yMm|wMm|hMm|fontSizePt))$/;
 
+/** The field that shows a size's "outside the sheet" error (`validateLayout` names X or Y), so typing the size marks it too. */
+const START_OF_SIZE: Partial<Record<BoxField, BoxField>> = {wMm: "xMm", hMm: "yMm"};
+
 /** Without the entries of a key prefix (a removed item's). */
 const withoutPrefix = <T, >(entries: Record<string, T>, prefix: string) =>
     Object.fromEntries(Object.entries(entries).filter(([key]) => !key.startsWith(prefix)));
@@ -92,6 +95,7 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
     const once = useSingleFlight();
     const {confirm, dialog: confirmDialog} = useConfirm();
     const [draft, setDraft] = useState<Draft | null>(null);
+    const sheetArea = useRef<HTMLDivElement>(null);
 
     // Seeded once, from an answer made since the mount (a cached copy is never shown): a later refetch never overwrites a
     // draft. Without a draft (no template, or just deleted) the screen follows the query
@@ -118,6 +122,8 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
         const key = `${item.id}.${field}`;
         const value = parseMmInput(text);
         const touched = new Set(current.touched).add(key);
+        const startField = START_OF_SIZE[field];
+        if (startField) touched.add(`${item.id}.${startField}`);
         return value === null
             ? {...current, touched, rawInputs: {...current.rawInputs, [key]: text}}
             : {...current, touched, rawInputs: without(current.rawInputs, key), layout: updateItem(current.layout, item.id, {[field]: value})};
@@ -129,13 +135,17 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
         layout: updateItem(current.layout, item.id, {[field]: value}),
     }));
 
-    const removeSelected = (item: TemplateItem) => edit(current => ({
-        ...current,
-        layout: removeItem(current.layout, item.id),
-        selectedId: null,
-        rawInputs: withoutPrefix(current.rawInputs, `${item.id}.`),
-        touched: new Set([...current.touched].filter(key => !key.startsWith(`${item.id}.`))),
-    }));
+    const removeSelected = (item: TemplateItem) => {
+        edit(current => ({
+            ...current,
+            layout: removeItem(current.layout, item.id),
+            selectedId: null,
+            rawInputs: withoutPrefix(current.rawInputs, `${item.id}.`),
+            touched: new Set([...current.touched].filter(key => !key.startsWith(`${item.id}.`))),
+        }));
+        // The pressed button leaves with the item: without this the focus would fall to the page's body
+        sheetArea.current?.focus();
+    };
 
     const changePageSize = (size: PageSize) => edit(current => ({
         ...current,
@@ -243,6 +253,7 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
                     }}>
                         <TemplateSidePanel canAdd={canAddItem(draft.layout)} onAdd={add}/>
                         <Box
+                            ref={sheetArea}
                             role="region"
                             aria-label={t("printTemplates.sheet.label")}
                             tabIndex={0}

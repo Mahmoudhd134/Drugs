@@ -293,7 +293,7 @@ The page never scrolls sideways (TPL-227).
 
 **Page width and height** commit on blur or Enter, never per keystroke (TPL-221): a number within the rules → `applyPageSize`; anything else → nothing moves, the text stays in `rawInputs`, with `numberRequired` (not a number) or `errors.templatePageInvalid` (out of range). The size select commits at once (`pageOfSize` + `applyPageSize`).
 
-**Messages on fields.** `validateLayout` runs on every render of the draft. A field shows its first error (`errors.<code>`, `helperText` + `error`) once it has been changed since the last load, or after a Save pressed. `rawInputs` keys: `<itemId>.<field>`, `page.widthMm`, `page.heightMm`.
+**Messages on fields.** `validateLayout` runs on every render of the draft. A field shows its first error (`errors.<code>`, `helperText` + `error`) once it has been changed since the last load, or after a Save pressed; typing `wMm` or `hMm` also counts as changing `xMm` or `yMm`, the field that carries that size's `templateItemOutsidePage` (TPL-224), and a new static text still doesn't start red. `rawInputs` keys: `<itemId>.<field>`, `page.widthMm`, `page.heightMm`.
 
 **Save** (`useSingleFlight`; `useSavePrintTemplate`):
 1. Any `rawInputs`, or `validateLayout(draft)` not empty: nothing is sent. All messages show; the first problem's item becomes selected (TPL-238); an error no field shows (`items`, `schemaVersion`, `items[i].id`, `items[i].kind`, `items[i].function`) is toasted.
@@ -304,7 +304,7 @@ The page never scrolls sideways (TPL-227).
 
 **«إنشاء قالب»**: `event.detail > 1` ignored; draft = `newLayout()`, `baseline = null`, no selection.
 
-**Remove item**: at once, no confirm (the unsaved guard covers it); the selection clears (TPL-046).
+**Remove item**: at once, no confirm (the unsaved guard covers it); the selection clears (TPL-046); the focus goes to the sheet's region (`printTemplates.sheet.label`), since the pressed button leaves with the item (TPL-057).
 
 **Selection**: a click, Enter or Space on a box selects it; a click on the bare sheet changes nothing. Nothing is selected when a template loads.
 
@@ -312,7 +312,7 @@ The page never scrolls sideways (TPL-227).
 
 One renderer for the designer and for printing (step 2):
 - Root: `div` `data-testid="template-sheet"`, `dir="ltr"`, inline `style` `{position: "relative", width: "<W>mm", height: "<H>mm", fontFamily: PRINT_FONT_FAMILY, overflow: "hidden"}` (cut at the sheet's edge, § 4.7), white, with a 1 mm grid as a background image (designer only). It imports `printFont.css`.
-- Each item: native `<button type="button">`, `aria-pressed={id === selectedId}`, `data-item-id={id}`, inline `style` `{position: "absolute", left: "<x>mm", top: "<y>mm", width: "<w>mm", height: "<h>mm", fontSize: "<pt>pt", fontFamily: "inherit", padding: 0, border: 0, background: "transparent", color: "inherit", textAlign: "start", display: "block", boxSizing: "border-box", overflow: "visible"}` (a native button inherits no font and centers its text: the content starts at the box's top, at its text's own start, in the print font); **position always inline, never `sx`**: the RTL style cache flips `left` and `right`. A selected box has an `outline` (never a border: it stays exactly its size, TPL-228).
+- Each item: native `<button type="button">`, `aria-pressed={id === selectedId}`, `data-item-id={id}`, inline `style` `{position: "absolute", left: "<x>mm", top: "<y>mm", width: "<w>mm", height: "<h>mm", fontSize: "<pt>pt", fontFamily: "inherit", padding: 0, border: 0, background: "transparent", color: "inherit", textAlign: "start", display: "block", boxSizing: "border-box", overflow: "visible"}` (a native button inherits no font and centers its text: the content starts at the box's top, at its text's own start, in the print font); **position always inline, never `sx`**: the RTL style cache flips `left` and `right`. A selected box has a heavier inset `boxShadow` (never a border: it stays exactly its size, TPL-228; no inline `outline`: the browser's focus ring shows, TPL-057).
 - Content in an inner `<span dir="auto">` aligned to its start, `white-space: pre-wrap`, `overflow-wrap: anywhere`, never clipped by the box (TPL-239):
   - prescription text: `sampleText`; the button's `aria-label` = `kinds.prescriptionText`.
   - manual input, function: the name; empty: `kinds.manualInput`, or the function's `functions.<function>`, dimmed.

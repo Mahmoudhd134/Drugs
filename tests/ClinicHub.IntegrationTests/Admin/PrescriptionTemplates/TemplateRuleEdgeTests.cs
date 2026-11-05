@@ -54,6 +54,7 @@ public class TemplateRuleEdgeTests(AppFixture app) : IntegrationTest(app)
         ["null items"] = (new(1, A5, null), Errors(("items", "templateTextCount"))),
         ["a null element"] = (Layout(A5, Text(), null), Errors(("items[1]", "templateLayoutInvalid"))),
         ["only a null element"] = (Layout(A5, [null]), Errors(("items", "templateTextCount"), ("items[0]", "templateLayoutInvalid"))),
+        ["a null element before others"] = (Layout(A5, null, Text(), Manual("", "m1")), Errors(("items[0]", "templateLayoutInvalid"), ("items[2].name", "nameRequired"))),
         ["the text's kind in another case"] = (Layout(A5, Text() with { Kind = "PrescriptionText" }), Errors(("items", "templateTextCount"), ("items[0].kind", "templateLayoutInvalid"))),
 
         // 8a–8c: id, kind, function
@@ -91,6 +92,7 @@ public class TemplateRuleEdgeTests(AppFixture app) : IntegrationTest(app)
             Errors(("items[3].name", "templateItemNameTaken"), ("items[4].name", "templateItemNameTaken"))),
         ["a static text before a name takes nothing"] = (Layout(A5, Text(), Static("الاسم"), Manual("الاسم"), Static("الاسم", "s2")), Errors()),
         ["blank names never repeat"] = (Layout(A5, Text(), Manual("", "m1"), Manual("  ", "m2")), Errors(("items[1].name", "nameRequired"), ("items[2].name", "nameRequired"))),
+        ["a null name before another name"] = (Layout(A5, Manual(null, "m1"), Manual("الاسم", "m2"), Text()), Errors(("items[0].name", "nameRequired"))),
         ["a refused name still counts as taken"] = (Layout(A5, Text(), Manual(new string('ن', 61), "m1"), Manual(new string('ن', 61), "m2")),
             Errors(("items[1].name", "nameTooLong"), ("items[2].name", "nameTooLong"), ("items[2].name", "templateItemNameTaken"))),
 

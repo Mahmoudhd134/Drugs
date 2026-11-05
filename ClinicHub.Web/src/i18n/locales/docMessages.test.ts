@@ -41,7 +41,7 @@ const messageRows = (doc: string) => {
 
 type Entry = [docText: string, render: () => string];
 
-const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string[]; ifListed?: Entry[] }[] = [
+const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string[] }[] = [
     {
         name: "access", doc: accessDoc, entries: [
             ["غير مسموح لك بهذا الإجراء.", () => t("errors.forbidden")],
@@ -290,15 +290,12 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["مقاس الورقة غير صحيح.", () => t("errors.templatePageInvalid")],
             ["لا يمكن إضافة أكثر من 50 عنصرًا.", () => t("errors.templateTooManyItems")],
             ["يجب أن يحتوي القالب على نص الروشتة مرة واحدة.", () => t("errors.templateTextCount")],
-        ],
-        // The rows that name the system's usual messages instead of quoting one
-        descriptions: ["الرسالة المعتادة للاسم المطلوب في النظام", "الرسائل المعتادة للاسم في النظام"],
-        // Contract § 7: the wording waits for the design session's approval; an approved row joins the doc's table
-        ifListed: [
             ["بيانات القالب غير صحيحة.", () => t("errors.templateLayoutInvalid")],
             ["أدخل رقمًا.", () => t("printTemplates.numberRequired")],
             ["تم حذف القالب", () => t("printTemplates.deleted")],
         ],
+        // The rows that name the system's usual messages instead of quoting one
+        descriptions: ["الرسالة المعتادة للاسم المطلوب في النظام", "الرسائل المعتادة للاسم في النظام"],
     },
     {
         name: "tapering", doc: taperingDoc, entries: [
@@ -315,7 +312,7 @@ describe("messages of the business docs @area:i18n", () => {
         await i18n.changeLanguage("ar");
     });
 
-    test.each(DOCS)("$name: every quoted message is the Arabic text the app shows @I18N-013", ({doc, entries, descriptions = [], ifListed = []}) => {
+    test.each(DOCS)("$name: every quoted message is the Arabic text the app shows @I18N-013", ({doc, entries, descriptions = []}) => {
         const rows = messageRows(doc);
         expect(rows.length).toBeGreaterThan(0);
         const messages = rows.map(row => row[row.length - 1]);
@@ -324,10 +321,9 @@ describe("messages of the business docs @area:i18n", () => {
             expect(messages.some(message => message.includes(docText)), `not in the doc's table: ${docText}`).toBe(true);
             expect(stripIsolates(render())).toBe(docText);
         }
-        for (const [docText, render] of ifListed) expect(stripIsolates(render())).toBe(docText);
         // Every row is mapped (or is a description of a behavior, not a text)
         for (const message of messages) {
-            const mapped = [...entries, ...ifListed].some(([docText]) => message.includes(docText)) || descriptions.includes(message);
+            const mapped = entries.some(([docText]) => message.includes(docText)) || descriptions.includes(message);
             expect(mapped, `row not mapped: ${message}`).toBe(true);
         }
     });

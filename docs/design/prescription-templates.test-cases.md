@@ -113,7 +113,7 @@ full date).
 | TPL-236 | Given a 400 from the server on a rule the screen passed (old SPA, new rule), then its message shows, the edits stay and Save works again | P2 | ui | § 5 |
 | TPL-237 | Given 50 items, when another is added, then there is no 51st and a message or a disabled panel says why | P2 | ui | § 3 |
 | TPL-238 | Given an invalid item that isn't selected, when Save is pressed, then that item gets selected and its field shows the message, since the config shows one item only | P1 | ui | TPL-048 |
-| TPL-239 | Given a 60-character unbroken name and a 1,000-character static text in a small box, then the config wraps them, the sheet shows them past the box, unclipped, and the page has no horizontal scroll | P1 | e2e | § 4.5, § 6 |
+| TPL-239 | Given a 60-character unbroken name and a 1,000-character static text in a small box, then the config wraps the static text; the name stays one line, scrolling inside its field; the sheet shows them past the box, unclipped, and the page has no horizontal scroll | P1 | e2e | § 4.5, § 6 |
 | TPL-240 | Given the panel, when an item is double-clicked, then one item is added, as on the prescription page (`event.detail > 1`) | P1 | ui | double clicks, RX-012 |
 | TPL-241 | Given «إنشاء قالب» double-clicked, then one new sheet; given the delete confirm double-clicked, then one DELETE and no error toast | P2 | ui | UX-028 |
 | TPL-242 | Given a save in flight, when a field is edited before the answer, then the edit stays and the screen still counts as unsaved | P2 | ui | § 6 |
