@@ -1,5 +1,5 @@
 import {describe, expect, test, vi} from "vitest";
-import {act, screen, waitFor, within} from "@testing-library/react";
+import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import i18n from "../../../i18n";
 import {
@@ -398,6 +398,34 @@ describe("print template: a sheet size typed, the focus still in its field @area
         expect(boxOf("m").style.left).toBe(`${moved.xMm}mm`);
         expect(boxOf("m").style.top).toBe(`${moved.yMm}mm`);
         expect(settingsField(fieldLabel)).toHaveValue("120");
+        expect(saveButton()).toBeDisabled();
+        expect(unloadAsks()).toBe(false);
+    });
+
+    test("a new width, Save clicked with no blur before it (as when the window narrowed mid-typing): Save itself commits the size and sends it, in one PUT and one toast @TPL-251", async () => {
+        const {user, clinic} = await renderDesigner(customL());
+        const recorded = recordRequests();
+        await typeAndStay(user, FIELD_LABEL.pageWidth, "120");
+
+        // A click alone, no mouse-down: the field keeps the focus, so its blur can't commit the size
+        fireEvent.click(saveButton());
+        expect(settingsField(FIELD_LABEL.pageWidth)).toHaveFocus();
+
+        await expectToasts("Template saved");
+        expect(recorded.writes()).toEqual([expect.objectContaining({
+            method: "PUT",
+            path: templatePath(clinic.id),
+            body: expect.objectContaining({
+                page: {size: "custom", widthMm: 120, heightMm: 200},
+                items: [
+                    expect.objectContaining({id: "t", xMm: 10, yMm: 10}),
+                    expect.objectContaining({id: "m", xMm: 80, yMm: 150}),
+                ],
+            }),
+        })]);
+        expect(sheetSize()).toEqual({w: "120mm", h: "200mm"});
+        expect(boxOf("m").style.left).toBe("80mm");
+        expect(settingsField(FIELD_LABEL.pageWidth)).toHaveValue("120");
         expect(saveButton()).toBeDisabled();
         expect(unloadAsks()).toBe(false);
     });

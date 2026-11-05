@@ -1,5 +1,5 @@
 import {expect, settled, signInSuperAdmin, test} from "../support/fixtures.ts";
-import {expectToast} from "../support/ui.ts";
+import {expectToast, recordRequests} from "../support/ui.ts";
 import type {Lang} from "../support/texts.ts";
 import {TEXTS} from "../support/texts.ts";
 import {
@@ -205,6 +205,47 @@ test.describe("Print template: designing @area:admin", () => {
             await page.getByRole("button", {name: TEXTS.ar.save, exact: true}).click();
             await expectToast(page, pt.saved);
             expect((await getTemplate(data, clinic))?.layout.items[1].xMm).toBe(12.5);
+        });
+
+    test("a sheet width typed, the focus still in its field: one mouse click on Save sends one PUT with it; another width and a clinic tab: the question asks, staying keeps the text @TPL-251",
+        async ({page, data, lang, t, isMobile}) => {
+            test.skip(isMobile, "the designer is for a computer");
+            const clinic = await data.clinic();
+            await putTemplate(data, clinic, layoutL({page: {size: "custom", widthMm: 200, heightMm: 200}}));
+            const designer = designerOf(page, lang);
+            const {pt} = designer;
+            await signInSuperAdmin(page, tabPath(clinic));
+            await designerShown(designer);
+            const width = designer.field(pt.pageWidth);
+            const save = page.getByRole("button", {name: t.save, exact: true});
+            const puts = recordRequests(page, "PUT", /\/prescription-template$/);
+
+            await typeInto(width, "180");
+            await expect(width).toBeFocused();
+            await expect(save).toBeEnabled();
+            expect(await inlineStyle(designer.sheet, "width"), "not committed yet").toBe("200mm");
+
+            await save.click();
+            await expectToast(page, pt.saved);
+            expect(puts).toHaveLength(1);
+            expect(puts[0].postDataJSON().page).toEqual({size: "custom", widthMm: 180, heightMm: 200});
+            expect(await inlineStyle(designer.sheet, "width")).toBe("180mm");
+            await expect(width).toHaveValue("180");
+            await expect(save).toBeDisabled();
+            expect(puts, "still one PUT once the screen is clean").toHaveLength(1);
+            expect((await getTemplate(data, clinic))?.layout.page).toEqual({size: "custom", widthMm: 180, heightMm: 200});
+
+            await typeInto(width, "170");
+            await expect(width).toBeFocused();
+            await page.getByRole("tab", {name: t.tabOverview, exact: true}).click();
+            await expect(designer.question).toBeVisible();
+            await designer.question.getByRole("button", {name: t.cancel, exact: true}).click();
+            await expect(designer.question).toHaveCount(0);
+
+            await expect(page).toHaveURL(new RegExp(`${tabPath(clinic)}$`));
+            await expect(width).toHaveValue("170");
+            await expect(save).toBeEnabled();
+            expect(puts, "staying sends nothing").toHaveLength(1);
         });
 
     test("a custom 420 x 600 mm page at 1280 px: it scrolls inside its own area, the panels stay reachable, the far corner can be selected, the page has no sideways scroll @TPL-227",
