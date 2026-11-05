@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {Alert, Box, Button, CircularProgress, Stack, useMediaQuery, useTheme} from "@mui/material";
 import PrintIcon from "@mui/icons-material/Print";
 import toast from "react-hot-toast";
@@ -26,7 +26,7 @@ import {
 } from "../layout.ts";
 import type {AddableItem, LayoutError, PageSize, PrintLayout, PrintTemplateAdapter, TemplateItem} from "../types.ts";
 import {useUnsavedGuard} from "../useUnsavedGuard.ts";
-import {type BoxField, TemplateSettings} from "./TemplateSettings.tsx";
+import {type BoxField, type PageMeasure, TemplateSettings} from "./TemplateSettings.tsx";
 import {TemplateSheet} from "./TemplateSheet.tsx";
 import {TemplateSidePanel} from "./TemplateSidePanel.tsx";
 
@@ -37,7 +37,11 @@ type Draft = {
     baseline: PrintLayout | null;
     /** Text typed in a number field that the layout couldn't take */
     rawInputs: Record<string, string>;
+    /** Text typed in a sheet measure, not committed yet, that differs from the committed number: unsaved, nothing moves */
+    typedPage: Partial<Record<PageMeasure, string>>;
     selectedId: string | null;
+    /** The item just added, whose box is scrolled into view */
+    revealId: string | null;
     /** Fields changed since the load, or with a problem when Save was pressed: only these show the rules' messages */
     touched: ReadonlySet<string>;
     /** The server's messages by its field (`items[2].name`), until the next edit */
@@ -45,7 +49,7 @@ type Draft = {
 };
 
 const startDraft = (layout: PrintLayout, baseline: PrintLayout | null): Draft =>
-    ({layout, baseline, rawInputs: {}, selectedId: null, touched: new Set(), serverErrors: {}});
+    ({layout, baseline, rawInputs: {}, typedPage: {}, selectedId: null, revealId: null, touched: new Set(), serverErrors: {}});
 
 /** An item's error field as a draft key: `items[2].name` → `i5.name`; `page.widthMm` stays; null: no item there. */
 const keyOfField = (field: string, items: TemplateItem[]) => {
@@ -70,6 +74,30 @@ const without = <T, >(entries: Record<string, T>, key: string) => {
     delete copy[key];
     return copy;
 };
+
+/** A custom measure committed: within the rules it applies; anything else moves nothing and stays as typed. */
+const commitMeasure = (current: Draft, field: PageMeasure, text: string): Draft => {
+    const key = `page.${field}`;
+    const value = parseMmInput(text);
+    const touched = new Set(current.touched).add(key);
+    const typedPage = without(current.typedPage, field);
+    const [min, max] = field === "widthMm" ? [MIN_CUSTOM_WIDTH_MM, MAX_CUSTOM_WIDTH_MM] : [MIN_CUSTOM_HEIGHT_MM, MAX_CUSTOM_HEIGHT_MM];
+    if (value === null || toTenths(value) < toTenths(min) || toTenths(value) > toTenths(max)) {
+        return {...current, touched, typedPage, rawInputs: {...current.rawInputs, [key]: text}};
+    }
+    return {
+        ...current,
+        touched,
+        typedPage,
+        rawInputs: without(current.rawInputs, key),
+        layout: applyPageSize(current.layout, {...current.layout.page, [field]: value}),
+    };
+};
+
+/** The draft with every measure still typed committed. */
+const commitTypedPage = (current: Draft) =>
+    (Object.entries(current.typedPage) as [PageMeasure, string][])
+        .reduce((committed, [field, text]) => commitMeasure(committed, field, text), current);
 
 /** The first problem's item: the lowest index among the rules' errors and the raw inputs. */
 const firstProblemItem = (errors: LayoutError[], draft: Draft) => {
@@ -103,11 +131,17 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
     if (!draft && answered && template.data) setDraft(startDraft(template.data.layout, template.data.layout));
 
     const dirty = draft !== null
-        && (draft.baseline === null || !sameLayout(draft.layout, draft.baseline) || Object.keys(draft.rawInputs).length > 0);
+        && (draft.baseline === null || !sameLayout(draft.layout, draft.baseline) || Object.keys(draft.rawInputs).length > 0
+            || Object.keys(draft.typedPage).length > 0);
     const {dialog: guardDialog} = useUnsavedGuard(dirty);
 
     const layout = draft?.layout;
     const errors = useMemo(() => (layout ? validateLayout(layout) : []), [layout]);
+
+    const revealId = draft?.revealId;
+    useEffect(() => {
+        if (revealId) sheetArea.current?.querySelector(`[data-item-id="${revealId}"]`)?.scrollIntoView({block: "nearest", inline: "nearest"});
+    }, [revealId]);
 
     /** An edit: what it changes, and the server's messages go. */
     const edit = (change: (current: Draft) => Draft) =>
@@ -115,7 +149,7 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
 
     const add = (addable: AddableItem, defaultName: string) => edit(current => {
         const added = addItem(current.layout, addable, defaultName);
-        return added ? {...current, layout: added.layout, selectedId: added.item.id} : current;
+        return added ? {...current, layout: added.layout, selectedId: added.item.id, revealId: added.item.id} : current;
     });
 
     const changeItemNumber = (item: TemplateItem, field: BoxField, text: string) => edit(current => {
@@ -140,6 +174,8 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
             ...current,
             layout: removeItem(current.layout, item.id),
             selectedId: null,
+            // An id is reused after a removal: the next item with this one is new again
+            revealId: null,
             rawInputs: withoutPrefix(current.rawInputs, `${item.id}.`),
             touched: new Set([...current.touched].filter(key => !key.startsWith(`${item.id}.`))),
         }));
@@ -151,43 +187,41 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
         ...current,
         layout: applyPageSize(current.layout, pageOfSize(size, current.layout.page)),
         rawInputs: without(without(current.rawInputs, "page.widthMm"), "page.heightMm"),
+        typedPage: {},
     }));
 
-    /** A custom measure, at blur or Enter: within the rules it applies; anything else moves nothing and stays as typed. */
-    const commitPageMeasure = (field: "widthMm" | "heightMm", text: string) => edit(current => {
-        const key = `page.${field}`;
+    /** A measure's keystroke: it moves nothing and counts as unsaved; typed back to the committed number, it is clean again. */
+    const typePageMeasure = (field: PageMeasure, text: string) => edit(current => {
         const value = parseMmInput(text);
-        const touched = new Set(current.touched).add(key);
-        const [min, max] = field === "widthMm" ? [MIN_CUSTOM_WIDTH_MM, MAX_CUSTOM_WIDTH_MM] : [MIN_CUSTOM_HEIGHT_MM, MAX_CUSTOM_HEIGHT_MM];
-        if (value === null || toTenths(value) < toTenths(min) || toTenths(value) > toTenths(max)) {
-            return {...current, touched, rawInputs: {...current.rawInputs, [key]: text}};
-        }
-        return {
-            ...current,
-            touched,
-            rawInputs: without(current.rawInputs, key),
-            layout: applyPageSize(current.layout, {...current.layout.page, [field]: value}),
-        };
+        return value !== null && toTenths(value) === toTenths(current.layout.page[field])
+            ? {...current, typedPage: without(current.typedPage, field), rawInputs: without(current.rawInputs, `page.${field}`)}
+            : {...current, typedPage: {...current.typedPage, [field]: text}};
     });
+
+    /** A custom measure, at blur or Enter. */
+    const commitPageMeasure = (field: PageMeasure, text: string) => edit(current => commitMeasure(current, field, text));
 
     const handleSave = () => once(async () => {
         if (!draft) return;
-        const problems = validateLayout(draft.layout);
-        if (problems.length > 0 || Object.keys(draft.rawInputs).length > 0) {
+        // The field's blur usually did this already; not when no blur came (the window narrowed and widened while typing)
+        const committed = commitTypedPage(draft);
+        const problems = validateLayout(committed.layout);
+        if (problems.length > 0 || Object.keys(committed.rawInputs).length > 0) {
             const hidden = new Set(problems.filter(problem => !SHOWN_FIELD.test(problem.field)).map(problem => problem.code));
             hidden.forEach(code => toast.error(t(`errors.${code}`)));
             setDraft({
-                ...draft,
-                selectedId: firstProblemItem(problems, draft) ?? draft.selectedId,
+                ...committed,
+                selectedId: firstProblemItem(problems, committed) ?? committed.selectedId,
                 touched: new Set([
-                    ...draft.touched,
-                    ...problems.map(problem => keyOfField(problem.field, draft.layout.items)).filter(key => key !== null),
+                    ...committed.touched,
+                    ...problems.map(problem => keyOfField(problem.field, committed.layout.items)).filter(key => key !== null),
                 ]),
             });
             return;
         }
 
-        const sent = normalizeLayout(draft.layout);
+        setDraft(committed);
+        const sent = normalizeLayout(committed.layout);
         try {
             await save.mutateAsync(sent);
             toast.success(t("printTemplates.saved"));
@@ -280,8 +314,10 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) =
                             page={draft.layout.page}
                             item={draft.layout.items.find(item => item.id === draft.selectedId) ?? null}
                             rawInputs={draft.rawInputs}
+                            typedPage={draft.typedPage}
                             messageOf={messageOf(draft)}
                             onPageSize={changePageSize}
+                            onPageMeasureType={typePageMeasure}
                             onPageMeasure={commitPageMeasure}
                             onItemNumber={changeItemNumber}
                             onItemText={changeItemText}

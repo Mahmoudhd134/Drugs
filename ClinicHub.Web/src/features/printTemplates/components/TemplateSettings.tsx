@@ -15,6 +15,9 @@ const BOX_FIELDS: { field: BoxField; labelKey: string }[] = [
     {field: "fontSizePt", labelKey: "printTemplates.config.fontSize"},
 ];
 
+/** The sheet's measures, which commit at blur or Enter. */
+export type PageMeasure = "widthMm" | "heightMm";
+
 /** One column in the side column, as many as fit when the settings sit below the sheet. */
 const fieldGrid = {display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 1.5} as const;
 
@@ -22,17 +25,20 @@ type Props = {
     page: TemplatePage;
     item: TemplateItem | null;
     rawInputs: Record<string, string>;
+    /** Text typed in a sheet measure and not committed yet */
+    typedPage: Partial<Record<PageMeasure, string>>;
     /** The message a field shows, by its key (`<itemId>.<field>`, `page.size`, `page.widthMm`, `page.heightMm`) */
     messageOf: (key: string) => string | undefined;
     onPageSize: (size: PageSize) => void;
-    onPageMeasure: (field: "widthMm" | "heightMm", text: string) => void;
+    onPageMeasureType: (field: PageMeasure, text: string) => void;
+    onPageMeasure: (field: PageMeasure, text: string) => void;
     onItemNumber: (item: TemplateItem, field: BoxField, text: string) => void;
     onItemText: (item: TemplateItem, field: "name" | "text", value: string) => void;
     onRemove: (item: TemplateItem) => void;
 };
 
 /** The settings panel (contract § 3.3): the sheet's, then the selected item's. */
-export const TemplateSettings = ({page, item, rawInputs, messageOf, onPageSize, onPageMeasure, onItemNumber, onItemText, onRemove}: Props) => {
+export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onRemove}: Props) => {
     const {t} = useTranslation();
 
     const typeLabel = (selected: TemplateItem) =>
@@ -60,17 +66,19 @@ export const TemplateSettings = ({page, item, rawInputs, messageOf, onPageSize, 
                 <MmField
                     label={t("printTemplates.page.width")}
                     value={page.widthMm}
-                    rawInput={rawInputs["page.widthMm"]}
+                    rawInput={typedPage.widthMm ?? rawInputs["page.widthMm"]}
                     error={messageOf("page.widthMm")}
                     disabled={page.size !== "custom"}
+                    onType={(text) => onPageMeasureType("widthMm", text)}
                     onCommit={(text) => onPageMeasure("widthMm", text)}
                 />
                 <MmField
                     label={t("printTemplates.page.height")}
                     value={page.heightMm}
-                    rawInput={rawInputs["page.heightMm"]}
+                    rawInput={typedPage.heightMm ?? rawInputs["page.heightMm"]}
                     error={messageOf("page.heightMm")}
                     disabled={page.size !== "custom"}
+                    onType={(text) => onPageMeasureType("heightMm", text)}
                     onCommit={(text) => onPageMeasure("heightMm", text)}
                 />
             </Box>

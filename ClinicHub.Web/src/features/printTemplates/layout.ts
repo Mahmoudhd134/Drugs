@@ -61,8 +61,15 @@ export const parseMmInput = (text: string) => {
     return roundTenth(Number(latin.replace(/[,٫]/, ".")));
 };
 
-/** A number as its field shows it: Latin digits, a dot, at most one decimal (`12.5`, `148`). */
-export const formatMm = (value: number) => String(roundTenth(value));
+/**
+ * A number as its field shows it: Latin digits, a dot, at most one decimal (`12.5`, `148`), never an exponent: from 1e21
+ * `String` writes `1e+21`, which {@link parseMmInput} refuses.
+ */
+export const formatMm = (value: number) => {
+    const rounded = roundTenth(value);
+    const text = String(rounded);
+    return text.includes("e") ? rounded.toLocaleString("en-US", {useGrouping: false}) : text;
+};
 
 const roundIfNumber = (value: number) => (typeof value === "number" ? roundTenth(value) : value);
 
