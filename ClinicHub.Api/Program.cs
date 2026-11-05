@@ -13,11 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Secrets (Auth:Jwt:SigningKey, Otp:HashKey) come from environment variables outside Development
 var appSettings = builder.Configuration.Get<AppSettings>() ?? new AppSettings();
-appSettings.Validate(builder.Environment.IsDevelopment());
+appSettings.Validate(builder.Environment.IsDevelopment(), builder.Environment.ContentRootPath, builder.Environment.WebRootPath);
 // The validated sections, for Application and Infrastructure
 builder.Services.AddSingleton(appSettings.Auth);
 builder.Services.AddSingleton(appSettings.Otp);
 builder.Services.AddSingleton(appSettings.Platform);
+builder.Services.AddSingleton(appSettings.Attachments);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

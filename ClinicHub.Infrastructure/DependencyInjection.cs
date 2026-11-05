@@ -1,8 +1,10 @@
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Features.Access.Authorization;
+using ClinicHub.Application.Features.Attachments.Files;
 using ClinicHub.Application.Features.Identity.Login;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Infrastructure.Access;
+using ClinicHub.Infrastructure.Attachments;
 using ClinicHub.Infrastructure.Database;
 using ClinicHub.Infrastructure.Identity;
 using ClinicHub.Infrastructure.Platform;
@@ -40,6 +42,9 @@ public static class DependencyInjection
         // The only sender so far (AppSettings.Validate refuses other modes); an SMS sender goes here
         services.AddSingleton<IOtpSender, DisplayOtpSender>();
         services.AddScoped<IOtpLock, OtpLock>();
+
+        // The only provider so far; a cloud bucket goes here (docs/design/attachments.md § 3)
+        services.AddSingleton<IAttachmentFileProvider, PhysicalAttachmentFileProvider>();
 
         services.AddScoped<IStartupSeeder, StartupSeeder>();
         return services;

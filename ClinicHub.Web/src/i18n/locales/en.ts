@@ -139,6 +139,9 @@ const en = {
         templateStaticTextRequired: "Enter the text.",
         templateStaticTextTooLong: "The text is longer than 1000 characters.",
         templateTooManyItems: "A template can't have more than 50 items.",
+        attachmentTypeNotAllowed: "This file type isn't allowed.",
+        attachmentTooLarge: "This file is larger than allowed.",
+        attachmentEmpty: "This file is empty.",
     },
     auth: {
         loginTitle: "Log in",

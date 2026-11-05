@@ -2,6 +2,7 @@ using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Behaviors;
 using ClinicHub.Application.Features.Access.Authorization;
 using ClinicHub.Application.Features.Access.StaffMembers;
+using ClinicHub.Application.Features.Attachments.Files;
 using ClinicHub.Application.Features.Identity.Sessions;
 using ClinicHub.Application.Features.Identity.Users;
 using ClinicHub.Application.Features.Platform.Clinics;
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IIdentitySeeder, IdentitySeeder>();
         services.AddScoped<IUserAccounts, UserAccounts>();
         services.AddSingleton<IPhoneNormalizer, PhoneNormalizer>();
+        services.AddScoped<IAttachmentService, AttachmentService>();
 
         // Clinic provisioning (design D5): the seeders run in their Order
         services.AddScoped<IClinicProvisioner, ClinicProvisioner>();

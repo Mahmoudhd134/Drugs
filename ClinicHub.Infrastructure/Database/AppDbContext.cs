@@ -1,6 +1,7 @@
 using System.Reflection;
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Domain.Access;
+using ClinicHub.Domain.Attachments;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
 using ClinicHub.Domain.Identity;
@@ -35,6 +36,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     public DbSet<Role> Roles { get; set; }
     public DbSet<StaffRole> StaffRoles { get; set; }
     public DbSet<PrescriptionTemplate> PrescriptionTemplates { get; set; }
+    public DbSet<Attachment> Attachments { get; set; }
 
     /// <inheritdoc />
     public void Touch(IHasTimestamps entity) =>

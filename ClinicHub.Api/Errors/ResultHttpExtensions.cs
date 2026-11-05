@@ -1,5 +1,6 @@
 using System.Globalization;
 using ClinicHub.Application.Common.Results;
+using ClinicHub.Application.Features.Attachments.Files;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicHub.Api.Errors;
@@ -25,6 +26,13 @@ public static class ResultHttpExtensions
         result.IsSuccess ? new NoContentResult() : result.ToProblem();
 
     public static ActionResult ToProblem(this Result result) => new ProblemResult(result.Errors);
+
+    /// <summary>
+    /// A feature's download (docs/design/attachments.md § 7): the file streamed, not loaded, with its checked <c>Content-Type</c>, always
+    /// <c>Content-Disposition: attachment</c> (<c>filename*</c> for non-ASCII names), <c>X-Content-Type-Options: nosniff</c> and
+    /// <c>Cache-Control: private, no-store</c>. A failure is the usual ProblemDetails, without those headers.
+    /// </summary>
+    public static ActionResult ToFile(this Result<AttachmentContent> result) => throw new NotImplementedException();
 
     /// <summary>
     /// Builds the problem when executed, when the <see cref="HttpContext"/> is known. A
