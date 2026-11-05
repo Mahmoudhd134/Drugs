@@ -35,6 +35,7 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Identity/                    User, OtpCode, Session (+ ContextTypes)
   Access/                      Staff, Role (+ RolePermission, StaffRole)
   Platform/                    Clinic (+ ClinicStatus)
+  Prescriptions/               PrescriptionTemplate, PrescriptionTemplateLimits, PrescriptionTemplateCodes
 ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
   Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner,
                                IPostCommitActions (after-commit side effects), IClinicScope (sets the current
@@ -45,8 +46,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Common/Settings/             AuthSettings, OtpSettings (+ OtpModes), PlatformSettings (bound and validated by the Api)
   Common/Behaviors/            LoggingBehavior → ValidationBehavior → TransactionBehavior
   Common/Validation/           .WithError(error), the shared ValidName(maxLength = 256) (nameRequired; nameInvalid: control, line/paragraph
-                               separator or bidi override or isolate characters; nameTooLong), ValidText() (invalidText)
-                               and SingleLineText(1000) (invalidText, textTooLong) rules
+                               separator or bidi override or isolate characters; nameTooLong), ValidText() (invalidText),
+                               ValidMultilineText() (invalidText) and SingleLineText(1000) (invalidText, textTooLong) rules
   Common/Results/              Result, Error, CommonErrors, ClinicError (clinicNames), CountError (drugCount, M1.7b)
   Common/Paging/               PagedResult<T>, Paging.Normalize, Paging.SearchTerm
   Common/Search/               SearchText: the Arabic-normalized fold (Fold, Term; OtherText, OtherTerm) and the column
@@ -82,6 +83,10 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                GetSharedDrug) (M1.7b)
   Features/Platform/DrugCategories/  AdminCategoryDto; Commands/ (CreateCategory, RenameCategory, DeleteCategory,
                                CreateSubCategory, RenameSubCategory, DeleteSubCategory), Queries/GetAdminCategories (M1.7b)
+  Features/Prescriptions/Templates/  PrescriptionLayoutDto (+ page, item), PrescriptionTemplateDto, PrescriptionTemplateErrors,
+                               PrescriptionLayoutRules (rounding, normalizing, the column's JSON); Commands/
+                               (SavePrescriptionTemplate, DeletePrescriptionTemplate), Queries/GetPrescriptionTemplate; no
+                               clinic id anywhere: the current clinic's template
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
@@ -110,7 +115,8 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
   Features/Identity/           AuthController (+ the refresh cookie), MeController, CurrentUser (ICurrentUser
                                from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
   Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy),
-                               AdminRolesController + AdminStaffController (…/clinics/{clinicId}/roles, /staff) with
+                               AdminRolesController + AdminStaffController (…/clinics/{clinicId}/roles, /staff) and
+                               AdminPrescriptionTemplateController (…/clinics/{clinicId}/prescription-template) with
                                the admin clinic filter ([AdminClinic], AdminClinicFilter: the route's clinic)
   Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, PlatformAdminHandler, the 403 answers
                                (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
@@ -141,7 +147,8 @@ tests/                         automated tests (docs/testing/README.md)
   ClinicHub.UnitTests/         xUnit: Domain + Application pure rules and validators, per module (Access/, Catalog/, …)
   ClinicHub.IntegrationTests/  xUnit + WebApplicationFactory on PostgreSQL, per area (Auth/, Access/, Isolation/,
                                Errors/, Admin/, Catalog/); Harness/ (databases, builders, login, clock), SelfTests/
-  fixtures/                    dosing-cases.json: dosing/taper rule parity cases
+  fixtures/                    dosing-cases.json: dosing/taper rule parity cases; print-layout-cases.json: the print
+                               template's rounding and layout rules, the same rows for C# and TypeScript
   tools/                       traceability (catalog IDs ↔ tests), coverage gates, mutation score
   stryker-config.json, coverage.runsettings   Stryker.NET (the 6 critical files) and coverage settings
 ci.ps1                         runs a test tier on GitHub Actions (-Tier step | full | release, -Mutate): how tests run
@@ -242,7 +249,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `ProtocolErrors`,
   `CategoryErrors`, `SharedDrugErrors`, `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`,
-  `StaffErrors`). Add new codes
+  `StaffErrors`, `PrescriptionTemplateErrors`). Add new codes
   there **and** under `errors.*` in both locale files. A code that may name a clinic (`clinicSuspended`,
   `staffInactive`: the `clinicNames` field below) also has `errors.<code>_named` (plural forms, `{{clinics}}`). The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;
@@ -354,9 +361,14 @@ Roles (Access)         ClinicId (clinic-owned), Name (<=100, unique per clinic),
 RolePermissions        RoleId (cascade) + Permission (<=100), PK (RoleId, Permission); none for Owner
 StaffRoles             StaffId, RoleId, ClinicId (clinic-owned); PK (StaffId, RoleId); composite FKs
                        (StaffId, ClinicId) -> Staff and (RoleId, ClinicId) -> Roles (cascade)
+PrescriptionTemplates (Prescriptions)
+                       ClinicId (clinic-owned, restrict; unique: one per clinic), Layout (text: the layout's JSON
+                       { schemaVersion, page, items }, written only by PrescriptionLayoutRules.Serialize from the
+                       validated DTO; nothing queries inside it)
 ```
 
-Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md).
+Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md),
+[print templates tech](../features/prescription-templates/tech.md).
 
 Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
 (`timestamptz`, UTC, set on save). `Drugs`, `Protocols`
@@ -436,6 +448,9 @@ Drugs                       Protocols
 | POST | `/admin/clinics/{clinicId}/staff` | Add `{ phone, fullName, roleIds[] }` → 201 + `StaffMember` (user reused by phone or created; `Location` = the list) |
 | PUT | `/admin/clinics/{clinicId}/staff/{staffId}` | `{ fullName, isActive, roleIds[] }` → `StaffMember` (phone can't change; `lastOwner`) |
 | DELETE | `/admin/clinics/{clinicId}/staff/{staffId}` | Remove (real delete) → 204 (`lastOwner`) |
+| GET | `/admin/clinics/{clinicId}/prescription-template` | `{ layout, updatedAt }`, or 204 when the clinic has none |
+| PUT | `/admin/clinics/{clinicId}/prescription-template` | The layout itself `{ schemaVersion, page, items }` → `{ layout, updatedAt }`: creates or replaces, last write wins; numbers rounded to one decimal and names trimmed before the rules; an item's error names its field (`items[2].name`) |
+| DELETE | `/admin/clinics/{clinicId}/prescription-template` | → 204, also when there is none |
 | GET | `/admin/drugs?search=&status=&categoryId=&subCategoryId=&page=&pageSize=` | Paged shared drugs (`status` = `active` (default) / `withdrawn` / `all`), the clinic list's search and order (M1.7b) |
 | GET | `/admin/drugs/{id}` | One shared drug (`AdminDrugDto`); own or unknown → 404 |
 | POST | `/admin/drugs`, PUT `/admin/drugs/{id}` | Create / update `{ name, activeIngredients, description, categoryId, subCategoryId }` (no dosing) |
@@ -453,7 +468,9 @@ current super admin (else 403 `forbidden`); a missing, deleted or template clini
 roles and staff routes (a suspended clinic is managed); a role or staff id of another clinic → 404 `notFound`. Role
 and staff errors: `roleNameTaken` (also a role named like the Owner role's label, "Owner" / «المالك»), `roleLocked`, `roleInUse`, `staffExists`, `lastOwner` (409); `unknownPermission`,
 `rolesRequired`, `roleNotFound`, `invalidPhone` and the name codes (400)
-([platform admin](../features/platform-admin/tech.md#api)).
+([platform admin](../features/platform-admin/tech.md#api)). Print template errors, all 400: the ten `template*` codes,
+the name codes, `invalidText`, and `invalidRequest` for a missing number or page; every failure listed, in the rules' order
+([print templates tech](../features/prescription-templates/tech.md)).
 
 Swagger UI is available in Development at `/swagger`.
 
@@ -486,7 +503,8 @@ Swagger UI is available in Development at `/swagger`.
   the new drug columns, nullable `Drugs.ClinicId`, the items' drug FK made simple (cascade) and `AK_Drugs_Id_ClinicId`
   dropped, the composite subcategory FK, the four `SearchName` columns turned into ordinary columns filled by the app
   and `SearchOther` added; no rows (the shared catalog is loaded by `data/drug-catalog/tools/load_catalog.py`, once);
-  down restores the generated columns and fails, rolled back, while shared drugs exist).
+  down restores the generated columns and fails, rolled back, while shared drugs exist) → `AddPrescriptionTemplates`
+  (print templates, step 1: one new empty table, no existing row touched; down drops it).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`, then `python data/drug-catalog/tools/load_catalog.py --connection
   "host=localhost port=5432 dbname=drags user=drags password=drags"` before the first start (the dev seed's template
@@ -497,7 +515,10 @@ Swagger UI is available in Development at `/swagger`.
 ### App shell
 
 - `main.tsx` imports `./i18n` (initializes i18next) and renders `App`.
-- `AppProviders` (inside `BrowserRouter`): TanStack `QueryClient` (staleTime 30 s, retry 1, no
+- **Data router:** `App` creates one router at mount, `createBrowserRouter([{path: "*", element: <AppProviders><AppRoutes/></AppProviders>}])`
+  + `RouterProvider`; `AppRoutes` holds the app's `<Routes>`, as descendants of that splat route. A data router is what `useBlocker` needs
+  (the print template designer's unsaved-changes guard, which also catches the browser's Back).
+- `AppProviders` (inside the router): TanStack `QueryClient` (staleTime 30 s, retry 1, no
   refetch on focus), emotion cache per direction (`rtl` cache adds the stylis RTL plugin), MUI theme
   from `createAppTheme(direction)`, `CssBaseline`, `AuthProvider` (session restore, `useAuth()`),
   `Toaster`.
@@ -531,7 +552,7 @@ Swagger UI is available in Development at `/swagger`.
 | `/select-clinic` | `SelectClinicPage` (logged in) |
 | `/admin` | `ClinicsPage` (platform context: search, status filter, paging, kept in the URL query) |
 | `/admin/clinics/new` | `CreateClinicPage` (clinic name + owner phone and name) |
-| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
+| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
 | `/admin/*` | redirects to `/admin` |
 | `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
