@@ -1,10 +1,12 @@
 import {beforeEach, describe, expect, test, vi} from "vitest";
 import {waitFor} from "@testing-library/react";
 import {pastExitTransition} from "../../test";
+import {textOf} from "../../test/htmlShape.ts";
 import {
     aPrintedLine,
     confirmButton,
     editorPrint,
+    editorText,
     fn,
     findPopup,
     manual,
@@ -17,6 +19,7 @@ import {
     templateNowIs,
     templateOf,
     textBox,
+    typeInEditor,
     valueOn,
 } from "../../test/pages/printFlow.tsx";
 
@@ -138,6 +141,23 @@ describe("the print flow's order @area:prescription", () => {
         expect(font).toBeLessThan(created);
         expect(created).toBeLessThan(disposed);
         expect(disposed).toBeLessThan(printed);
+    });
+
+    test("spaces and a tab typed in the editor are measured and printed as typed, across a cut, and every sheet keeps them @TPL-351", async () => {
+        measure.fits.mockImplementation(html => textOf(html).length <= 7);
+        const page = await openWithTemplate(templateOf());
+        const editor = await openEditor(page);
+        typeInEditor("aaa    bbb\tccc");
+        await waitFor(() => expect(editorText()).toBe("aaa    bbb\tccc"));
+        await waitFor(() => expect(editorPrint(editor)).toBeEnabled());
+
+        await page.user.click(editorPrint(editor));
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        expect(measure.fits.mock.calls.map(([html]) => textOf(html))).toContain("aaa    bbb\tccc");
+        const sheets = page.sheets();
+        expect(sheets.map(sheet => textBox(sheet)?.textContent)).toEqual(["aaa    ", "bbb\tccc"]);
+        for (const sheet of sheets) expect(textBox(sheet)?.style.whiteSpace).toBe("pre-wrap");
     });
 
     test("the print waits for the font @TPL-332", async () => {
