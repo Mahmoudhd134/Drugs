@@ -68,7 +68,7 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
         var refId = NewRef();
         var bytes = FileSamples.Png();
         var file = await owner.StoredAsync(Url(ClinicRoute, G, refId), "a.png", bytes);
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var before = Disk.OfClinic(clinic.Id);
 
         await (await owner.ReplaceAsync(Url(ClinicRoute, G, refId, file.Id), "setup.exe", FileSamples.Exe()))
@@ -92,6 +92,8 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
 
         await ShouldBeNotFoundAsync(owner.DeleteAsync(Url(ClinicRoute, G, refId, file.Id)));
         await ShouldBeNotFoundAsync(owner.ReplaceAsync(Url(ClinicRoute, G, refId, file.Id), "b.png", FileSamples.Png()));
+        // The old row is found before the new file's rules run: a refused file on a deleted row is still 404
+        await ShouldBeNotFoundAsync(owner.ReplaceAsync(Url(ClinicRoute, G, refId, file.Id), "setup.exe", FileSamples.Exe()));
 
         (await RowsOfClinicAsync(clinic.Id)).Count.ShouldBe(1);
         Disk.OfClinic(clinic.Id).ShouldBe(before);
@@ -114,6 +116,7 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
         var otherModule = await a.StoredAsync(Url(ClinicRoute, M, refId), "other-module.png", FileSamples.Png());
         var otherClinic = await b.StoredAsync(Url(ClinicRoute, G, refId), "other-clinic.png", FileSamples.Png());
         var before = Disk.OfClinic(clinicA.Id);
+        Clock.Advance(TimeSpan.FromMinutes(1));
 
         await (await a.DeleteAsync(Url(ClinicRoute, G, refId))).ShouldBeAsync(HttpStatusCode.NoContent);
 
@@ -122,6 +125,8 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
             var row = await RowAsync(file.Id);
             row.DeletedAt.ShouldBe(Clock.GetUtcNow().UtcDateTime);
             row.DeletedByUserId.ShouldBe(clinicA.Owner.UserId);
+            // Loaded and marked, with no ExecuteUpdate: only the save interceptor stamps this
+            row.UpdatedAt.ShouldBe(Clock.GetUtcNow().UtcDateTime);
         }
         (await RowAsync(otherRef.Id)).DeletedAt.ShouldBeNull();
         (await RowAsync(otherModule.Id)).DeletedAt.ShouldBeNull();
@@ -139,7 +144,7 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
         var (clinic, owner) = await ClinicWithOwnerAsync();
         var bytes = FileSamples.Png();
         var file = await owner.StoredAsync(Url(ClinicRoute, G, NewRef()), "a.png", bytes);
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
 
         await Data.DeleteClinicAsync(clinic);
 
@@ -170,7 +175,7 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
         var refId = NewRef();
         var bytes = FileSamples.Png();
         var file = await owner.StoredAsync(Url(ClinicRoute, G, refId), "a.png", bytes);
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var before = Disk.OfClinic(clinic.Id);
         Seams.BeingSaved.Clear();
         Seams.FailAttachmentSave = true;
@@ -186,6 +191,50 @@ public class AttachmentDeleteReplaceTests(AttachmentsAppFixture app) : Attachmen
         (await RowsOfClinicAsync(clinic.Id)).Count.ShouldBe(1);
         Disk.OfClinic(clinic.Id).ShouldBe(before);
         (await owner.DownloadedAsync(Url(ClinicRoute, G, refId, file.Id))).ShouldBeTheBytes(bytes);
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-108")]
+    public async Task A_replace_with_no_transaction_whose_save_throws_keeps_the_old_row_live_and_removes_the_new_file()
+    {
+        var (clinic, owner) = await ClinicWithOwnerAsync();
+        var refId = NewRef();
+        var bytes = FileSamples.Png();
+        var file = await owner.StoredAsync(Url(ClinicRoute, G, refId), "a.png", bytes);
+        var rowBefore = await RowBeforeAsync(file.Id);
+        var before = Disk.OfClinic(clinic.Id);
+        Seams.BeingSaved.Clear();
+        Seams.FailAttachmentSave = true;
+
+        await (await owner.ReplaceAsync(AttachmentTestRoutes.Direct(refId, file.Id), "b.png", FileSamples.Png()))
+            .ShouldBeProblemAsync(HttpStatusCode.InternalServerError, "unexpected");
+
+        Seams.FailAttachmentSave = false;
+        var attempted = Seams.BeingSaved.ShouldHaveSingleItem();
+        attempted.FileWasOnDisk.ShouldBeTrue("the new file is written before the save");
+        Seams.Removed.ShouldContain(attempted.Key);
+        // No transaction rolls anything back: the mark can only stay unsaved if it went in the save that failed
+        ShouldBeLive(await RowAsync(file.Id), rowBefore);
+        (await RowsOfClinicAsync(clinic.Id)).Count.ShouldBe(1);
+        Disk.OfClinic(clinic.Id).ShouldBe(before);
+        (await owner.DownloadedAsync(Url(ClinicRoute, G, refId, file.Id))).ShouldBeTheBytes(bytes);
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-108")]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_replace_adds_the_new_row_and_marks_the_old_one_in_one_save(bool inACommand)
+    {
+        var (_, owner) = await ClinicWithOwnerAsync();
+        var refId = NewRef();
+        var file = await owner.StoredAsync(Url(ClinicRoute, G, refId), "a.png", FileSamples.Png());
+        Seams.Saves.Clear();
+        var url = inACommand ? Url(ClinicRoute, G, refId, file.Id) : AttachmentTestRoutes.Direct(refId, file.Id);
+
+        await (await owner.ReplaceAsync(url, "b.png", FileSamples.Png())).ShouldBeStoredAsync();
+
+        Seams.Saves.ShouldHaveSingleItem().ShouldBe(new AttachmentSave(Added: 1, Changed: 1));
     }
 
     [Fact]

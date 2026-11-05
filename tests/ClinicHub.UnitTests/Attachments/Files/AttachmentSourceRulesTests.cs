@@ -36,10 +36,24 @@ public partial class AttachmentSourceRulesTests
     [Trait("Case", "ATT-107")]
     public void Outside_the_module_only_the_dependency_registration_names_the_file_provider()
     {
+        // No leading I: the concrete class's DeleteAsync is as reachable as the interface's
         AllFiles()
-            .Where(f => !IsModule(f.Path) && f.Code.Contains("IAttachmentFileProvider", StringComparison.Ordinal))
+            .Where(f => !IsModule(f.Path) && f.Code.Contains("AttachmentFileProvider", StringComparison.Ordinal))
             .Select(f => f.Path)
             .ShouldBe(["ClinicHub.Infrastructure/DependencyInjection.cs"], ignoreOrder: true, "no other code can reach the provider's DeleteAsync");
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-107")]
+    public void No_production_file_but_the_service_touches_the_attachments_table()
+    {
+        // The only hit is itself the control: the scan really sees the service's db.Attachments
+        AllFiles()
+            .Where(f => !f.Path.EndsWith("/AppDbContext.cs", StringComparison.Ordinal) && !f.Path.EndsWith("/IAppDbContext.cs", StringComparison.Ordinal))
+            .Where(f => TableAccess().IsMatch(UsingOrNamespaceLine().Replace(f.Code, "")))
+            .Select(f => f.Path)
+            .ShouldBe(["ClinicHub.Application/Features/Attachments/Files/AttachmentService.cs"], ignoreOrder: true,
+                "all access goes through the service (docs/design/attachments.md § 4): elsewhere it could skip the deleted check or the clinic check");
     }
 
     private sealed record SourceFile(string Path, string Code);
@@ -82,9 +96,17 @@ public partial class AttachmentSourceRulesTests
     [GeneratedRegex(@"\.IgnoreQueryFilters\s*\(")]
     private static partial Regex QueryFilterBypass();
 
-    /// <summary>A call, so preceded by a dot: the methods' own declarations aren't. The module's service never calls its own <c>DeleteAsync</c> through a dot.</summary>
-    [GeneratedRegex(@"\.DeleteAsync\s*\(")]
+    /// <summary>A call or a method group, so preceded by a dot: the methods' own declarations aren't. The module's service never calls its own <c>DeleteAsync</c> through a dot.</summary>
+    [GeneratedRegex(@"\.DeleteAsync\b")]
     private static partial Regex DeleteCall();
+
+    /// <summary>The context's set of the table; the settings' <c>Attachments</c> section is another thing of that name.</summary>
+    [GeneratedRegex(@"(?<!ettings)\.Attachments\b|\.Set<Attachment>")]
+    private static partial Regex TableAccess();
+
+    /// <summary>The namespaces hold <c>.Attachments</c> too. Only a directive: <c>using var rows = db.Attachments…</c> stays in the scan.</summary>
+    [GeneratedRegex(@"^\s*(?:(?:global\s+)?using\s+(?:static\s+)?(?:\w+\s*=\s*)?[\w.]+\s*;|namespace\s+[\w.]+)", RegexOptions.Multiline)]
+    private static partial Regex UsingOrNamespaceLine();
 
     [GeneratedRegex(@"^\s*(public|private|internal|protected)\s", RegexOptions.Multiline)]
     private static partial Regex MemberDeclaration();

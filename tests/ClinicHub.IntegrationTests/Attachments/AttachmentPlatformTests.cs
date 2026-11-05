@@ -145,7 +145,7 @@ public class AttachmentPlatformTests(AttachmentsAppFixture app) : AttachmentTest
         var admin = await Login.SuperAdminAsync();
         var owner = NewRef();
         var file = await admin.StoredAsync(Url(Inside, G, owner), "a.png", FileSamples.Png());
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var before = Disk.All();
 
         await ShouldBeNotFoundAsync(staff.ReplaceAsync(Url(ClinicRoute, G, owner, file.Id), "b.png", FileSamples.Png()));
@@ -165,7 +165,7 @@ public class AttachmentPlatformTests(AttachmentsAppFixture app) : AttachmentTest
         var admin = await Login.SuperAdminAsync();
         var owner = NewRef();
         var file = await staff.StoredAsync(Url(ClinicRoute, G, owner), "a.png", FileSamples.Png());
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var before = Disk.All();
 
         (await admin.ListedAsync(Url(PlatformRoute, G, owner))).ShouldBeEmpty();
@@ -223,7 +223,7 @@ public class AttachmentPlatformTests(AttachmentsAppFixture app) : AttachmentTest
         var owner = NewRef();
         var bytes = FileSamples.Png();
         var file = await admin.StoredAsync(Url(Inside, G, owner), "a.png", bytes);
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var before = Disk.All();
         Seams.Written.Clear();
 
@@ -304,7 +304,7 @@ public class AttachmentPlatformTests(AttachmentsAppFixture app) : AttachmentTest
         var owner = NewRef();
         var platformFile = await admin.StoredAsync(Url(Inside, G, owner), "platform.png", FileSamples.Png());
         var clinicFile = await staff.StoredAsync(Url(ClinicRoute, G, owner), "clinic.png", FileSamples.Png());
-        var platformBefore = await RowAsync(platformFile.Id);
+        var platformBefore = await RowBeforeAsync(platformFile.Id);
 
         await (await staff.DeleteAsync(Url(ClinicRoute, G, owner))).ShouldBeAsync(HttpStatusCode.NoContent);
 

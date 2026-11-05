@@ -54,6 +54,26 @@ public class AttachmentRootRuleTests
 
     [Theory]
     [Trait("Case", "ATT-070")]
+    [InlineData(@"C:\..\inetpub\ClinicHub\files")]
+    [InlineData(@"C:\..\..\inetpub\ClinicHub\files")]
+    [InlineData(@"C:\a:\..\inetpub\ClinicHub\files")]
+    public void On_windows_dot_dot_above_the_drive_stays_at_the_drive(string candidate)
+    {
+        OnWindows(candidate).ShouldBeTrue();
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-070")]
+    [InlineData("/../srv/ClinicHub/files")]
+    [InlineData("/../../srv/ClinicHub/files")]
+    [InlineData("/C:/../srv/ClinicHub/files")]
+    public void On_linux_dot_dot_above_the_root_stays_at_the_root_and_a_colon_makes_no_drive(string candidate)
+    {
+        OnLinux(candidate, "/srv/ClinicHub").ShouldBeTrue();
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-070")]
     [InlineData(@"c:\INETPUB\clinichub\Files")]
     [InlineData(@"C:\INETPUB\CLINICHUB")]
     public void On_windows_the_case_does_not_count(string candidate)

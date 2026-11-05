@@ -63,7 +63,15 @@ public abstract class AttachmentTest(AttachmentsAppFixture app) : IntegrationTes
     protected static async Task ShouldBeNotFoundAsync(Task<HttpResponseMessage> call) =>
         await (await call).ShouldBeProblemAsync(HttpStatusCode.NotFound, "notFound");
 
-    /// <summary>A row is what it was: same owner, name, key and size, not marked deleted.</summary>
+    /// <summary>A row before what the test does to it, with the clock moved on: a later save writes a later <c>UpdatedAt</c>, which <see cref="ShouldBeLive"/> sees.</summary>
+    protected async Task<Attachment> RowBeforeAsync(Guid id)
+    {
+        var row = await RowAsync(id);
+        Clock.Advance(TimeSpan.FromMinutes(1));
+        return row;
+    }
+
+    /// <summary>A row is what it was (<paramref name="before"/> comes from <see cref="RowBeforeAsync"/>): same owner, name, type, key and size, not marked deleted, not saved since.</summary>
     protected static void ShouldBeLive(Attachment row, Attachment before)
     {
         row.DeletedAt.ShouldBeNull();
@@ -72,6 +80,7 @@ public abstract class AttachmentTest(AttachmentsAppFixture app) : IntegrationTes
         row.Module.ShouldBe(before.Module);
         row.RefId.ShouldBe(before.RefId);
         row.OriginalFileName.ShouldBe(before.OriginalFileName);
+        row.TypeKey.ShouldBe(before.TypeKey);
         row.StorageKey.ShouldBe(before.StorageKey);
         row.SizeBytes.ShouldBe(before.SizeBytes);
         row.UpdatedAt.ShouldBe(before.UpdatedAt);

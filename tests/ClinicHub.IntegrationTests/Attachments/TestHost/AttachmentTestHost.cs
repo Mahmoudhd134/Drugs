@@ -77,5 +77,7 @@ public static class AttachmentTestRoutes
 
     public static string Direct(string refId) => $"{Clinic}/{DirectSegment}/{refId}";
 
+    public static string Direct(string refId, Guid id) => $"{Clinic}/{DirectSegment}/{refId}/{id}";
+
     public static string UseBlock(int clinicId, string refId) => $"{Platform}/{UseBlockSegment}/{clinicId}/{refId}";
 }

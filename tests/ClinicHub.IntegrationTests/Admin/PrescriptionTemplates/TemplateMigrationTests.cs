@@ -93,10 +93,11 @@ public class TemplateMigrationTests(BareAppFixture app) : IntegrationTest(app)
     /// </summary>
     private async Task<List<string>> OtherTablesRowsAsync()
     {
+        // Attachments comes from a later migration: going down to before print templates drops it
         var tables = await App.OutsideTheApp.ScalarAsync<string>(
             """
             SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT IN ('__EFMigrationsHistory', 'PrescriptionTemplates')
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT IN ('__EFMigrationsHistory', 'PrescriptionTemplates', 'Attachments')
             """);
         var rows = new List<string>();
         foreach (var table in tables.Split(','))

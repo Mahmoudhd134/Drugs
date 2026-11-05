@@ -14,6 +14,9 @@ public sealed record AddedByCommand(Guid Id, string Key, bool FileWasOnDisk);
 /// <summary>An attachment row about to be saved, and whether its file was already on disk.</summary>
 public sealed record AttachmentBeingSaved(Guid Id, string Key, bool FileWasOnDisk);
 
+/// <summary>One save that held attachment rows: how many new ones and how many changed ones.</summary>
+public sealed record AttachmentSave(int Added, int Changed);
+
 /// <summary>
 /// The failure seams of a test app (one per app; every switch off by default, reset before each test) and what they saw. The
 /// real provider and the real save run unless a test arms a switch.
@@ -34,6 +37,8 @@ public sealed class AttachmentSeams
 
     public ConcurrentQueue<AddedByCommand> AddedByCommands { get; } = new();
     public ConcurrentQueue<AttachmentBeingSaved> BeingSaved { get; } = new();
+    /// <summary>Every save that held a new or a changed attachment row, whether or not it then failed.</summary>
+    public ConcurrentQueue<AttachmentSave> Saves { get; } = new();
     /// <summary>The keys the provider really wrote.</summary>
     public ConcurrentQueue<string> Written { get; } = new();
     /// <summary>The keys the cleanup asked the provider to remove.</summary>
@@ -49,6 +54,7 @@ public sealed class AttachmentSeams
         OnAttachmentSaving = null;
         AddedByCommands.Clear();
         BeingSaved.Clear();
+        Saves.Clear();
         Written.Clear();
         Removed.Clear();
     }
@@ -80,7 +86,11 @@ public sealed class AttachmentSaveSeam(AttachmentSeams seams, AttachmentSettings
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        var added = eventData.Context!.ChangeTracker.Entries<Attachment>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var rows = eventData.Context!.ChangeTracker.Entries<Attachment>().ToList();
+        var added = rows.Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var changed = rows.Count(e => e.State == EntityState.Modified);
+        if (added.Count + changed > 0)
+            seams.Saves.Enqueue(new AttachmentSave(added.Count, changed));
         if (added.Count == 0)
             return ValueTask.FromResult(result);
 

@@ -697,8 +697,9 @@ No printer was available when printing was built: alignment on real paper and th
 - [ ] `TPL-334` (P2, manual) Given a custom page larger than the paper in a real printer, then record what the browser does (scale, cut); nothing is promised
 - [ ] `TPL-347` (P1, manual) Given real Chrome on Windows, then the dialog's preview shows the template's size, no browser header or footer at margin none; Cancel returns to the app
 
-### 11. Attachments behind real IIS (1)
+### 11. Attachments on the Windows server (2)
 
 CI runs on Linux with Kestrel: IIS's own limit answers before the app does, whatever the module's limit.
 
 - [ ] `ATT-098` (P2, manual) Given a body over IIS's 30,000,000-byte limit behind real IIS, then the documented 404.13 answers
+- [ ] `ATT-069` (P0, unit, its Windows half) Given `Attachments__Physical__RootPath` inside the site in another case (`C:\INETPUB\ClinicHub\files`), then the app won't start: Linux CI can't run Windows's case and separator rule

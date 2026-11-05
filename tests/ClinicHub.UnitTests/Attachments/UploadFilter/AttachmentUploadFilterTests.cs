@@ -5,6 +5,7 @@ using ClinicHub.Api.Features.Attachments;
 using ClinicHub.Application.Common.Settings;
 using ClinicHub.Application.Features.Attachments.Files;
 using ClinicHub.UnitTests.Attachments.Files;
+using ClinicHub.UnitTests.Attachments.Providers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -214,6 +215,105 @@ public class AttachmentUploadFilterTests
         var (status, code) = await AnswerOf(run);
         status.ShouldBe(400);
         code.ShouldBe("attachmentTooLarge");
+    }
+
+    // ---- ATT-185: a server's failure during the form read isn't the client's fault ----
+
+    private static byte[] FirstBytesOfAFilePart() => OneFilePart().ToArray()[..^($"\r\n--{Boundary}--\r\n".Length)];
+
+    [Theory]
+    [Trait("Case", "ATT-185")]
+    [InlineData("No space left on device")]
+    [InlineData("There is not enough space on the disk.")]
+    public async Task A_form_read_failing_on_a_full_disk_goes_on_to_the_unexpected_handler_not_400(string message)
+    {
+        var failure = new IOException(message);
+        var content = FirstBytesOfAFilePart();
+        var http = Request(new StreamThrowingAfter(content, content.Length, failure), content.Length);
+
+        var thrown = await Should.ThrowAsync<Exception>(() => RunFilter(M, http));
+
+        thrown.ShouldBeSameAs(failure);
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-185")]
+    public async Task A_form_read_failing_on_an_unusable_temp_folder_goes_on_to_the_unexpected_handler_not_400()
+    {
+        var failure = new DirectoryNotFoundException("Could not find a part of the path.");
+        var content = FirstBytesOfAFilePart();
+        var http = Request(new StreamThrowingAfter(content, content.Length, failure), content.Length);
+
+        var thrown = await Should.ThrowAsync<Exception>(() => RunFilter(M, http));
+
+        thrown.ShouldBeSameAs(failure);
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-185")]
+    public async Task A_missing_closing_boundary_is_the_clients_and_still_answers_invalid_request()
+    {
+        using var body = new MemoryStream(FirstBytesOfAFilePart());
+
+        var run = await RunFilter(M, Request(body, body.Length));
+
+        run.NextCalled.ShouldBeFalse();
+        var (status, code) = await AnswerOf(run);
+        status.ShouldBe(400);
+        code.ShouldBe("invalidRequest");
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-185")]
+    public async Task A_request_body_cut_short_is_the_clients_and_still_answers_invalid_request()
+    {
+        var content = FirstBytesOfAFilePart();
+        var cutShort = new BadHttpRequestException("Unexpected end of request content.", StatusCodes.Status400BadRequest);
+        var http = Request(new StreamThrowingAfter(content, content.Length, cutShort), content.Length + 1000);
+
+        var run = await RunFilter(M, http);
+
+        run.NextCalled.ShouldBeFalse();
+        var (status, code) = await AnswerOf(run);
+        status.ShouldBe(400);
+        code.ShouldBe("invalidRequest");
+    }
+
+    // ---- ATT-186: only the module's own limit means too large ----
+
+    /// <summary>A file part framed by another boundary than the header's, so all of it is preamble to the form reader.</summary>
+    private static MemoryStream WrongBoundaryBody(int fileBytes)
+    {
+        var body = new MemoryStream();
+        body.Write(Encoding.ASCII.GetBytes(
+            "--not-the-header-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.png\"\r\nContent-Type: image/png\r\n\r\n"));
+        body.Write(new byte[fileBytes]);
+        body.Write(Encoding.ASCII.GetBytes("\r\n--not-the-header-boundary--\r\n"));
+        body.Position = 0;
+        return body;
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-186")]
+    [InlineData(M, 10 * 1024, true)]
+    [InlineData(M, 17 * 1024, true)]
+    [InlineData(M, 17 * 1024, false)]
+    [InlineData(M, 100 * 1024, true)]
+    [InlineData(M, 100 * 1024, false)]
+    [InlineData(M, 1024 * 1024, true)]
+    [InlineData(G, 100 * 1024, true)]
+    [InlineData(G, 100 * 1024, false)]
+    public async Task A_wrong_boundary_within_the_modules_limit_answers_invalid_request_whatever_the_preambles_size(string module, int fileBytes, bool withContentLength)
+    {
+        using var body = WrongBoundaryBody(fileBytes);
+        body.Length.ShouldBeLessThan(LimitOfM);
+
+        var run = await RunFilter(module, Request(body, withContentLength ? body.Length : null));
+
+        run.NextCalled.ShouldBeFalse();
+        var (status, code) = await AnswerOf(run);
+        status.ShouldBe(400);
+        code.ShouldBe("invalidRequest");
     }
 
     // ---- ATT-010: only as far as a unit test can; the api part proves the 403 ----
