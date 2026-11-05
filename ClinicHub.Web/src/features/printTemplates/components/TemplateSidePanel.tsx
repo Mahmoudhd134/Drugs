@@ -1,4 +1,4 @@
-import {type ReactNode, useId} from "react";
+import {type MouseEvent, type PointerEvent, type ReactNode, useId} from "react";
 import {Alert, Box, List, ListItem, ListItemButton, ListItemText, Paper, Stack, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {TEMPLATE_FUNCTIONS} from "../constants.ts";
@@ -9,10 +9,14 @@ type Props = {
     canAdd: boolean;
     /** `defaultName`: the entry's label in the UI language */
     onAdd: (addable: AddableItem, defaultName: string) => void;
+    /** A pointer pressed on an entry: it may become a drag to the sheet (step 3 contract § 3.4) */
+    onEntryPress: (event: PointerEvent<HTMLElement>, addable: AddableItem, label: string) => void;
+    /** True for the click that ends a drag, which adds nothing (TPL-501) */
+    swallowClick: (event: MouseEvent) => boolean;
 };
 
 /** The side panel (contract § 3.3): what can be placed on the sheet. The prescription text comes with every layout. */
-export const TemplateSidePanel = ({canAdd, onAdd}: Props) => {
+export const TemplateSidePanel = ({canAdd, onAdd, onEntryPress, swallowClick}: Props) => {
     const {t} = useTranslation();
     const internalDataHintId = useId();
     const expressionHintId = useId();
@@ -22,9 +26,13 @@ export const TemplateSidePanel = ({canAdd, onAdd}: Props) => {
             <ListItemButton
                 aria-label={label}
                 disabled={!canAdd}
+                sx={{touchAction: "none", userSelect: "none"}}
+                onPointerDown={(event) => {
+                    if (canAdd) onEntryPress(event, addable, label);
+                }}
                 // A double click adds one; a keyboard click's `detail` is 0
                 onClick={(event) => {
-                    if (event.detail <= 1) onAdd(addable, label);
+                    if (!swallowClick(event) && event.detail <= 1) onAdd(addable, label);
                 }}
             >
                 <ListItemText primary={label}/>

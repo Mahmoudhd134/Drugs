@@ -1,4 +1,4 @@
-import type {CSSProperties} from "react";
+import type {CSSProperties, MouseEvent, PointerEvent, Ref} from "react";
 import {useTranslation} from "react-i18next";
 import "../printFont.css";
 import "../printSheet.css";
@@ -14,7 +14,11 @@ type Props = {
     layout: PrintLayout;
     /** The selected item: its box is marked and `aria-pressed` */
     selectedId?: string | null;
-    onSelect?: (id: string) => void;
+    onSelect?: (id: string, event: MouseEvent) => void;
+    /** A pointer pressed on a box (step 3 contract § 3.4) */
+    onBoxPress?: (event: PointerEvent<HTMLElement>, item: TemplateItem) => void;
+    /** The designer's sheet: what a drag measures on screen */
+    sheetRef?: Ref<HTMLDivElement>;
     /** What the prescription text's box shows in the designer; ignored with `print` */
     sampleText: string;
     /** Printing (contract § 3.4): items render as plain boxes with these values, not as buttons */
@@ -96,9 +100,10 @@ const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintC
 /**
  * The sheet at true scale (contract § 3.4), one renderer for the designer's preview and for printing, so what is
  * designed is what prints: 1 mm = 1 CSS mm, never mirrored (`dir="ltr"`), its own font, positions as inline styles (the RTL
- * style cache flips `left` and `right` in `sx`).
+ * style cache flips `left` and `right` in `sx`). The designer's zoom is a transform around it, never in it (step 3 contract
+ * § 3.3), so print can't see it.
  */
-export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}: Props) => {
+export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRef, sampleText, print}: Props) => {
     const {t} = useTranslation();
     const designing = !!onSelect;
 
@@ -122,6 +127,7 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
 
     return (
         <div
+            ref={sheetRef}
             data-testid="template-sheet"
             dir="ltr"
             style={{...sheetStyle(layout), ...(designing ? GRID : undefined)}}
@@ -136,7 +142,8 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
                         aria-pressed={selected}
                         aria-label={item.kind === "prescriptionText" ? t("printTemplates.kinds.prescriptionText") : undefined}
                         data-item-id={item.id}
-                        onClick={() => onSelect?.(item.id)}
+                        onClick={(event) => onSelect?.(item.id, event)}
+                        onPointerDown={(event) => onBoxPress?.(event, item)}
                         style={{
                             ...boxStyle(item),
                             fontFamily: "inherit",
@@ -146,7 +153,9 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
                             color: "inherit",
                             display: "block",
                             overflow: "visible",
-                            cursor: designing ? "pointer" : undefined,
+                            cursor: designing ? "move" : undefined,
+                            touchAction: "none",
+                            userSelect: "none",
                             // Marks stay outside the layout: a box keeps exactly its size (TPL-228). No inline
                             // outline: the browser's focus ring is an outline and must still show (TPL-057)
                             ...(designing ? {boxShadow: selected ? "inset 0 0 0 2px #0f766e" : "inset 0 0 0 1px rgba(15, 118, 110, 0.45)"} : undefined),
