@@ -132,7 +132,7 @@ One `keydown` and `keyup` listener on `window`, while the designer shows (a draf
 | Focus | Undo, redo shortcuts | Arrows, Alt's own key, Delete, Esc |
 |---|---|---|
 | `input`, `textarea`, contenteditable | Not handled: the field's own | Not handled |
-| Inside a dialog or menu, or any `role="dialog"`, `menu`, `listbox` in the document | Not handled | Not handled |
+| Inside a dialog or menu, or any **open** `role="dialog"`, `menu`, `listbox` in the document (one inside a closed, kept-mounted `.MuiModal-hidden` doesn't count: `AppShell`'s phone drawer is always there) | Not handled | Not handled |
 | Outside the designer's root (`data-testid="template-designer"`) but not `body` (clinic tabs, sidebar, app bar) | Not handled | Not handled |
 | A box other than the selected one | Handled | Not handled, and not `defaultPrevented` (TPL-556) |
 | The size select (`role="combobox"`) | Handled | Not handled: its arrows open it |
@@ -196,7 +196,7 @@ Anything that records a step, and undo and redo, first commits an open field (th
 
 ### 4.1 `src/test`
 
-- `setup.ts`: `setPointerCapture`, `releasePointerCapture`, `hasPointerCapture` are no-ops. jsdom 26 has `PointerEvent`. jsdom has no layout, so a drag's **geometry** can't run there: where an item lands is e2e (the levels below say so). `user.click`, `user.keyboard` and `fireEvent.keyDown` work, and so do `fireEvent.pointerDown` and `pointerMove` (pass `button: 0`, `buttons: 1`, `clientX`, `clientY`), since the threshold needs no layout: the ghost and the drag's key handling can be seen there (TPL-508's "a drag works again", TPL-517's "or a drag runs"). TPL-540's "in the request" is `normalizeLayout` of the result, at unit level.
+- `setup.ts`: `setPointerCapture`, `releasePointerCapture`, `hasPointerCapture` are no-ops, and `PointerEvent` is stubbed: jsdom 26.1 has none. jsdom has no layout, so a drag's **geometry** can't run there: where an item lands is e2e (the levels below say so). `user.click`, `user.keyboard` and `fireEvent.keyDown` work, and so do `fireEvent.pointerDown` and `pointerMove` (pass `button: 0`, `buttons: 1`, `clientX`, `clientY`), since the threshold needs no layout: the ghost and the drag's key handling can be seen there (TPL-508's "a drag works again", TPL-517's "or a drag runs"). TPL-540's "in the request" is `normalizeLayout` of the result, at unit level.
 - `pages/printTemplate.tsx`: `undoButton`, `redoButton`, `zoomOutButton`, `zoomInButton`, `fitButton`, `zoomPercent`, `handleOf`, `handleIds`. Fit is 100% there: `zoomPercent()` starts as `100%`.
 - `fireEvent.keyDown` returns false when `defaultPrevented`: the ui half of TPL-515, TPL-516, TPL-517, TPL-519, TPL-556.
 
@@ -257,7 +257,8 @@ The coder runs `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx esl
 19. **Undo's off state counts an open field with a real change,** so Undo can be pressed while typing (TPL-581), though no step is recorded yet.
 20. **An undo clears all raw text,** the sheet's measures too, not only the item's.
 21. **Key repeat** isn't special: a held Delete removes one because nothing is selected after it.
-22. **Guide and handle colors:** handles the selected box's `#0f766e`; guides `#db2777`, so they stand out on the mm grid. Neither prints.
+22. **`data-mm` holds the exact target,** a half-tenth center included (75.25), not rounded. **The fit's measure** uses `max(clientWidth, offsetWidth)`, so a scrollbar at 200% doesn't make a second Fit differ from a first. **A committed drag or nudge clears that item's raw text** in X, Y, width and height (TPL-582).
+23. **Guide and handle colors:** handles the selected box's `#0f766e`; guides `#db2777`, so they stand out on the mm grid. Neither prints.
 
 ## 7. Wording
 
