@@ -615,15 +615,27 @@ describe("print template keys: the shortcuts on any keyboard @area:admin", () =>
         }
     });
 
-    test("the focus outside the designer, on the clinic's tabs: they don't run, nor do the arrows @TPL-520", async () => {
+    test("the focus outside the designer, on the clinic's tabs: they don't run, nor do the arrows, which are the tabs' own @TPL-520", async () => {
         await moved();
         const tab = screen.getByRole("tab", {name: "Overview"});
         focusOn(tab);
 
         expect(pressShortcut(tab, UNDO_KEYS)).toBe(false);
-        expect(pressKey(tab, "ArrowRight")).toBe(false);
         expect(pressKey(tab, "Delete")).toBe(false);
+        expect(ids()).toEqual(["t", "m", "f", "s"]);
+        pressKey(tab, "ArrowDown");
+        expect(placeOf("m")).toEqual({x: "13.3mm", y: "20.3mm"});
+    });
+
+    test("in the app's frame, whose closed phone drawer always holds a `role=\"dialog\"`: closed isn't open, so the keys and the shortcuts work @TPL-520", async () => {
+        const {user} = await renderDesigner(layoutL(), {layout: true});
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+        await selectM(user);
+
+        expect(pressKey(boxOf("m"), "ArrowRight")).toBe(true);
         expect(boxOf("m").style.left).toBe("13.3mm");
+        expect(pressShortcut(boxOf("m"), UNDO_KEYS)).toBe(true);
+        expect(boxOf("m").style.left).toBe("12.3mm");
     });
 
     test("the size select: the shortcuts run, but its arrows are its own @TPL-520", async () => {
@@ -643,14 +655,19 @@ describe("print template keys: nothing behind a dialog or a menu @area:admin", (
         return rendered;
     };
 
-    /** None of these reach the layout behind what's open. */
+    /**
+     * None of these reach the layout behind what's open. What's open hides the page from the accessibility tree, so the boxes are
+     * read from the document here, not by their role.
+     */
     const expectNothingBehind = () => {
         pressKeyOnFocus(UNDO_KEYS.key, UNDO_KEYS);
         pressKeyOnFocus(REDO_KEYS.key, REDO_KEYS);
         pressKeyOnFocus("ArrowRight");
         pressKeyOnFocus("Delete");
-        expect(ids()).toEqual(["t", "m", "f", "s"]);
-        expect(placeOf("m")).toEqual({x: "13.3mm", y: "20.3mm"});
+        const boxes = Array.from(document.querySelectorAll<HTMLElement>("[data-item-id]"));
+        expect(boxes.map(box => box.dataset.itemId)).toEqual(["t", "m", "f", "s"]);
+        expect(boxes[1].style.left).toBe("13.3mm");
+        expect(boxes[1].style.top).toBe("20.3mm");
     };
 
     test("the delete question open: the layout behind doesn't change; closed, Ctrl+Z works again @TPL-521", async () => {

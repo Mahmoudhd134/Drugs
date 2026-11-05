@@ -29,7 +29,22 @@ function scrollElementTo(this: Element, xOrOptions?: number | ScrollToOptions, y
 }
 Element.prototype.scrollTo = scrollElementTo as Element["scrollTo"];
 Element.prototype.scroll = scrollElementTo as Element["scroll"];
-// jsdom has `PointerEvent` but no pointer capture: the print template designer captures on every press (step 3 contract § 4.1)
+// jsdom 26 has no `PointerEvent`: `fireEvent.pointerDown` would send a bare `Event`, with no button or position. This one is a
+// `MouseEvent` with a pointer's fields, on the window `fireEvent` reads (`document.defaultView`) and on the test's global
+class PointerEventStub extends MouseEvent {
+    readonly pointerId: number;
+    readonly pointerType: string;
+    readonly isPrimary: boolean;
+
+    constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 0;
+        this.pointerType = init.pointerType ?? "mouse";
+        this.isPrimary = init.isPrimary ?? true;
+    }
+}
+for (const view of [document.defaultView, globalThis] as { PointerEvent?: unknown }[]) view.PointerEvent ??= PointerEventStub;
+// Nor pointer capture: the print template designer captures on every press (step 3 contract § 4.1)
 Element.prototype.setPointerCapture = () => undefined;
 Element.prototype.releasePointerCapture = () => undefined;
 Element.prototype.hasPointerCapture = () => false;
