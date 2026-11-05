@@ -416,9 +416,12 @@ export const openPrescription = async (page: Page, data: Data, lang: Lang, layou
     return {clinic, rt, rx, drugs: made};
 };
 
-/** Attaches a full-page screenshot for the ready report (under print media: the sheets as they print). */
-export const attachScreenshot = async (page: Page, testInfo: TestInfo, name: string, media: "screen" | "print" = "screen") => {
-    const take = () => page.screenshot({fullPage: true});
+/**
+ * Attaches a screenshot for the ready report (under print media: the sheets as they print). Of the full page by default, which
+ * changes the viewport for a moment: with a mouse button held that cancels the drag, so a shot in the middle of one takes `"viewport"`.
+ */
+export const attachScreenshot = async (page: Page, testInfo: TestInfo, name: string, media: "screen" | "print" = "screen", extent: "fullPage" | "viewport" = "fullPage") => {
+    const take = () => page.screenshot({fullPage: extent === "fullPage"});
     const body = media === "print" ? await inPrintMedia(page, take) : await take();
     await testInfo.attach(`${testInfo.project.name}: ${name}`, {body, contentType: "image/png"});
 };

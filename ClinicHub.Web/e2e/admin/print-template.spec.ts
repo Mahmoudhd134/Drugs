@@ -4,6 +4,8 @@ import type {Lang} from "../support/texts.ts";
 import {TEXTS} from "../support/texts.ts";
 import {
     A4,
+    areaRect,
+    areaScroll,
     designerOf,
     designerShown,
     expectClose,
@@ -14,10 +16,12 @@ import {
     placeOf,
     PT_TEXTS,
     putTemplate,
+    scrollAreaTo,
     staticItem,
     tabPath,
     textItem,
     typeInto,
+    zoomTo,
 } from "../support/print-template.ts";
 import {expectNoCutOrOverlap, expectNotCut, fitsTheScreen, noHorizontalScroll, pageChecks, setLanguage} from "../support/ux.ts";
 
@@ -113,7 +117,9 @@ test.describe("Print template: designing @area:admin", () => {
                     const designer = designerOf(page, lang);
                     await designerShown(designer);
                     await expect(designer.sheet).toHaveAttribute("dir", "ltr");
-                    seen[lang] = await placeOf(designer.box("m"), designer.sheet);
+                    // On-screen mm are true mm only at 100% (step 3 contract § 3.7)
+                    await zoomTo(designer, 100);
+                    seen[lang] =await placeOf(designer.box("m"), designer.sheet);
                     expectClose(seen[lang], {x: 20, y: 30, w: 50, h: 10}, `${lang}: the box on the sheet`);
                     const panel = (await designer.panel.boundingBox())!;
                     const area = (await designer.area.boundingBox())!;
@@ -261,6 +267,8 @@ test.describe("Print template: designing @area:admin", () => {
             const {pt} = designer;
             await signInSuperAdmin(page, tabPath(clinic));
             await designerShown(designer);
+            // True size (step 3 contract § 3.7): at Fit the sheet needn't scroll at all
+            await zoomTo(designer, 100);
 
             const scroll = await designer.area.evaluate(area => ({
                 x: area.scrollWidth > area.clientWidth,
@@ -269,6 +277,13 @@ test.describe("Print template: designing @area:admin", () => {
             expect(scroll).toEqual({x: true, y: true});
             await noHorizontalScroll(page, "420 x 600");
             expectClose(await placeOf(designer.box("m"), designer.sheet), {x: 380, y: 592, w: 40, h: 8}, "the far corner's box");
+
+            // The far corner is reachable by the area's own scroll, at 100%
+            const {maxLeft, maxTop} = await areaScroll(designer);
+            await scrollAreaTo(designer, maxLeft, maxTop);
+            const [farBox, area] = [(await designer.box("m").boundingBox())!, await areaRect(designer)];
+            expect(farBox.x + farBox.width, "the sheet's far side shows").toBeLessThanOrEqual(area.x + area.width);
+            expect(farBox.y + farBox.height, "the sheet's far end shows").toBeLessThanOrEqual(area.y + area.height);
 
             await designer.box("m").click();
             await expect(designer.box("m")).toHaveAttribute("aria-pressed", "true");
@@ -294,6 +309,8 @@ test.describe("Print template: designing @area:admin", () => {
             const designer = designerOf(page, lang);
             await signInSuperAdmin(page, tabPath(clinic));
             await designerShown(designer);
+            // True size (step 3 contract § 3.7)
+            await zoomTo(designer, 100);
 
             const expected = {x: 20, y: 30, w: 50, h: 20};
             expectClose(await placeOf(designer.box("m"), designer.sheet), expected, "on the screen");

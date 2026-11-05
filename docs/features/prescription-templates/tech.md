@@ -1,7 +1,7 @@
 # Prescription print templates: technical
 
 ## Summary
-Steps 1 and 2 of the [design](../../design/prescription-templates.md) (§ 7; decisions D1–D16): each clinic has at most one print layout, stored as JSON, the super admin designs it with number fields on the clinic page's **Print template** tab, and staff print from the [prescription page](../prescription/tech.md) through the browser. **Built:** the table, the admin API with its validation, the designer with its unsaved-changes guard, the data router, the sheet's self-hosted font (step 1); the clinic read route, Print buttons, pop-up, function values, cleaning, pagination, the print root (step 2). **Not built:** drag, handles and undo (step 3); the guide image and calibration (step 4). No server PDF (D1). It touches the platform admin ([tab and routes](../platform-admin/tech.md)), the app's router (every page), the app bar's logout and the prescription page.
+Steps 1 to 3 of the [design](../../design/prescription-templates.md) (§ 7; decisions D1–D16): each clinic has at most one print layout, stored as JSON, the super admin designs it with the mouse, the keyboard or number fields on the clinic page's **Print template** tab, and staff print from the [prescription page](../prescription/tech.md) through the browser. **Built:** the table, the admin API with its validation, the designer with its unsaved-changes guard, the data router, the sheet's self-hosted font (step 1); the clinic read route, Print buttons, pop-up, function values, cleaning, pagination, the print root (step 2); drag, resize, snap, guides, keyboard, undo and redo, zoom, auto-scroll ([Drag](#drag), step 3). **Not built:** the guide image and calibration (step 4). No server PDF (D1). It touches the platform admin ([tab and routes](../platform-admin/tech.md)), the app's router (every page), the app bar's logout and the prescription page.
 
 **Not verified:** alignment on real paper and the real print dialog: no printer is available for now. TPL-190, TPL-191 and TPL-347 stay manual cases for the [dress rehearsal](../../testing/dress-rehearsal.md), not a gate for merging; TPL-334 (a page larger than the paper) only records what the browser does. **What CI proves:** the PDF's page size, each item's position in it, and every drug present once across the pages.
 
@@ -115,9 +115,19 @@ Items may overlap: the topmost (the later in the list) takes the mouse press, an
 | `layout.ts` | The pure rules, StrykerJS-mutated: `roundTenth`, `toTenths`, `parseMmInput`, `formatMm`, `normalizeLayout`, `validateLayout`, `itemIndexOfField`, `newLayout`, `canAddItem`, `addItem`, `removeItem`, `updateItem`, `pageOfSize`, `applyPageSize`, `sameLayout` |
 | `unsavedGuard.ts` | `registerLeaveCheck`, `confirmLeave`, `blocksExit`. Its own small file: the app bar's chunk imports it |
 | `useUnsavedGuard.ts` | `useUnsavedGuard(dirty): {dialog}`, below |
-| `components/TemplateSheet.tsx` | One renderer for the designer and for printing: `dir="ltr"`, 1 mm = 1 CSS mm, its own font, line height `PRINT_LINE_HEIGHT` (1.4) on every item, cut at the sheet's edge. **Position always inline, never `sx`** (the RTL style cache flips `left` and `right`). In the designer (`data-testid="template-sheet"`) each item is a native `<button aria-pressed data-item-id>`; the content is a `<span dir="auto">` out of the button's flow, since a button centers its content: it starts at the box's top, wraps, and shows past the box, unclipped. A selected box has a heavier inset `boxShadow`, never a border, so it stays exactly its size, and no inline `outline`, so the browser's focus ring shows. The mm grid shows only with `onSelect`. With `print`: see Printing below |
-| `components/TemplateDesigner.tsx` | The states, the draft, Save and Delete |
-| `components/TemplateSidePanel.tsx` | What can be placed: manual input, the six functions, static text; internal data and JavaScript expression dimmed and disabled, with hints. A click whose `event.detail > 1` is ignored; Enter and Space add (`detail` 0). A new item's box is scrolled into view (`block` and `inline` `nearest`), the focus stays on the entry. Full at 50: entries disabled, with a message |
+| `dragGeometry.ts` | Step 3's geometry, pure, StrykerJS-mutated: `pointToMm`, `pastDragThreshold`, `dropCounts`, `moveBox`, `resizeBox`, `minimumOf`, `nudgeBox`, `handlesFor`, `handlePositionPx`, `fitZoom`, `zoomIn`, `zoomOut`, `canZoomIn`, `canZoomOut`, `autoScrollDirection` |
+| `layoutHistory.ts` | The undo stack, pure, StrykerJS-mutated: `recordStep`, `recordNudge`, `endRun`, `canUndo`, `canRedo`, `undoStep`, `redoStep`, `isDirty` |
+| `useDesignerDraft.ts` | The draft and every change to it, what's a step and what isn't. Above the desktop switch |
+| `useDesignerDrag.ts` | The pointer: presses, the running drag and its preview, the swallowed click. Every listener lives in one drag |
+| `useDesignerKeys.ts` | The keyboard, on `window`, the focus table below |
+| `useLatest.ts` | The latest render's value, for listeners that outlive a render |
+| `components/TemplateSheet.tsx` | One renderer for the designer and for printing: `dir="ltr"`, 1 mm = 1 CSS mm (the designer's zoom is a transform around it), its own font, line height `PRINT_LINE_HEIGHT` (1.4) on every item, cut at the sheet's edge. **Position always inline, never `sx`** (the RTL style cache flips `left` and `right`). In the designer (`data-testid="template-sheet"`) each item is a native `<button aria-pressed data-item-id>`; the content is a `<span dir="auto">` out of the button's flow, since a button centers its content: it starts at the box's top, wraps, and shows past the box, unclipped. A box's mark is an inset `boxShadow`, never a border, so it stays exactly its size, its spread divided by the optional `zoom` prop's scale, so it stays 1 px on screen (2 px selected) at any zoom, and no inline `outline`, so the browser's focus ring shows. The mm grid shows only with `onSelect`. With `print`: see Printing below |
+| `components/TemplateDesigner.tsx` | The states, Save and Delete, the messages, above the desktop switch |
+| `components/TemplateWorkspace.tsx` | What shows at ≥ 900 px with a draft: the sheet's area, frame and zoom, the toolbar, the panel, the settings. Mounted only then, so the keys listen only then, a drag ends with it, and the zoom starts at Fit however the sheet first appears |
+| `components/TemplateToolbar.tsx` | Undo, redo, minus, the percentage, plus, Fit, in the row of Save and Delete, so it adds no height above the area; each with a tooltip, also when off. A plain row, no `role="toolbar"` |
+| `components/TemplateOverlay.tsx` | Handles and guide lines, in screen px above the scaled sheet: outside the button and the sheet's clip |
+| `components/TemplateDragGhost.tsx` | What follows the pointer in a panel drag: `position: fixed`, its top-left at the pointer, the default size × zoom, its text `DEFAULT_FONT_SIZE_PT` × zoom / 100 in `pt`, in the sheet's look (`PRINT_FONT_FAMILY`, `PRINT_LINE_HEIGHT`, `pre-wrap`, `overflowWrap: anywhere`) from its own start (`dir="auto"`, `textAlign: start`), so a long entry wraps as the item will |
+| `components/TemplateSidePanel.tsx` | What can be placed: manual input, the six functions, static text; internal data and JavaScript expression dimmed and disabled, with hints. A click whose `event.detail > 1` is ignored; Enter and Space add (`detail` 0); a drag past 4 px adds at the drop. A new item's box is scrolled into view (`block` and `inline` `nearest`), the focus stays on the entry. Full at 50: entries disabled, with a message |
 | `components/TemplateSettings.tsx` | The sheet's size and measures, then the selected item's fields. An item's type is text, not a control |
 | `components/MmField.tsx` | A number field: `type="text"`, `inputMode: "decimal"`, `dir="ltr"` in both languages, never `type="number"` (Arabic digits). It shows what is typed while typing, `formatMm(value)` on blur |
 | `printFont.css`, `public/fonts/print/` | Family `ClinicHub Print`: IBM Plex Sans Arabic 5.3.0 from `@fontsource`, Arabic and Latin subsets, regular and bold, woff2, with its SIL OFL `LICENSE`. No new dependency |
@@ -142,7 +152,7 @@ Items may overlap: the topmost (the later in the list) takes the mouse press, an
 
 **Save** (`useSingleFlight`; disabled when not dirty or while saving): a measure still in `typedPage` commits first, so one press sends one PUT with the new size (the field's blur on mouse-down or Tab has usually done it; Save does it when no blur came, the window narrowed and widened while typing). Then any `rawInputs` or `validateLayout` error: nothing is sent, the messages show, the first problem's item becomes selected, an error no field shows (`items`, `schemaVersion`, `items[i].id`, `items[i].kind`, `items[i].function`) is toasted. Else `sent = normalizeLayout(draft)`, PUT; success: `baseline = sent`, the draft isn't replaced, so an edit made while the request is in flight stays and keeps the screen dirty. Failure: a toast, `getFieldErrors` on the named fields until the next edit, the named item selected, edits kept. A 404 reloads the clinic through `affects`.
 
-**Draft** (`TemplateDesigner`'s local state, above the desktop switch, so narrowing the window keeps it): `{layout, baseline, rawInputs, typedPage, selectedId, revealId, touched, serverErrors}`. Seeded once, from the first answer since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, later answers are ignored while a draft exists. **Dirty** = `baseline === null || !sameLayout(layout, baseline) || rawInputs not empty || typedPage not empty`. `ClinicPage` keys its `PageBoundary` by the clinic, so nothing of A's draft shows under B.
+**Draft** (`useDesignerDraft`'s state, above the desktop switch, so narrowing the window keeps it): `{layout, baseline, rawInputs, typedPage, selectedId, revealId, touched, serverErrors, history, openField, fitRequests}`. Seeded once, from the first answer since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, later answers are ignored while a draft exists. **Dirty** = `isDirty(layout, baseline, {...rawInputs, ...typedPage})`: `baseline === null || !sameLayout(layout, baseline) || raw or typed text not empty`. `ClinicPage` keys its `PageBoundary` by the clinic, so nothing of A's draft shows under B.
 
 **Unsaved changes (D16).** `useUnsavedGuard` is called once, above the desktop switch.
 
@@ -157,7 +167,91 @@ One question at a time: `useConfirm`'s second call would overwrite the first, so
 
 **The router** (`app/App.tsx`): `createBrowserRouter([{path: "*", element: <AppProviders><AppRoutes/></AppProviders>}])`, created once inside `App` with `useState`, so each `startApp` reads its own URL. `AppRoutes` is the existing `<Routes>`, unchanged, so they are descendants of a splat route; links are absolute. `useBlocker` throws under `MemoryRouter`: component tests use `renderWithProviders(ui, {dataRouter: true})`.
 
-**i18n:** `printTemplates.*`, `admin.clinic.tabs.printTemplate`, the 10 `errors.template*`, `prescription.print`, `rxText.printValues.*` (Arabic in both locale files). Reused: `common.save`, `delete`, `cancel`, `copy`, `close`, `loading`, `loadFailed`, `retry`.
+**i18n:** `printTemplates.*` (`printTemplates.toolbar.*`: step 3's five labels), `admin.clinic.tabs.printTemplate`, the 10 `errors.template*`, `prescription.print`, `rxText.printValues.*` (Arabic in both locale files). Reused: `common.save`, `delete`, `cancel`, `copy`, `close`, `loading`, `loadFailed`, `retry`.
+
+## Drag
+Step 3 ([design](../../design/prescription-templates.step3.md), [contract](../../design/prescription-templates.step3.contract.md)): frontend only, no route, table, migration or library.
+
+**Geometry** (`dragGeometry.ts`, pure). Every comparison and sum is in whole tenths of a mm, centers in half-tenths.
+
+| Rule | Detail |
+|---|---|
+| Screen to mm | `pointToMm` through `template-sheet`'s own `getBoundingClientRect`, so zoom, scroll, browser zoom and display scaling are all in it. A rectangle with no size (jsdom) gives 0 |
+| Threshold | Past 4 px in a straight line: (4, 0) doesn't count, (5, 0) and (3, 3) do. Once past, it stays a drag |
+| From the press | A move's raw top-left = the pointer in mm now, minus (the pointer in mm at the press, minus the box's start at the press); a resize's raw edge likewise, so grabbing a handle off its corner doesn't jump and 50 small moves equal one big one |
+| Order per axis | Alt: the raw value rounded to a tenth, no guide. Else guides, compared with the raw value rounded to a tenth: within 1.0 mm inclusive, the nearest wins, a tie stays on the first found. Else `Math.round` of the raw value itself. Last the sheet's limits, so an edge beats whole mm (x = 107.7 stays flush), and a guide the limits moved the box off isn't shown |
+| Guide targets | Each other item's start, center and end in the layout's order, then the sheet's. A move matches the box's start, center and end; a resize only the moving edge. A start on a center line rounds by `roundTenth` (w = 5.1 on 74: 71.45 → 71.5). `data-mm` holds the target's own value, a half-tenth included (a sheet 150.5 wide: 75.25) |
+| Resize limits | Moving start: the opposite edge held in `[minimum, sheet]`, the start in `[0, opposite - minimum]`. Moving end: the opposite edge in `[0, sheet - minimum]`, the end in `[opposite + minimum, sheet]`. Never below the minimum, never flipping; a typed box below the minimum or negative comes out at the minimum. The axis that doesn't move keeps its length and comes inside only if it's off the sheet |
+| Nudge | Whole tenths from the current value, stopping at `[0, max(0, sheet - length)]`; an off-sheet item lands at the nearest inside position. No guides, no snap |
+| Handles | All eight, or the corners when **both** sides are below 36 px at this zoom. Eight sit centered on their corners and edges; four sit fully outside the box, so a part of it always starts a move |
+| Fit | `min(area width / sheet width, area height / sheet height)`, floored to one decimal, in 25–200; no size to measure: 100 |
+| Zoom buttons | The next multiple of 25, in 50–200 (61.5 → 75 or 50; 30 → 50, minus off) |
+| Auto-scroll | `autoScrollDirection(point, areaRect, pastEdge)`: within 24 px of an edge inside the area (exactly 24 counts), 8 px a frame, each axis on its own; both edges in reach: the nearer, a tie to the start. A move or a resize (`pastEdge`) also goes on scrolling with the pointer past an edge, on that axis. A panel drag only with the pointer inside the area, so crossing the panel never scrolls the sheet |
+
+**The screen.** The transform stays around the sheet, never in it, so print can't see it:
+
+```
+Box role="region" (the area: dir="ltr", tabIndex 0, overflow auto, padding 16 px, a height in px from the window)
+└ template-sheet-frame        relative; the sheet's mm × CSS_PX_PER_MM × zoom / 100; margin 0 auto; the shadow
+  ├ div                       absolute at 0, 0; transform: scale(zoom / 100); transform-origin 0 0
+  │ └ TemplateSheet           template-sheet, still in mm
+  └ template-overlay          absolute, inset 0, no pointer events, hidden in print
+    ├ template-handle-<id>    8 px at any zoom, pointer events on, aria-hidden, never focusable
+    └ template-guide          data-axis, data-mm; 1 px across the sheet
+```
+
+The area's height is `max(240, window height - its top in the page - 24)`, 24 being the page's bottom padding from 900 px up, so the page gets no scrollbar of its own, re-measured when the window resizes; the zoom stays. Fit is computed when `TemplateWorkspace` mounts, after that height is set: on a load, «إنشاء قالب» and widening from below 900 px alike; and again when a page step asks (`fitRequests`). A scrollbar showing at the current zoom won't show at Fit, so its room counts and pressing Fit twice gives the same zoom.
+
+**Pointer flows** (`useDesignerDrag`). One drag at a time, from a main-button press. A press on a box selects it, focuses it (`preventScroll`) and captures the pointer; on a handle the same, with the capture on the handle and `mousedown` `preventDefault` on the handle only (on a box it would lose the focus); on a panel entry, nothing visible until the threshold. `user-select: none` on `body` until the end. After the press everything goes through `window` in the capture phase, and all of it is removed at the end, unmount included.
+
+| During a drag | What happens |
+|---|---|
+| Move | `moveBox` or `resizeBox` from the press; a panel drag: the ghost follows and, over the sheet, `moveBox` gives only the guides. Alt is read from each event |
+| The area's `scroll` | Recomputes from the last pointer position through the new rectangle (auto-scroll, the wheel) |
+| A frame | One `requestAnimationFrame` loop, so the area also scrolls with the pointer held still |
+| Layout | **Never changes:** the sheet, the handles and the fields show a preview, so Save and the guard don't move until the drop |
+| Handles | The set is frozen at the press, so crossing 36 px can't unmount the handle in use |
+| Keys | A capture-phase listener: Esc cancels; Alt `preventDefault`; arrows, Delete, Tab, Enter, Space and the undo and redo shortcuts go nowhere |
+
+**Release:** a box or handle past the threshold records one `{kind: "item"}` step, or nothing on the same layout; a panel drag counts only inside both the sheet's and the area's rectangles and records one `{kind: "add"}` step, with the focus on the new box; below the threshold nothing happens here and the `click` does what it did. A release outside the window arrives through the capture and is clamped. **Cancel** (`pointercancel`; `lostpointercapture` with no `pointerup`; a move with no main button; `popstate`; Esc; unmount): the preview goes, nothing is recorded, the selection and the scroll stay. **The pointer `click` after a drag or a cancel is swallowed** on boxes and entries, so a drag never adds a second item or selects again after a second Esc; a keyboard click (`detail` 0) never is. The flag clears on that click or at the next press.
+
+**Keyboard** (`useDesignerKeys`): one `keydown` and one `keyup` listener on `window`, while `TemplateWorkspace` is mounted. `event.code` for letters (Arabic layouts, Caps Lock), `event.key` for the others; `preventDefault` whenever the designer handles a key, also at the sheet's edge. The focus decides:
+
+| Focus | Undo, redo | Arrows, Alt's own key, Delete, Esc |
+|---|---|---|
+| `input`, `textarea`, contenteditable | Not handled | Not handled |
+| A dialog, menu or listbox open anywhere (a closed one kept in the page, as `AppShell`'s phone drawer, doesn't count) | Not handled | Not handled |
+| Outside `template-designer`, but not `body` | Not handled | Not handled |
+| A box other than the selected one; the size select | Handled | Not handled |
+| The selected box; `body`; anything else in the designer | Handled | Handled, when an item is selected |
+
+Arrows move 1 mm, with Shift 5, with Alt 0.1 (Alt wins), and scroll the box into view in the area. Ctrl + arrows aren't handled. Delete removes, and on the prescription text is handled and does nothing; Backspace isn't handled. Esc deselects and the focus stays.
+
+**Undo** (`layoutHistory.ts`, pure; `useDesignerDraft`, which holds every change to the draft). Whole layouts, the last 50 steps, the clock passed in. `Draft` gains `history`, `openField` and `fitRequests`, so history lives and dies with the draft: removed with the template, gone when the page is left, untouched by a refetch. `dirty` is `isDirty(layout, baseline, rawInputs)`, so undoing back to the saved layout turns Save off and leaving asks nothing.
+
+| Step | Undo selects | Redo selects |
+|---|---|---|
+| `add` | Nothing | The item |
+| `remove` | The item | Nothing |
+| `item` | The item | The item |
+| `page` | What's selected, if it exists in that layout; else nothing; re-fits | The same |
+
+Typing still updates the layout at once; the first change sets `openField`, and a commit records it, a no-op with no real change: X, Y, width, height, font and Name on blur or Enter, static text on blur only (Enter is a new line). A page size, width or height records `{kind: "page"}` at its own commit, and an invalid measure or the same size records nothing and doesn't re-fit. A run of nudges of one item with less than 1000 ms between them is one step, net zero leaves none; selecting and Save end it. Anything that records a step, and undo and redo, first commits an open field. Undo and redo clear `rawInputs`, `serverErrors` and `openField`; `baseline` never changes there. Undo is on with an open field holding a real change, so it can be pressed while typing: the press blurs the field, and its commit is what's undone. A drag or a nudge also clears raw text left in that item's X, Y, width and height, since the number now exists.
+
+**Focus:**
+
+| Action | Goes to |
+|---|---|
+| Add by a click, Enter or Space | Stays on the entry |
+| A drop from the panel | The new box |
+| A press or a drag on a box or handle | That box |
+| Esc | Stays |
+| Delete, Remove item, an undo or redo removing the focused box | The area |
+| A toolbar button turning off by its own press, or Save (a save going, or the answer leaving nothing unsaved) | The area |
+| A Save the rules refuse, which stays on | Stays on it |
+| A failing Save, on again after the answer | Stays on the area |
+
+**The selected box stays in view:** after a zoom press, Fit, undo or redo has rendered (`flushSync`, which also runs a step's re-fit), the selected box is scrolled into view (`nearest`). Nothing selected: the scroll stays. Opening, a window resize, a page-size change that isn't an undo or redo, selecting and a drag's cancel don't scroll it.
 
 ## Printing
 Browser print, on the front end (D1). The buttons are on the prescription page ([tech](../prescription/tech.md)): `printer.available` decides whether they exist.
@@ -245,16 +339,25 @@ A ref says the page is gone; after every `await`, a flow on an unmounted page st
 - Alignment on real paper and the real print dialog are not verified (Summary). `@page` size in other browsers and `window.print` timing and `afterprint` on phones aren't either: Chromium is the tested browser, and the print root survives a missing `afterprint`.
 - While a job stays because `afterprint` never fired, Ctrl+P prints that job: the next print or leaving the page ends it.
 - A template saved while the page is open shows Print only when the page is opened again (`staleTime` 0 reads on mount, no refetch on focus).
+- **Drag:** one pixel is 0.13–0.53 mm, so a mouse can't step 0.1 mm even with Alt; exact 0.1 mm comes from Alt + arrows or the fields.
+- **Drag:** the topmost item (later in the order) takes the press; a covered item is reached by Tab and Enter, and its handles sit above the covering box. Order never changes.
+- **Drag:** an item already off the sheet stays as it is on a press; the first drag or arrow brings it inside, and undo restores it.
+- **Drag:** two eight-handle targets on a thin box (40 × 4 mm at 50%) overlap in the middle, and the later in `ALL_HANDLES` wins.
+- **Drag:** a panel drag shows no preview box on the sheet, only the ghost and the guides.
+- **Drag:** only the mouse is promised and tested; pointer events also work on a tablet at 900 px or wider (`touch-action: none`).
+- **Undo:** after more than 50 steps the saved layout may be out of reach: Save stays on and leaving asks.
+- **Undo:** history ends with the page: leaving, a reload or another clinic starts empty. Zoom starts at Fit on each opening and is never saved.
+- Alt + left or right is the browser's Back and Forward when nothing is selected or the focus is in a field, and D16 asks if needed.
 
 ## Testing notes
-Catalog area TPL ([test catalog](../../testing/test-catalog.md)), step 1: TPL-001…058, TPL-200…253; step 2: TPL-100…153, TPL-190, TPL-191, TPL-300…348. Shared rule rows: `tests/fixtures/print-layout-cases.json`, run by both sides.
+Catalog area TPL ([test catalog](../../testing/test-catalog.md)), step 1: TPL-001…058, TPL-200…253; step 2: TPL-100…153, TPL-190, TPL-191, TPL-300…348; step 3: TPL-400…482, TPL-500…590 (and the changed TPL-054, TPL-227, TPL-228, which measure at 100%). Shared rule rows: `tests/fixtures/print-layout-cases.json`, run by both sides.
 
 | Level | Tests |
 |---|---|
-| unit | `tests/ClinicHub.UnitTests/Prescriptions/Templates/`; Vitest `src/features/printTemplates/layout.test.ts`, `layout.parity.test.ts`, `functions.test.ts`, `printHtml.test.ts`, `pagination.test.ts` |
+| unit | `tests/ClinicHub.UnitTests/Prescriptions/Templates/`; Vitest `src/features/printTemplates/layout.test.ts`, `layout.parity.test.ts`, `functions.test.ts`, `printHtml.test.ts`, `pagination.test.ts`, `dragGeometry.test.ts`, `layoutHistory.test.ts` |
 | api | `tests/ClinicHub.IntegrationTests/Admin/PrescriptionTemplates/` (includes the migration up → down → up and the clinic read) |
-| ui | `src/features/printTemplates/**/*.test.tsx` (the print flow: `PrintFlow*.test.tsx`), `src/features/prescription/**/*.test.tsx`, `src/features/admin/components/ClinicPrintTemplateTab*.test.tsx`, `src/features/auth/components/UserMenu.test.tsx`, `src/app/App.*.test.tsx` |
-| e2e | `e2e/admin/print-template.spec.ts` and friends; `e2e/prescription/print*.spec.ts` (`print-proof.spec.ts`: a real template and 40 drugs through the real API, the PDF read with `pdfjs-dist`); `e2e/support/ux.ts`'s cut-text check leaves out the sheet |
-| manual | TPL-190, TPL-191, TPL-347 in the dress rehearsal, TPL-334: a real printer, a real phone, real Chrome's dialog. Not a gate for merging; never reported as passed |
+| ui | `src/features/printTemplates/**/*.test.tsx` (the print flow: `PrintFlow*.test.tsx`; step 3: `TemplateDesigner.{keys,undo,zoom}.test.tsx`; jsdom has no layout, so where a drag lands is e2e), `src/features/prescription/**/*.test.tsx`, `src/features/admin/components/ClinicPrintTemplateTab*.test.tsx`, `src/features/auth/components/UserMenu.test.tsx`, `src/app/App.*.test.tsx` |
+| e2e | `e2e/admin/print-template.spec.ts` and friends (step 3: real `page.mouse`; `placeOf` is in true mm only at 100%, so the measuring specs call `zoomTo(designer, 100)`); `e2e/prescription/print*.spec.ts` (`print-proof.spec.ts`: a real template and 40 drugs through the real API, the PDF read with `pdfjs-dist`); `e2e/support/ux.ts`'s cut-text check leaves out the sheet |
+| manual | TPL-190, TPL-191, TPL-347 in the dress rehearsal, TPL-334: a real printer, a real phone, real Chrome's dialog. Windows Alt not focusing the browser's menu, and a drag across a real second monitor: CI has neither, and the `defaultPrevented` checks and the off-viewport move are the automated proof. Not a gate for merging; never reported as passed |
 
-Mutation: `layout.ts`, `unsavedGuard.ts`, `functions.ts`, `printHtml.ts`, `pagination.ts` (StrykerJS); `PrescriptionLayoutRules.cs`, the validator and the three handlers (Stryker.NET).
+Mutation: `layout.ts`, `unsavedGuard.ts`, `functions.ts`, `printHtml.ts`, `pagination.ts`, `dragGeometry.ts`, `layoutHistory.ts` (StrykerJS); `PrescriptionLayoutRules.cs`, the validator and the three handlers (Stryker.NET).

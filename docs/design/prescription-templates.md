@@ -83,7 +83,7 @@ number). A function's name shows only in the designer. Name and age are ordinary
 in whole tenths of a mm, so 28.1 + 119.9 fits a 148 mm sheet (doubles would refuse it). The mm fields stay left to right and
 accept a comma and Arabic digits (`12,5`, `١٢٫٥` = 12.5).
 
-**Designer behaviour.** The sheet shows 1 mm = 1 CSS mm and scrolls inside its own area. Item positions are inline styles,
+**Designer behaviour.** The sheet shows 1 mm = 1 CSS mm at 100% and scrolls inside its own area. Item positions are inline styles,
 never `sx`, because the RTL style cache flips `left` and `right`. Boxes show the name for functions and manual inputs, the text
 for static text and sample text for the prescription text. A new item gets a distinct name («التاريخ الكامل 2»). An invalid item that
 isn't selected gets selected on Save, because the config shows one item at a time.

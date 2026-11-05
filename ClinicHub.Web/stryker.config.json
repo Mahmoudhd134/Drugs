@@ -26,7 +26,9 @@
     "src/features/printTemplates/unsavedGuard.ts",
     "src/features/printTemplates/functions.ts",
     "src/features/printTemplates/printHtml.ts",
-    "src/features/printTemplates/pagination.ts"
+    "src/features/printTemplates/pagination.ts",
+    "src/features/printTemplates/dragGeometry.ts",
+    "src/features/printTemplates/layoutHistory.ts"
   ],
   "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": {

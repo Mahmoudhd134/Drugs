@@ -137,8 +137,9 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
                                <RequirePermission>, api.ts (the permission catalog)
   src/features/roles/, staff/  reusable role and staff lists + editors; data only through an adapter (no URLs)
   src/features/admin/          admin layout, clinic pages and tabs, adapters.ts (adminRolesApi / adminStaffApi)
-  src/features/printTemplates/ the template designer and printing: layout.ts, functions.ts, printHtml.ts, pagination.ts,
-                               printMeasure.ts, usePrintPrescription, TemplateSheet, TemplateDesigner, PrintDialog, PrintRoot
+  src/features/printTemplates/ the template designer and printing: layout.ts, dragGeometry.ts, layoutHistory.ts, functions.ts,
+                               printHtml.ts, pagination.ts, printMeasure.ts, useDesignerDraft, useDesignerDrag, useDesignerKeys,
+                               usePrintPrescription, TemplateSheet, TemplateDesigner, TemplateWorkspace, PrintDialog, PrintRoot
   src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight, useDialogSave, useOpeningKey
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
@@ -556,7 +557,7 @@ Swagger UI is available in Development at `/swagger`.
 | `/select-clinic` | `SelectClinicPage` (logged in) |
 | `/admin` | `ClinicsPage` (platform context: search, status filter, paging, kept in the URL query) |
 | `/admin/clinics/new` | `CreateClinicPage` (clinic name + owner phone and name) |
-| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
+| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer with drag, handles, guides, keyboard, undo and zoom, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
 | `/admin/*` | redirects to `/admin` |
 | `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |

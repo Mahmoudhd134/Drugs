@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94: the [summary](#summary) has the count now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -77,8 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 37 | 116 | 37 | 190 | 44 | 25 | 86 | 57 | 4 |
-| **All** | **472** | **764** | **441** | **1677** | **254** | **706** | **458** | **362** | **14** |
+| [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
+| **All** | **484** | **861** | **477** | **1822** | **284** | **706** | **500** | **441** | **14** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2249,7 +2249,7 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 
 ## TPL — Prescription print templates
 
-Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag, and step 2, printing ([its contract](../design/prescription-templates.step2.contract.md)); each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
+Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag; step 2, printing ([its contract](../design/prescription-templates.step2.contract.md)); and step 3, drag, resize, snap, guides, keyboard, undo and zoom ([its design](../design/prescription-templates.step3.md), S1–S5 and `step3.md:n` in the Source column; [its contract](../design/prescription-templates.step3.contract.md)); each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
 
 ### Admin API
 
@@ -2303,7 +2303,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-051 | Given a saved template, when the page reloads, then the sheet shows it as saved, in order | P0 | e2e | § 5 |
 | TPL-052 | Given a saved template, when «حذف» is confirmed, then the empty state shows; Cancel keeps it; a destructive dialog starts on Cancel | P1 | ui | «القواعد» |
 | TPL-053 | Given a width below 900 px (899), then the tab shows «افتح هذه الصفحة من جهاز كمبيوتر.» and no designer; at 900 the designer | P1 | ui+e2e | D12 |
-| TPL-054 | Given Arabic and English UI, then the X and Y mean the same physical place in both; the panel and config flip with the language and the sheet does not | P1 | e2e | § 3 |
+| TPL-054 | Given Arabic and English UI at 100% zoom, then the X and Y mean the same physical place in both; the panel and config flip with the language and the sheet does not | P1 | e2e | § 3 |
 | TPL-055 | Given names and static text in Arabic and in English, then each shows in its own direction on the sheet and in the config | P2 | ui | § 3 |
 | TPL-056 | Given the designer in Arabic, English, and at desktop width, then axe and the cut-text check pass | P1 | e2e | test rules |
 | TPL-057 | Given every control of the designer, then each has an accessible name, and an item can be added, selected and placed with the keyboard alone | P1 | ui | a11y |
@@ -2340,8 +2340,8 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-224 | Given a number field emptied, or given a negative or off-sheet value, then the field shows its message, the item isn't silently corrected, and Save sends nothing | P1 | ui | TPL-048, § 3 |
 | TPL-225 | Given the Arabic UI, when `12.5`, `12,5` and «١٢٫٥» are typed in a mm field, then each is 12.5, never 125 or 0 | P1 | e2e | § 3, `DosingFields.tsx:106` |
 | TPL-226 | Given the Arabic UI, then the mm fields are left to right, and X still means from the left edge | P2 | ui | § 3 |
-| TPL-227 | Given a custom 420 × 600 mm page at 1280 px, then the sheet scrolls inside its own area, the panels stay reachable, an item at the far corner can be selected, and the page has no horizontal scroll | P1 | e2e | § 3, test rules |
-| TPL-228 | Given an item of 50 × 20 mm, then its box measures the same in the designer and in print layout, within 0.1 mm | P1 | e2e | § 6 |
+| TPL-227 | Given a custom 420 × 600 mm page at 1280 px and 100% zoom, then the sheet scrolls inside its own area, the panels stay reachable, an item at the far corner can be reached and selected, and the page has no horizontal scroll | P1 | e2e | § 3, test rules |
+| TPL-228 | Given an item of 50 × 20 mm at 100% zoom, then its box measures the same in the designer and in print layout, within 0.1 mm | P1 | e2e | § 6 |
 | TPL-229 | Given unsaved edits, when the window narrows below 900 px and widens again, then the edits are still there and still count as unsaved | P2 | ui | D12 |
 | TPL-230 | Given «إنشاء قالب» pressed and nothing saved, when leaving or reloading, then the unsaved warning shows; after confirming, the empty state returns and GET answers 204 | P1 | ui | § 6 |
 | TPL-231 | Given a new sheet not saved yet, then no «حذف»; once saved, it shows | P2 | ui | business file |
@@ -2495,3 +2495,158 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-349 | Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box; a line holding both scripts doesn't change | P0 | unit+e2e | User, 2026-11-05 (F1) |
 | TPL-350 | Given a static text `Dr. Ahmed`, `دكتور أحمد`, `Consultant` on three lines, then each line starts from its own language's side | P1 | unit+e2e | Business file (F5) |
 | TPL-351 | Given repeated spaces and a tab typed in the editor, when printed, then they print as typed, and every sheet's text stays inside its box: the page breaks were measured with them | P1 | ui+e2e | User, 2026-11-05 |
+
+### Designer: drag, resize, keyboard, undo and zoom (step 3)
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-400 | Given the panel, when a manual input is dragged onto the sheet and dropped, then exactly one is added where dropped, in mm, selected, inside the sheet | P0 | e2e | § 3 |
+| TPL-401 | Given a drag from the panel dropped outside the sheet, or Esc during it, then nothing is added and nothing is unsaved | P1 | e2e | § 3 |
+| TPL-402 | Given a press on a panel item without moving, then it's added once as in step 1 (TPL-043) | P1 | ui | § 3 |
+| TPL-403 | Given a dimmed item or 50 items, when a drag starts, then no ghost and nothing added | P1 | e2e | § 3 |
+| TPL-404 | Given a drop near the sheet's corner, then the whole item is inside the sheet | P1 | unit | § 3 |
+| TPL-410 | Given an item, when it's dragged, then it moves to the pointer's place in whole mm and reloads there after Save | P0 | e2e | S2 |
+| TPL-411 | Given an item at 12.3, when it's pressed without moving or moved under 4 px, then it stays at 12.3 and nothing is unsaved | P1 | e2e | § 3 |
+| TPL-412 | Given a drag past any edge, then the item stops at the edge | P1 | unit | § 3 |
+| TPL-413 | Given Esc during a drag, then the item returns, with no undo step and nothing unsaved | P1 | e2e | § 3 |
+| TPL-414 | Given a `pointercancel` during a drag, then the item returns | P2 | e2e | § 3 |
+| TPL-420 | Given each of the eight handles, when dragged, then only its edges move and the opposite edges stay | P0 | unit+e2e | S1 |
+| TPL-421 | Given a box with both sides below 36 screen px at the current zoom, then corners only; zooming in shows all eight | P1 | e2e | S1 |
+| TPL-422 | Given a handle dragged below the minimums (each kind, the prescription text's 20 mm included) or past the sheet, then the size stops there | P1 | unit | S1 |
+| TPL-423 | Given a handle at 50% and at 200%, then it's the same size on screen and at least 8 px | P2 | e2e | S1 |
+| TPL-424 | Given the Arabic and the English UI, then each handle is in the same physical place and moves the same edge | P1 | e2e | S1 |
+| TPL-430 | Given a position at 12.34 after a drag at any zoom, then it never stores more than one decimal, in tenths | P1 | unit | S2 |
+| TPL-431 | Given another item's left edge within 1 mm while moving, then it sticks and a line shows; past 1 mm it snaps to whole mm and the line goes | P0 | unit+e2e | S2 |
+| TPL-432 | Given each pair of edge and center lines, on both axes, and the sheet's center, then each one sticks | P1 | unit | S2 |
+| TPL-433 | Given guides while resizing, then only the moving edges stick | P1 | unit | S2 |
+| TPL-434 | Given Alt held during a drag, then no guide and no whole-mm snap, with one decimal stored | P1 | e2e | S2 |
+| TPL-435 | Given only one item on the sheet, then its sheet guides work and nothing fails | P2 | unit | S2 |
+| TPL-440 | Given a selected item, when arrows, Shift + arrows or Alt + arrows are pressed, then it moves 1, 5 or 0.1 mm from its current value, in tenths | P0 | ui | S4 |
+| TPL-441 | Given the Arabic UI, then the left arrow moves left | P1 | e2e | S4 |
+| TPL-442 | Given the sheet's edge, then arrows stop there | P1 | unit | S4 |
+| TPL-443 | Given Delete on a manual input, then it goes and the focus is in the sheet's area; on the prescription text, nothing happens | P1 | ui | S4 |
+| TPL-444 | Given Esc on a selected item, then it's deselected and the focus stays | P2 | ui | S4 |
+| TPL-445 | Given the focus in a number or text field, then arrows, Delete, Esc and the shortcuts keep their normal behaviour | P0 | ui | S4 |
+| TPL-450 | Given an add, remove, drag, resize, committed field, or page-size change, when undone and redone, then the layout is exactly as before, one step each | P0 | unit | S3 |
+| TPL-451 | Given several nudges in a row, then one undo step; after 1 second or another action, a new one | P1 | unit | S3 |
+| TPL-452 | Given 51 changes, then 50 can be undone and the buttons turn off at the end | P2 | unit | S3 |
+| TPL-453 | Given an undo and then a new change, then redo is empty | P1 | unit | S3 |
+| TPL-454 | Given Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z, then they work with the focus on the sheet; in a field the field's own undo runs, and the buttons still undo the layout | P1 | e2e | S3 |
+| TPL-455 | Given changes undone back to the saved layout, then Save turns off and leaving asks nothing; a redo brings both back | P0 | ui | S3, D16 |
+| TPL-456 | Given a save and then an undo, then Save is on: the saved layout is the new reference | P1 | ui | S3 |
+| TPL-457 | Given a removed item brought back by undo, then its id, name and place are the same, and it's selected | P1 | unit | S3 |
+| TPL-458 | Given selecting or zooming, then no undo step | P1 | ui | S3 |
+| TPL-459 | Given the template removed, then the history is empty | P2 | ui | S3 |
+| TPL-460 | Given A5 and A4, then Fit shows the whole sheet on opening, at 1280 × 720 too (below 50% when needed, not below 25%) | P1 | e2e | S5 |
+| TPL-461 | Given minus and plus, then 25% steps from 50% to 200%, turning off at the limits | P1 | ui | S5 |
+| TPL-462 | Given a drag at 50%, 100% and 200%, then the item lands under the pointer, with the same mm for the same sheet point | P0 | e2e | S5 |
+| TPL-463 | Given any zoom, then the settings panel's mm are unchanged and the saved layout holds no zoom | P1 | ui | S5 |
+| TPL-464 | Given a page-size change, then the sheet re-fits; given a window resize, then the zoom stays | P2 | e2e | S5 |
+| TPL-465 | Given a template saved while viewing at 200%, when printed, then the sheet is true size | P1 | e2e | S5 |
+| TPL-470 | Given a drag near the area's edge on a large custom sheet, then the area scrolls and the item follows | P1 | e2e | § 3 |
+| TPL-471 | Given a drag from the panel across a scrolled sheet, then the drop position counts the scroll | P1 | e2e | § 3 |
+| TPL-480 | Given the toolbar's buttons, then each has an accessible name and tooltip in both languages, and axe and the cut-text check pass | P1 | e2e | test rules |
+| TPL-481 | Given a whole template built with the keyboard alone, then it saves | P1 | e2e | a11y |
+| TPL-482 | Given below 900 px, then still the desktop-only message, with no sheet, box or handle in the page | P2 | ui | D12 |
+
+### Designer: edge cases of step 3
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-500 | Given A4 at Fit, when a manual input is dragged from the panel, dragged until a guide shows it level with the date, resized by its left edge, nudged by Alt + arrow, then Ctrl+Z twice, Ctrl+Y once and Save, then after a reload each item is at the expected mm and the left-edge handle existed at that zoom (40 × 8 mm at 50% is 75.6 × 15.1 px) | P0 | e2e | § 1 Done when, C2 |
+| TPL-501 | Given a drag from the panel dropped on the sheet, then exactly one item exists at whole mm, one undo removes it, and the `click` following the release doesn't add a second at the cascade place (`TemplateSidePanel.tsx:26-28`) | P0 | e2e | § 3, code |
+| TPL-502 | Given a panel drag past 4 px, when it returns to the same entry and is released, or Esc is pressed and the button released over the entry, then nothing is added, nothing is unsaved, no ghost remains | P1 | e2e | § 3, code |
+| TPL-503 | Given a press on an entry, when moved 3 px and released, then one item at the cascade place, no ghost; moved 4 px, the same; moved 5 px, a ghost shows. The same three distances on a box: unchanged, unchanged, moved. Diagonal (3, 3) = 4.24 px counts as past | P1 | e2e | § 3 U5 |
+| TPL-504 | Given a right or middle press on an entry, a box or a handle, when moved past 4 px and released, then no ghost, no move, no resize, nothing added | P1 | e2e | gap |
+| TPL-505 | Given 200% with the sheet wider than its area, when a panel drag is dropped over the settings panel, where the sheet's scrolled part lies hidden behind it, then nothing is added (the sheet's rectangle alone would say "on the sheet") | P1 | e2e | § 3 |
+| TPL-506 | Given a panel drag, when dropped 1 px outside the sheet inside the area's padding, then nothing is added; 1 px inside the right edge, then added and moved in, fully on the sheet | P2 | e2e | § 3 |
+| TPL-507 | Given a drop from the panel, then the new box has the focus and an arrow nudges it at once | P1 | e2e | gap, S4 |
+| TPL-508 | Given 49 items, when one is added, then the info alert shows and the entries are disabled; undo: 49, entries enabled, a drag works again; redo: 50, disabled again | P1 | ui | § 3, `TemplateSidePanel.tsx:24,53` |
+| TPL-509 | Given Alt held during a panel drag, then the drop isn't snapped and holds one decimal; guides don't stick | P2 | e2e | S2 |
+| TPL-510 | Given an item drag, when the pointer leaves the window (another monitor) and is released there, then the item is at the clamped edge, one undo step, no drag left running. Real second monitor: manual; CI moves to coordinates outside the viewport (not verified that Playwright delivers them) | P1 | e2e | gap, § 3 U8 |
+| TPL-511 | Given a panel drag released outside the window, then nothing is added and the ghost goes | P1 | e2e | § 3 |
+| TPL-512 | Given a drag whose release was missed (Alt+Tab, released in another app), when the pointer returns with no button down (`buttons === 0`), then the item goes back, no step, it doesn't stick to the pointer; `lostpointercapture` with no `pointerup` does the same | P1 | e2e | gap, § 3 |
+| TPL-513 | Given a `pointercancel` during a resize, then the box is back exactly; during a panel drag, nothing added and no ghost | P2 | e2e | § 3 (TPL-414 covers moves) |
+| TPL-514 | Given a drag in progress, when the designer unmounts (session lost, another tab's logout), then no ghost, no console error, `user-select` restored, no pointer listeners left | P2 | e2e | D16, `contract.md:389-392` |
+| TPL-515 | Given a clean template and a selected, focused box, when Alt+ArrowLeft or Alt+ArrowRight is pressed, then `defaultPrevented`, the item moves 0.1 mm, the URL stays and no guard question shows. E2e asserts the URL with real history behind; it may pass vacuously if headless doesn't run browser accelerators, so the ui half asserting `defaultPrevented` is the proof | P0 | ui+e2e | S4 |
+| TPL-516 | Given Alt+arrow with the focus in a field, on an unselected box, or with nothing selected, then it isn't handled (`defaultPrevented` false, nothing moves), so the browser's Back runs and D16 asks when dirty | P1 | ui | § 3 (fields), D16 |
+| TPL-517 | Given an Alt drag or Alt nudge, then the Alt `keydown` and `keyup` are `defaultPrevented` while the box has the focus or a drag runs, and the next arrow still nudges. Whether this stops Windows Chrome's menu focus is a manual case: CI has no browser menu | P1 | ui | gap, § 3 U8 |
+| TPL-518 | Given a drag, when Alt goes down mid-way, then the next move is unsnapped; when it goes up, the next move snaps again and guides return; a release while Alt is held stores the unsnapped value | P1 | e2e | S2 |
+| TPL-519 | Given the focus on a box, when Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z is pressed on an Arabic keyboard layout (`key` «ئ» or «غ», `code` KeyZ or KeyY) or with Caps Lock (`key` "Z"), then undo or redo runs and `defaultPrevented` | P1 | ui | S3, Arabic |
+| TPL-520 | Given steps in history, when a shortcut is pressed with the focus on a panel entry, the area, a toolbar button, the page-size combobox or `body` (a focused box just left), then it runs; in any `input`, `textarea` or contenteditable it doesn't | P1 | ui | S3, step3.md:61 |
+| TPL-521 | Given the delete question, the D16 question or the page-size menu open, when a shortcut is pressed, then the layout behind doesn't change | P1 | ui | gap |
+| TPL-522 | Given a drag on a clean template, when the page is reloaded, then no leave prompt and no half-done position is saved. Given the box focused, Ctrl+A changes nothing in the layout | P2 | e2e | D16 |
+| TPL-523 | Given a drag or resize of a selected item, when Delete is pressed, then it's ignored: the item stays, the drag continues | P1 | e2e | gap |
+| TPL-524 | Given a resize, when Esc is pressed, then x, y, w and h are exactly as before, no step, nothing unsaved, guides gone | P1 | e2e | § 3 (TPL-413 covers moves) |
+| TPL-525 | Given a drag, when Ctrl+Z or Ctrl+Y is pressed, then history is unchanged, the drag continues, and a later Esc returns to the press position | P1 | e2e | gap |
+| TPL-526 | Given a drag, when an arrow is pressed, then the item doesn't jump and the area doesn't scroll | P2 | e2e | gap |
+| TPL-527 | Given a selected item in a drag, when Esc is pressed, then the drag ends and the selection stays; a second Esc deselects. With the button still held, moving doesn't restart the drag, and the release changes nothing | P1 | e2e | § 3 |
+| TPL-528 | Given a drag, when Tab then Enter reach Save, undo or the page-size field, then no request holds a mid-drag position and the page size doesn't change: Tab is swallowed during a drag | P2 | e2e | gap |
+| TPL-529 | Given a Save in flight (delayed route), when a drag ends before the answer, then the item stays, Save is on and leaving asks: the baseline is what was sent (`TemplateDesigner.tsx:180-184`) | P2 | e2e | TPL-242 |
+| TPL-530 | Given a clean template in a drag, before the release, then Save stays off and after Esc nothing was ever unsaved | P2 | e2e | § 3, TPL-413 |
+| TPL-531 | Given a drag, when the wheel scrolls the area and the button is released with no pointer move, then the item lands under the pointer, counting the new scroll | P1 | e2e | § 3 |
+| TPL-532 | Given a drag, when the browser's Back runs (`page.goBack`, a mouse's back button), then the drag ends with the item back, and the guard answers on the layout before the drag: clean leaves, dirty asks; staying leaves nothing stuck to the pointer | P2 | e2e | D16 |
+| TPL-533 | Given x = 12.3 and a +10 px move, when computed at each zoom, then with Alt and with snap (table): 50%: 17.6, 18; 75%: 15.8, 16; 100%: 14.9, 15; 125%: 14.4, 14; 150%: 14.1, 14; 175%: 13.8, 14; 200%: 13.6, 14. Also the same at Fit's non-step zoom (61.5%), one decimal only | P1 | unit | S2, S5, design § 3 |
+| TPL-534 | Given x = 12.3, w = 40, when the left edge is dragged to 11.2, then x = 11, w = 41.3, and the right edge stays 52.3 in tenths; the right edge snaps likewise; a corner on both axes | P1 | unit | step3.md:40 |
+| TPL-535 | Given w = 40.3, when moved, then w is exactly 40.3 throughout and after the drop | P1 | unit | step3.md:40 |
+| TPL-536 | Given w = 40.3 on A5, when dragged past the right edge, then x = 107.7 (flush: the edge beats whole mm; 108 would be off the sheet, 107 leaves a gap). Given right edge 52.3, when the left handle crosses it, then x = 47.3, w = 5, no flip | P1 | unit | step3.md:33,37,40 |
+| TPL-537 | Given a neighbour's left at 12.3, then a moving left edge at 13.3 sticks (exactly 1.0 mm), at 13.4 doesn't and snaps to 13. With two lines in range, the nearest wins; a tie is stable | P1 | unit | step3.md:42, § 3 U4 |
+| TPL-538 | Given a neighbour's line within 1 mm, when an arrow moves the item, then it moves exactly 1 mm from the current value, with no stick and no line | P1 | ui | step3.md:43 |
+| TPL-539 | Given w = 5.1 and a center line at 74, then x rounds by `roundTenth` (71.45 → 71.5) and stores one decimal. Given a custom sheet 150.5 wide, its center 75.25 compares in tenths without failing | P1 | unit | design § 3 Numbers |
+| TPL-540 | Given 100 presses of Alt + arrow from 12.3, then 22.3 exactly in the layout and in the request. From 107.5 with a max of 107.7, one arrow lands on 107.7. Already at the edge: no change, no step, nothing unsaved | P1 | unit | S4, step3.md:57 |
+| TPL-541 | Given a drag done in 50 small moves and the same drag in one, then the same mm: positions come from the press, not from adding up rounded moves | P1 | e2e | S2 |
+| TPL-542 | Given a drag past 4 px that returns and ends on the same layout (a whole-mm item), then no step and nothing unsaved. Given x = 12.3, the same gesture lands on 12 and is one step | P1 | e2e | § 3 |
+| TPL-543 | Given Windows display scaling (`deviceScaleFactor` 1.25 and 1.5) and browser zoom, when dragged, then the item lands under the pointer with the same mm | P2 | e2e | S5 |
+| TPL-544 | Given an item partly past the sheet (from a hand-made layout via MSW, or X = 140 typed, applied uncorrected per `contract.md:600`), when pressed without moving, then it's unchanged and Save still refuses; when dragged, it comes inside on the first move; when an arrow is pressed, it lands at the nearest inside position; undo restores the off-sheet value | P1 | unit+ui | § 3, TPL-224 |
+| TPL-545 | Given a typed width of 1, 0 or −5, then the handles don't compute a broken box; a handle drag gives at least the minimum | P2 | unit | § 3, `contract.md:600` |
+| TPL-546 | Given two overlapping items, when the overlap is pressed, then the later in item order (the one on top) is selected and moves; order doesn't change, and Save sends the same order (`layout.ts:369`) | P1 | e2e | design § 3, gap |
+| TPL-547 | Given an item flush with each sheet edge and corner, then every handle shows its full 8 px target and can be dragged, inward included; given a selected item under another, its handles stay above the covering box (`TemplateSheet.tsx:64` clips the sheet) | P1 | e2e | step3.md:37, C3 |
+| TPL-548 | Given items, then only the selected one shows handles; none after Esc or Delete; handles aren't inside the button (axe `nested-interactive`), and neither they nor guide lines appear in print | P1 | e2e | § 3, `TemplateSheet.tsx:74` |
+| TPL-549 | Given a fully covered item, when reached by Tab and Enter, then it's selected, arrows move it and its handles work: the only way to it without moving the cover | P1 | e2e | gap |
+| TPL-550 | Given 5 × 4 mm and 40 × 4 mm boxes at 50% (18.9 × 7.6 and 75.6 × 7.6 px, thinner than an 8 px handle), then a part of the box still starts a move, and the handles' order of priority is stable | P1 | e2e | step3.md:37 |
+| TPL-551 | Size rule table (mm, zoom → handles): 5 × 4, 100% → 4; 9 × 9, 100% (34 px) → 4; 10 × 10, 100% (37.8 px) → 8; 40 × 8, 50% (75.6 × 15.1 px) → 8 | P1 | unit | S1, C2 |
+| TPL-552 | Given a selected box, when Shift, Ctrl or Alt + arrows are pressed, then w and h never change; typing in the width and height fields does change them | P1 | ui | step3.md:57 |
+| TPL-553 | Given a long text overflowing its box (`TemplateSheet.tsx:104-116`), when the overflow is pressed, then that item is selected and moved, even over a neighbour | P2 | e2e | TPL-239 |
+| TPL-554 | Given 50 items on A4, when one is dragged, guides stick, then undo, redo and Save work, and the panel stays disabled | P2 | e2e | design § 3 limits |
+| TPL-555 | Given A selected, when B, unselected, is dragged, then B is selected with handles and A's handles go. Esc during it: B back, selection stays B, since selecting is no step and `TemplateSheet.tsx:80` selects on click | P1 | e2e | step3.md:33 |
+| TPL-556 | Given A selected and the focus tabbed to unselected B, when an arrow is pressed, then nothing moves and it isn't `defaultPrevented` (the area may scroll); Enter selects B. Given a selected, focused box, arrows are `defaultPrevented` also at the sheet's edge | P1 | ui | step3.md:47 |
+| TPL-557 | Focus table: Esc → the box; Delete → the area; settings' Remove → the area; undo removing the focused box → the area; panel click → the entry (contract); the last undo by a focused toolbar button, which turns off → not lost to `body` | P1 | ui | step3.md:54-55, `contract.md:285` |
+| TPL-558 | Given nudges, when another item is selected, Save runs, or an undo runs within the second, then the next nudge is a new step. Right then left within a run, net zero: no step left | P1 | unit | step3.md:59 |
+| TPL-559 | Given a press or drag on a box or handle, then the box has the focus afterwards, so arrows work with no extra click (a `preventDefault` on `mousedown` would break this) | P1 | e2e | step3.md:47 |
+| TPL-560 | Given Delete held (key repeat), then one item goes; a repeat on the area does nothing. Backspace removes nothing | P2 | ui | step3.md:54 |
+| TPL-561 | Given 200%, when arrows take a box past the visible area, then the area scrolls to keep it visible | P2 | e2e | gap |
+| TPL-562 | Given a press or drag on an entry, box or handle, in both languages, then the page's selection stays collapsed, and text in a field can still be selected afterwards | P2 | e2e | gap |
+| TPL-563 | Given fields, when tabbed through with no change, or typed and undone natively back to the start, or 12.34 typed on 12.3, then no undo step | P1 | ui | step3.md:59 |
+| TPL-564 | Given a static text field, when Enter is pressed, then a new line and no step; on blur, one step (C6). A name field: blur or Enter, one step however many keys were typed | P1 | ui | step3.md:59, `contract.md:329` |
+| TPL-565 | Given "abc" in A's X (a raw input), when undo removes A or restores X, then the raw input goes, Save isn't left blocked with no visible message, and the dirty state follows (`TemplateDesigner.tsx:102,166`; `removeSelected` already purges at :136) | P1 | ui | code |
+| TPL-566 | Given a layout saved at B after A, when undone to A, then Save on and leaving asks; when redone to B, then Save off, leaving asks nothing, `beforeunload` gone. Given Save at A after that undo, redo to B: Save on, history kept | P1 | ui | S3, D16 |
+| TPL-567 | Given changes undone to the saved layout, then each exit kind asks nothing: a tab (blocker), Back, logout (`confirmLeave()`), and no `beforeunload` listener; a raw input elsewhere keeps Save on and the question | P1 | ui | D16, `useUnsavedGuard.ts:32-61` |
+| TPL-568 | Given history and a changed zoom, when leaving (D16 confirmed) and returning, or reloading, then undo and redo are off and the zoom is at Fit. The D16 question cancelled: history, selection and zoom unchanged | P1 | e2e | step3.md:62, S5 |
+| TPL-569 | Given a new sheet (`baseline` null), when an item is added and undone, then Save stays on and leaving asks (C7); after the first save, an undo: Save on | P1 | ui | `contract.md:341` |
+| TPL-570 | Given history, when the query refetches and answers another layout (an invalidation, another tab's save), then draft, baseline, selection and history don't change, and undo uses the local steps | P1 | ui | `contract.md:339` |
+| TPL-571 | Given clinic A with history, when going to clinic B (`ClinicPage.tsx:87`), then B's undo is off and Ctrl+Z changes nothing. The same for leaving to the Staff tab and back | P1 | ui | TPL-245 |
+| TPL-572 | Given a failed Save with `items[2].name` named, when undone so the indexes shift, then the message doesn't land on another item (`TemplateDesigner.tsx:221`): an undo clears server messages, like an edit (:110) | P2 | ui | code |
+| TPL-573 | Given the delete cancelled or failed, then history stays. Given success then «إنشاء قالب», both buttons are off | P2 | ui | step3.md:62 |
+| TPL-574 | Given history and the window narrowed below 900 px, then shortcuts and Delete change nothing behind the message; widened, history and selection are as before (TPL-229) | P2 | ui | D12 |
+| TPL-575 | Given a language change, then history stays, undo works, the sheet doesn't mirror (TPL-234) | P2 | ui | S3 |
+| TPL-576 | Given a removed item brought back, then it's at its old index (paint order) and, with nothing else changed, Save is off (`layout.ts:369` is order-sensitive) | P1 | unit | S3, D16 |
+| TPL-577 | Selection table: undo of an add → cleared; redo of an add → the item; undo of a remove → the item; redo of a remove → cleared; undo of a change to A with B selected → A; undo or redo of a page size → the selection kept if it exists | P1 | unit | step3.md:63 |
+| TPL-578 | Given more than 50 changes since the load, when all 50 are undone, then the saved layout is out of reach: Save stays on and leaving asks | P2 | unit | step3.md:62 |
+| TPL-579 | Given a page-size change that moved and shrank items, when undone, then each is exact (unlike going back by the select, TPL-223) and the sheet re-fits. The same size committed or an invalid measure: no step, no re-fit | P1 | ui | step3.md:59,67 |
+| TPL-581 | Given typed text in a focused field, when the toolbar's Undo is clicked, then blur commits first, the undo reverts that commit, and the field shows the layout's value, not the typed text (`MmField.tsx:38`) | P1 | ui | step3.md:61 |
+| TPL-582 | Given X focused with typed text, when the box is dragged, then the field shows the new X afterwards | P1 | e2e | `MmField.tsx:38` |
+| TPL-583 | Given a Save in flight, when undo runs, then the answer sets the baseline to what was sent, the layout stays undone, and Save is on | P2 | ui | TPL-242 |
+| TPL-580 | Given 420 × 600 mm at Fit, then Fit is below 50%, minus off, plus goes to 50%, the area scrolls both ways when the sheet is larger than the area, and at 200% on A4 all four corners are reachable by scroll in both languages (a centered `transform-origin` would put the left part beyond scroll's reach) | P1 | e2e | step3.md:67 |
+| TPL-584 | Given 50%, then the area has no leftover scroll from the unscaled size (the wrapper at `TemplateDesigner.tsx:259` is `fit-content`, and a transform doesn't change layout size) | P1 | e2e | C1 |
+| TPL-585 | Given a drag with the pointer held still in the 24 px band, then the area keeps scrolling, the item follows with no pointer move, and it stops at the end. Esc: the item is back, the scroll stays | P1 | e2e | step3.md:70 |
+| TPL-586 | Given the Arabic UI at 200%, then the area is still `dir="ltr"` (`TemplateDesigner.tsx:249`, `contract.md:286`), `scrollLeft` ≥ 0, auto-scroll right raises it, and the same sheet point gives the same mm as in English | P1 | e2e | RTL |
+| TPL-587 | Given Fit at a non-step value (A5 at 1280 × 720: ≈ 61% if height is the limit), when plus or minus is pressed, then the next multiple of 25 (75, 50); the percentage shows a whole number | P1 | e2e | C4 |
+| TPL-588 | Given each way the sheet first appears (load, «إنشاء قالب» from the empty state, widening from below 900 px), then Fit is computed then, from a measured area, not 0 | P1 | e2e | step3.md:67 |
+| TPL-589 | Given a panel drag entering the 24 px band from the panel's side (the left in English, the right in Arabic) on a scrollable sheet, then the drop counts the scroll at the drop | P2 | e2e | step3.md:70 |
+| TPL-590 | Given 1280 × 720 and the page not scrolled, when a drag reaches the area's bottom, then the band can be reached in the window and it scrolls (not measured: `maxHeight` assumes 200 px above the area, and the zoom toolbar adds height) | P2 | e2e | `TemplateDesigner.tsx:252` |
+| TPL-591 | Given A4 at Fit on a 1280 × 720 window (about 33%) and a sheet at 25%, with nothing selected, then every box's outline stays visible all round: about 1 px on screen at 25%, 33%, 50%, 100% and 200%, whatever the box's pixel position; selected, about 2 px. The outline is inset: the box's measured size stays exact | P1 | e2e | acceptance #1 |
+| TPL-592 | Given a window tall enough for everything (1920 × 970, nothing selected), then the page has no vertical scrollbar and the area's bottom is inside the window; at 1280 × 720 too the area's bottom is inside the window with the page not scrolled | P2 | e2e | acceptance #8 |
+| TPL-593 | Given a panel drag at 50% and at 200%, then the ghost's text is the item's font × the zoom (11 pt × zoom / 100), and its font and wrapping match the item: for the longest entry («التاريخ والوقت بصيغة ISO», "ISO date and time") the computed `font-family` starts with the print font's family, `line-height` over `font-size` is 1.4 within 0.01, and the text is wrapped, not cut or running out sideways (`scrollWidth` ≤ `clientWidth`) | P2 | e2e | acceptance #11, acceptance round 2 |
+| TPL-594 | Given a move or a resize with the pointer past the area's edge, then the area keeps scrolling on that axis and the item follows; given a panel drag with the pointer over the side panel on a scrolled sheet, then the area doesn't scroll | P1 | unit+e2e | User, T5 (acceptance #3) |
+| TPL-595 | Given a selected item out of view after a zoom press, Fit, undo or redo, then the area scrolls so its box shows; with nothing selected the scroll stays | P1 | ui+e2e | User, T5 (acceptance #2) |
+| TPL-596 | Given the focus on Save, when a save makes it turn off, then the focus is in the sheet's area, not on `body`; a Save refused by the rules keeps it on and the focus stays | P2 | ui | User, T5 (acceptance #9) |

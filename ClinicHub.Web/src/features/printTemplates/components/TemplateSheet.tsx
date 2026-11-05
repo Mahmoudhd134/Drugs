@@ -1,4 +1,4 @@
-import type {CSSProperties} from "react";
+import type {CSSProperties, MouseEvent, PointerEvent, Ref} from "react";
 import {useTranslation} from "react-i18next";
 import "../printFont.css";
 import "../printSheet.css";
@@ -14,11 +14,17 @@ type Props = {
     layout: PrintLayout;
     /** The selected item: its box is marked and `aria-pressed` */
     selectedId?: string | null;
-    onSelect?: (id: string) => void;
+    onSelect?: (id: string, event: MouseEvent) => void;
+    /** A pointer pressed on a box (step 3 contract § 3.4) */
+    onBoxPress?: (event: PointerEvent<HTMLElement>, item: TemplateItem) => void;
+    /** The designer's sheet: what a drag measures on screen */
+    sheetRef?: Ref<HTMLDivElement>;
     /** What the prescription text's box shows in the designer; ignored with `print` */
     sampleText: string;
     /** Printing (contract § 3.4): items render as plain boxes with these values, not as buttons */
     print?: SheetPrintContent;
+    /** The designer's zoom around this sheet, in percent: what keeps a box's mark the same on screen */
+    zoom?: number;
 };
 
 /** The designer's mm grid: a faint line every 1 mm and a stronger one every 10 mm. */
@@ -34,6 +40,10 @@ const GRID: CSSProperties = {
 
 /** Text standing in for a value not set yet (≈ 7:1 on white). */
 const DIMMED_COLOR = "#595959";
+
+/** A box's mark in the designer: 1 px on screen, 2 px selected, at any zoom, since the sheet is scaled and a thinner line would vanish in part (TPL-591). */
+const boxMark = (selected: boolean, zoom: number) =>
+    selected ? `inset 0 0 0 ${2 * 100 / zoom}px #0f766e` : `inset 0 0 0 ${100 / zoom}px rgba(15, 118, 110, 0.45)`;
 
 /** The sheet itself, in both modes. Its `overflow` cuts at the edge, so a long value can't make a page (TPL-339). */
 const sheetStyle = (layout: PrintLayout): CSSProperties => ({
@@ -96,9 +106,10 @@ const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintC
 /**
  * The sheet at true scale (contract § 3.4), one renderer for the designer's preview and for printing, so what is
  * designed is what prints: 1 mm = 1 CSS mm, never mirrored (`dir="ltr"`), its own font, positions as inline styles (the RTL
- * style cache flips `left` and `right` in `sx`).
+ * style cache flips `left` and `right` in `sx`). The designer's zoom is a transform around it, never in it (step 3 contract
+ * § 3.3), so print can't see it.
  */
-export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}: Props) => {
+export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRef, sampleText, print, zoom = 100}: Props) => {
     const {t} = useTranslation();
     const designing = !!onSelect;
 
@@ -122,6 +133,7 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
 
     return (
         <div
+            ref={sheetRef}
             data-testid="template-sheet"
             dir="ltr"
             style={{...sheetStyle(layout), ...(designing ? GRID : undefined)}}
@@ -136,7 +148,8 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
                         aria-pressed={selected}
                         aria-label={item.kind === "prescriptionText" ? t("printTemplates.kinds.prescriptionText") : undefined}
                         data-item-id={item.id}
-                        onClick={() => onSelect?.(item.id)}
+                        onClick={(event) => onSelect?.(item.id, event)}
+                        onPointerDown={(event) => onBoxPress?.(event, item)}
                         style={{
                             ...boxStyle(item),
                             fontFamily: "inherit",
@@ -146,10 +159,12 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText, print}:
                             color: "inherit",
                             display: "block",
                             overflow: "visible",
-                            cursor: designing ? "pointer" : undefined,
+                            cursor: designing ? "move" : undefined,
+                            touchAction: "none",
+                            userSelect: "none",
                             // Marks stay outside the layout: a box keeps exactly its size (TPL-228). No inline
                             // outline: the browser's focus ring is an outline and must still show (TPL-057)
-                            ...(designing ? {boxShadow: selected ? "inset 0 0 0 2px #0f766e" : "inset 0 0 0 1px rgba(15, 118, 110, 0.45)"} : undefined),
+                            ...(designing ? {boxShadow: boxMark(selected, zoom)} : undefined),
                         }}
                     >
                         {/* Out of the button's flow: a button centers its content, this starts at the box's top */}

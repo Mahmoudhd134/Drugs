@@ -1,11 +1,9 @@
 import {Box, Button, MenuItem, Paper, TextField, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {PAGE_SIZE_OPTIONS} from "../constants.ts";
-import type {ItemBox, PageSize, TemplateItem, TemplatePage} from "../types.ts";
+import type {PageSize, TemplateItem, TemplatePage} from "../types.ts";
+import type {BoxField} from "../useDesignerDraft.ts";
 import {MmField} from "./MmField.tsx";
-
-/** The number fields of an item, in the settings' order. */
-export type BoxField = Exclude<keyof ItemBox, "id">;
 
 const BOX_FIELDS: { field: BoxField; labelKey: string }[] = [
     {field: "xMm", labelKey: "printTemplates.config.x"},
@@ -34,11 +32,13 @@ type Props = {
     onPageMeasure: (field: PageMeasure, text: string) => void;
     onItemNumber: (item: TemplateItem, field: BoxField, text: string) => void;
     onItemText: (item: TemplateItem, field: "name" | "text", value: string) => void;
+    /** An item's field finished: one undo step however many keys were typed (step 3 contract § 3.6) */
+    onItemCommit: () => void;
     onRemove: (item: TemplateItem) => void;
 };
 
 /** The settings panel (contract § 3.3): the sheet's, then the selected item's. */
-export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onRemove}: Props) => {
+export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onItemCommit, onRemove}: Props) => {
     const {t} = useTranslation();
 
     const typeLabel = (selected: TemplateItem) =>
@@ -101,6 +101,10 @@ export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, o
                                 error={!!messageOf(`${item.id}.name`)}
                                 helperText={messageOf(`${item.id}.name`) ?? (item.kind === "function" ? t("printTemplates.config.functionNameHint") : undefined)}
                                 onChange={(e) => onItemText(item, "name", e.target.value)}
+                                onBlur={onItemCommit}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") onItemCommit();
+                                }}
                                 slotProps={{htmlInput: {dir: "auto"}}}
                             />
                         )}
@@ -116,6 +120,8 @@ export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, o
                                 error={!!messageOf(`${item.id}.text`)}
                                 helperText={messageOf(`${item.id}.text`)}
                                 onChange={(e) => onItemText(item, "text", e.target.value)}
+                                // Blur only: Enter is a new line here (TPL-564)
+                                onBlur={onItemCommit}
                                 slotProps={{htmlInput: {dir: "auto"}}}
                             />
                         )}
@@ -129,6 +135,7 @@ export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, o
                                     rawInput={rawInputs[`${item.id}.${field}`]}
                                     error={messageOf(`${item.id}.${field}`)}
                                     onType={(text) => onItemNumber(item, field, text)}
+                                    onCommit={onItemCommit}
                                 />
                             ))}
                         </Box>

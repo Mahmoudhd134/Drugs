@@ -29,6 +29,7 @@ import {
     expectNoFieldMessage,
     expectNothingSent,
     FIELD_LABEL,
+    focusOn,
     label,
     panelEntry,
     paperSize,
@@ -39,6 +40,7 @@ import {
     selectedIds,
     settingsField,
     settingsPanel,
+    sheetArea,
     sheetItem,
     templatePath,
     templateUrl,
@@ -563,6 +565,133 @@ describe("print template: a save in flight @area:admin", () => {
 
         expect(saveButton()).toBeDisabled();
         expect(unloadAsks()).toBe(false);
+    });
+});
+
+describe("print template: the focus when Save turns off @area:admin", () => {
+    /** What a press leaves behind has landed: a turned-off button's focus has gone where it goes. */
+    const settled = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+
+    const expectFocusOnArea = () => {
+        expect(document.activeElement).not.toBe(document.body);
+        expect(sheetArea()).toHaveFocus();
+    };
+
+    /** Saving holds until `release`, then answers with what was sent. */
+    const holdSave = (clinicId: number) => {
+        const {gate, release} = heldAnswer();
+        server.use(http.put(templateUrl(clinicId), async ({request}) => {
+            const layout = await request.json() as PrintLayout;
+            await gate;
+            return HttpResponse.json({layout, updatedAt: "2026-11-05T10:00:00Z"});
+        }));
+        return release;
+    };
+
+    test.each([
+        ["a click", async (user: UserEvent) => user.click(saveButton())],
+        ["Enter", async (user: UserEvent) => {
+            focusOn(saveButton());
+            await user.keyboard("{Enter}");
+        }],
+    ])("a Save that goes, pressed by %s: the focus is in the area while it's held and after the answer, not on the body @TPL-596", async (_name, press) => {
+        const clinic = aClinicDetails();
+        const {user} = await renderDesigner(layoutL(), {clinic});
+        const release = holdSave(clinic.id);
+        await edit(user);
+
+        await press(user);
+
+        await waitFor(() => expect(saveButton()).toBeDisabled());
+        await settled();
+        expectFocusOnArea();
+
+        release();
+        await expectToasts("Template saved");
+        await settled();
+        expect(saveButton()).toBeDisabled();
+        expectFocusOnArea();
+    });
+
+    test("a new sheet's first Save: the focus is in the area @TPL-596", async () => {
+        const {user} = await renderNewSheet();
+
+        await user.click(saveButton());
+
+        await expectToasts("Template saved");
+        await settled();
+        expect(saveButton()).toBeDisabled();
+        expectFocusOnArea();
+    });
+
+    test.each([
+        ["a field message", "-1"],
+        ["a field that isn't a number", "abc"],
+    ])("a Save the rules refuse, with %s: Save stays on and keeps the focus @TPL-596", async (_name, typed) => {
+        const {user} = await renderDesigner(layoutL());
+        const recorded = recordRequests();
+        await edit(user, typed);
+
+        await user.click(saveButton());
+
+        await expectNothingSent(recorded);
+        expect(saveButton()).toBeEnabled();
+        expect(saveButton()).toHaveFocus();
+    });
+
+    test("a Save refused with no field to show it: the toast, Save stays on and keeps the focus @TPL-596", async () => {
+        const {user} = await renderDesigner(aPrintLayout({items: [manual()]}));
+        const recorded = recordRequests();
+        await edit(user);
+
+        await user.click(saveButton());
+
+        await expectToasts("The template must hold the prescription text exactly once.");
+        await expectNothingSent(recorded);
+        expect(saveButton()).toBeEnabled();
+        expect(saveButton()).toHaveFocus();
+    });
+
+    test.each([
+        ["a network error", () => networkError(), "Can't reach the server. Check your connection."],
+        ["a 500", () => problem(500, "unexpected"), "Something went wrong. Please try again."],
+    ])("a Save failing with %s: in the area while it's held; after the answer Save is on again and the focus isn't on the body @TPL-596", async (_name, answer, message) => {
+        const clinic = aClinicDetails();
+        const {gate, release} = heldAnswer();
+        const {user} = await renderDesigner(layoutL(), {clinic});
+        server.use(http.put(templateUrl(clinic.id), async () => {
+            await gate;
+            return answer();
+        }));
+        await edit(user);
+
+        await user.click(saveButton());
+
+        await waitFor(() => expect(saveButton()).toBeDisabled());
+        await settled();
+        expectFocusOnArea();
+
+        release();
+        await expectToasts(message);
+        await settled();
+        expect(saveButton()).toBeEnabled();
+        expect(document.activeElement).not.toBe(document.body);
+    });
+
+    test("the focus moved to a field while the save is held: the answer leaves it there @TPL-596", async () => {
+        const clinic = aClinicDetails();
+        const {user} = await renderDesigner(layoutL(), {clinic});
+        const release = holdSave(clinic.id);
+        await edit(user);
+        await user.click(saveButton());
+        await waitFor(() => expect(saveButton()).toBeDisabled());
+
+        await user.click(settingsField(FIELD_LABEL.y));
+        release();
+        await expectToasts("Template saved");
+        await settled();
+
+        expect(settingsField(FIELD_LABEL.y)).toHaveFocus();
     });
 });
 

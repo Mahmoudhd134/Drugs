@@ -125,6 +125,11 @@ describe("print texts @area:prescription", () => {
         ["printTemplates.print.gone", "This clinic no longer has a print template.", "لم يعد لهذه العيادة قالب طباعة."],
         ["prescription.editorTitle", "Edit before copying or printing", "تعديل قبل النسخ أو الطباعة"],
         ["prescription.editorHint", "For copying or printing; changes are not saved.", "للنسخ أو الطباعة؛ التعديلات لا تُحفظ."],
+        ["printTemplates.toolbar.undo", "Undo", "تراجع"],
+        ["printTemplates.toolbar.redo", "Redo", "إعادة"],
+        ["printTemplates.toolbar.zoomOut", "Zoom out", "تصغير"],
+        ["printTemplates.toolbar.zoomIn", "Zoom in", "تكبير"],
+        ["printTemplates.toolbar.fit", "Fit", "ملاءمة"],
     ])("%s is in both files, with the contract's text @I18N-011", (key, english, arabic) => {
         expect(enTexts[key]).toBe(english);
         expect(arTexts[key]).toBe(arabic);
