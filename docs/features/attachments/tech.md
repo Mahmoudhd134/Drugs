@@ -123,7 +123,7 @@ empty segment), because CI runs on Linux, where `..\` and `C:` are ordinary char
    is a server failure, such as a full disk while buffering the form: it goes on, so the unexpected handler logs it and answers 500 `unexpected`. A request the client aborted is never answered: its
    error goes on too. More than one file part answers `invalidRequest`.
 
-The service still checks the file's real size. After the over-limit answer Kestrel closes the connection (`Connection: close`), so a client still writing a big chunked body may see the
+The service still checks the file's real size. After the over-limit answer Kestrel closes the connection (`Connection: close`), so a client still writing a big body, chunked or refused on its `Content-Length`, may see the
 reset before it reads the answer; the browser's check in part 2 covers the common case.
 
 **Config** (`AttachmentSettings`, section `Attachments`; validated last in `AppSettings.Validate`, so other startup failures keep their own reason). The check is the extension method
