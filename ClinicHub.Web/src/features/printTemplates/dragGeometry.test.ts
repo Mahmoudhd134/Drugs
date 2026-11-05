@@ -1035,7 +1035,7 @@ describe("print template drag: scrolling near the area's edge @area:admin", () =
         ["past the left edge", 99, 0],
         ["past the right edge", 501, 0],
     ])("across, %s @TPL-470", (_name, clientX, x) => {
-        expect(autoScrollDirection({clientX, clientY: 200}, area)).toEqual({x, y: 0});
+        expect(autoScrollDirection({clientX, clientY: 200}, area, false)).toEqual({x, y: 0});
     });
 
     test.each([
@@ -1048,7 +1048,7 @@ describe("print template drag: scrolling near the area's edge @area:admin", () =
         ["past the top edge", 49, 0],
         ["past the bottom edge", 351, 0],
     ])("down, %s @TPL-470", (_name, clientY, y) => {
-        expect(autoScrollDirection({clientX: 300, clientY}, area)).toEqual({x: 0, y});
+        expect(autoScrollDirection({clientX: 300, clientY}, area, false)).toEqual({x: 0, y});
     });
 
     test.each([
@@ -1057,7 +1057,7 @@ describe("print template drag: scrolling near the area's edge @area:admin", () =
         ["bottom left", 110, 340, -1, 1],
         ["bottom right", 490, 340, 1, 1],
     ])("in the %s corner, both axes @TPL-470", (_name, clientX, clientY, x, y) => {
-        expect(autoScrollDirection({clientX, clientY}, area)).toEqual({x, y});
+        expect(autoScrollDirection({clientX, clientY}, area, false)).toEqual({x, y});
     });
 
     test.each([
@@ -1066,7 +1066,7 @@ describe("print template drag: scrolling near the area's edge @area:admin", () =
         ["left of the area, in the top band", 90, 60],
         ["right of the area, in the bottom band", 510, 340],
     ])("the pointer outside the area: no scroll, %s @TPL-470", (_name, clientX, clientY) => {
-        expect(autoScrollDirection({clientX, clientY}, area)).toEqual({x: 0, y: 0});
+        expect(autoScrollDirection({clientX, clientY}, area, false)).toEqual({x: 0, y: 0});
     });
 
     test.each([
@@ -1077,6 +1077,90 @@ describe("print template drag: scrolling near the area's edge @area:admin", () =
         ["both in reach, the end nearer", 122, 72, 1, 1],
         ["both in reach, a tie goes to the start", 120, 70, -1, -1],
     ])("an area under 48 px: %s @TPL-470", (_name, clientX, clientY, x, y) => {
-        expect(autoScrollDirection({clientX, clientY}, {left: 100, top: 50, width: 40, height: 40})).toEqual({x, y});
+        expect(autoScrollDirection({clientX, clientY}, {left: 100, top: 50, width: 40, height: 40}, false)).toEqual({x, y});
+    });
+
+    describe("a panel drag: inside the rectangle on both axes only", () => {
+        test.each([
+            ["far past the left", -5000, 200],
+            ["far past the right", 9000, 200],
+            ["far above", 300, -5000],
+            ["far below", 300, 9000],
+            ["past the right and below", 600, 400],
+            ["past the left and above", 10, 10],
+        ])("%s: no scroll @TPL-594", (_name, clientX, clientY) => {
+            expect(autoScrollDirection({clientX, clientY}, area, false)).toEqual({x: 0, y: 0});
+        });
+    });
+
+    describe("a move or a resize: past an edge it goes on scrolling that way", () => {
+        test.each([
+            ["1 px past the left", 99, -1],
+            ["far past the left", -5000, -1],
+            ["1 px past the right", 501, 1],
+            ["far past the right", 9000, 1],
+        ])("across, %s, y in the middle @TPL-594", (_name, clientX, x) => {
+            expect(autoScrollDirection({clientX, clientY: 200}, area, true)).toEqual({x, y: 0});
+        });
+
+        test.each([
+            ["1 px above", 49, -1],
+            ["far above", -5000, -1],
+            ["1 px below", 351, 1],
+            ["far below", 9000, 1],
+        ])("down, %s, x in the middle @TPL-594", (_name, clientY, y) => {
+            expect(autoScrollDirection({clientX: 300, clientY}, area, true)).toEqual({x: 0, y});
+        });
+
+        test.each([
+            ["past the right and below", 600, 400, 1, 1],
+            ["past the right and above", 600, 10, 1, -1],
+            ["past the left and below", 10, 400, -1, 1],
+            ["past the left and above", 10, 10, -1, -1],
+            ["past the right, in the top band", 600, 60, 1, -1],
+            ["past the right, in the bottom band", 600, 340, 1, 1],
+            ["past the left, in the top band", 10, 60, -1, -1],
+            ["past the left, in the bottom band", 10, 340, -1, 1],
+            ["above, in the left band", 110, 10, -1, -1],
+            ["above, in the right band", 490, 10, 1, -1],
+            ["below, in the left band", 110, 400, -1, 1],
+            ["below, in the right band", 490, 400, 1, 1],
+        ])("each axis on its own: %s @TPL-594", (_name, clientX, clientY, x, y) => {
+            expect(autoScrollDirection({clientX, clientY}, area, true)).toEqual({x, y});
+        });
+
+        test.each([
+            ["on the left edge", 100, -1],
+            ["exactly 24 from the left", 124, -1],
+            ["25 from the left", 125, 0],
+            ["in the middle", 300, 0],
+            ["25 from the right", 475, 0],
+            ["exactly 24 from the right", 476, 1],
+            ["on the right edge", 500, 1],
+        ])("inside, as before: across, %s @TPL-594", (_name, clientX, x) => {
+            expect(autoScrollDirection({clientX, clientY: 200}, area, true)).toEqual({x, y: 0});
+        });
+
+        test.each([
+            ["on the top edge", 50, -1],
+            ["exactly 24 from the top", 74, -1],
+            ["25 from the top", 75, 0],
+            ["25 from the bottom", 325, 0],
+            ["exactly 24 from the bottom", 326, 1],
+            ["on the bottom edge", 350, 1],
+        ])("inside, as before: down, %s @TPL-594", (_name, clientY, y) => {
+            expect(autoScrollDirection({clientX: 300, clientY}, area, true)).toEqual({x: 0, y});
+        });
+
+        test.each([
+            // 40 px wide and high, from 100 to 140 and from 50 to 90
+            ["inside, both in reach, the start nearer", 118, 68, -1, -1],
+            ["inside, both in reach, the end nearer", 122, 72, 1, 1],
+            ["inside, both in reach, a tie goes to the start", 120, 70, -1, -1],
+            ["1 px before the start", 99, 49, -1, -1],
+            ["1 px past the end", 141, 91, 1, 1],
+        ])("an area under 48 px: %s @TPL-594", (_name, clientX, clientY, x, y) => {
+            expect(autoScrollDirection({clientX, clientY}, {left: 100, top: 50, width: 40, height: 40}, true)).toEqual({x, y});
+        });
     });
 });

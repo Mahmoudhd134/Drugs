@@ -1,6 +1,7 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {act, screen, within} from "@testing-library/react";
-import {aPrintLayout, aPrintTemplate, aTemplateItem, expectToasts, recordRequests, setViewportWidth} from "../../../test";
+import type {UserEvent} from "@testing-library/user-event";
+import {aPrintLayout, aPrintTemplate, aTemplateItem, choose, expectToasts, recordRequests, setViewportWidth} from "../../../test";
 import {CSS_PX_PER_MM} from "../constants.ts";
 import type {PrintLayout} from "../types.ts";
 import {
@@ -9,17 +10,25 @@ import {
     fitButton,
     handleIds,
     measuresOf,
+    panelEntry,
+    paperSize,
     pressKey,
+    pressShortcut,
+    REDO_KEYS,
+    REDO_SHIFT_KEYS,
     redoButton,
     renderDesigner,
     renderPrintTemplateTab,
     saveButton,
     selectedIds,
     settingsField,
+    settingsPanel,
+    sheetBoxes,
     sheetItem,
     sheetSize,
     theSheet,
     typeInField,
+    UNDO_KEYS,
     undoButton,
     zoomInButton,
     zoomOutButton,
@@ -241,5 +250,247 @@ describe("print template zoom: the handles' set @area:admin", () => {
         await user.click(zoomOutButton());
         await user.click(zoomOutButton());
         expect(handleIds()).toEqual(["nw", "ne", "se", "sw"]);
+    });
+});
+
+describe("print template zoom: the selected box stays in view @area:admin", () => {
+    const NEAREST = {block: "nearest", inline: "nearest"};
+    const WIDTH_AT_100 = 148 * CSS_PX_PER_MM;
+
+    /** Records each box asked to scroll into view, with what the screen showed at that moment. jsdom has no layout (setup.ts makes the call a no-op). */
+    const watchBoxes = () => {
+        const asked: { id: string; options: unknown; left: string; frameWidth: number }[] = [];
+        vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+            const id = this.getAttribute("data-item-id");
+            if (id) asked.push({id, options, left: (this as HTMLElement).style.left, frameWidth: parseFloat(frame().style.width)});
+        });
+        return asked;
+    };
+
+    /** What a press leaves behind has landed. */
+    const settled = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+
+    type Asked = ReturnType<typeof watchBoxes>;
+
+    /** Only this box was asked, the nearest way; the last time, after the press had rendered (`left` and `frameWidth` as the screen shows them now). */
+    const expectOnlyAsked = async (asked: Asked, id: string) => {
+        await settled();
+        expect(asked.length, `the box ${id} was asked to scroll into view`).toBeGreaterThan(0);
+        for (const one of asked) expect({id: one.id, options: one.options}).toEqual({id, options: NEAREST});
+        const last = asked[asked.length - 1];
+        expect(last.left).toBe(boxOf(id).style.left);
+        expect(last.frameWidth).toBeCloseTo(parseFloat(frame().style.width), 1);
+    };
+
+    const expectNoneAsked = async (asked: Asked) => {
+        await settled();
+        expect(asked.map(one => one.id)).toEqual([]);
+    };
+
+    /** The manual input selected and moved by one nudge: X 13.3, one step. Its own scroll (TPL-561) comes before the watch. */
+    const nudgeM = async (user: UserEvent) => {
+        await user.click(sheetItem("الاسم"));
+        pressKey(boxOf("m"), "ArrowRight");
+        expect(boxOf("m").style.left).toBe("13.3mm");
+    };
+
+    const onA4 = () => aPrintLayout({
+        page: {size: "A4", widthMm: 210, heightMm: 297},
+        items: [
+            aTemplateItem("prescriptionText", {id: "t", xMm: 15, yMm: 40, wMm: 180, hMm: 50}),
+            aTemplateItem("manualInput", {id: "m", xMm: 140, yMm: 46, wMm: 60, hMm: 8}),
+        ],
+    });
+
+    describe("a zoom press and Fit", () => {
+        test.each([
+            ["plus", zoomInButton, 1.25],
+            ["minus", zoomOutButton, 0.75],
+        ])("%s, an item selected: its box is asked, the nearest way, once the new zoom shows @TPL-595", async (_name, button, scale) => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(sheetItem("الاسم"));
+            const asked = watchBoxes();
+
+            await user.click(button());
+
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].frameWidth).toBeCloseTo(WIDTH_AT_100 * scale, 1);
+        });
+
+        test("Fit, an item selected: its box is asked, the nearest way, once the fitted zoom shows @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(sheetItem("الاسم"));
+            await user.click(zoomInButton());
+            const asked = watchBoxes();
+
+            await user.click(fitButton());
+
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].frameWidth).toBeCloseTo(WIDTH_AT_100, 1);
+        });
+
+        test("the plus that reaches 200% and turns off: the box is still asked @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(sheetItem("الاسم"));
+            for (let press = 0; press < 3; press++) await user.click(zoomInButton());
+            const asked = watchBoxes();
+
+            await user.click(zoomInButton());
+
+            expect(zoomInButton()).toBeDisabled();
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].frameWidth).toBeCloseTo(WIDTH_AT_100 * 2, 1);
+        });
+
+        test("nothing selected: plus, minus and Fit ask no box @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            const asked = watchBoxes();
+
+            await user.click(zoomInButton());
+            await user.click(zoomOutButton());
+            await user.click(zoomInButton());
+            await user.click(fitButton());
+
+            await expectNoneAsked(asked);
+        });
+
+        test("deselected by Esc: no box is asked @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(sheetItem("الاسم"));
+            pressKey(boxOf("m"), "Escape");
+            const asked = watchBoxes();
+
+            await user.click(zoomInButton());
+
+            await expectNoneAsked(asked);
+        });
+    });
+
+    describe("undo and redo", () => {
+        test.each([
+            ["the button", async (user: UserEvent) => user.click(undoButton())],
+            ["Ctrl+Z", async () => pressShortcut(boxOf("m"), UNDO_KEYS)],
+        ])("an undo by %s: the selected box is asked, where the undo put it @TPL-595", async (_name, undo) => {
+            const {user} = await renderDesigner(layoutL());
+            await nudgeM(user);
+            const asked = watchBoxes();
+
+            await undo(user);
+
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].left).toBe("12.3mm");
+        });
+
+        test.each([
+            ["the button", async (user: UserEvent) => user.click(redoButton())],
+            ["Ctrl+Y", async () => pressShortcut(boxOf("m"), REDO_KEYS)],
+            ["Ctrl+Shift+Z", async () => pressShortcut(boxOf("m"), REDO_SHIFT_KEYS)],
+        ])("a redo by %s: the selected box is asked, where the redo put it @TPL-595", async (_name, redo) => {
+            const {user} = await renderDesigner(layoutL());
+            await nudgeM(user);
+            await user.click(undoButton());
+            const asked = watchBoxes();
+
+            await redo(user);
+
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].left).toBe("13.3mm");
+        });
+
+        test("a removed item brought back by an undo is selected: its box is asked @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(sheetItem("الاسم"));
+            await user.click(within(settingsPanel()).getByRole("button", {name: "Remove item"}));
+            const asked = watchBoxes();
+
+            await user.click(undoButton());
+
+            expect(selectedIds()).toEqual(["m"]);
+            await expectOnlyAsked(asked, "m");
+        });
+
+        test("an added item undone leaves nothing selected: no box is asked; its redo selects it: its box is asked @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(panelEntry("Manual input"));
+            const asked = watchBoxes();
+
+            await user.click(undoButton());
+            expect(selectedIds()).toEqual([]);
+            await expectNoneAsked(asked);
+
+            await user.click(redoButton());
+            const added = sheetBoxes()[3].dataset.itemId as string;
+            expect(selectedIds()).toEqual([added]);
+            await expectOnlyAsked(asked, added);
+        });
+
+        test("a page-size change undone and redone, an item selected: its box is asked, on the sheet that step shows @TPL-595", async () => {
+            const {user} = await renderDesigner(onA4());
+            await user.click(sheetItem("الاسم"));
+            await choose(user, paperSize(), "A5");
+            const asked = watchBoxes();
+
+            await user.click(undoButton());
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].frameWidth).toBeCloseTo(210 * CSS_PX_PER_MM, 1);
+            asked.length = 0;
+
+            await user.click(redoButton());
+            await expectOnlyAsked(asked, "m");
+            expect(asked[asked.length - 1].frameWidth).toBeCloseTo(WIDTH_AT_100, 1);
+        });
+
+        test("a page-size change undone and redone, nothing selected: no box is asked @TPL-595", async () => {
+            const {user} = await renderDesigner(onA4());
+            await choose(user, paperSize(), "A5");
+            const asked = watchBoxes();
+
+            await user.click(undoButton());
+            await user.click(redoButton());
+
+            await expectNoneAsked(asked);
+        });
+    });
+
+    describe("nothing else moves the scroll", () => {
+        test("opening and selecting ask no box @TPL-595", async () => {
+            const asked = watchBoxes();
+            const {user} = await renderDesigner(layoutL());
+            await expectNoneAsked(asked);
+
+            await user.click(sheetItem("الاسم"));
+            await user.click(sheetItem("التاريخ"));
+            pressKey(boxOf("f"), "Escape");
+
+            await expectNoneAsked(asked);
+        });
+
+        test("a window resize, and narrowing below 900 px and widening again, an item selected: no box is asked @TPL-595", async () => {
+            const {user} = await renderDesigner(layoutL());
+            await user.click(sheetItem("الاسم"));
+            const asked = watchBoxes();
+
+            act(() => setViewportWidth(1100));
+            await expectNoneAsked(asked);
+
+            act(() => setViewportWidth(899));
+            expect(await screen.findByText("Open this page on a computer.")).toBeInTheDocument();
+            act(() => setViewportWidth(1280));
+            await screen.findByTestId("template-sheet");
+            expect(selectedIds()).toEqual(["m"]);
+
+            await expectNoneAsked(asked);
+        });
+
+        test("a page-size change that isn't an undo or a redo, an item selected: no box is asked @TPL-595", async () => {
+            const {user} = await renderDesigner(onA4());
+            await user.click(sheetItem("الاسم"));
+            const asked = watchBoxes();
+
+            await choose(user, paperSize(), "A5");
+
+            expect(selectedIds()).toEqual(["m"]);
+            await expectNoneAsked(asked);
+        });
     });
 });

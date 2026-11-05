@@ -1,10 +1,13 @@
+import type {Locator} from "@playwright/test";
 import {expect, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {expectPageSize, expectPrintCalls, openPrescription, printButton, printedPdf, printRoot, printSheets} from "../support/print.ts";
 import {
     A4,
     A5,
+    areaRect,
     areaScroll,
+    boxMm,
     boxOutlines,
     COMPUTER_ONLY,
     customLayout,
@@ -31,6 +34,7 @@ import {
     reopenDesigner,
     saveLayout,
     scrollAreaTo,
+    sheetOnScreen,
     staticItem,
     tabPath,
     textItem,
@@ -71,6 +75,25 @@ const expectOutlines = async (designer: Designer, layout: Layout, selectedId: st
         expect(Math.abs(outline.widthPx - item.wMm * outline.pxPerMm), `${named}: its width`).toBeLessThanOrEqual(0.1);
         expect(Math.abs(outline.heightPx - item.hMm * outline.pxPerMm), `${named}: its height`).toBeLessThanOrEqual(0.1);
     });
+};
+
+/** How far the box lies out of what the area shows, in px, its scrollbars left out: 0 or below when the whole box shows. */
+const pxOutOfArea = async (designer: Designer, box: Locator) => {
+    const [shown, rect] = await Promise.all([
+        designer.area.evaluate(area => {
+            const {left, top} = area.getBoundingClientRect();
+            const [x, y] = [left + area.clientLeft, top + area.clientTop];
+            return {left: x, top: y, right: x + area.clientWidth, bottom: y + area.clientHeight};
+        }),
+        box.boundingBox(),
+    ]);
+    if (!rect) return Number.POSITIVE_INFINITY;
+    return Math.max(shown.left - rect.x, shown.top - rect.y, rect.x + rect.width - shown.right, rect.y + rect.height - shown.bottom);
+};
+
+/** The whole box shows inside the area; a pixel off is the scale's rounding. */
+const expectBoxInArea = async (designer: Designer, box: Locator, what: string) => {
+    await expect.poll(() => pxOutOfArea(designer, box), {message: `${what}: px of the box outside the area`}).toBeLessThanOrEqual(1);
 };
 
 test.describe("Print template: zoom and Fit @area:admin", () => {
@@ -334,6 +357,63 @@ test.describe("Print template: zoom and Fit @area:admin", () => {
                 await designerShown(designer);
                 await expectFit(designer, "after widening");
             });
+        });
+
+    test("A4 at 100%, an item selected low on the sheet, plus to 200%: its box lies inside the area; with nothing selected a zoom press leaves the scroll @TPL-595",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            const {designer} = await openDesigner(page, data, lang, {
+                schemaVersion: 1,
+                page: A4,
+                items: [textItem({xMm: 14, yMm: 100, wMm: 120, hMm: 90}), manualItem({xMm: 100, yMm: 270, wMm: 30, hMm: 8})],
+            });
+            const box = designer.box("m");
+            await zoomTo(designer, 100);
+            await box.click();
+            await expect(box).toHaveAttribute("aria-pressed", "true");
+            await expectBoxInArea(designer, box, "at 100%");
+
+            await zoomTo(designer, 200);
+            await expect(designer.zoomPercent).toHaveText("200%");
+            await expectBoxInArea(designer, box, "at 200%");
+            await expectMm(box, {x: 100, y: 270}, "the layout doesn't change");
+
+            await page.keyboard.press("Escape");
+            await expect(box).toHaveAttribute("aria-pressed", "false");
+            await scrollAreaTo(designer, 40, 60);
+            await designer.zoomOut.click();
+            await expect(designer.zoomPercent).toHaveText("175%");
+            expect(await areaScroll(designer), "nothing selected: the scroll stays").toMatchObject({left: 40, top: 60});
+        });
+
+    test("an item dragged far with auto-scroll at 200%, the area scrolled away from where it was: Ctrl+Z, the restored box is inside the area; Ctrl+Y, the same @TPL-595",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            const {designer} = await openDesigner(page, data, lang, plainLayout({xMm: 20}));
+            const box = designer.box("m");
+            await zoomTo(designer, 200);
+            await scrollAreaTo(designer, 0, 0);
+            const area = await areaRect(designer);
+
+            const drag = await pressBox(page, designer, "m");
+            await drag.to({x: drag.start.x, y: area.y + area.height - 12});
+            await expect.poll(async () => (await boxMm(box)).y, {message: "dragged far", timeout: 30_000}).toBeGreaterThan(150);
+            await drag.release();
+            await expect(designer.undo).toBeEnabled();
+            const far = await boxMm(box);
+
+            const {maxLeft, maxTop} = await areaScroll(designer);
+            await scrollAreaTo(designer, maxLeft, maxTop);
+            const sheet = await sheetOnScreen(designer);
+            expect(sheet.top + 28 * sheet.pxPerMm, "where it goes back to is out of view").toBeLessThan(area.y);
+
+            await page.keyboard.press("Control+KeyZ");
+            await expectMm(box, {x: 20, y: 20}, "undone");
+            await expectBoxInArea(designer, box, "after the undo");
+
+            await page.keyboard.press("Control+KeyY");
+            await expectMm(box, {x: far.x, y: far.y}, "redone");
+            await expectBoxInArea(designer, box, "after the redo");
         });
 
     test("A4 at Fit on 1280 x 720, and 25%, 50%, 100%, 200%: every box's outline is about 1 px on screen all round, 2 px selected, and its size stays exact @TPL-591",

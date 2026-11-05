@@ -7,6 +7,7 @@ import {
     centerAreaOn,
     COMPUTER_ONLY,
     customLayout,
+    type Designer,
     designerOf,
     expectMm,
     expectUnderPointer,
@@ -18,6 +19,7 @@ import {
     plainLayout,
     pressBox,
     pressEntry,
+    pressHandle,
     reopenDesigner,
     scrollAreaTo,
     sheetOnScreen,
@@ -31,6 +33,28 @@ import {setLanguage} from "../support/ux.ts";
 
 /** A band's distance from the area's edge: inside the 24 px. */
 const IN_BAND = 12;
+
+/** How far past the area's edge a pointer is held. */
+const PAST_EDGE = 60;
+
+/** The value goes on rising with nothing else happening: three rises in a row. */
+const expectKeepsRising = async (read: () => Promise<number>, message: string) => {
+    for (let rise = 0; rise < 3; rise++) {
+        const before = await read();
+        await expect.poll(read, {message}).toBeGreaterThan(before);
+    }
+};
+
+/** The area's scroll is this at several polls in a row, about half a second: an auto-scroll would have moved it by far more than a pixel by then. */
+const expectScrollStays = async (designer: Designer, expected: { left: number; top: number }, message: string) => {
+    const SEVERAL = 5;
+    let polls = 0;
+    await expect.poll(async () => {
+        polls++;
+        const {left, top} = await areaScroll(designer);
+        return {left, top, polls: Math.min(polls, SEVERAL)};
+    }, {message, intervals: [100]}).toEqual({left: expected.left, top: expected.top, polls: SEVERAL});
+};
 
 test.describe("Print template: scrolling during a drag @area:admin", () => {
     test.skip(({isMobile}) => isMobile, COMPUTER_ONLY);
@@ -213,6 +237,79 @@ test.describe("Print template: scrolling during a drag @area:admin", () => {
             expect(await page.evaluate(() => window.scrollY), "the page itself doesn't").toBe(0);
             await page.keyboard.press("Escape");
             await drag.release();
+            await expectUntouched(designer);
+        });
+
+    test("a move with the pointer held still 60 px past the area's right edge, at 200%: the area keeps scrolling on that axis and the item follows; Esc: back, the scroll stays @TPL-594",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            const {designer} = await openDesigner(page, data, lang, customLayout(420, 600, manualItem({xMm: 10, yMm: 10, wMm: 30, hMm: 8})));
+            const box = designer.box("m");
+            await zoomTo(designer, 200);
+            await scrollAreaTo(designer, 0, 0);
+            const area = await areaRect(designer);
+
+            const drag = await pressBox(page, designer, "m");
+            await drag.to({x: area.x + area.width + PAST_EDGE, y: area.y + area.height / 2});
+            await expectKeepsRising(async () => (await boxMm(box)).x, "the item's X follows with no pointer move");
+            await expectKeepsRising(async () => (await areaScroll(designer)).left, "scrollLeft keeps rising");
+            expect((await areaScroll(designer)).top, "the other axis stays").toBe(0);
+
+            await page.keyboard.press("Escape");
+            await expectMm(box, {x: 10, y: 10}, "back");
+            const stopped = await areaScroll(designer);
+            expect(stopped.left, "the scroll stays").toBeGreaterThan(0);
+            await expectScrollStays(designer, stopped, "the loop stopped");
+            await drag.release();
+            await expectUntouched(designer);
+        });
+
+    test("a resize with the pointer held still 60 px past the area's right edge, at 200%: the area keeps scrolling on that axis and the edge follows; the release stops it, one step @TPL-594",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            const {designer} = await openDesigner(page, data, lang, customLayout(420, 600, manualItem({xMm: 10, yMm: 10, wMm: 30, hMm: 8})));
+            const box = designer.box("m");
+            await zoomTo(designer, 200);
+            await box.click();
+            await scrollAreaTo(designer, 0, 0);
+            const area = await areaRect(designer);
+
+            const drag = await pressHandle(page, designer, "m", "e");
+            await drag.to({x: area.x + area.width + PAST_EDGE, y: area.y + area.height / 2});
+            await expectKeepsRising(async () => (await boxMm(box)).w, "the width follows with no pointer move");
+            await expectKeepsRising(async () => (await areaScroll(designer)).left, "scrollLeft keeps rising");
+            expect((await areaScroll(designer)).top, "the other axis stays").toBe(0);
+            await expectMm(box, {x: 10, y: 10, h: 8}, "only the moving edge moves");
+
+            await drag.release();
+            await expect(designer.undo, "one step").toBeEnabled();
+            await expectScrollStays(designer, await areaScroll(designer), "the release stops it");
+        });
+
+    test("a panel drag on a scrolled sheet, the pointer over the side panel: the area doesn't scroll @TPL-594",
+        async ({page, data, lang}) => {
+            const {designer, pt} = await openDesigner(page, data, lang, customLayout(420, 600));
+            await zoomTo(designer, 200);
+            await centerAreaOn(designer, 210, 300);
+            const start = await areaScroll(designer);
+            expect(start.left, "room to scroll back").toBeGreaterThan(0);
+            expect(start.left, "room to scroll on").toBeLessThan(start.maxLeft);
+
+            const drag = await pressEntry(page, designer, pt.manualInput);
+            await drag.by(10, 10);
+            await expect(designer.ghost).toBeVisible();
+
+            // The panel lies past the area's left edge in English and past its right edge in Arabic
+            const [area, panel] = [await areaRect(designer), (await designer.panel.boundingBox())!];
+            const pointer = drag.now();
+            expect(pointer.x, "the pointer is over the panel").toBeGreaterThanOrEqual(panel.x);
+            expect(pointer.x, "the pointer is over the panel").toBeLessThanOrEqual(panel.x + panel.width);
+            expect(pointer.x < area.x || pointer.x > area.x + area.width, "the pointer is past the area's edge").toBe(true);
+            await expectScrollStays(designer, start, "crossing the panel doesn't scroll the sheet");
+
+            await page.keyboard.press("Escape");
+            await drag.release();
+            await expect(designer.boxes, "nothing added").toHaveCount(1);
             await expectUntouched(designer);
         });
 

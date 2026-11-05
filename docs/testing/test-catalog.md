@@ -77,8 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 49 | 210 | 72 | 331 | 73 | 25 | 125 | 133 | 4 |
-| **All** | **484** | **858** | **476** | **1818** | **283** | **706** | **497** | **438** | **14** |
+| [TPL](#tpl--prescription-print-templates) | 49 | 212 | 73 | 334 | 74 | 25 | 127 | 135 | 4 |
+| **All** | **484** | **860** | **477** | **1821** | **284** | **706** | **499** | **440** | **14** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2644,3 +2644,6 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-591 | Given A4 at Fit on a 1280 × 720 window (about 33%) and a sheet at 25%, with nothing selected, then every box's outline stays visible all round: about 1 px on screen at 25%, 33%, 50%, 100% and 200%, whatever the box's pixel position; selected, about 2 px. The outline is inset: the box's measured size stays exact | P1 | e2e | acceptance #1 |
 | TPL-592 | Given a window tall enough for everything (1920 × 970, nothing selected), then the page has no vertical scrollbar and the area's bottom is inside the window; at 1280 × 720 too the area's bottom is inside the window with the page not scrolled | P2 | e2e | acceptance #8 |
 | TPL-593 | Given a panel drag at 50% and at 200%, then the ghost's text is the item's font × the zoom (11 pt × zoom / 100) | P2 | e2e | acceptance #11 |
+| TPL-594 | Given a move or a resize with the pointer past the area's edge, then the area keeps scrolling on that axis and the item follows; given a panel drag with the pointer over the side panel on a scrolled sheet, then the area doesn't scroll | P1 | unit+e2e | User, T5 (acceptance #3) |
+| TPL-595 | Given a selected item out of view after a zoom press, Fit, undo or redo, then the area scrolls so its box shows; with nothing selected the scroll stays | P1 | ui+e2e | User, T5 (acceptance #2) |
+| TPL-596 | Given the focus on Save, when a save makes it turn off, then the focus is in the sheet's area, not on `body`; a Save refused by the rules keeps it on and the focus stays | P2 | ui | User, T5 (acceptance #9) |

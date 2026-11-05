@@ -1059,7 +1059,7 @@ describe("print template drag: scrolling @area:admin", () => {
         expect(area.scrollLeft).toBe(100 + moved.left);
     });
 
-    test("outside the band, or outside the area, nothing scrolls; before the threshold no loop runs at all @TPL-585", async () => {
+    test("outside the band nothing scrolls; before the threshold no loop runs at all @TPL-585", async () => {
         await renderDesigner(layoutL());
         const frames = stubFrames();
         const area = sheetArea();
@@ -1070,11 +1070,133 @@ describe("print template drag: scrolling @area:admin", () => {
 
         moveTo(boxOf("m"), {clientX: 650, clientY: 650});
         frames.run(3);
-        moveTo(boxOf("m"), {clientX: 1100, clientY: 990});
-        frames.run(3);
 
         expect(area.scrollTop).toBe(0);
         expect(area.scrollLeft).toBe(0);
+    });
+
+    // The area, WIDE_AREA, runs from 200 to 1000 across and from 100 to 1000 down
+    const PAST_THE_EDGE = [
+        ["right", {clientX: 1060, clientY: 600}, {top: 0, left: 8 * 3}],
+        ["left", {clientX: 140, clientY: 600}, {top: 0, left: -8 * 3}],
+        ["bottom", {clientX: 600, clientY: 1060}, {top: 8 * 3, left: 0}],
+        ["top", {clientX: 600, clientY: 40}, {top: -8 * 3, left: 0}],
+        ["right and the bottom", {clientX: 1060, clientY: 1060}, {top: 8 * 3, left: 8 * 3}],
+        ["right, in the bottom band", {clientX: 1100, clientY: 990}, {top: 8 * 3, left: 8 * 3}],
+    ] as const;
+
+    test.each(PAST_THE_EDGE)("a move, the pointer held still past the %s: the area scrolls frame by frame, on that axis @TPL-594", async (_, point, moved) => {
+        await renderDesigner(layoutL());
+        const frames = stubFrames();
+        const area = sheetArea();
+        area.scrollTop = 100;
+        area.scrollLeft = 100;
+
+        press(boxOf("m"), POINT_IN_THE_MIDDLE);
+        moveTo(boxOf("m"), point);
+        frames.run(3);
+
+        expect(area.scrollTop).toBe(100 + moved.top);
+        expect(area.scrollLeft).toBe(100 + moved.left);
+    });
+
+    test.each(PAST_THE_EDGE)("a resize, the pointer held still past the %s: the area scrolls frame by frame, on that axis @TPL-594", async (_, point, moved) => {
+        await renderDesigner(layoutL());
+        select("m");
+        const frames = stubFrames();
+        const area = sheetArea();
+        area.scrollTop = 100;
+        area.scrollLeft = 100;
+        const handle = handleOf("se") as HTMLElement;
+
+        press(handle, POINT_IN_THE_MIDDLE);
+        moveTo(handle, point);
+        frames.run(3);
+
+        expect(area.scrollTop).toBe(100 + moved.top);
+        expect(area.scrollLeft).toBe(100 + moved.left);
+    });
+
+    test.each([
+        ["over the panel", {clientX: 60, clientY: 320}],
+        ["past the left, in the top band", {clientX: 60, clientY: 110}],
+        ["past the right, in the bottom band", {clientX: 1100, clientY: 990}],
+        ["above, in the left band", {clientX: 210, clientY: 40}],
+        ["below, in the right band", {clientX: 990, clientY: 1060}],
+    ])("a panel drag with the pointer %s: nothing scrolls, though the loop runs @TPL-594", async (_, point) => {
+        await renderDesigner(layoutL());
+        const frames = stubFrames();
+        const area = sheetArea();
+        area.scrollTop = 80;
+        area.scrollLeft = 80;
+        const entry = panelEntry("Manual input");
+
+        press(entry, IN_PANEL);
+        moveTo(entry, point);
+        expect(dragGhost()).toBeInTheDocument();
+        expect(frames.waiting()).toBe(1);
+        frames.run(5);
+
+        expect(area.scrollTop).toBe(80);
+        expect(area.scrollLeft).toBe(80);
+    });
+
+    /** layoutL's items on a sheet far larger than the area, so the pointer past the area's right edge is still over the sheet. */
+    const layoutOnLargeSheet = (): PrintLayout => ({...layoutL(), page: {size: "custom", widthMm: 420, heightMm: 600}});
+
+    test("a move, held still past the right edge: the box follows the scroll with no pointer move, the other axis stays; the drop counts the scroll @TPL-594", async () => {
+        await renderDesigner(layoutOnLargeSheet());
+        const frames = stubFrames();
+        const area = sheetArea();
+        press(boxOf("m"), at(PRESS_M.xMm, PRESS_M.yMm));
+        const past = {clientX: 1060, clientY: at(0, 100).clientY};
+
+        moveTo(boxOf("m"), past);
+        expect(placeOf("m")).toEqual({...M_AT_REST, x: "216mm", y: "95mm"});
+
+        frames.run(15);
+        expect(area.scrollLeft).toBe(15 * AUTO_SCROLL_PX_PER_FRAME);
+        fireEvent.scroll(area);
+        // 120 px is 31.75 mm: 247.36, snapped
+        expect(placeOf("m")).toEqual({...M_AT_REST, x: "247mm", y: "95mm"});
+
+        frames.run(15);
+        expect(area.scrollLeft).toBe(30 * AUTO_SCROLL_PX_PER_FRAME);
+        fireEvent.scroll(area);
+        expect(placeOf("m")).toEqual({...M_AT_REST, x: "279mm", y: "95mm"});
+        expect(area.scrollTop).toBe(0);
+
+        releaseAt(boxOf("m"), past);
+        expect(frames.waiting()).toBe(0);
+        expect(placeOf("m")).toEqual({...M_AT_REST, x: "279mm", y: "95mm"});
+    });
+
+    test("a resize, held still past the right edge: the edge follows the scroll with no pointer move; Esc: back, the scroll stays, the loop stopped @TPL-594", async () => {
+        await renderDesigner(layoutOnLargeSheet());
+        select("m");
+        const frames = stubFrames();
+        const area = sheetArea();
+        const handle = handleOf("e") as HTMLElement;
+        press(handle, at(52.3, 24.3));
+
+        moveTo(handle, {clientX: 1060, clientY: at(0, 24.3).clientY});
+        expect(placeOf("m")).toEqual({...M_AT_REST, w: "210.7mm"});
+
+        frames.run(15);
+        expect(area.scrollLeft).toBe(15 * AUTO_SCROLL_PX_PER_FRAME);
+        fireEvent.scroll(area);
+        // The edge at 255.06, snapped
+        expect(placeOf("m")).toEqual({...M_AT_REST, w: "242.7mm"});
+
+        frames.run(15);
+        fireEvent.scroll(area);
+        expect(placeOf("m")).toEqual({...M_AT_REST, w: "274.7mm"});
+        expect(area.scrollTop).toBe(0);
+
+        expect(pressKey(handle, "Escape")).toBe(true);
+        expect(placeOf("m")).toEqual(M_AT_REST);
+        expect(area.scrollLeft).toBe(30 * AUTO_SCROLL_PX_PER_FRAME);
+        expect(frames.waiting()).toBe(0);
     });
 
     test("the box follows the scroll with the pointer held still; Esc: back, the scroll stays, the loop stopped @TPL-531 @TPL-585", async () => {
