@@ -93,7 +93,7 @@ describe("htmlForPaste @area:prescription", () => {
         const attributesOf = (element: Element | null) => [element?.getAttribute("dir"), styleOf(element?.getAttribute("style") ?? "")];
 
         test.each(["blockquote", "h4", "h5", "h6", "pre"])("<%s> gets `dir` and `text-align`, no class stays, and it keeps them through `cleanPrintHtml` @TPL-329", tag => {
-            const pasted = htmlForPaste(`<${tag} class="ql-direction-rtl ql-align-right">x</${tag}>`);
+            const pasted = htmlForPaste(`<${tag} class="ql-direction-rtl ql-align-right">نص</${tag}>`);
             expect(attributesOf(bodyOf(pasted).querySelector(tag))).toEqual(["rtl", "text-align:right"]);
             expect(pasted).not.toContain("class=");
 
@@ -101,7 +101,7 @@ describe("htmlForPaste @area:prescription", () => {
         });
 
         test("its indent too, on the side the direction gives @TPL-329", () => {
-            const pasted = htmlForPaste('<h4 class="ql-direction-rtl ql-indent-1">x</h4>');
+            const pasted = htmlForPaste('<h4 class="ql-direction-rtl ql-indent-1">نص</h4>');
             expect(attributesOf(bodyOf(pasted).querySelector("h4"))).toEqual(["rtl", "margin-right:3em"]);
             expect(attributesOf(bodyOf(cleanPrintHtml(pasted)).querySelector("p"))).toEqual(["rtl", "margin-right:3em"]);
         });

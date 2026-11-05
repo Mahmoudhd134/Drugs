@@ -122,14 +122,14 @@ describe("every toolbar format stays @area:prescription", () => {
         ["underline", "<p><u>x</u></p>"],
         ["a numbered list", "<ol><li>x</li><li>y</li></ol>"],
         ["a bulleted list", "<ul><li>x</li><li>y</li></ul>"],
-        ["direction", '<p class="ql-direction-rtl">x</p>'],
+        ["direction", '<p class="ql-direction-rtl">نص</p>'],
         ["centered", '<p class="ql-align-center">x</p>'],
         ["aligned right", '<p class="ql-align-right">x</p>'],
         ["justified", '<p class="ql-align-justify">x</p>'],
         ["indented", '<p class="ql-indent-2">x</p>'],
-        ["indented, right to left", '<p class="ql-direction-rtl ql-indent-1">x</p>'],
-        ["indented twice, right to left: 6em, the deepest that stays as it is", '<p class="ql-direction-rtl ql-indent-2">x</p>'],
-        ["a list item's format", '<ol><li class="ql-direction-rtl ql-align-center ql-indent-1">x</li></ol>'],
+        ["indented, right to left", '<p class="ql-direction-rtl ql-indent-1">نص</p>'],
+        ["indented twice, right to left: 6em, the deepest that stays as it is", '<p class="ql-direction-rtl ql-indent-2">نص</p>'],
+        ["a list item's format", '<ol><li class="ql-direction-rtl ql-align-center ql-indent-1">نص</li></ol>'],
         ["a heading", "<h2>x</h2>"],
         ["a name with its own direction", '<p><strong dir="ltr">Tobradex</strong><br>x</p>'],
         ["a span with its direction", '<p><span dir="rtl">x</span></p>'],
@@ -140,7 +140,7 @@ describe("every toolbar format stays @area:prescription", () => {
     });
 
     test("alignment, direction and indent reach the print as `htmlForPaste` wrote them @TPL-328", () => {
-        const pasted = htmlForPaste('<p class="ql-direction-rtl ql-align-center ql-indent-2">x</p>');
+        const pasted = htmlForPaste('<p class="ql-direction-rtl ql-align-center ql-indent-2">نص</p>');
         const paragraph = onlyOne(pasted, "p");
         expect(paragraph.getAttribute("dir")).toBe("rtl");
         expect(styleOf(paragraph.getAttribute("style") ?? "")).toBe("margin-bottom:0;margin-right:6em;margin-top:0;text-align:center");
@@ -243,7 +243,7 @@ describe("pasted content @area:prescription", () => {
     test("a deep Tab indent from `htmlForPaste`: capped in print, on the side the direction gives @TPL-329", () => {
         const left = onlyOne(htmlForPaste('<p class="ql-indent-8">x</p>'), "p");
         expect(styleOf(left.getAttribute("style") ?? "")).toBe("margin-bottom:0;margin-left:min(24em, 50%);margin-top:0");
-        const right = onlyOne(htmlForPaste('<p class="ql-direction-rtl ql-indent-8">x</p>'), "p");
+        const right = onlyOne(htmlForPaste('<p class="ql-direction-rtl ql-indent-8">نص</p>'), "p");
         expect(styleOf(right.getAttribute("style") ?? "")).toBe("margin-bottom:0;margin-right:min(24em, 50%);margin-top:0");
     });
 
@@ -253,7 +253,7 @@ describe("pasted content @area:prescription", () => {
     });
 
     test.each(["ltr", "rtl", "auto"])("dir=%s stays, on any allowed tag @TPL-329", dir => {
-        expect(clean(`<p dir="${dir}"><strong dir="${dir}">x</strong></p>`)).toBe(`<p dir="${dir}"><strong dir="${dir}">x</strong></p>`);
+        expect(clean(`<p dir="${dir}"><strong dir="${dir}">نص</strong></p>`)).toBe(`<p dir="${dir}"><strong dir="${dir}">نص</strong></p>`);
     });
 
     test("any other dir goes @TPL-329", () => {
@@ -278,7 +278,7 @@ describe("pasted content @area:prescription", () => {
     });
 
     test.each(["div", "blockquote", "h4", "section"])("<%s> keeps its direction and alignment when it becomes a paragraph @TPL-329", tag => {
-        const paragraph = onlyOne(`<${tag} dir="rtl" style="text-align:center;color:red">x</${tag}>`, "p");
+        const paragraph = onlyOne(`<${tag} dir="rtl" style="text-align:center;color:red">نص</${tag}>`, "p");
         expect(paragraph.getAttribute("dir")).toBe("rtl");
         expect(styleOf(paragraph.getAttribute("style") ?? "")).toBe("text-align:center");
     });
@@ -384,8 +384,8 @@ describe("the result re-parses to itself @area:prescription", () => {
 
     test("each part around a lifted block keeps its block's direction and alignment; the lifted block keeps only its own @TPL-329", () => {
         expectCleaned(
-            '<div dir="rtl" style="text-align:center">a<div dir="ltr">b</div>c</div>',
-            '<p dir="rtl" style="text-align:center">a</p><p dir="ltr">b</p><p dir="rtl" style="text-align:center">c</p>',
+            '<div dir="rtl" style="text-align:center">أ<div dir="ltr">b</div>ج</div>',
+            '<p dir="rtl" style="text-align:center">أ</p><p dir="ltr">b</p><p dir="rtl" style="text-align:center">ج</p>',
         );
     });
 
@@ -469,8 +469,181 @@ describe("the result re-parses to itself @area:prescription", () => {
     });
 
     test("toolbar lists, nested as Quill's paste keeps them, equal htmlForPaste @TPL-328", () => {
-        const pasted = htmlForPaste('<ol><li class="ql-direction-rtl">a<ul><li class="ql-align-center">b</li></ul></li></ol>');
-        expectCleaned(pasted, '<ol><li dir="rtl">a<ul><li style="text-align:center">b</li></ul></li></ol>');
+        const pasted = htmlForPaste('<ol><li class="ql-direction-rtl">أ<ul><li class="ql-align-center">b</li></ul></li></ol>');
+        expectCleaned(pasted, '<ol><li dir="rtl">أ<ul><li style="text-align:center">b</li></ul></li></ol>');
+    });
+});
+
+describe("a line with no right-to-left letter @area:prescription", () => {
+    const AT_THE_RIGHT = 'dir="ltr" style="text-align:right"';
+
+    test.each([
+        ["a <p>", '<p dir="rtl">5-FU 1%</p>', `<p ${AT_THE_RIGHT}>5-FU 1%</p>`],
+        ["an <h1>", '<h1 dir="rtl">5-FU 1%</h1>', `<h1 ${AT_THE_RIGHT}>5-FU 1%</h1>`],
+        ["an <h2>", '<h2 dir="rtl">5-FU 1%</h2>', `<h2 ${AT_THE_RIGHT}>5-FU 1%</h2>`],
+        ["an <h3>", '<h3 dir="rtl">5-FU 1%</h3>', `<h3 ${AT_THE_RIGHT}>5-FU 1%</h3>`],
+        ["a block that became a <p>", '<blockquote dir="rtl">5-FU 1%</blockquote>', `<p ${AT_THE_RIGHT}>5-FU 1%</p>`],
+        ["inside a bold tag", '<p dir="rtl"><strong>ALEMOX 1 GM 12 F.C.TABS.</strong></p>', `<p ${AT_THE_RIGHT}><strong>ALEMOX 1 GM 12 F.C.TABS.</strong></p>`],
+        ["over two lines of one block", '<p dir="rtl">5-FU 1%<br>ALEMOX</p>', `<p ${AT_THE_RIGHT}>5-FU 1%<br>ALEMOX</p>`],
+    ])("%s with dir=rtl and only Latin letters reads left to right, staying at the right @TPL-349 @smoke", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test.each([["digits", "123"], ["a percentage", "100 %"], ["punctuation", "..."]])(
+        "no letter at all counts too: %s @TPL-349", (_name, content) => {
+            expect(cleanPrintHtml(`<p dir="rtl">${content}</p>`)).toBe(`<p ${AT_THE_RIGHT}>${content}</p>`);
+        });
+
+    test.each([
+        ["a <br>", '<p dir="rtl"><br></p>'],
+        ["a space", '<p dir="rtl"> </p>'],
+        ["a no-break space", '<p dir="rtl">\u00A0</p>'],
+        ["Quill's cursor alone", '<p dir="rtl">\uFEFF</p>'],
+        ["an invisible mark", '<p dir="rtl">\u200F</p>'],
+        ["a heading", '<h2 dir="rtl"><br></h2>'],
+        ["a list item", '<ol><li dir="rtl"><br></li></ol>'],
+        ["with its alignment and margins", '<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><br></p>'],
+    ])("a blank line stays as it is: %s @TPL-349", (_name, html) => {
+        expect(clean(html)).toBe(shape(html));
+    });
+
+    test.each([
+        ["at its start", "\uFEFF5-FU 1%"],
+        ["at its end", "5-FU 1%\uFEFF"],
+        ["inside it", "5-FU\uFEFF 1%"],
+    ])("U+FEFF, Quill's cursor, isn't a right-to-left letter: a Latin line holding it %s still flips, the mark kept @TPL-349", (_name, text) => {
+        expect(cleanPrintHtml(`<p dir="rtl">${text}</p>`)).toBe(`<p ${AT_THE_RIGHT}>${text}</p>`);
+    });
+
+    test.each([
+        ["a numbered item", "ol"],
+        ["a bulleted item", "ul"],
+    ])("%s that flips also gets list-style-position:inside, so its marker stays beside its text at the right @TPL-349 @smoke", (_name, list) => {
+        expect(clean(`<${list}><li dir="rtl">5-FU 1%</li></${list}>`))
+            .toBe(shape(`<${list}><li dir="ltr" style="text-align:right;list-style-position:inside">5-FU 1%</li></${list}>`));
+    });
+
+    test("a flipped item with its own alignment and margin keeps them, beside the marker's position @TPL-349", () => {
+        expect(clean('<ol><li dir="rtl" style="text-align:center;margin-right:3em">abc</li></ol>'))
+            .toBe(shape('<ol><li dir="ltr" style="text-align:center;margin-right:3em;list-style-position:inside">abc</li></ol>'));
+    });
+
+    test("through `htmlForPaste`, a right-to-left item of the editor flips the same @TPL-349", () => {
+        expect(clean(htmlForPaste('<ol><li class="ql-direction-rtl ql-align-right">ALEMOX</li></ol>')))
+            .toBe(shape('<ol><li dir="ltr" style="text-align:right;list-style-position:inside">ALEMOX</li></ol>'));
+    });
+
+    test.each([
+        ["with both scripts", '<ol><li dir="rtl">Tobradex رج الزجاجة</li></ol>'],
+        ["Arabic", '<ol><li dir="rtl">نص</li></ol>'],
+        ["dir=ltr already", '<ol><li dir="ltr">abc</li></ol>'],
+        ["with no dir", "<ol><li>abc</li></ol>"],
+    ])("an item that doesn't flip gets no list-style-position: %s @TPL-349", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe(html);
+    });
+
+    test("a paragraph or a heading that flips gets no list-style-position @TPL-349", () => {
+        expect(cleanPrintHtml('<p dir="rtl">abc</p><h2 dir="rtl">abc</h2>')).not.toContain("list-style");
+    });
+
+    test.each([
+        ["an item with no dir", '<ol><li style="list-style-position:inside">abc</li></ol>', "<ol><li>abc</li></ol>"],
+        ["an Arabic item", '<ol><li dir="rtl" style="list-style-position:inside">نص</li></ol>', '<ol><li dir="rtl">نص</li></ol>'],
+    ])("a pasted list-style-position is still dropped: only the flip writes it: %s @TPL-329", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test.each([["Cyrillic", "абв"], ["Armenian", "Ֆ"], ["Devanagari", "अ"]])("%s isn't a right-to-left script @TPL-349", (_name, content) => {
+        expect(cleanPrintHtml(`<p dir="rtl">${content}</p>`)).toBe(`<p ${AT_THE_RIGHT}>${content}</p>`);
+    });
+
+    test.each(["left", "right", "center", "justify", "start", "end"])("its own text-align:%s stays, and none is added @TPL-349", align => {
+        expect(cleanPrintHtml(`<p dir="rtl" style="text-align:${align}">abc</p>`)).toBe(`<p dir="ltr" style="text-align:${align}">abc</p>`);
+    });
+
+    test("with no text-align it gains one beside its margins, which stay @TPL-349", () => {
+        const paragraph = onlyOne('<p dir="rtl" style="margin-top:0;margin-right:3em">abc</p>', "p");
+        expect(paragraph.getAttribute("dir")).toBe("ltr");
+        expect(styleOf(paragraph.getAttribute("style") ?? "")).toBe("margin-right:3em;margin-top:0;text-align:right");
+    });
+
+    test("a text-align the cleaning drops is no text-align: it gains one @TPL-349", () => {
+        expect(cleanPrintHtml('<p dir="rtl" style="text-align:inherit;color:red">abc</p>')).toBe(`<p ${AT_THE_RIGHT}>abc</p>`);
+    });
+
+    test.each([
+        ["the generated line, its name's own direction on it", () => linesToHtml([aLine(aDrug({name: "5-FU 1%"}), {})]), "<strong dir=\"ltr\">5-FU 1%</strong>"],
+        ["the editor's line, which dropped that direction", () => '<p class="ql-direction-rtl ql-align-right"><strong>ALEMOX 1 GM 12 F.C.TABS.</strong></p>', "<strong>ALEMOX 1 GM 12 F.C.TABS.</strong>"],
+    ])("through `htmlForPaste`, %s: dir=ltr, at the right, as Copy's alignment and margins have it @TPL-349", (_name, html, name) => {
+        const pasted = htmlForPaste(html());
+        const expected = `<p dir="ltr" style="text-align:right;margin-top:0;margin-bottom:0">${name}</p>`;
+        expect(pasted).toBe(expected.replace('dir="ltr"', 'dir="rtl"'));
+        expect(cleanPrintHtml(pasted)).toBe(expected);
+    });
+
+    test("through `htmlForPaste`, a right-to-left line with no alignment: it gains the right @TPL-349", () => {
+        const paragraph = onlyOne(htmlForPaste('<p class="ql-direction-rtl ql-indent-1">abc</p>'), "p");
+        expect(paragraph.getAttribute("dir")).toBe("ltr");
+        expect(styleOf(paragraph.getAttribute("style") ?? "")).toBe("margin-bottom:0;margin-right:3em;margin-top:0;text-align:right");
+    });
+
+    test("each item of a list on its own: only the one with no right-to-left letter changes @TPL-349", () => {
+        expect(clean('<ol><li dir="rtl">abc</li><li dir="rtl">نص</li></ol>'))
+            .toBe(shape('<ol><li dir="ltr" style="text-align:right;list-style-position:inside">abc</li><li dir="rtl">نص</li></ol>'));
+    });
+
+    test("each line a lift leaves on its own: the Latin part changes, the Arabic part doesn't @TPL-349", () => {
+        expect(cleanPrintHtml('<div dir="rtl">abc<div dir="rtl">نص</div></div>')).toBe(`<p ${AT_THE_RIGHT}>abc</p><p dir="rtl">نص</p>`);
+    });
+
+    test("cleaning it again changes nothing @TPL-349", () => {
+        const cleaned = cleanPrintHtml('<p dir="rtl">5-FU 1%</p>');
+        expect(cleanPrintHtml(cleaned)).toBe(cleaned);
+    });
+
+    test.each([
+        ["Latin and Arabic in one run", '<p dir="rtl">أموكسيسيلين Amoxicillin 500mg</p>'],
+        ["a Latin name and an Arabic sentence", '<p dir="rtl"><strong dir="ltr">5-FU 1%</strong><br>رج الزجاجة</p>'],
+        ["a name with no direction and an Arabic sentence", '<p dir="rtl"><strong>Tobradex</strong><br>رج الزجاجة</p>'],
+        ["a <li>", '<ol><li dir="rtl">Tobradex رج الزجاجة</li></ol>'],
+        ["an <h2>", '<h2 dir="rtl">Tobradex رج الزجاجة</h2>'],
+    ])("a line holding both scripts doesn't change, and gains no alignment: %s @TPL-349 @smoke", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe(html);
+    });
+
+    test.each([
+        ["Arabic", '<p dir="rtl">نص</p>'],
+        ["Hebrew", '<p dir="rtl">אבג</p>'],
+        ["Arabic presentation forms", '<p dir="rtl">\uFE8F</p>'],
+        ["the last of them", '<p dir="rtl">\uFEFC</p>'],
+        ["Arabic beside Quill's cursor", '<p dir="rtl">\uFEFFنص</p>'],
+        ["the ligatures' block", '<p dir="rtl">\uFDFA</p>'],
+        ["Hebrew presentation forms", '<p dir="rtl">\uFB1D</p>'],
+    ])("a right-to-left line stays as it is: %s @TPL-349", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe(html);
+    });
+
+    test.each([
+        ["dir=ltr, Latin", '<p dir="ltr">abc</p>'],
+        ["dir=ltr, Arabic", '<p dir="ltr">نص</p>'],
+        ["no `dir`, Latin", "<p>abc</p>"],
+        ["no `dir`, Arabic", "<p>نص</p>"],
+        ["dir=auto, Latin", '<p dir="auto">abc</p>'],
+        ["dir=ltr on a <li>", '<ol><li dir="ltr">abc</li></ol>'],
+        ["no `dir` on a heading", "<h2>abc</h2>"],
+    ])("%s is unchanged, and gains no alignment @TPL-349", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe(html);
+    });
+
+    test.each([
+        ["a list's own `dir`", '<ol dir="rtl"><li>abc</li></ol>'],
+        ["an inline tag's `dir`", '<p dir="ltr"><strong dir="rtl">abc</strong></p>'],
+    ])("the rule is for a line: %s is unchanged @TPL-349", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe(html);
+    });
+
+    test("Copy isn't touched: `htmlForPaste` keeps dir=rtl on a Latin line @TPL-349", () => {
+        expect(htmlForPaste('<p class="ql-direction-rtl">abc</p>')).toBe('<p dir="rtl" style="margin-top:0;margin-bottom:0">abc</p>');
     });
 });
 

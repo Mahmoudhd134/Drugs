@@ -1,7 +1,8 @@
 import {describe, expect, test, vi} from "vitest";
-import {waitFor} from "@testing-library/react";
-import {fillIn, recordRequests, toastTexts} from "../../test";
+import {screen, waitFor} from "@testing-library/react";
+import {aPrintLayout, aTemplateItem, fillIn, recordRequests, renderWithProviders, toastTexts} from "../../test";
 import {storedLines} from "../../test/pages/prescription.tsx";
+import {TemplateSheet} from "./components/TemplateSheet.tsx";
 import {
     aPrintedLine,
     confirmButton,
@@ -81,6 +82,78 @@ describe("the printed values @area:prescription", () => {
         expect(box.textContent).toBe(text);
         expect(box.querySelector("img, b")).toBeNull();
         expect((window as unknown as Record<string, unknown>).__printed).toBeUndefined();
+    });
+});
+
+describe("each line of a short item takes its own language's direction @area:prescription", () => {
+    const THREE_LINES = "Dr. Ahmed\nدكتور أحمد\nConsultant";
+    const valueSpan = (box: HTMLElement | null) => box?.querySelector("span") as HTMLElement;
+
+    test("a static text in three languages' lines: dir=auto and `unicode-bidi: plaintext`, its lines as typed @TPL-350 @smoke", async () => {
+        const page = await openWithTemplate(templateOf(staticText("s1", THREE_LINES)));
+        await page.pressPrint();
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        const span = valueSpan(page.itemOn(page.sheets()[0], "s1"));
+        expect(span).toHaveAttribute("dir", "auto");
+        expect(span.style.unicodeBidi).toBe("plaintext");
+        expect(span.textContent).toBe(THREE_LINES);
+    });
+
+    test("a manual value too @TPL-350", async () => {
+        const page = await openWithTemplate(templateOf(manual("m1", "الاسم")));
+        await page.pressPrint();
+        const popup = await findPopup();
+        await page.user.type(popupFields(popup)[0], "Ahmed أحمد");
+        await page.user.click(confirmButton(popup));
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        const span = valueSpan(page.itemOn(page.sheets()[0], "m1"));
+        expect(span).toHaveAttribute("dir", "auto");
+        expect(span.style.unicodeBidi).toBe("plaintext");
+    });
+
+    test.each(["fullDate", "time", "dayOfWeek", "dayOfMonth"] as const)("the function %s, which reads in its own direction, too @TPL-350", async name => {
+        const page = await openWithTemplate(templateOf(fn("f1", name)));
+        await page.pressPrint();
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        const span = valueSpan(page.itemOn(page.sheets()[0], "f1"));
+        expect(span).toHaveAttribute("dir", "auto");
+        expect(span.style.unicodeBidi).toBe("plaintext");
+    });
+
+    test.each([
+        ["a page number", "pageNumber", "2/3"],
+        ["an ISO date", "isoDateTime", "2026-11-05T14:30"],
+    ] as const)("%s has dir=ltr, and no `unicode-bidi`, which would give it back to its letters @TPL-350 @TPL-318", async (_name, name, value) => {
+        const layout = aPrintLayout({items: [aTemplateItem("function", {id: "f1", function: name})]});
+        await renderWithProviders(<TemplateSheet layout={layout} sampleText="" print={{textHtml: "", values: {f1: value}}}/>);
+
+        const span = valueSpan(screen.getByTestId("print-sheet").querySelector<HTMLElement>('[data-item-id="f1"]'));
+        expect(span).toHaveAttribute("dir", "ltr");
+        expect(span.textContent).toBe(value);
+        expect(span.style.unicodeBidi).toBe("");
+    });
+
+    test.each([
+        ["with a selection handler, as the designer has it", true],
+        ["a preview with none", false],
+    ])("the designer's sheet has it too: every item's text, %s @TPL-350", async (_name, designing) => {
+        const items = [
+            aTemplateItem("prescriptionText", {id: "text"}),
+            aTemplateItem("staticText", {id: "s1", text: THREE_LINES}),
+            aTemplateItem("manualInput", {id: "m1", name: "الاسم"}),
+            aTemplateItem("function", {id: "f1", function: "fullDate", name: "التاريخ"}),
+        ];
+        await renderWithProviders(<TemplateSheet layout={aPrintLayout({items})} sampleText="نص" onSelect={designing ? vi.fn() : undefined}/>);
+
+        const sheet = screen.getByTestId("template-sheet");
+        for (const {id} of items) {
+            const span = valueSpan(sheet.querySelector<HTMLElement>(`[data-item-id="${id}"]`));
+            expect(span).toHaveAttribute("dir", "auto");
+            expect(span.style.unicodeBidi).toBe("plaintext");
+        }
     });
 });
 
