@@ -614,9 +614,9 @@ Existing cases changed in step 1:
 29. Layout grid: three columns ≥ `lg`; settings below the two others from `md` to `lg`.
 30. Labels with no text in the docs (all of `printTemplates.panel.*`, `page.*`, `config.*`, `sheet.*`, `leave`): written here; see § 7 for the messages.
 
-## 7. Open for the design session
+## 7. Wording approved by the user
 
-These change what users read beyond the business file; the contract holds a proposal so it compiles:
+Settled: the user approved all four texts (2026-11-05, through the design session).
 
-1. **Messages not in the business file's table:** `errors.templateLayoutInvalid` «بيانات القالب غير صحيحة.» (only an old SPA or a hand-made request sees it), `printTemplates.numberRequired` «أدخل رقمًا.», the toast `printTemplates.deleted` «تم حذف القالب». Approve the wording; approved rows join the table of `docs/features/prescription-templates/business.md`, since I18N-013 maps every row.
-2. **TPL-243's quote** (§ 6 item 2): the line now says «الاسم طويل جدًا.», per the business file's "usual messages". Tell the session if the user wants a template-specific text instead.
+1. **Messages not in the business file's table:** `errors.templateLayoutInvalid` «بيانات القالب غير صحيحة.» (only an old SPA or a hand-made request sees it), `printTemplates.numberRequired` «أدخل رقمًا.», the toast `printTemplates.deleted` «تم حذف القالب». These rows join the table of `docs/features/prescription-templates/business.md`, since I18N-013 maps every row.
+2. **TPL-243's quote** (§ 6 item 2): «الاسم طويل جدًا.», the system's usual message.
