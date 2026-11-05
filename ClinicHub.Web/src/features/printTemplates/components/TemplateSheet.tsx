@@ -95,9 +95,9 @@ export const TemplateSheet = ({layout, selectedId, onSelect, sampleText}: Props)
                             boxSizing: "border-box",
                             overflow: "visible",
                             cursor: designing ? "pointer" : undefined,
-                            // Marks stay outside the layout: a box keeps exactly its size (TPL-228)
-                            ...(selected ? {outline: "2px solid #0f766e"} : undefined),
-                            ...(designing ? {boxShadow: "inset 0 0 0 1px rgba(15, 118, 110, 0.45)"} : undefined),
+                            // Marks stay outside the layout: a box keeps exactly its size (TPL-228). No inline
+                            // outline: the browser's focus ring is an outline and must still show (TPL-057)
+                            ...(designing ? {boxShadow: selected ? "inset 0 0 0 2px #0f766e" : "inset 0 0 0 1px rgba(15, 118, 110, 0.45)"} : undefined),
                         }}
                     >
                         {/* Out of the button's flow: a button centers its content, this starts at the box's top */}
