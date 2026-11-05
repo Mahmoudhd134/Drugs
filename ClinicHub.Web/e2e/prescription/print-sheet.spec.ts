@@ -20,6 +20,7 @@ import {
     moveMouseOff,
     openEditor,
     openPrescription,
+    pdfLineEdges,
     pdfRun,
     pdfText,
     printButton,
@@ -28,6 +29,7 @@ import {
     printRoot,
     printSheets,
     sheetItem,
+    textPartEdges,
     timesPrinted,
 } from "../support/print.ts";
 import {A4, A5, expectClose, type Layout, type LayoutItem, layoutL, manualItem, putTemplate, staticItem, textItem} from "../support/print-template.ts";
@@ -347,6 +349,66 @@ test.describe("Printing: the sheet @area:prescription", () => {
                 expect(Math.abs(line.leftMm), `«${line.text}» starts ${line.leftMm} mm from the box's left`).toBeLessThanOrEqual(0.1);
             }
             expect(Math.abs(arabic.rightMm - fixed.wMm), `«${arabic.text}» ends at ${arabic.rightMm} mm of a ${fixed.wMm} mm box`).toBeLessThanOrEqual(0.1);
+        });
+
+    test("repeated spaces and a tab typed in the editor print as typed, measured on the sheet and in the PDF; spaces that force wraps keep every sheet's text inside its box @TPL-351",
+        async ({page, lang, data}) => {
+            const box = textItem({wMm: 40, hMm: boxForLines(6, 11), fontSizePt: 11});
+            const {rt} = await openPrescription(page, data, lang, layoutL({items: [box]}), [{name: `Zname${unique()}`}]);
+
+            const editor = await openEditor(page, rt);
+            const quill = editor.locator(".ql-editor");
+            await quill.click();
+            await page.keyboard.press("Control+End");
+            await page.keyboard.press("Enter");
+            const spaced = "a    b";
+            await page.keyboard.type(spaced);
+            await page.keyboard.press("Enter");
+            await page.keyboard.type("c");
+            await page.keyboard.press("Tab");
+            await page.keyboard.type("d");
+
+            await printButton(editor, rt).click();
+            await expectPrintCalls(page, 1);
+            // Quill carries the name's bold onto what's typed after it, up to the tab: `c` and what follows are separate nodes
+            const [a, space, b, c, tab, d] = await textPartEdges(sheetItem(page, 0, box.id), [
+                [spaced, 0, 1], [spaced, 1, 2], [spaced, 5, 6], ["c", 0, 1], ["\td", 0, 1], ["\td", 1, 2],
+            ]);
+            const gap = b.leftMm - a.rightMm;
+            expect(gap, "the four spaces' gap is wider than one space").toBeGreaterThan(space.widthMm * 1.5);
+            expect(Math.abs(gap - 4 * space.widthMm), `a gap of ${gap} mm, a space of ${space.widthMm} mm: four of them`).toBeLessThanOrEqual(0.1);
+            expect(tab.widthMm, "the tab is wider than one space").toBeGreaterThan(space.widthMm * 1.5);
+
+            const {pages} = await printedPdf(page);
+            expect(pages).toHaveLength(1);
+            const spacedLine = pdfLineEdges(pages[0], /^a(\s|$)/);
+            expect(Math.abs(spacedLine.leftMm - (box.xMm + a.leftMm)), "the PDF's spaced line starts where the sheet's does").toBeLessThanOrEqual(1);
+            expect(Math.abs(spacedLine.rightMm - (box.xMm + b.rightMm)), "the PDF's spaced line ends where the sheet's does").toBeLessThanOrEqual(1);
+            const tabLine = pdfLineEdges(pages[0], /^c(\s|$)/);
+            expect(Math.abs(tabLine.leftMm - (box.xMm + c.leftMm)), "the PDF's tab line starts where the sheet's does").toBeLessThanOrEqual(1);
+            expect(Math.abs(tabLine.rightMm - (box.xMm + d.rightMm)), "the PDF's tab line ends where the sheet's does").toBeLessThanOrEqual(1);
+            await finishPrint(page);
+
+            // Each of these is one line with its spaces collapsed and two as typed: only a measure that keeps them too makes a second sheet
+            await moveMouseOff(page);
+            await quill.click();
+            await page.keyboard.press("Control+End");
+            const tokens = [1, 2, 3].flatMap(i => [`Zleft${i}`, `Zright${i}`]);
+            for (let i = 0; i < tokens.length; i += 2) {
+                await page.keyboard.press("Enter");
+                await page.keyboard.type(`${tokens[i]}${" ".repeat(80)}${tokens[i + 1]}`);
+            }
+            await printButton(editor, rt).click();
+            await expectPrintCalls(page, 2);
+            const sheets = await printSheets(page);
+            expect(sheets.length, "the wrapped lines take a second sheet").toBeGreaterThan(1);
+            for (const [index, sheet] of sheets.entries()) {
+                expect(sheet.items[box.id].contentHeightMm, `sheet ${index + 1}: its text stays inside its box`).toBeLessThanOrEqual(box.hMm + 0.1);
+            }
+            const printed = sheets.map(sheet => sheet.items[box.id].text).join("\n");
+            for (const token of tokens) expect(printed.split(token).length - 1, `${token} printed once`).toBe(1);
+            await finishPrint(page);
+            await closeEditor(editor, rt);
         });
 
     test("in the print layout 2026-11-05T14:30 and 2/3 read left to right inside the sheet, whatever the UI language @TPL-318",

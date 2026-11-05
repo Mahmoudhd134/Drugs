@@ -320,6 +320,37 @@ export const itemLineEdges = (box: Locator) => inPrintMedia(box.page(), () => bo
     });
 }, MM));
 
+/**
+ * Parts of an item's text nodes, under print media, by `Range` rects: each `[the node's whole text, start, end]` gives its left and right
+ * edges and its width, in mm from the box's left.
+ */
+export const textPartEdges = (box: Locator, parts: [text: string, start: number, end: number][]) => inPrintMedia(box.page(), () => box.evaluate((root, {parts, mm}) => {
+    const {left} = root.getBoundingClientRect();
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes: Node[] = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node);
+    return parts.map(([text, start, end]) => {
+        const node = nodes.find(candidate => candidate.textContent === text);
+        if (!node) throw new Error(`no text node ${JSON.stringify(text)} among ${JSON.stringify(nodes.map(candidate => candidate.textContent))}`);
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, end);
+        const rect = range.getBoundingClientRect();
+        return {leftMm: (rect.left - left) / mm, rightMm: (rect.right - left) / mm, widthMm: rect.width / mm};
+    });
+}, {parts, mm: MM}));
+
+/** The left and right edges, in mm from the page's left, of the PDF's line holding the run this expression finds. */
+export const pdfLineEdges = (page: PdfPage, run: RegExp) => {
+    const found = page.items.find(item => run.test(item.text));
+    if (!found) throw new Error(`no run ${run} in ${pdfText(page)}`);
+    const line = page.items.filter(item => Math.abs(item.yPt - found.yPt) < 1);
+    return {
+        leftMm: Math.min(...line.map(item => item.xPt)) / MM_PT,
+        rightMm: Math.max(...line.map(item => item.xPt + item.widthPt)) / MM_PT,
+    };
+};
+
 /** The item of a sheet on the page (for a look at its DOM). */
 export const sheetItem = (page: Page, sheet: number, id: string) =>
     page.locator(PRINT_SHEET).nth(sheet).locator(`[data-item-id="${id}"]`);

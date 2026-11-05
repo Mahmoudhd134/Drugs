@@ -2494,3 +2494,4 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-348 | Given the pop-up and the page with Print in Arabic, in English and on a phone, then axe and the cut-text check pass | P1 | e2e | test rules |
 | TPL-349 | Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box; a line holding both scripts doesn't change | P0 | unit+e2e | User, 2026-11-05 (F1) |
 | TPL-350 | Given a static text `Dr. Ahmed`, `دكتور أحمد`, `Consultant` on three lines, then each line starts from its own language's side | P1 | unit+e2e | Business file (F5) |
+| TPL-351 | Given repeated spaces and a tab typed in the editor, when printed, then they print as typed, and every sheet's text stays inside its box: the page breaks were measured with them | P1 | ui+e2e | User, 2026-11-05 |
