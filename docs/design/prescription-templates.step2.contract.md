@@ -61,6 +61,7 @@ once and reloads `/me` (TPL-343); on its own key so a failed click doesn't put t
 - **Attributes:** only `dir` with `ltr`, `rtl` or `auto`, and `style` filtered property by property: `text-align` with `left right center justify start end`; `margin-top`, `margin-bottom`, `margin-left`, `margin-right`,
   `margin-inline-start`, `margin-inline-end` with a number that isn't negative and `em`, `px`, `pt`, `mm` or none. The `margin` shorthand goes. A side margin above `6em` (deep Tab indents) is written as `min(<value>, 50%)`, so it can't push text off the sheet, where `fits`, which measures height only, wouldn't see it. Everything else goes (`color`, `font-*`, `position`, `background`, `onerror`, `class`, `href`, `src`). No style left: no attribute.
 - Text outside any block at the top level is wrapped in a `p`.
+- **A line with no right-to-left letter reads left to right, at its own alignment** (user, 2026-11-05; F1, TPL-349): a `p`, `li` or heading with `dir="rtl"` holding no right-to-left letter (the range of `prescriptionText.ts`'s `RTL_LETTER`; no letter at all counts too) gets `dir="ltr"`; with no `text-align` in its `style` it gains `text-align:right`, so it stays where it was. Quill drops the name's `dir="ltr"` on load, and without this `5-FU 1%` prints `FU 1%-5`. Lines holding both scripts don't change. The editor's screen and Copy aren't touched: a separate proposed session.
 - **The result re-parses to itself** (T1): a block nested in a `p`, a heading or an inline tag is lifted out, around its siblings; a list's child that isn't a `li` is wrapped in one; white space between top-level blocks goes.
 - The cap's `6em` compares other units at `1em` = 16 px, 1 pt = 4/3 px, 1 mm = 96/25.4 px, so `margin-left:500px` is capped too. A value with no unit is never capped: the browser ignores it. A leading `+` is allowed.
 
@@ -148,7 +149,7 @@ MUI `Dialog`, open when `items` is not null, `fullWidth maxWidth="xs"`, `fullScr
 - Root `data-testid="print-sheet"` (not `template-sheet`), no grid, no hover mark.
 - Each item a plain `<div data-item-id={id}>` at the same inline geometry, no `aria-pressed`, no handler, no shadow.
 - Prescription text: inside the box, `<div class="print-text" dangerouslySetInnerHTML={{__html: textHtml}}>` with `printTextStyle(fontSizePt)`: `lineHeight: PRINT_LINE_HEIGHT`, `overflowWrap: "anywhere"`, `textAlign: "start"`. `textHtml` is always `paginate`'s output of `cleanPrintHtml`.
-- Short items: the same inner `span`, set as **text** (TPL-313), `dir="auto"`, `dir="ltr"` when `isLeftToRightValue` (TPL-318). An empty value: nothing inside. The name never prints (TPL-132).
+- Short items: the same inner `span`, set as **text** (TPL-313), `dir="auto"`, `dir="ltr"` when `isLeftToRightValue` (TPL-318). With `dir="auto"` also `unicodeBidi: "plaintext"`, in both modes, so each line of a static text takes its own language's direction and start («يبدأ النص من اتجاه لغته», F5, TPL-350). An empty value: nothing inside. The name never prints (TPL-132).
 - The root's `overflow: hidden` cuts at the sheet's edge, so a value can't make a page (TPL-339).
 - **Both modes:** `lineHeight: PRINT_LINE_HEIGHT` on every item (a `button` resets it), so the designer shows what prints. `printSheet.css` is imported here, beside `printFont.css`.
 
@@ -197,6 +198,10 @@ Rules: nobody edits another track's files; a rule or contract change goes throug
 - unit: TPL-127, 317 (`functions.test.ts`, frozen clocks and locales); TPL-328, 329, 330 and the unit half of 123, 133 (`printHtml.test.ts`, with `linesToHtml` and `htmlForPaste` as they are); `pagination.test.ts`, tagged with the unit half of TPL-140–145, 147, 326, 327, 335, 340: every rule of § 2.4 with a fake `fits`.
 - ui (Vitest on `renderPrescriptionPage`, `installPrint`): TPL-103, 104, 105, 110–116, 125, 132, 150, 151, 152, 302, 303, 304, 306–316, 319, 320, 322, 324, 341–345. Changed: UX-014 (`SelectionPanel.test.tsx`).
 
+**T5 additions:** TPL-349 P0 unit+e2e and TPL-350 P1 unit+e2e. Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box (349). Given static text `Dr. Ahmed
+دكتور أحمد
+Consultant`, then each line starts from its own language's side (350).
+
 **`tests-e2e`**
 - e2e: TPL-103, 112, 117, 120–124, 126, 128–131, 133, 140–145, 147, 153, 305, 318, 321, 323, 325–327, 331–333, 335–340, 346, 348. Changed: RX-075, UX-004, UX-036, I18N-006.
 - **The proof** (`e2e/prescription/print-proof.spec.ts`, tagged TPL-120, 121, 141, 142): a real template and 40 drugs with unique Latin names, through the real API and the real page: `page.pdf` page size, every item's position read from the PDF's text within 1 mm, every drug present exactly once across the pages, the short items on every page, the page number on each. Screenshots and PDFs attached for the ready report (Arabic, English, phone).
@@ -226,6 +231,9 @@ Rules: nobody edits another track's files; a rule or contract change goes throug
 16. **Margins** (T3): no negatives, no shorthand, deep side margins capped by `min(…, 50%)`. Text pushed past the sheet would be lost with `fits` still true.
 17. **`htmlForPaste` also converts `h4 h5 h6 blockquote pre`** (T3), so their direction and alignment reach both Copy and print; those tags weren't handled before, and a Copy gains only `dir` and `style`.
 18. **Repeated spaces collapse in print**, as they do in Copy's paste (design § 4, same text as Copy). Asked to the design session; a change is one line of `printSheet.css`.
+
+19. **Numbers-only values start at the box's left** (user, 2026-11-05; F10): digits read left to right, and the box's place is the designer's choice.
+20. **Known limits, as Copy or the editor have them** (user, 2026-11-05): Arabic lines pasted as plain text print as the editor shows them, left (F2); an indented numbered item prints 1, 2, 3, 4 where the editor shows 1, a, b, 2 (F4); a slow read gives no feedback on the button, and a list cleared during it still prints the text taken at the click (F7); plain table cells glue together (F9).
 
 ## 7. Wording approved by the user
 
