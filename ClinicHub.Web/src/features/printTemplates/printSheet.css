@@ -1,0 +1,37 @@
+/*
+ * The prescription text on a sheet and in the hidden box that measures it (design § 4; contract § 3.4): the same rules in both, and
+ * none from the app or the editor's CSS, so the page count doesn't depend on what was opened before (TPL-327).
+ */
+.print-text p,
+.print-text h1,
+.print-text h2,
+.print-text h3,
+.print-text ol,
+.print-text ul,
+.print-text li {
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    font-family: inherit;
+    line-height: inherit;
+}
+
+.print-text h1,
+.print-text h2,
+.print-text h3,
+.print-text strong {
+    font-weight: 700;
+}
+
+.print-text ol,
+.print-text ul {
+    padding-inline-start: 1.5em;
+}
+
+.print-text ol {
+    list-style: decimal outside;
+}
+
+.print-text ul {
+    list-style: disc outside;
+}

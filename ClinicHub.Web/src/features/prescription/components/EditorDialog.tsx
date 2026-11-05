@@ -12,6 +12,8 @@ type Props = {
     open: boolean;
     lines: PrescriptionLine[];
     onClose: () => void;
+    /** Print inside the editor, with the edited HTML; absent when the clinic has no template (contract § 3.5) */
+    onPrint?: (html: string) => void;
 };
 
 export const EditorDialog = ({open, lines, onClose}: Props) => {

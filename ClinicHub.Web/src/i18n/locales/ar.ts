@@ -175,6 +175,7 @@ const ar: Translations = {
         emptyDescription: "ابحث عن بروتوكول أو دواء واضغط عليه لإضافته هنا.",
         editAndCopy: "تعديل ونسخ",
         quickCopy: "نسخ",
+        print: "طباعة",
         clearAll: "مسح الكل",
         cleared: "تم مسح القائمة",
         alreadyAdded: "«\u2068{{name}}\u2069» موجود بالفعل في القائمة",
@@ -182,8 +183,8 @@ const ar: Translations = {
         protocolSkipped: "موجود مسبقًا في القائمة: {{count}}",
         protocolDuplicated: "مكرر في البروتوكول ولم يُضف: {{count}}",
         protocolWithdrawn: "أُضيف رغم تعطيله من الإدارة: {{count, count}}",
-        editorTitle: "تعديل قبل النسخ",
-        editorHint: "التعديلات هنا للنسخ فقط ولا يتم حفظها.",
+        editorTitle: "تعديل قبل النسخ أو الطباعة",
+        editorHint: "للنسخ أو الطباعة؛ التعديلات لا تُحفظ.",
         toolbar: {
             bold: "عريض",
             italic: "مائل",
@@ -568,6 +569,12 @@ const ar: Translations = {
         close: "إغلاق «⁨{{name}}⁩»",
     },
     printTemplates: {
+        /** الطباعة من صفحة الروشتة */
+        print: {
+            title: "طباعة الروشتة",
+            hint: "اطبع بمقياس 100% دون «ملاءمة للصفحة».",
+            gone: "لم يعد لهذه العيادة قالب طباعة.",
+        },
         desktopOnly: "افتح هذه الصفحة من جهاز كمبيوتر.",
         empty: "لا يوجد قالب طباعة لهذه العيادة.",
         create: "إنشاء قالب",

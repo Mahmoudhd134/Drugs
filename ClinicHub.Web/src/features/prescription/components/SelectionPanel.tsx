@@ -18,6 +18,8 @@ type Props = {
     onClear: () => void;
     onEdit: () => void;
     onQuickCopy: () => void;
+    /** Print beside Copy; absent when the clinic has no template (contract § 3.5) */
+    onPrint?: () => void;
 };
 
 export const SelectionPanel = (props: Props) => {

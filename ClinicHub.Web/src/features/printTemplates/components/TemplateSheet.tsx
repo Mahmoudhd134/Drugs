@@ -4,13 +4,18 @@ import "../printFont.css";
 import {PRINT_FONT_FAMILY} from "../constants.ts";
 import type {PrintLayout, TemplateItem} from "../types.ts";
 
+/** One printed sheet: the prescription text's chunk (clean HTML) and each short item's value by item id. */
+export type SheetPrintContent = { textHtml: string; values: Readonly<Record<string, string>> };
+
 type Props = {
     layout: PrintLayout;
     /** The selected item: its box is marked and `aria-pressed` */
     selectedId?: string | null;
     onSelect?: (id: string) => void;
-    /** What the prescription text's box shows (the designer's sample; step 2 passes the real text) */
+    /** What the prescription text's box shows in the designer; ignored with `print` */
     sampleText: string;
+    /** Printing (contract § 3.4): items render as plain boxes with these values, not as buttons */
+    print?: SheetPrintContent;
 };
 
 /** The designer's mm grid: a faint line every 1 mm and a stronger one every 10 mm. */

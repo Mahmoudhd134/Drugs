@@ -4,7 +4,8 @@ import type {Protocol} from "../../features/protocols/types.ts";
 import type {Drug} from "../../features/drugs/types.ts";
 import type {PrescriptionLine} from "../../features/prescription/types.ts";
 import {PrescriptionPage} from "../../features/prescription/pages/PrescriptionPage.tsx";
-import {protocolsHandlers, drugsHandlers, drugTreeHandler} from "../msw.ts";
+import type {PrintTemplate} from "../../features/printTemplates/types.ts";
+import {clinicPrintTemplateHandler, protocolsHandlers, drugsHandlers, drugTreeHandler} from "../msw.ts";
 import {installIntersectionObserver} from "../intersection.ts";
 import {addDrugThroughTree, treeTexts} from "./drugTree.tsx";
 import type {ClipboardOptions} from "../clipboard.ts";
@@ -32,10 +33,12 @@ export const openPrescription = async (options: {
     lang?: LanguageCode;
     /** A stubbed clipboard (returned as `clipboard`) */
     clipboard?: ClipboardOptions;
+    /** What `GET /prescription-template` answers (default none: 204, no Print button) */
+    template?: PrintTemplate | null;
 } = {}) => {
-    const {protocols = [], drugs = [], lines = [], lang = "ar", clipboard} = options;
+    const {protocols = [], drugs = [], lines = [], lang = "ar", clipboard, template = null} = options;
     localStorage.setItem(LINES_KEY, JSON.stringify(lines));
-    server.use(...protocolsHandlers(protocols), drugTreeHandler(drugs), ...drugsHandlers(drugs));
+    server.use(...protocolsHandlers(protocols), drugTreeHandler(drugs), ...drugsHandlers(drugs), clinicPrintTemplateHandler(template));
     const io = installIntersectionObserver();
     const rendered = await renderWithProviders(<PrescriptionPage/>, {lang, clipboard});
     const texts = lang === "ar"

@@ -92,6 +92,30 @@ const rxTextAr = {
         then: "، ثم ",
         stop: "يتوقف",
     },
+    // A print template's function values (design prescription-templates § 3, D11)
+    printValues: {
+        am: "ص",
+        pm: "م",
+        month1: "يناير",
+        month2: "فبراير",
+        month3: "مارس",
+        month4: "أبريل",
+        month5: "مايو",
+        month6: "يونيو",
+        month7: "يوليو",
+        month8: "أغسطس",
+        month9: "سبتمبر",
+        month10: "أكتوبر",
+        month11: "نوفمبر",
+        month12: "ديسمبر",
+        day0: "الأحد",
+        day1: "الاثنين",
+        day2: "الثلاثاء",
+        day3: "الأربعاء",
+        day4: "الخميس",
+        day5: "الجمعة",
+        day6: "السبت",
+    },
 };
 
 export default rxTextAr;

@@ -189,6 +189,7 @@ const en = {
         emptyDescription: "Search for a protocol or a drug and click it to add it here.",
         editAndCopy: "Edit & copy",
         quickCopy: "Copy",
+        print: "Print",
         clearAll: "Clear all",
         cleared: "List cleared",
         alreadyAdded: "“\u2068{{name}}\u2069” is already in the list",
@@ -197,8 +198,8 @@ const en = {
         protocolDuplicated: "Duplicated in the protocol, not added: {{count}}",
         // A separate ⚠ toast after the protocol toast when disabled drugs were added (design M1.7 D6)
         protocolWithdrawn: "Added although disabled by admin: {{count, count}}",
-        editorTitle: "Edit before copying",
-        editorHint: "Changes here are only used for copying and are not saved.",
+        editorTitle: "Edit before copying or printing",
+        editorHint: "For copying or printing; changes are not saved.",
         /** The editor's toolbar buttons (their accessible names) */
         toolbar: {
             bold: "Bold",
@@ -598,6 +599,12 @@ const en = {
     },
     // The print template designer (design prescription-templates; contract § 3)
     printTemplates: {
+        /** Printing from the prescription page (design § 4) */
+        print: {
+            title: "Print the prescription",
+            hint: "Print at 100%, without \"Fit to page\".",
+            gone: "This clinic no longer has a print template.",
+        },
         desktopOnly: "Open this page on a computer.",
         empty: "This clinic has no print template.",
         create: "Create template",
