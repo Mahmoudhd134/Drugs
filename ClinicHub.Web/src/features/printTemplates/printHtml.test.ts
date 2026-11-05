@@ -319,6 +319,177 @@ describe("pasted content @area:prescription", () => {
     });
 });
 
+describe("the cap's units @area:prescription", () => {
+    // 6em = 96 px: 1em = 16 px, 1 pt = 4/3 px, 1 mm = 96/25.4 px
+    test.each([
+        ["margin-left:96px"], ["margin-right:72pt"], ["margin-inline-start:25mm"], ["margin-inline-end:6em"],
+    ])("%s is at most 6em: it stays as it is @TPL-329", margin => {
+        expect(cleanPrintHtml(`<p style="${margin}">x</p>`)).toBe(`<p style="${margin}">x</p>`);
+    });
+
+    test.each([
+        ["margin-left", "97px"], ["margin-left", "500px"], ["margin-right", "73pt"], ["margin-inline-start", "26mm"], ["margin-inline-end", "6.01em"],
+    ])("%s:%s is above 6em: capped @TPL-329", (property, value) => {
+        expect(cleanPrintHtml(`<p style="${property}:${value}">x</p>`)).toBe(`<p style="${property}:min(${value}, 50%)">x</p>`);
+    });
+
+    test.each(["margin-left:500", "margin-right:500"])("%s has no unit: the browser ignores it, so it's never capped @TPL-329", margin => {
+        expect(cleanPrintHtml(`<p style="${margin}">x</p>`)).toBe(`<p style="${margin}">x</p>`);
+    });
+
+    test("a leading + is allowed, and the cap counts its number @TPL-329", () => {
+        expect(cleanPrintHtml('<p style="margin-left:+3em">x</p>')).toBe('<p style="margin-left:+3em">x</p>');
+        expect(cleanPrintHtml('<p style="margin-left:+24em">x</p>')).toBe('<p style="margin-left:min(+24em, 50%)">x</p>');
+    });
+
+    test("a number with no digit before its point: read as it is @TPL-329", () => {
+        expect(cleanPrintHtml('<p style="margin-left:.5em">x</p>')).toBe('<p style="margin-left:.5em">x</p>');
+        expect(cleanPrintHtml('<p style="margin-left:96.5px">x</p>')).toBe('<p style="margin-left:min(96.5px, 50%)">x</p>');
+    });
+
+    test("the cap is for side margins, in every unit: a deep top or bottom margin stays @TPL-329", () => {
+        expect(cleanPrintHtml('<p style="margin-top:500px;margin-bottom:100mm">x</p>')).toBe('<p style="margin-top:500px;margin-bottom:100mm">x</p>');
+    });
+
+    test("capitals and spaces in a declaration: it's read, and written in small letters with none around it @TPL-329", () => {
+        expect(cleanPrintHtml('<p style=" TEXT-ALIGN : CENTER ; Margin-Left : 3EM ">x</p>')).toBe('<p style="text-align:center;margin-left:3em">x</p>');
+    });
+
+    test("a declaration with no colon, or with no property, goes; those beside it stay @TPL-329", () => {
+        expect(cleanPrintHtml('<p style="center;text-align:center;:3em">x</p>')).toBe('<p style="text-align:center">x</p>');
+    });
+});
+
+describe("the result re-parses to itself @area:prescription", () => {
+    /** Each expected value is the exact string, which the HTML parser gives back as it is. */
+    const expectCleaned = (html: string, expected: string) => {
+        const cleaned = cleanPrintHtml(html);
+        expect(cleaned).toBe(expected);
+        expect(bodyOf(cleaned).innerHTML).toBe(expected);
+        expect(cleanPrintHtml(cleaned)).toBe(expected);
+    };
+
+    test.each([
+        ["text on both sides of it", "<div>a<div>b</div>c</div>", "<p>a</p><p>b</p><p>c</p>"],
+        ["siblings before it stay together", "<div>a<strong>b</strong>c<div>d</div></div>", "<p>a<strong>b</strong>c</p><p>d</p>"],
+        ["an inline sibling holding no block", "<div><strong>a</strong><div>b</div></div>", "<p><strong>a</strong></p><p>b</p>"],
+        ["two levels deep", "<div><div><div>a</div></div></div>", "<p>a</p>"],
+        ["two blocks in a dropped block", "<blockquote><div>a</div><div>b</div></blockquote>", "<p>a</p><p>b</p>"],
+        ["a heading", "<h2>a<div>b</div>c</h2>", "<h2>a</h2><p>b</p><h2>c</h2>"],
+        ["a list in a paragraph", "<div>a<ul><li>b</li></ul>c</div>", "<p>a</p><ul><li>b</li></ul><p>c</p>"],
+        ["a list in a heading", "<h1>a<ol><li>b</li></ol></h1>", "<h1>a</h1><ol><li>b</li></ol>"],
+    ])("a block nested in a paragraph or a heading is lifted out, around its siblings: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test("each part around a lifted block keeps its block's direction and alignment; the lifted block keeps only its own @TPL-329", () => {
+        expectCleaned(
+            '<div dir="rtl" style="text-align:center">a<div dir="ltr">b</div>c</div>',
+            '<p dir="rtl" style="text-align:center">a</p><p dir="ltr">b</p><p dir="rtl" style="text-align:center">c</p>',
+        );
+    });
+
+    test.each([
+        ["with text around it", "<div><strong>a<div>b</div>c</strong></div>", "<p><strong>a</strong></p><p>b</p><p><strong>c</strong></p>"],
+        ["at the top level", "<span>a<div>b</div></span>", "<p><span>a</span></p><p>b</p>"],
+        ["keeping the inline tag's direction", '<div><span dir="ltr">a<div>b</div></span></div>', '<p><span dir="ltr">a</span></p><p>b</p>'],
+    ])("a block nested in an inline tag is lifted out, the tag closed and reopened around it: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test.each([
+        ["white space", "<div> <div>a</div> </div>", "<p>a</p>"],
+        ["an inline tag holding only white space", "<div><span> </span><div>a</div></div>", "<p>a</p>"],
+    ])("what's left around a lifted block makes no empty paragraph: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test("a blank line left around a lifted block stays: a <br> isn't nothing @TPL-329", () => {
+        expectCleaned("<div><br><div>a</div></div>", "<p><br></p><p>a</p>");
+    });
+
+    test.each([
+        ["text beside it", "<ul><li>a<div>b</div></li></ul>", "<ul><li>a<p>b</p></li></ul>"],
+        ["a block nested in a block", "<ul><li><div>a<div>b</div></div></li></ul>", "<ul><li><p>a</p><p>b</p></li></ul>"],
+        ["a nested list", "<ol><li>a<ul><li>b</li></ul></li></ol>", "<ol><li>a<ul><li>b</li></ul></li></ol>"],
+    ])("a list item may hold blocks: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test.each([
+        ["text before an item", "<ol>a<li>b</li></ol>", "<ol><li>a</li><li>b</li></ol>"],
+        ["text after an item", "<ol><li>a</li>b</ol>", "<ol><li>a</li><li>b</li></ol>"],
+        ["text between items, each its own", "<ol><li>a</li>b<li>c</li>d</ol>", "<ol><li>a</li><li>b</li><li>c</li><li>d</li></ol>"],
+        ["siblings in a row, in one item", "<ol>a<strong>b</strong>c<li>d</li></ol>", "<ol><li>a<strong>b</strong>c</li><li>d</li></ol>"],
+        ["a block", "<ul><div>a</div></ul>", "<ul><li><p>a</p></li></ul>"],
+        ["a list", "<ol><ul><li>a</li></ul></ol>", "<ol><li><ul><li>a</li></ul></li></ol>"],
+    ])("a list's child that isn't a <li> is wrapped in one: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test.each([
+        ["between its items", "<ol><li>a</li> <li>b</li></ol>", "<ol><li>a</li><li>b</li></ol>"],
+        ["all around them", "<ul>\n  <li>a</li>\n  <li>b</li>\n</ul>", "<ul><li>a</li><li>b</li></ul>"],
+        ["and nothing else in the list", "<ol> </ol>", "<ol></ol>"],
+    ])("white space in a list goes, it makes no item: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test.each([
+        ["one space", "<p>a</p> <p>b</p>", "<p>a</p><p>b</p>"],
+        ["lines, around every kind of block", "<p>a</p>\n\n<ol><li>b</li></ol>\n<h2>c</h2>\n", "<p>a</p><ol><li>b</li></ol><h2>c</h2>"],
+    ])("white space between top-level blocks goes: %s @TPL-329", (_name, html, expected) => {
+        expectCleaned(html, expected);
+    });
+
+    test("text between top-level blocks is wrapped with its own spaces @TPL-329", () => {
+        expectCleaned("<p>a</p> b <p>c</p>", "<p>a</p><p> b </p><p>c</p>");
+    });
+
+    test("white space between two inline tags at the top level is part of their paragraph @TPL-329", () => {
+        expectCleaned("<strong>a</strong> <em>b</em>", "<p><strong>a</strong> <em>b</em></p>");
+    });
+
+    test.each([
+        ["text", "a"],
+        ["text around a block", "a<p>b</p>c"],
+        ["a <br> alone", "<br>"],
+        ["a comment at the top level", "<!-- x -->a<!-- y --><p>b</p><!-- z -->"],
+        ["a comment in a block and in a list", "<p>a<!-- x --></p><ol><!-- y --><li>b<!-- z --></li></ol>"],
+        ["what the parser reads as a comment", "<?php x?><![CDATA[y]]><p>a</p></ x>"],
+        ["a closing tag with no opening", "</p></div>a</br>"],
+        ["a table's text, which the parser moves out of it", "<table>a<tr><td>b</td></tr>c</table>"],
+        ["a form control", "<select><option>a</option></select><textarea>b</textarea>"],
+        ["html and body tags", "<html><body>a</body></html>"],
+        ["a dropped inline tag at the top level", "<b>a</b> <i>b</i>"],
+    ])("the top level holds only elements, and nothing anywhere is a comment: %s @TPL-329", (_name, html) => {
+        const body = bodyOf(cleanPrintHtml(html));
+        expect(Array.from(body.childNodes).filter(node => !(node instanceof Element))).toEqual([]);
+        expect(body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_COMMENT).nextNode()).toBeNull();
+    });
+
+    test("toolbar lists, nested as Quill's paste keeps them, equal htmlForPaste @TPL-328", () => {
+        const pasted = htmlForPaste('<ol><li class="ql-direction-rtl">a<ul><li class="ql-align-center">b</li></ul></li></ol>');
+        expectCleaned(pasted, '<ol><li dir="rtl">a<ul><li style="text-align:center">b</li></ul></li></ol>');
+    });
+});
+
+describe("line breaks in a <pre> @area:prescription", () => {
+    test.each([
+        ["an empty line between two", "<pre>a\n\nb</pre>", "<p>a<br><br>b</p>"],
+        ["at the end", "<pre>a\n</pre>", "<p>a<br></p>"],
+        ["inside a kept tag", "<pre><span>a\nb</span></pre>", "<p><span>a<br>b</span></p>"],
+        ["inside a dropped tag", "<pre><b>a\nb</b></pre>", "<p>a<br>b</p>"],
+    ])("each \\n becomes a <br>: %s @TPL-329", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test("outside a <pre> a line break stays in the text: only a <pre> shows it @TPL-329", () => {
+        expect(cleanPrintHtml("<p>a\nb</p>")).toBe("<p>a\nb</p>");
+        expect(cleanPrintHtml("<pre>a</pre><p>b\nc</p>")).toBe("<p>a</p><p>b\nc</p>");
+    });
+});
+
 // Print's check in the editor (the screen's half is in PrintFlow.buttons.test.tsx)
 describe("hasPrintableText @area:prescription", () => {
     test.each([

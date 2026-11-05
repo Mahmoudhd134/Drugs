@@ -269,6 +269,25 @@ describe("a block that doesn't fit is cut @area:prescription", () => {
         expectSheets(pages("<p>aaa<br>bbb<br><br>ccc</p>", charsFit(7)), ["<p>aaa<br>bbb</p>", "<p>ccc</p>"]);
     });
 
+    test.each([
+        ["only <br>s", "<p>aaa<br><br></p>"],
+        ["an invisible mark after the <br>", "<p>aaa<br>\u200F</p>"],
+    ])("what's left after a cut has nothing to print: it makes no sheet of its own (%s) @TPL-326", (_name, html) => {
+        expect(pages(html, charsFit(3))).toEqual(["<p>aaa</p>"]);
+    });
+
+    test("a no-break space left alone after a cut makes no sheet of its own @TPL-326", () => {
+        expect(pages("<p>aaa \u00A0</p>", sheet => !sheet.includes("&nbsp;"))).toEqual(["<p>aaa </p>"]);
+    });
+
+    test("after such a cut the sheet goes on: the next block stays on it if it fits @TPL-326", () => {
+        expect(pages("<p>aaa<br><br></p><p>b</p>", sheet => !sheet.includes("<br><br>"))).toEqual(["<p>aaa<br></p><p>b</p>"]);
+    });
+
+    test("after such a cut, a next block that doesn't fit starts the next sheet @TPL-326", () => {
+        expect(pages("<p>aaa<br><br></p><p>b</p>", charsFit(3))).toEqual(["<p>aaa</p>", "<p>b</p>"]);
+    });
+
     test("a block with spaces and <br>s is cut at whichever comes last that fits @TPL-144", () => {
         const html = "<p>aa bb<br>cc dd</p>";
         const sheets = pages(html, charsFit(8));
