@@ -1,13 +1,15 @@
-import type {Dialog, Page} from "@playwright/test";
+import type {Dialog, Locator, Page} from "@playwright/test";
 import {expect, test} from "../support/fixtures.ts";
 import {expectToast} from "../support/ui.ts";
 import {
     apiPath,
     areaScroll,
     COMPUTER_ONLY,
+    enterDesignerFromList,
     expectMm,
     expectUntouched,
     getTemplate,
+    CLINICS_LIST_URL,
     ONE_LANGUAGE,
     openDesigner,
     openDesignerByTab,
@@ -17,6 +19,7 @@ import {
     pressHandle,
     scrollAreaTo,
     syntheticPointer,
+    tabPath,
     zoomTo,
 } from "../support/print-template.ts";
 
@@ -25,26 +28,40 @@ import {
  * § 3.5 "During a drag". Synthetic events only for what a real mouse can't produce (contract § 4.2).
  */
 
-/** Pointer listeners on `window`, `document` and `body` added since now, less those removed. */
-const watchPointerListeners = (page: Page) => page.evaluate(() => {
-    const watched = window as unknown as { pointerListeners: number };
-    watched.pointerListeners = 0;
-    const isPointer = (type: string) => /pointer|mouse/.test(type);
-    for (const target of [window, document, document.body] as EventTarget[]) {
-        const add = target.addEventListener.bind(target);
-        const remove = target.removeEventListener.bind(target);
-        target.addEventListener = (type: string, ...rest: [EventListenerOrEventListenerObject | null, (boolean | AddEventListenerOptions)?]) => {
-            if (isPointer(type)) watched.pointerListeners++;
-            add(type, ...rest);
-        };
-        target.removeEventListener = (type: string, ...rest: [EventListenerOrEventListenerObject | null, (boolean | EventListenerOptions)?]) => {
-            if (isPointer(type)) watched.pointerListeners--;
-            remove(type, ...rest);
-        };
-    }
-});
+type WatchedListener = { target: EventTarget; type: string; listener: EventListenerOrEventListenerObject | null; capture: boolean };
 
-const pointerListeners = (page: Page) => page.evaluate(() => (window as unknown as { pointerListeners: number }).pointerListeners);
+/**
+ * Starts a set of the pointer listeners added to `window`, `document` and `body` from now on: each leaves it when that very listener
+ * is removed, and older ones don't count. A locator's first call in the page's main world installs Playwright's script there, with
+ * listeners of its own, so that happens first, on `inPage`.
+ */
+const watchPointerListeners = async (page: Page, inPage: Locator) => {
+    await inPage.evaluate(() => 0);
+    await page.evaluate(() => {
+        const added = new Set<WatchedListener>();
+        (window as unknown as { pointerListeners: Set<WatchedListener> }).pointerListeners = added;
+        const isPointer = (type: string) => /pointer|mouse/.test(type);
+        const captureOf = (options?: boolean | EventListenerOptions) => (typeof options === "boolean" ? options : Boolean(options?.capture));
+        for (const target of [window, document, document.body] as EventTarget[]) {
+            const add = target.addEventListener.bind(target);
+            const remove = target.removeEventListener.bind(target);
+            const entryOf = (type: string, listener: WatchedListener["listener"], options?: boolean | EventListenerOptions) =>
+                [...added].find(entry => entry.target === target && entry.type === type && entry.listener === listener && entry.capture === captureOf(options));
+            target.addEventListener = (type: string, listener: WatchedListener["listener"], options?: boolean | AddEventListenerOptions) => {
+                if (isPointer(type) && !entryOf(type, listener, options)) added.add({target, type, listener, capture: captureOf(options)});
+                add(type, listener, options);
+            };
+            target.removeEventListener = (type: string, listener: WatchedListener["listener"], options?: boolean | EventListenerOptions) => {
+                const entry = entryOf(type, listener, options);
+                if (entry) added.delete(entry);
+                remove(type, listener, options);
+            };
+        }
+    });
+};
+
+/** How many of the watched listeners are still there. */
+const pointerListeners = (page: Page) => page.evaluate(() => (window as unknown as { pointerListeners: Set<WatchedListener> }).pointerListeners.size);
 
 /** A POP like the browser's button, without Playwright waiting for a navigation the router may undo (as in print-template-guard.spec.ts). */
 const browserBack = (page: Page) => page.evaluate(() => history.back());
@@ -206,7 +223,7 @@ test.describe("Print template: a drag that doesn't end in a drop @area:admin", (
                 await designer.save.click();
                 await sent;
 
-                await watchPointerListeners(page);
+                await watchPointerListeners(page, designer.sheet);
                 const drag = kind === "a box" ? await pressBox(page, designer, "m") : await pressEntry(page, designer, pt.manualInput);
                 await drag.toMm(60, 40);
                 if (kind === "a box") {
@@ -215,13 +232,15 @@ test.describe("Print template: a drag that doesn't end in a drop @area:admin", (
                 } else {
                     await expect(designer.ghost).toBeVisible();
                 }
+                // `pointermove`, `pointerup` and `pointercancel` at least: so the watch does see the drag's, and an empty set means something
+                expect(await pointerListeners(page), "the drag's listeners, seen").toBeGreaterThanOrEqual(3);
 
                 answer();
                 await expect(page).toHaveURL(/\/login$/);
                 await expect(designer.sheet).toHaveCount(0);
                 await expect(designer.ghost).toHaveCount(0);
                 expect(await page.evaluate(() => getComputedStyle(document.body).userSelect), "user-select restored").not.toBe("none");
-                expect(await pointerListeners(page), "no pointer listener left").toBeLessThanOrEqual(0);
+                expect(await pointerListeners(page), "no pointer listener left").toBe(0);
 
                 // No error from a pointer still moving: the fixture fails the test on any console error
                 await drag.by(40, 40);
@@ -427,23 +446,21 @@ test.describe("Print template: a drag that doesn't end in a drop @area:admin", (
     test("the browser's Back during a drag: the drag ends with the item back; clean leaves, dirty asks; staying leaves nothing stuck to the pointer @TPL-532",
         async ({page, data, lang, t}) => {
             test.skip(lang !== "ar", ONE_LANGUAGE);
-            const {clinic, designer, pt} = await openDesignerByTab(page, data, lang, plainLayout());
+            const {clinic, designer} = await openDesignerByTab(page, data, lang, plainLayout());
             const box = designer.box("m");
-            const overview = new RegExp(`/admin/clinics/${clinic.id}$`);
 
             await test.step("clean: it leaves", async () => {
                 const drag = await pressBox(page, designer, "m");
                 await drag.toMm(60, 40);
                 await expectMm(box, {x: 60, y: 40}, "the preview");
                 await browserBack(page);
-                await expect(page).toHaveURL(overview);
+                await expect(page).toHaveURL(CLINICS_LIST_URL);
                 await expect(designer.question).toHaveCount(0);
                 await expect(designer.sheet).toHaveCount(0);
                 await drag.release();
             });
 
-            await page.getByRole("tab", {name: pt.tab, exact: true}).click();
-            await expect(designer.sheet).toBeVisible();
+            await enterDesignerFromList(page, designer, clinic);
 
             await test.step("dirty: it asks, on the layout before the drag", async () => {
                 await box.click();
@@ -460,7 +477,7 @@ test.describe("Print template: a drag that doesn't end in a drop @area:admin", (
 
                 await designer.question.getByRole("button", {name: t.cancel, exact: true}).click();
                 await expect(designer.question).toHaveCount(0);
-                await expect(page).not.toHaveURL(overview);
+                await expect(page).toHaveURL(new RegExp(`${tabPath(clinic)}$`));
                 await drag.by(60, 60);
                 await expectMm(box, {x: 41, y: 20}, "nothing follows the pointer");
                 await expect(designer.save).toBeEnabled();

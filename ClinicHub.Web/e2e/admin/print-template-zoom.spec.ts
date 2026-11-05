@@ -94,12 +94,20 @@ test.describe("Print template: zoom and Fit @area:admin", () => {
             const a4 = await trueZoom(designer);
             expect(a4).toBeLessThan(a5);
 
-            await page.setViewportSize({width: 1280, height: 640});
-            await expect.poll(() => trueZoom(designer), {message: "a lower window keeps the zoom"}).toBeCloseTo(a4, 1);
+            // The resize has landed once the area's height follows it (contract § 3.3): only then would a re-fit show
+            const windowHeight = async (height: number) => {
+                const areaHeight = () => designer.area.evaluate(area => area.clientHeight);
+                const before = await areaHeight();
+                await page.setViewportSize({width: 1280, height});
+                await expect.poll(areaHeight, {message: "the area re-measured"}).not.toBe(before);
+            };
+
+            await windowHeight(640);
+            expect(await trueZoom(designer), "a lower window keeps the zoom").toBeCloseTo(a4, 1);
             await zoomTo(designer, 100);
-            await page.setViewportSize({width: 1280, height: 800});
+            await windowHeight(800);
             await expect(designer.zoomPercent).toHaveText("100%");
-            await expect.poll(() => trueZoom(designer), {message: "a higher window keeps it too"}).toBeCloseTo(100, 1);
+            expect(await trueZoom(designer), "a higher window keeps it too").toBeCloseTo(100, 1);
         });
 
     test("a template saved while viewing at 200%, when printed: the sheet is true size, with no handle in print @TPL-465",

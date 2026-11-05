@@ -44,7 +44,7 @@ test.describe("Print template: the drag journey @area:admin", () => {
             await move.toMm(120, 40.8);
             await expectGuide(designer, "y", 40.3);
             await expectMm(box, {x: 120, y: 40.3}, "level with the date");
-            await attachScreenshot(page, testInfo, "a guide level with the date");
+            await attachScreenshot(page, testInfo, "a guide level with the date", "screen", "viewport");
             await move.release();
             await expect(designer.guides).toHaveCount(0);
             await expectMm(box, {x: 120, y: 40.3, w: 40, h: 8}, "moved");

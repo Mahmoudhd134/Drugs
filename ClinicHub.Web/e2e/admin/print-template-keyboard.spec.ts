@@ -8,6 +8,7 @@ import {
     expectMm,
     expectUntouched,
     getTemplate,
+    CLINICS_LIST_URL,
     ONE_LANGUAGE,
     openDesigner,
     openDesignerByTab,
@@ -106,6 +107,11 @@ test.describe("Print template: the keyboard @area:admin", () => {
             await expect(page).toHaveURL(url);
             await expect(designer.question).toHaveCount(0);
             await expect(designer.sheet).toBeVisible();
+
+            // The history was real: the clinics' list lies behind, and a real Back leaves for it, the template being clean again
+            await page.evaluate(() => history.back());
+            await expect(page).toHaveURL(CLINICS_LIST_URL);
+            await expect(designer.question).toHaveCount(0);
         });
 
     test("at 200%, arrows taking a box past the visible area: the area scrolls to keep it visible @TPL-561",

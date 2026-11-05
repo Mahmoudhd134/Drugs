@@ -508,16 +508,29 @@ export const openDesigner = async (page: Page, data: Data, lang: Lang, layout: L
     return {clinic, designer, pt: designer.pt};
 };
 
-/** The same, reached from the clinic's overview by its tab, so the browser's history has a page behind the designer. */
+/** From the clinics' list to the designer, by the clinic's link and the tab. */
+export const enterDesignerFromList = async (page: Page, designer: Designer, clinic: { id: number; name: string }) => {
+    await page.getByRole("link", {name: clinic.name, exact: true}).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/clinics/${clinic.id}$`));
+    await page.getByRole("tab", {name: designer.pt.tab, exact: true}).click();
+    await designerShown(designer);
+};
+
+/**
+ * The same, reached from the clinics' list, so the browser's history has a page of the app behind the designer: that list, since
+ * the clinic's tabs `replace` the overview's entry (`CLINICS_LIST_URL` for its URL).
+ */
 export const openDesignerByTab = async (page: Page, data: Data, lang: Lang, layout: Layout) => {
     const clinic = await data.clinic();
     await putTemplate(data, clinic, layout);
     const designer = designerOf(page, lang);
-    await signInSuperAdmin(page, `/admin/clinics/${clinic.id}`);
-    await page.getByRole("tab", {name: designer.pt.tab, exact: true}).click();
-    await designerShown(designer);
+    await signInSuperAdmin(page, `/admin?search=${encodeURIComponent(clinic.name)}`);
+    await enterDesignerFromList(page, designer, clinic);
     return {clinic, designer, pt: designer.pt};
 };
+
+/** The URL of the page behind `openDesignerByTab`'s designer. */
+export const CLINICS_LIST_URL = /\/admin\?search=/;
 
 export const saveLayout = async (page: Page, designer: Designer) => {
     await designer.save.click();

@@ -660,14 +660,21 @@ describe("print template keys: nothing behind a dialog or a menu @area:admin", (
      * read from the document here, not by their role.
      */
     const expectNothingBehind = () => {
-        pressKeyOnFocus(UNDO_KEYS.key, UNDO_KEYS);
-        pressKeyOnFocus(REDO_KEYS.key, REDO_KEYS);
-        pressKeyOnFocus("ArrowRight");
-        pressKeyOnFocus("Delete");
-        const boxes = Array.from(document.querySelectorAll<HTMLElement>("[data-item-id]"));
-        expect(boxes.map(box => box.dataset.itemId)).toEqual(["t", "m", "f", "s"]);
-        expect(boxes[1].style.left).toBe("13.3mm");
-        expect(boxes[1].style.top).toBe("20.3mm");
+        const layoutBehind = () => {
+            const boxes = Array.from(document.querySelectorAll<HTMLElement>("[data-item-id]"));
+            return {ids: boxes.map(box => box.dataset.itemId), x: boxes[1].style.left, y: boxes[1].style.top};
+        };
+        // Checked after each key: Ctrl+Z and then Ctrl+Y would cancel out
+        for (const [name, press] of [
+            ["Ctrl+Z", () => pressKeyOnFocus(UNDO_KEYS.key, UNDO_KEYS)],
+            ["Ctrl+Y", () => pressKeyOnFocus(REDO_KEYS.key, REDO_KEYS)],
+            ["Ctrl+Shift+Z", () => pressKeyOnFocus(REDO_SHIFT_KEYS.key, REDO_SHIFT_KEYS)],
+            ["ArrowRight", () => pressKeyOnFocus("ArrowRight")],
+            ["Delete", () => pressKeyOnFocus("Delete")],
+        ] as const) {
+            expect(press(), `${name} isn't handled`).toBe(false);
+            expect(layoutBehind(), `after ${name}`).toEqual({ids: ["t", "m", "f", "s"], x: "13.3mm", y: "20.3mm"});
+        }
     };
 
     test("the delete question open: the layout behind doesn't change; closed, Ctrl+Z works again @TPL-521", async () => {
@@ -949,7 +956,7 @@ describe("print template keys: an item off the sheet @area:admin", () => {
 });
 
 describe("print template keys: while a drag runs @area:admin", () => {
-    test("a drag selects and focuses its box; Esc ends it and keeps the selection, a second Esc deselects @TPL-517", async () => {
+    test("a drag selects and focuses its box; Esc ends it and keeps the selection, a second Esc deselects @TPL-527 @TPL-555", async () => {
         const {user} = await renderDesigner(layoutL());
         await user.click(boxOf("f"));
         expect(selectedIds()).toEqual(["f"]);

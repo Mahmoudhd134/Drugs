@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {http, HttpResponse} from "msw";
@@ -36,7 +36,9 @@ import {
     dragGhost,
     expectFieldMessage,
     expectNoFieldMessage,
+    expectNothingSent,
     FIELD_LABEL,
+    focusOn,
     label,
     leaveQuestion,
     measuresOf,
@@ -195,6 +197,113 @@ describe("print template undo: the buttons @area:admin", () => {
         expect(xOfM()).toBe("12.3mm");
         expect(boxOf("m").style.right).toBe("");
         expect(screen.getByRole("button", {name: "إعادة"})).toBeEnabled();
+    });
+});
+
+describe("print template undo: one run of nudges @area:admin", () => {
+    const START = 1_000_000;
+
+    /** The manual input selected and the clock in the test's hands: each nudge reads `Date.now()` (contract § 3.5). */
+    const selectAndHoldClock = async (user: UserEvent) => {
+        await user.click(boxOf("m"));
+        const clock = vi.spyOn(Date, "now").mockReturnValue(START);
+        return (at: number) => clock.mockReturnValue(START + at);
+    };
+
+    const nudge = () => pressKey(boxOf("m"), "ArrowRight");
+
+    test("two arrows in a row, then one undo: back to the start @TPL-451", async () => {
+        const {user} = await renderDesigner(layoutL());
+        await selectAndHoldClock(user);
+        nudge();
+        nudge();
+        expect(xOfM()).toBe("14.3mm");
+
+        await user.click(undoButton());
+
+        expect(xOfM()).toBe("12.3mm");
+        expect(undoButton()).toBeDisabled();
+    });
+
+    test("two arrows 1000 ms apart, then one undo: back to the middle; a second undo: to the start @TPL-451", async () => {
+        const {user} = await renderDesigner(layoutL());
+        const clockAt = await selectAndHoldClock(user);
+        nudge();
+        clockAt(1000);
+        nudge();
+        expect(xOfM()).toBe("14.3mm");
+
+        await user.click(undoButton());
+        expect(xOfM()).toBe("13.3mm");
+
+        await user.click(undoButton());
+        expect(xOfM()).toBe("12.3mm");
+        expect(undoButton()).toBeDisabled();
+    });
+
+    test("two arrows 999 ms apart join: one undo goes back to the start @TPL-451", async () => {
+        const {user} = await renderDesigner(layoutL());
+        const clockAt = await selectAndHoldClock(user);
+        nudge();
+        clockAt(999);
+        nudge();
+        expect(xOfM()).toBe("14.3mm");
+
+        await user.click(undoButton());
+
+        expect(xOfM()).toBe("12.3mm");
+        expect(undoButton()).toBeDisabled();
+    });
+
+    test("a Save that's sent ends the run: a nudge within the second is a new step, and undo gives the saved X @TPL-558", async () => {
+        const recorded = recordRequests();
+        const {user} = await renderDesigner(layoutL());
+        const clockAt = await selectAndHoldClock(user);
+        nudge();
+        expect(xOfM()).toBe("13.3mm");
+
+        await user.click(saveButton());
+        await waitFor(() => expect(saveButton()).toBeDisabled());
+        expect(recorded.writes()).toHaveLength(1);
+
+        clockAt(500);
+        focusOn(boxOf("m"));
+        nudge();
+        expect(xOfM()).toBe("14.3mm");
+
+        await user.click(undoButton());
+
+        expect(xOfM()).toBe("13.3mm");
+        expect(saveButton()).toBeDisabled();
+    });
+
+    test("a Save refused by validation ends the run too: a nudge within the second is a new step, and undo gives the X it refused @TPL-558", async () => {
+        const recorded = recordRequests();
+        // The item in the wrong is the one being nudged, so the refused Save leaves it selected: selecting another would end the run by itself
+        const {user} = await renderDesigner(aPrintLayout({
+            items: [
+                aTemplateItem("prescriptionText", {id: "t"}),
+                aTemplateItem("manualInput", {id: "m", name: "", xMm: 12.3, yMm: 20.3, wMm: 40, hMm: 8}),
+            ],
+        }));
+        const clockAt = await selectAndHoldClock(user);
+        nudge();
+        expect(xOfM()).toBe("13.3mm");
+
+        await user.click(saveButton());
+        expectFieldMessage(settingsField(FIELD_LABEL.name), label("errors.nameRequired"));
+        expect(selectedIds()).toEqual(["m"]);
+        await expectNothingSent(recorded);
+
+        clockAt(500);
+        focusOn(boxOf("m"));
+        nudge();
+        expect(xOfM()).toBe("14.3mm");
+
+        await user.click(undoButton());
+
+        expect(xOfM()).toBe("13.3mm");
+        expect(undoButton()).toBeEnabled();
     });
 });
 

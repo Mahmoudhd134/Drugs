@@ -111,7 +111,7 @@ describe("print template press: on a panel entry @area:admin", () => {
 });
 
 describe("print template press: on a box @area:admin", () => {
-    test("a press alone selects and focuses, and shows the handles at once, with no change to the layout @TPL-544", async () => {
+    test("a press alone selects and focuses, and shows the handles at once, with no change to the layout @TPL-411 @TPL-559", async () => {
         await renderDesigner(layoutL());
         const before = measuresOf(boxOf("m"));
 
@@ -126,7 +126,7 @@ describe("print template press: on a box @area:admin", () => {
         expect(pressKey(boxOf("m"), "Escape")).toBe(true);
     });
 
-    test("a press and a release at 12.3: it stays at 12.3, no step, nothing unsaved @TPL-544", async () => {
+    test("a press and a release at 12.3: it stays at 12.3, no step, nothing unsaved @TPL-411", async () => {
         const {user} = await renderDesigner(layoutL());
 
         await user.click(sheetItem("الاسم"));
@@ -136,7 +136,7 @@ describe("print template press: on a box @area:admin", () => {
         expect(saveButton()).toBeDisabled();
     });
 
-    test("a right or middle press: no selection @TPL-544", async () => {
+    test("a right or middle press: no selection @TPL-504", async () => {
         await renderDesigner(layoutL());
 
         fireEvent.pointerDown(boxOf("m"), {pointerId: 1, button: 2, buttons: 2, clientX: 100, clientY: 100});

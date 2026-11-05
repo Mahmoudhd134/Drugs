@@ -175,18 +175,18 @@ describe("print template drag: what counts as a drag and as a drop @area:admin",
         ["1 px above the sheet, in the area", 150, 49, false],
         ["on the sheet, 1 px right of the area", 231, 100, false],
         ["on the sheet, 1 px below the area", 150, 281, false],
-    ])("%s: %s, %s counts as %s @TPL-505 @TPL-506 @TPL-404", (_name, clientX, clientY, counts) => {
+    ])("%s: %s, %s counts as %s @TPL-505 @TPL-506", (_name, clientX, clientY, counts) => {
         expect(dropCounts({clientX, clientY}, sheet, area)).toBe(counts);
     });
 
-    test("the sheet's own far edges count too, when the area is larger @TPL-506 @TPL-404", () => {
+    test("the sheet's own far edges count too, when the area is larger @TPL-506", () => {
         const large = {left: 0, top: 0, width: 1000, height: 1000};
         expect(dropCounts({clientX: 300, clientY: 350}, sheet, large)).toBe(true);
         expect(dropCounts({clientX: 301, clientY: 350}, sheet, large)).toBe(false);
         expect(dropCounts({clientX: 300, clientY: 351}, sheet, large)).toBe(false);
     });
 
-    test("the area's own near edges count too, when the sheet is larger @TPL-505 @TPL-404", () => {
+    test("the area's own near edges count too, when the sheet is larger @TPL-505", () => {
         const large = {left: 0, top: 0, width: 1000, height: 1000};
         expect(dropCounts({clientX: 80, clientY: 30}, large, area)).toBe(true);
         expect(dropCounts({clientX: 79, clientY: 30}, large, area)).toBe(false);
@@ -499,8 +499,7 @@ describe("print template drag: guides while moving @area:admin", () => {
         const others = [boxOf(10, OTHER_Y, 25.1, 8)];
         const within = moveBox(boxOf(60, UNRELATED_Y, 5, 8), 21, UNRELATED_Y, context({others}));
         expect(within.box.xMm).toBe(20.1);
-        expect(within.guides).toHaveLength(1);
-        expect(within.guides[0].axis).toBe("x");
+        expect(within.guides).toEqual([{axis: "x", mm: 22.55}]);
 
         const past = moveBox(boxOf(60, UNRELATED_Y, 5, 8), 21.1, UNRELATED_Y, context({others}));
         expect(past.box.xMm).toBe(21);
@@ -511,10 +510,7 @@ describe("print template drag: guides while moving @area:admin", () => {
         const moved = moveBox(boxOf(20, UNRELATED_Y, 10, 8), 70, UNRELATED_Y, context({page: {widthMm: 150.5, heightMm: 210}}));
         // 75.25 - 5 = 70.25, rounded by roundTenth
         expect(moved.box.xMm).toBe(70.3);
-        expect(moved.guides).toHaveLength(1);
-        expect(moved.guides[0].axis).toBe("x");
-        // The target's value (contract § 6.9): how a half-tenth line is stored isn't settled, so only where it lies is checked
-        expect(Math.abs(moved.guides[0].mm - 75.25)).toBeLessThanOrEqual(0.05);
+        expect(moved.guides).toEqual([{axis: "x", mm: 75.25}]);
     });
 });
 
