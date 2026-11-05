@@ -128,6 +128,7 @@ describe("every toolbar format stays @area:prescription", () => {
         ["justified", '<p class="ql-align-justify">x</p>'],
         ["indented", '<p class="ql-indent-2">x</p>'],
         ["indented, right to left", '<p class="ql-direction-rtl ql-indent-1">x</p>'],
+        ["indented twice, right to left: 6em, the deepest that stays as it is", '<p class="ql-direction-rtl ql-indent-2">x</p>'],
         ["a list item's format", '<ol><li class="ql-direction-rtl ql-align-center ql-indent-1">x</li></ol>'],
         ["a heading", "<h2>x</h2>"],
         ["a name with its own direction", '<p><strong dir="ltr">Tobradex</strong><br>x</p>'],
@@ -199,7 +200,7 @@ describe("pasted content @area:prescription", () => {
     });
 
     test.each([
-        "margin:0", "margin-top:0", "margin-bottom:0", "margin-left:3em", "margin-right:6em",
+        "margin-top:0", "margin-bottom:0", "margin-left:3em", "margin-right:6em", "margin-left:6em",
         "margin-inline-start:1.5em", "margin-inline-end:2px", "margin-top:10pt", "margin-bottom:5mm", "margin-left:12",
     ])("%s stays @TPL-329", margin => {
         expect(styleOf(onlyOne(`<p style="${margin}">x</p>`, "p").getAttribute("style") ?? "")).toBe(margin);
@@ -210,6 +211,40 @@ describe("pasted content @area:prescription", () => {
         "margin-top:em", "margin-block-start:1em", "margin-foo:1em",
     ])("%s goes @TPL-329", margin => {
         expect(clean(`<p style="${margin}">x</p>`)).toBe("<p>x</p>");
+    });
+
+    test.each(["margin:0", "margin:1em", "margin:-5em", "margin:0 0 0 24em"])("the shorthand %s goes @TPL-329", margin => {
+        expect(clean(`<p style="${margin}">x</p>`)).toBe("<p>x</p>");
+    });
+
+    test.each([
+        "margin-left:-5em", "margin-right:-1px", "margin-top:-100mm", "margin-bottom:-1pt",
+        "margin-inline-start:-2em", "margin-inline-end:-0.5em", "margin-left:-12",
+    ])("the negative %s goes: it would pull text off the sheet @TPL-329", margin => {
+        expect(clean(`<p style="${margin}">x</p>`)).toBe("<p>x</p>");
+    });
+
+    test("a negative margin goes, the other properties beside it stay @TPL-329", () => {
+        const paragraph = onlyOne('<p style="margin-left:-5em;text-align:center;margin-top:0">x</p>', "p");
+        expect(styleOf(paragraph.getAttribute("style") ?? "")).toBe("margin-top:0;text-align:center");
+    });
+
+    test.each([
+        ["margin-left", "24em"], ["margin-right", "24em"], ["margin-inline-start", "24em"], ["margin-inline-end", "24em"], ["margin-left", "6.5em"],
+    ])("a side margin above 6em is capped: %s:%s @TPL-329", (property, value) => {
+        const paragraph = onlyOne(`<p style="${property}:${value}">x</p>`, "p");
+        expect(styleOf(paragraph.getAttribute("style") ?? "")).toBe(`${property}:min(${value}, 50%)`);
+    });
+
+    test.each(["margin-top:24em", "margin-bottom:24em"])("%s isn't a side margin: it stays as it is @TPL-329", margin => {
+        expect(styleOf(onlyOne(`<p style="${margin}">x</p>`, "p").getAttribute("style") ?? "")).toBe(margin);
+    });
+
+    test("a deep Tab indent from `htmlForPaste`: capped in print, on the side the direction gives @TPL-329", () => {
+        const left = onlyOne(htmlForPaste('<p class="ql-indent-8">x</p>'), "p");
+        expect(styleOf(left.getAttribute("style") ?? "")).toBe("margin-bottom:0;margin-left:min(24em, 50%);margin-top:0");
+        const right = onlyOne(htmlForPaste('<p class="ql-direction-rtl ql-indent-8">x</p>'), "p");
+        expect(styleOf(right.getAttribute("style") ?? "")).toBe("margin-bottom:0;margin-right:min(24em, 50%);margin-top:0");
     });
 
     test("an empty style leaves no attribute @TPL-329", () => {
@@ -312,7 +347,7 @@ describe("hasPrintableText @area:prescription", () => {
         ["a comment", "<!-- x -->"],
         ["a template", "<template>x</template>"],
         ["an svg", "<svg><text>x</text></svg>"],
-    ])("%s: nothing to print", (_name, html) => {
+    ])("%s: nothing to print @TPL-304", (_name, html) => {
         expect(hasPrintableText(html)).toBe(false);
     });
 
@@ -329,7 +364,7 @@ describe("hasPrintableText @area:prescription", () => {
         ["U+061B, next to U+061C", "<p>\u061B</p>"],
         ["U+061D, next to U+061C", "<p>\u061D</p>"],
         ["U+2010, next to U+200F", "<p>\u2010</p>"],
-    ])("%s: something to print", (_name, html) => {
+    ])("%s: something to print @TPL-304", (_name, html) => {
         expect(hasPrintableText(html)).toBe(true);
     });
 });
@@ -345,11 +380,11 @@ describe("singleLine @area:prescription", () => {
         ["a\nb\nc", "a b c"],
         ["a\n", "a "],
         ["\na", " a"],
-    ])("%j: every run of line breaks becomes one space", (text, expected) => {
+    ])("%j: every run of line breaks becomes one space @TPL-114", (text, expected) => {
         expect(singleLine(text)).toBe(expected);
     });
 
-    test.each(["", "a", " a  b ", "a\tb", "أحمد"])("%j: nothing else changes", text => {
+    test.each(["", "a", " a  b ", "a\tb", "أحمد"])("%j: nothing else changes @TPL-114", text => {
         expect(singleLine(text)).toBe(text);
     });
 });

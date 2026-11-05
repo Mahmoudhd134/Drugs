@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
-import {act, waitFor} from "@testing-library/react";
-import {fillIn, pastExitTransition, recordRequests, toastTexts} from "../../test";
+import {waitFor} from "@testing-library/react";
+import {fillIn, recordRequests, toastTexts} from "../../test";
 import {storedLines} from "../../test/pages/prescription.tsx";
 import {
     aPrintedLine,
@@ -15,6 +15,7 @@ import {
     pageRules,
     popupFields,
     PRINT,
+    queryPopup,
     settled,
     staticText,
     templateOf,
@@ -191,6 +192,7 @@ describe("after the browser's dialog @area:prescription", () => {
         await page.user.click(confirmButton(popup));
         await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
         expect(textBox(page.sheets()[0])?.textContent).toContain("Tobradex");
+        await waitFor(() => expect(queryPopup()).not.toBeInTheDocument());
 
         const editor = await openEditor(page);
         typeInEditor("نص معدل");
@@ -255,14 +257,20 @@ describe("after the browser's dialog @area:prescription", () => {
         expect(pageRules()).toEqual([]);
     });
 
-    test("an `afterprint` from nowhere, with no print running, changes nothing @TPL-322", async () => {
+    test("the `afterprint` listener is there only while a job exists @TPL-322", async () => {
+        const added = vi.spyOn(window, "addEventListener");
+        const removed = vi.spyOn(window, "removeEventListener");
+        const listeners = (spy: typeof added | typeof removed) => spy.mock.calls.filter(([type]) => type === "afterprint").map(([, listener]) => listener);
         const page = await openWithTemplate(templateOf());
-        act(() => {
-            window.dispatchEvent(new Event("afterprint"));
-        });
-        await pastExitTransition();
-        expect(page.print).not.toHaveBeenCalled();
-        expect(page.panelPrint()).toBeEnabled();
+        expect(listeners(added)).toEqual([]);
+
+        await page.pressPrint();
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+        expect(listeners(added)).toHaveLength(1);
+        expect(listeners(removed)).toEqual([]);
+
+        page.finishPrint();
+        expect(listeners(removed)).toEqual(listeners(added));
     });
 });
 

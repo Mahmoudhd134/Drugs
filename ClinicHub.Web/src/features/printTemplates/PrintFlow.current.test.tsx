@@ -1,7 +1,7 @@
 import {describe, expect, test} from "vitest";
 import {screen, waitFor, within} from "@testing-library/react";
 import {http} from "msw";
-import {api, expectToasts, findToast, networkError, pastExitTransition, problem, recordRequests, server, stubClipboard} from "../../test";
+import {api, expectToasts, findToast, networkError, pastExitTransition, problem, recordRequests, server, stubClipboard, toastTexts} from "../../test";
 import {
     actionsOf,
     cancelButton,
@@ -142,8 +142,10 @@ describe("staying current @area:prescription", () => {
         await page.pressPrint();
         await expectToasts(GENERIC_MESSAGE);
         await page.pressPrint();
+        await expectToasts(GENERIC_MESSAGE, GENERIC_MESSAGE);
         await waitFor(() => expect(page.panelPrint()).toBeEnabled());
         await pastExitTransition();
+        expect(toastTexts()).toEqual([GENERIC_MESSAGE, GENERIC_MESSAGE]);
 
         templateNowIs(templateOf());
         await page.pressPrint();
@@ -197,15 +199,17 @@ describe("double clicks @area:prescription", () => {
         expect(page.print).toHaveBeenCalledTimes(1);
     });
 
-    test("a click while the pop-up is open from the same flow does nothing: the click behind it is blocked @TPL-307", async () => {
+    test("a click reaching Print while the pop-up is open from the same flow does nothing: no second read, the same pop-up with its value @TPL-307", async () => {
         const page = await openWithTemplate(templateOf(manual("m1", "الاسم")));
         await page.pressPrint();
         const popup = await findPopup();
         await page.user.type(popupFields(popup)[0], "أحمد");
+        const requests = recordRequests();
 
         page.panelPrint().click();
         await pastExitTransition();
 
+        expect(reads(requests)).toEqual([]);
         expect(screen.getAllByRole("dialog")).toEqual([popup]);
         expect(popupFields(popup)[0]).toHaveValue("أحمد");
     });

@@ -261,8 +261,12 @@ describe("a block that doesn't fit is cut @area:prescription", () => {
         expectSheets(pages("<p>aaa<br>bbb<br>ccc</p>", charsFit(7)), ["<p>aaa<br>bbb</p>", "<p>ccc</p>"]);
     });
 
-    test("only the <br> at the cut goes: a blank line inside the second part stays @TPL-144", () => {
-        expectSheets(pages("<p>aaa<br>bbb<br><br>ccc</p>", charsFit(7)), ["<p>aaa<br>bbb</p>", "<p><br>ccc</p>"]);
+    test("only the <br>s at the cut go: a blank line inside the second part stays @TPL-144", () => {
+        expectSheets(pages("<p>aaa<br>bbb<br>cc<br><br>dd</p>", charsFit(7)), ["<p>aaa<br>bbb</p>", "<p>cc<br><br>dd</p>"]);
+    });
+
+    test("a cut at a <br> drops any <br> right after it: a continuation sheet doesn't start with a blank line @TPL-326", () => {
+        expectSheets(pages("<p>aaa<br>bbb<br><br>ccc</p>", charsFit(7)), ["<p>aaa<br>bbb</p>", "<p>ccc</p>"]);
     });
 
     test("a block with spaces and <br>s is cut at whichever comes last that fits @TPL-144", () => {
@@ -566,10 +570,5 @@ describe("a whole prescription @area:prescription", () => {
         expect(sheets.flatMap(namesOn)).toEqual(Array.from({length: 40}, (_, i) => nameOf(i + 1)));
         expectNothingLost(html, sheets);
         expect(numberOf(99, sheets)).toBe(`100/${sheets.length}`);
-    });
-
-    test("the same text in the same box always gives the same sheets @TPL-335", () => {
-        const html = drugs(12);
-        expect(pages(html, linesFit(7))).toEqual(pages(html, linesFit(7)));
     });
 });

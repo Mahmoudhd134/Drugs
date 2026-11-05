@@ -4,13 +4,17 @@ import {pastExitTransition} from "../../test";
 import {
     aPrintedLine,
     confirmButton,
+    editorPrint,
     fn,
     findPopup,
     manual,
+    openEditor,
     openWithTemplate,
+    pasteInEditor,
     popupFields,
     staticText,
     TEXT_ID,
+    templateNowIs,
     templateOf,
     textBox,
     valueOn,
@@ -21,7 +25,11 @@ import {
 
 const measure = vi.hoisted(() => ({fits: vi.fn<(html: string) => boolean>(), dispose: vi.fn(), create: vi.fn(), font: vi.fn()}));
 
-vi.mock("./printMeasure.ts", () => ({createTextMeasurer: measure.create, loadPrintFont: measure.font}));
+vi.mock("./printMeasure.ts", async original => ({
+    ...await original<typeof import("./printMeasure.ts")>(),
+    createTextMeasurer: measure.create,
+    loadPrintFont: measure.font,
+}));
 
 /** The box holds one drug. */
 const oneDrugPerSheet = (html: string) => (html.match(/<strong/g) ?? []).length <= 1;
@@ -112,10 +120,11 @@ describe("continuation sheets @area:prescription", () => {
 });
 
 describe("the print flow's order @area:prescription", () => {
-    test("the font, then the measure with the fresh template's text box, then the print; the box is gone before it", async () => {
-        const template = templateOf();
-        template.layout.items[0] = {...template.layout.items[0], wMm: 77, hMm: 44};
-        const page = await openWithTemplate(template);
+    test("the font, then the measure with the fresh template's text box, then the print; the box is gone before it @TPL-150", async () => {
+        const page = await openWithTemplate(templateOf());
+        const fresh = templateOf();
+        fresh.layout.items[0] = {...fresh.layout.items[0], wMm: 77, hMm: 44};
+        templateNowIs(fresh);
 
         await page.pressPrint();
         await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
@@ -131,7 +140,7 @@ describe("the print flow's order @area:prescription", () => {
         expect(disposed).toBeLessThan(printed);
     });
 
-    test("the print waits for the font", async () => {
+    test("the print waits for the font @TPL-332", async () => {
         let fontLoaded = () => undefined as void;
         measure.font.mockImplementation(() => new Promise<void>(resolve => {
             fontLoaded = resolve;
@@ -165,7 +174,24 @@ describe("the print flow's order @area:prescription", () => {
         expect(page.printRoot()).toBeNull();
     });
 
-    test("what's measured and printed is the cleaned text: no name of a tag it dropped @TPL-133", async () => {
+    test("what's measured and printed is the cleaned text: a link the editor holds leaves its tag behind, in both @TPL-133", async () => {
+        const page = await openWithTemplate(templateOf());
+        const editor = await openEditor(page);
+        pasteInEditor('<p>قبل <a href="https://example.test/x">الرابط</a> بعد</p>');
+        await waitFor(() => expect(document.querySelector(".ql-editor a")).not.toBeNull());
+        await waitFor(() => expect(editorPrint(editor)).toBeEnabled());
+
+        await page.user.click(editorPrint(editor));
+        await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
+
+        expect(measure.fits).toHaveBeenCalled();
+        for (const [html] of measure.fits.mock.calls) expect(html).not.toMatch(/<a\b|href/);
+        const box = textBox(page.sheets()[0])!;
+        expect(box.querySelector("a")).toBeNull();
+        expect(box.textContent).toBe("قبل الرابط بعد");
+    });
+
+    test("a name or a note that looks like tags prints as its text: no element is made @TPL-133", async () => {
         const page = await openWithTemplate(templateOf(), {lines: [aPrintedLine("<img src=x onerror=alert(1)>", "<script>alert(2)</script>")]});
 
         await page.pressPrint();

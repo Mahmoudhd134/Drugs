@@ -103,7 +103,7 @@ describe("Print in the editor @area:prescription", () => {
         expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    test("the title and the hint say printing too, in both languages @RX-076", async () => {
+    test("the title and the hint say printing too, in both languages @RX-075", async () => {
         const arabic = await renderWithProviders(<EditorDialog open lines={[LINE()]} onClose={vi.fn()}/>, {lang: "ar"});
         expect(await screen.findByText("تعديل قبل النسخ أو الطباعة")).toBeInTheDocument();
         expect(screen.getByText("للنسخ أو الطباعة؛ التعديلات لا تُحفظ.")).toBeInTheDocument();

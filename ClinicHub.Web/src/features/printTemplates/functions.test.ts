@@ -162,19 +162,19 @@ describe("function values, whatever the language or locale @area:prescription", 
 });
 
 describe("what a short item prints @area:prescription", () => {
-    test("a manual input: its value; empty or missing: blank @TPL-127", () => {
+    test("a manual input: its value; empty or missing: blank @TPL-112", () => {
         const item = aTemplateItem("manualInput", {id: "m1"});
         expect(itemValue(item, context({manualValues: {m1: "أحمد"}}))).toBe("أحمد");
         expect(itemValue(item, context({manualValues: {m1: ""}}))).toBe("");
         expect(itemValue(item, context({manualValues: {other: "أحمد"}}))).toBe("");
     });
 
-    test("a manual input's value isn't altered here: HTML stays as text @TPL-127", () => {
+    test("a manual input's value isn't altered here: HTML stays as text @TPL-313", () => {
         const item = aTemplateItem("manualInput", {id: "m1"});
         expect(itemValue(item, context({manualValues: {m1: "<b>x</b>"}}))).toBe("<b>x</b>");
     });
 
-    test("a function: its value on this sheet, never its name @TPL-127", () => {
+    test("a function: its value on this sheet, never its name @TPL-127 @TPL-132", () => {
         const date = aTemplateItem("function", {function: "fullDate", name: "اسم الدالة"});
         const pageNumber = aTemplateItem("function", {function: "pageNumber", name: "اسم الرقم"});
         expect(itemValue(date, context())).toBe("5 نوفمبر 2026");
@@ -182,18 +182,18 @@ describe("what a short item prints @area:prescription", () => {
         expect(itemValue(pageNumber, context({page: 1, pages: 1}))).toBe("");
     });
 
-    test("static text: as typed, line breaks and spaces kept @TPL-127", () => {
+    test("static text: as typed, line breaks and spaces kept @TPL-313", () => {
         const item = aTemplateItem("staticText", {text: " سطر أول\nسطر ثان "});
         expect(itemValue(item, context())).toBe(" سطر أول\nسطر ثان ");
     });
 
-    test("the prescription text has no value here @TPL-127", () => {
+    test("the prescription text has no value here @TPL-132", () => {
         expect(itemValue(aTemplateItem("prescriptionText"), context())).toBe("");
     });
 
     test.each([
         ["fullDate", false], ["time", false], ["dayOfWeek", false], ["dayOfMonth", false], ["isoDateTime", true], ["pageNumber", true],
-    ] as const)("%s reads left to right: %s @TPL-127", (fn, expected) => {
+    ] as const)("%s reads left to right: %s @TPL-318", (fn, expected) => {
         expect(isLeftToRightValue(fn)).toBe(expected);
     });
 });

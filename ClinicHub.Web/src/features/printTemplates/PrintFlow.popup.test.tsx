@@ -181,6 +181,103 @@ describe("the pop-up @area:prescription", () => {
         expect(field).toHaveValue(`${"z".repeat(198)}1 `);
     });
 
+    test("a paste leaves the cursor after the pasted text: typing carries on there @TPL-114", async () => {
+        const {popup, user} = await openPopup(templateOf(manual("m1", "الاسم")));
+        const [field] = popupFields(popup);
+        await user.type(field, "abcd");
+
+        field.setSelectionRange(1, 3);
+        await user.paste("xy");
+        await user.keyboard("z");
+
+        expect(field).toHaveValue("axyzd");
+    });
+
+    describe("what prints is what the field shows, after a paste", () => {
+        const SELECT_ALL_AND_DELETE = "{Control>}a{/Control}{Delete}";
+
+        /** The field and the printed value must agree: returns what printed. */
+        const confirmAndRead = async ({popup, user, print, sheets}: Awaited<ReturnType<typeof openPopup>>, shown: string) => {
+            expect(popupFields(popup)[0]).toHaveValue(shown);
+            await user.click(confirmButton(popup));
+            await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+            return valueOn(sheets()[0], "m1");
+        };
+
+        test("a value pasted, then deleted in one step: nothing of it prints @TPL-114 @TPL-112 @smoke", async () => {
+            const page = await openPopup(templateOf(manual("m1", "الاسم")));
+            await page.user.click(popupFields(page.popup)[0]);
+
+            await page.user.paste("أحمد");
+            await page.user.keyboard(SELECT_ALL_AND_DELETE);
+
+            expect(await confirmAndRead(page, "")).toBe("");
+        });
+
+        test("a paste over a selection: what the field shows prints @TPL-114 @TPL-112", async () => {
+            const page = await openPopup(templateOf(manual("m1", "الاسم")));
+            const [field] = popupFields(page.popup);
+            await page.user.type(field, "abcd");
+
+            field.setSelectionRange(1, 3);
+            await page.user.paste("xy");
+
+            expect(await confirmAndRead(page, "axyd")).toBe("axyd");
+        });
+
+        test("a paste over a selection, its extra letter then deleted, back to the text before the paste: that text prints @TPL-114 @TPL-112", async () => {
+            const page = await openPopup(templateOf(manual("m1", "الاسم")));
+            const [field] = popupFields(page.popup);
+            await page.user.type(field, "abcd");
+
+            field.setSelectionRange(3, 4);
+            await page.user.paste("dz");
+            expect(field).toHaveValue("abcdz");
+            field.setSelectionRange(4, 5);
+            await page.user.keyboard("{Delete}");
+
+            expect(await confirmAndRead(page, "abcd")).toBe("abcd");
+        });
+
+        test("a paste beyond 200 characters: the 200 the field keeps print @TPL-114 @TPL-112", async () => {
+            const page = await openPopup(templateOf(manual("m1", "الاسم")));
+            await page.user.click(popupFields(page.popup)[0]);
+
+            await page.user.paste("ب".repeat(201));
+
+            expect(await confirmAndRead(page, "ب".repeat(200))).toBe("ب".repeat(200));
+        });
+
+        test("a paste beyond 200 characters, then deleted in one step: nothing of it prints @TPL-114 @TPL-112", async () => {
+            const page = await openPopup(templateOf(manual("m1", "الاسم")));
+            await page.user.click(popupFields(page.popup)[0]);
+
+            await page.user.paste("ب".repeat(201));
+            await page.user.keyboard(SELECT_ALL_AND_DELETE);
+
+            expect(await confirmAndRead(page, "")).toBe("");
+        });
+    });
+
+    test("a 60-character name: a real label above the field holds it whole, never a floating one @TPL-117", async () => {
+        const name = `${"اسم المريض ".repeat(5)}كاملا`;
+        expect(name).toHaveLength(60);
+        const {popup} = await openPopup(templateOf(manual("m1", name)));
+
+        const field = within(popup).getByRole("textbox", {name});
+        const label = (field as HTMLInputElement).labels![0];
+        expect(label.htmlFor).toBe(field.id);
+        expect(label).toHaveTextContent(name);
+        expect(label.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(label.closest(".MuiInputBase-root")).toBeNull();
+
+        // MUI's floating label: placed over the field and cut to one line, its text copied into the outline's notch
+        expect(popup.querySelector(".MuiInputLabel-root")).toBeNull();
+        expect(label).not.toHaveStyle({position: "absolute"});
+        expect(label).not.toHaveStyle({whiteSpace: "nowrap"});
+        expect(popup.querySelector("legend")?.textContent ?? "").not.toContain(name);
+    });
+
     test("values typed and printed: Print again shows the fields empty, and nothing was stored or sent @TPL-115 @smoke", async () => {
         const setItem = vi.spyOn(Storage.prototype, "setItem");
         const {popup, user, print, finishPrint, pressPrint} = await openPopup();
@@ -275,7 +372,7 @@ describe("the pop-up's edges @area:prescription", () => {
 
         const fields = popupFields(popup);
         expect(fields.map(field => field.labels?.[0]?.textContent)).toEqual(inputs.map(input => input.name));
-        const content = fields[0].closest(".MuiDialogContent-root");
+        const content = fields[0].closest<HTMLElement>(".MuiDialogContent-root");
         expect(content).not.toBeNull();
         for (const field of fields) expect(content).toContainElement(field);
         for (const button of within(popup).getAllByRole("button")) {
@@ -283,7 +380,11 @@ describe("the pop-up's edges @area:prescription", () => {
             expect(button.closest(".MuiDialogActions-root")).not.toBeNull();
         }
         // The same form holds both (`DialogForm`), so Enter still confirms
-        expect(fields[0].closest("form")).toBe(confirmButton(popup).closest("form"));
+        const form = fields[0].closest("form");
+        expect(form).toBe(confirmButton(popup).closest("form"));
+        // Only the content scrolls: a plain form would scroll the whole dialog, its buttons with it
+        expect(form).toHaveStyle({display: "flex", flexDirection: "column", overflow: "hidden"});
+        expect(content).toHaveStyle({overflowY: "auto"});
     });
 
     test.each(["ar", "en"] as const)("in the %s UI a field's text keeps its own direction, and so does its label @TPL-312", async lang => {

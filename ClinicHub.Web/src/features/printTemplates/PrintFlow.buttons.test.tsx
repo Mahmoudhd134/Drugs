@@ -176,14 +176,31 @@ describe("a template saved while the clinic works @area:prescription", () => {
         const page = await openWithTemplate(null, {clipboard: {}});
         await pastExitTransition();
         templateNowIs(templateOf());
+        const requests = recordRequests();
 
-        fireEvent.focus(window);
-        fireEvent(document, new Event("visibilitychange"));
+        // TanStack's focus manager listens for this event on the window
+        fireEvent(window, new Event("visibilitychange"));
         await pastExitTransition();
 
+        expect(requests.requests.filter(r => r.path === TEMPLATE_PATH)).toEqual([]);
         expect(page.selection().queryByRole("button", {name: PRINT})).not.toBeInTheDocument();
         await page.user.click(page.selection().getByRole("button", {name: "نسخ"}));
         expect(await findToast()).toBe("تم النسخ");
+    });
+
+    test("the network coming back after the page opened sends no read, so no Print either @TPL-303", async () => {
+        const page = await openWithTemplate(null);
+        await pastExitTransition();
+        templateNowIs(templateOf());
+        const requests = recordRequests();
+
+        // TanStack's online manager acts on a change: offline, then online
+        fireEvent(window, new Event("offline"));
+        fireEvent(window, new Event("online"));
+        await pastExitTransition();
+
+        expect(requests.requests.filter(r => r.path === TEMPLATE_PATH)).toEqual([]);
+        expect(page.selection().queryByRole("button", {name: PRINT})).not.toBeInTheDocument();
     });
 });
 

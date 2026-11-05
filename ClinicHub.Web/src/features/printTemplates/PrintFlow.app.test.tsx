@@ -242,12 +242,20 @@ describe("403 at Print @area:prescription", () => {
         expect(app.print).not.toHaveBeenCalled();
     });
 
-    test("after a 403 Print isn't stuck, and it stays on the page while the permissions allow it @TPL-343", async () => {
+    test("after a 403 Print isn't stuck: a further click reads again, and it stays on the page while the permissions allow it @TPL-343", async () => {
         const app = await openInA(forbiddenAtTheClick("forbidden"));
+        const requests = recordRequests();
+        const reads = () => requests.requests.filter(r => r.path === TEMPLATE_PATH);
 
         await app.user.click(app.printButton);
         await expectToasts(FORBIDDEN_MESSAGE);
+        await waitFor(() => expect(reads()).toHaveLength(1));
 
+        await app.user.click(screen.getByRole("button", {name: PRINT}));
+
+        await waitFor(() => expect(reads()).toHaveLength(2));
+        await pastExitTransition();
         expect(screen.getByRole("button", {name: PRINT})).toBeEnabled();
+        expect(app.print).not.toHaveBeenCalled();
     });
 });

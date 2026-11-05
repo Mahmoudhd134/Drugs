@@ -118,6 +118,11 @@ export const typeInEditor = (text: string) => act(() => {
     quill().setText(text, "user");
 });
 
+/** Replaces the editor's text with this HTML, as a paste: real tags reach the editor, which `linesToHtml`'s escaped text never gives. */
+export const pasteInEditor = (html: string) => act(() => {
+    quill().clipboard.dangerouslyPasteHTML(html, "user");
+});
+
 /** Empties the editor and leaves one empty numbered item. */
 export const oneEmptyListItem = () => act(() => {
     quill().setContents([{insert: "\n", attributes: {list: "ordered"}}] as never, "user");
