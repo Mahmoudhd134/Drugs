@@ -12,6 +12,7 @@ How to write them: [docs/testing/README.md](../../../docs/testing/README.md#inte
 | `admin-4` | `ClinicDetailsAndRenameTests`, `SuspendAndActivateTests`, `DeleteClinicTests` |
 | `admin-5` | `RoleTests`, `OwnerLabelTests` |
 | `admin-6` | `StaffListTests`, `StaffChangeTests`, `LastOwnerTests` |
+| `admin-7` | `PrescriptionTemplates/`: `TemplateStorageTests`, `TemplateAccessTests`, `TemplateBindingTests`, `TemplateValidationTests`, `TemplateRuleEdgeTests`, `PrintLayoutFixtureApiTests` (TPL; the migration's `TemplateMigrationTests` runs in `catalog-migrations`) |
 
 - Local helpers: `AdminApi.cs` (routes, "every admin route", list/read shortcuts, `PermissionKeys` in catalog order,
   `RowCounts` for "nothing written", `TemplateCatalog`: the catalog's template fixture of 2 drugs + 1 group), the

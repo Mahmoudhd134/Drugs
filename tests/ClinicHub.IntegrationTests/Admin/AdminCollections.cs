@@ -46,3 +46,10 @@ public sealed class AdminCollection6 : ICollectionFixture<AppFixture>
 {
     public const string Name = "admin-6";
 }
+
+/// <summary>A clinic's prescription print template.</summary>
+[CollectionDefinition(Name)]
+public sealed class AdminCollection7 : ICollectionFixture<AppFixture>
+{
+    public const string Name = "admin-7";
+}
