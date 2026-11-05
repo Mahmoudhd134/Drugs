@@ -3,6 +3,7 @@ import {screen} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
+    clinicPrintTemplateHandler,
     adminClinicsHandlers,
     api,
     contextsHandler,
@@ -35,6 +36,7 @@ const homePages = (contexts: Context[]) => [
     drugTreeHandler([]),
     ...drugsHandlers([]),
     ...protocolsHandlers([]),
+    clinicPrintTemplateHandler(),
     ...adminClinicsHandlers([]),
     contextsHandler(contexts),
 ];

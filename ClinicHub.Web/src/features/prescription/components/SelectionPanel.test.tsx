@@ -18,7 +18,7 @@ import {SelectionPanel} from "./SelectionPanel.tsx";
 // The selected lines' panel: tooltips (docs/features/tapering/tech.md "Frontend", docs/tech/overview.md
 // "Code conventions": every icon-only button has a tooltip and an aria-label).
 
-const openPanel = (lines: PrescriptionLine[], lang: "ar" | "en" = "ar") => renderWithProviders(
+const openPanel = (lines: PrescriptionLine[], lang: "ar" | "en" = "ar", onPrint?: () => void) => renderWithProviders(
     <SelectionPanel
         lines={lines}
         onReorder={vi.fn()}
@@ -29,6 +29,7 @@ const openPanel = (lines: PrescriptionLine[], lang: "ar" | "en" = "ar") => rende
         onClear={vi.fn()}
         onEdit={vi.fn()}
         onQuickCopy={vi.fn()}
+        onPrint={onPrint}
     />,
     {lang},
 );
@@ -51,6 +52,48 @@ describe("prescription copy buttons @area:ux", () => {
             hoverPastDelay(button.parentElement!);
             expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
         }
+    });
+});
+
+describe("the Print button @area:ux", () => {
+    test("with lines, hovering «طباعة» shows the 100% hint, and the other two keep theirs @UX-014", async () => {
+        await openPanel([aLine(aDrug({name: "Tobradex"}))], "ar", vi.fn());
+        const print = screen.getByRole("button", {name: "طباعة"});
+
+        expect(await hoverTooltip(print)).toBe("اطبع بمقياس 100% دون «ملاءمة للصفحة».");
+        await leaveTooltip(print);
+        expect(await hoverTooltip(screen.getByRole("button", {name: "نسخ"}))).toBe("نسخ الروشتة كما هي. اللصق في Word يحتفظ بالتنسيق.");
+    });
+
+    test("in English: \"Print at 100%, without \"Fit to page\".\" @UX-014", async () => {
+        await openPanel([aLine(aDrug({name: "Tobradex"}))], "en", vi.fn());
+        expect(await hoverTooltip(screen.getByRole("button", {name: "Print"}))).toBe("Print at 100%, without \"Fit to page\".");
+    });
+
+    test("with an empty list it's disabled and shows no tooltip @UX-014 @TPL-104", async () => {
+        await openPanel([], "ar", vi.fn());
+        const print = screen.getByRole("button", {name: "طباعة"});
+        expect(print).toBeDisabled();
+        hoverPastDelay(print.parentElement!);
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+
+    test("it stands between «نسخ» and «تعديل ونسخ», and a click calls `onPrint` once @UX-014", async () => {
+        const onPrint = vi.fn();
+        const {user} = await openPanel([aLine(aDrug({name: "Tobradex"}))], "ar", onPrint);
+        const [copy, print, edit] = ["نسخ", "طباعة", "تعديل ونسخ"].map(name => screen.getByRole("button", {name}));
+
+        expect(copy.compareDocumentPosition(print) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(print.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        await user.click(print);
+        expect(onPrint).toHaveBeenCalledTimes(1);
+    });
+
+    test("no `onPrint`: no button, and Copy and Edit & copy stay @TPL-103", async () => {
+        await openPanel([aLine(aDrug({name: "Tobradex"}))]);
+        expect(screen.queryByRole("button", {name: "طباعة"})).not.toBeInTheDocument();
+        expect(screen.getByRole("button", {name: "نسخ"})).toBeEnabled();
+        expect(screen.getByRole("button", {name: "تعديل ونسخ"})).toBeEnabled();
     });
 });
 

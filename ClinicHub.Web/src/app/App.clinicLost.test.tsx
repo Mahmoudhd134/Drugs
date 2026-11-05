@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {pickCategory} from "../test/pages/drugDialog.ts";
 import {
     aClinicContext,
+    clinicPrintTemplateHandler,
     aDrug,
     aMe,
     aPage,
@@ -77,7 +78,7 @@ const workInA = async (contexts: Context[], afterLoss: Parameters<typeof refresh
 };
 
 // The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
-beforeEach(() => void server.use(drugCategoriesHandler()));
+beforeEach(() => void server.use(drugCategoriesHandler(), clinicPrintTemplateHandler()));
 
 describe("losing the clinic while working in it @area:auth", () => {
     test("suspended, with other places left: the clinic-lost message and the picker, never «هذه العيادة موقوفة.» / «العيادة «A» موقوفة.» @AUTH-185", async () => {

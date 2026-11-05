@@ -24,6 +24,9 @@ const PURE_LOGIC = [
     'src/features/drugs/pages/drugListParams.ts',
     'src/features/printTemplates/layout.ts',
     'src/features/printTemplates/unsavedGuard.ts',
+    'src/features/printTemplates/functions.ts',
+    'src/features/printTemplates/printHtml.ts',
+    'src/features/printTemplates/pagination.ts',
 ]
 
 // https://vite.dev/config/

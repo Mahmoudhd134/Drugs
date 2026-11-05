@@ -3,6 +3,7 @@ import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
+    clinicPrintTemplateHandler,
     aDrug,
     aMe,
     aPage,
@@ -30,7 +31,7 @@ const clinicB = aClinicContext({clinicId: 2, clinicName: "B"});
 const drugsOk = () => http.get(api("/drugs"), () => HttpResponse.json(aPage([aDrug({name: "Tobradex"})])));
 
 // The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
-beforeEach(() => void server.use(drugCategoriesHandler()));
+beforeEach(() => void server.use(drugCategoriesHandler(), clinicPrintTemplateHandler()));
 
 describe("permissions in the app @area:access", () => {
     /** /drugs while /me fails; `retry()` makes /me answer (held until `release()`) and presses «إعادة المحاولة». */
