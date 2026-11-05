@@ -1,6 +1,8 @@
 import {describe, expect, test} from "vitest";
 import {aDrug, aLine, aProtocolDrug, ARABIC_DRUG_NAME, aSharedDrug, DIGITS_FIRST_NAME} from "../../test";
+import {bodyOf, styleOf} from "../../test/htmlShape.ts";
 import type {Dosing} from "../dosing/types.ts";
+import {cleanPrintHtml} from "../printTemplates/printHtml.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml, linesToPlainText} from "./prescriptionText.ts";
 
 // Formats: docs/features/prescription/tech.md "Text formats (prescriptionText.ts)".
@@ -85,6 +87,24 @@ describe("htmlForPaste @area:prescription", () => {
     test("the prescription's own HTML, ready for Word", () => {
         const html = htmlForPaste(linesToHtml([aLine(aDrug({name: "A"}), twoDropsLeft)]));
         expect(html).toBe(`<p dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"><strong dir="ltr">A</strong><br>${SENTENCE}</p>`);
+    });
+
+    describe("the blocks Quill's paste keeps beyond the toolbar's", () => {
+        const attributesOf = (element: Element | null) => [element?.getAttribute("dir"), styleOf(element?.getAttribute("style") ?? "")];
+
+        test.each(["blockquote", "h4", "h5", "h6", "pre"])("<%s> gets `dir` and `text-align`, no class stays, and it keeps them through `cleanPrintHtml` @TPL-329", tag => {
+            const pasted = htmlForPaste(`<${tag} class="ql-direction-rtl ql-align-right">نص</${tag}>`);
+            expect(attributesOf(bodyOf(pasted).querySelector(tag))).toEqual(["rtl", "text-align:right"]);
+            expect(pasted).not.toContain("class=");
+
+            expect(attributesOf(bodyOf(cleanPrintHtml(pasted)).querySelector("p"))).toEqual(["rtl", "text-align:right"]);
+        });
+
+        test("its indent too, on the side the direction gives @TPL-329", () => {
+            const pasted = htmlForPaste('<h4 class="ql-direction-rtl ql-indent-1">نص</h4>');
+            expect(attributesOf(bodyOf(pasted).querySelector("h4"))).toEqual(["rtl", "margin-right:3em"]);
+            expect(attributesOf(bodyOf(cleanPrintHtml(pasted)).querySelector("p"))).toEqual(["rtl", "margin-right:3em"]);
+        });
     });
 });
 

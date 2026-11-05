@@ -52,3 +52,12 @@ export const CASCADE_STEP_MM = 6;
  * theme's font order nor Google Fonts decides what prints. Declared by `printFont.css`.
  */
 export const PRINT_FONT_FAMILY = '"ClinicHub Print", sans-serif';
+
+/** The print root, directly under `body` (design § 4.5). */
+export const PRINT_ROOT_ID = "clinichub-print-root";
+/** Line height of everything on a sheet, in the designer and in print: fixed, so 36 pt fits the 20 mm minimum box in any font (TPL-336). */
+export const PRINT_LINE_HEIGHT = 1.4;
+/** A pop-up value (design § 3). */
+export const MANUAL_VALUE_MAX_LENGTH = 200;
+/** How long printing waits for the print font; after that it carries on with the fallback font (design § 4.4, TPL-331). */
+export const FONT_LOAD_TIMEOUT_MS = 10_000;

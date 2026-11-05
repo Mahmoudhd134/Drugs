@@ -1,6 +1,7 @@
 import type {Locator, Page} from "@playwright/test";
 import {expect, signIn, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
+import {layoutL, putTemplate} from "../support/print-template.ts";
 import {DOSINGS, TEN_STEP_TAPER} from "../support/texts-ux.ts";
 import {
     addDrugToRx,
@@ -134,6 +135,29 @@ test.describe("Phone layout (375 px) @area:ux", () => {
             expect(Math.abs(copy.x - edit.x), "stacked").toBeLessThanOrEqual(1);
             expect(Math.abs(copy.width - edit.width), "same width").toBeLessThanOrEqual(1);
             // Full width: the panel's width less its padding (20 px each side) and border
+            expect(copy.width, "full-width").toBeGreaterThanOrEqual(selection.width - 2 * 20 - 4);
+        });
+
+    test("with a print template «نسخ», «طباعة» and «تعديل ونسخ» are full-width stacked buttons, in that order @UX-004",
+        async ({page, data, lang}) => {
+            const {t, u} = textsOf(lang);
+            const clinic = await data.clinic();
+            await putTemplate(data, clinic, layoutL());
+            const drug = await drugWith(data, clinic, {name: `Tobradex ${unique()}`});
+            await signIn(page, clinic.owner.phone);
+            await addDrugToRx(page, t, drug.name);
+            await expect(shownName(page, drug.name)).toBeVisible();
+
+            const selection = await box(page.locator("main .MuiPaper-root").filter({hasText: u.rxSelected}));
+            const copy = await box(page.getByRole("button", {name: u.quickCopy, exact: true}));
+            const print = await box(page.getByRole("button", {name: u.print, exact: true}));
+            const edit = await box(page.getByRole("button", {name: u.editAndCopy, exact: true}));
+            expect(copy.y + copy.height, "Copy above Print").toBeLessThanOrEqual(print.y);
+            expect(print.y + print.height, "Print above Edit & copy").toBeLessThanOrEqual(edit.y);
+            for (const button of [print, edit]) {
+                expect(Math.abs(copy.x - button.x), "stacked").toBeLessThanOrEqual(1);
+                expect(Math.abs(copy.width - button.width), "same width").toBeLessThanOrEqual(1);
+            }
             expect(copy.width, "full-width").toBeGreaterThanOrEqual(selection.width - 2 * 20 - 4);
         });
 

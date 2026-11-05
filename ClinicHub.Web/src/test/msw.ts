@@ -274,6 +274,13 @@ export const printTemplateHandlers = (clinicId: number,
     ];
 };
 
+/**
+ * `GET /prescription-template`, the clinic's own read: `template` or 204 (default). Errors or a change between two reads
+ * are per test (`server.use(http.get(api("/prescription-template"), …))`, added after this).
+ */
+export const clinicPrintTemplateHandler = (template: PrintTemplate | null = null) =>
+    http.get(api("/prescription-template"), () => (template ? json(template) : new HttpResponse(null, {status: 204})));
+
 export type RecordedRequest = { method: string; path: string; search: string; body: unknown };
 
 /**

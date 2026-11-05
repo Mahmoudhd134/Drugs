@@ -117,6 +117,26 @@ describe("print template error texts @area:admin", () => {
     });
 });
 
+describe("print texts @area:prescription", () => {
+    test.each([
+        ["prescription.print", "Print", "طباعة"],
+        ["printTemplates.print.title", "Print the prescription", "طباعة الروشتة"],
+        ["printTemplates.print.hint", "Print at 100%, without \"Fit to page\".", "اطبع بمقياس 100% دون «ملاءمة للصفحة»."],
+        ["printTemplates.print.gone", "This clinic no longer has a print template.", "لم يعد لهذه العيادة قالب طباعة."],
+        ["prescription.editorTitle", "Edit before copying or printing", "تعديل قبل النسخ أو الطباعة"],
+        ["prescription.editorHint", "For copying or printing; changes are not saved.", "للنسخ أو الطباعة؛ التعديلات لا تُحفظ."],
+    ])("%s is in both files, with the contract's text @I18N-011", (key, english, arabic) => {
+        expect(enTexts[key]).toBe(english);
+        expect(arTexts[key]).toBe(arabic);
+    });
+
+    test("the printed date's words are the same Arabic in both files: twelve months, seven days, ص and م @I18N-011", () => {
+        const values = (texts: Record<string, string>) => Object.entries(texts).filter(([key]) => key.startsWith("rxText.printValues."));
+        expect(values(enTexts)).toEqual(values(arTexts));
+        expect(values(arTexts)).toHaveLength(21);
+    });
+});
+
 describe("permission keys and labels @area:access", () => {
     const spaKeys = Object.values(PERMISSIONS).flatMap(resource => Object.values(resource) as string[]);
 

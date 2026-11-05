@@ -4,6 +4,7 @@ import type {UserEvent} from "@testing-library/user-event";
 import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
+    clinicPrintTemplateHandler,
     aClinicDetails,
     aDrug,
     adminClinicsHandlers,
@@ -86,6 +87,7 @@ beforeEach(() => void server.use(
     http.get(api("/auth/otp/mode"), () => HttpResponse.json({mode: "Sms"})),
     contextsHandler([otherClinic, template]),
     drugCategoriesHandler(),
+    clinicPrintTemplateHandler(),
 ));
 
 const noQuestion = () => expect(screen.queryByRole("dialog", {name: QUESTION})).not.toBeInTheDocument();

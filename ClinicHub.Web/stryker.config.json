@@ -23,7 +23,10 @@
     "src/features/drugs/components/drugTreeModel.ts",
     "src/features/drugs/pages/drugListParams.ts",
     "src/features/printTemplates/layout.ts",
-    "src/features/printTemplates/unsavedGuard.ts"
+    "src/features/printTemplates/unsavedGuard.ts",
+    "src/features/printTemplates/functions.ts",
+    "src/features/printTemplates/printHtml.ts",
+    "src/features/printTemplates/pagination.ts"
   ],
   "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": {

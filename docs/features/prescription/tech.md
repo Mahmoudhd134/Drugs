@@ -2,13 +2,14 @@
 
 ## Summary
 The home page (`/`). Staff add protocols or single drugs as **prescription lines**, adjust each
-line's dosing for the patient, reorder, then copy (plain text + HTML for Word), optionally after
-editing in a rich-text editor. **Frontend only**: nothing is saved on the server; the lines live in
-`localStorage`.
+line's dosing for the patient, reorder, then copy (plain text + HTML for Word) or, in a clinic with a print template,
+print on the clinic's sheet, optionally after editing in a rich-text editor. **Frontend only**: nothing is saved on the
+server; the lines live in `localStorage`.
 
 ## Data model / API
 None of its own. Reads drugs and protocols through the existing endpoints (`GET /drugs/tree` and `GET /drugs`,
-`GET /protocols`) via `DrugTree` (M1.7c) and `ProtocolPicker`.
+`GET /protocols`) via `DrugTree` (M1.7c) and `ProtocolPicker`, and the clinic's template (`GET /prescription-template`,
+[print templates](../prescription-templates/tech.md#printing)) through `usePrintPrescription`.
 
 `PrescriptionLine` (`features/prescription/types.ts`):
 
@@ -83,6 +84,10 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
     `() => setLines(previous)`): a line added after the clear and before Undo is dropped, without a message. Intended
     (M1.6.1, Q1): Undo restores the prescription as it was.
   - **Copy** → `copyRichText(htmlForPaste(linesToHtml(lines)), linesToPlainText(lines))`.
+  - **Print** (`usePrintPrescription`, [print templates](../prescription-templates/tech.md#printing)): `onPrint` reaches
+    `SelectionPanel` and `EditorDialog` only when `printer.available`, so a clinic with no template has no button. Print
+    beside Copy prints `linesToHtml(lines)`, never the editor's edits; Print in the editor prints its HTML. The page
+    renders `printer.element` (the pop-up and the print root).
 - `components/CatalogPanel.tsx`: tabs **Protocols** (default) / **Drugs**; both stay mounted (the tree keeps its search,
   open nodes and scroll position across tab switches, CAT-124: `DrugTree` keeps the panel's `scrollTop` from its
   last scroll while shown and puts it back when a `ResizeObserver` sees the panel get a size again, since Chromium's own
@@ -93,9 +98,10 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   with its permission (`protocols.list` / `drugs.list`; neither → `access.nothingToPick`, unreachable today since the page's
   `prescriptions.create` requires `drugs.list`; [access](../access/tech.md#frontend-srcfeaturesaccess)).
 - `components/SelectionPanel.tsx`: count chip, Clear all, `PrescriptionLineList`, empty state,
-  **Copy** and **Edit & copy** buttons (side by side from `sm`; on a phone full-width and stacked). Their tooltips
-  (`prescription.clearAllInfo`, `quickCopyInfo`, `editAndCopyInfo`) show only while there are lines: with an empty list
-  the three buttons are disabled and show no tooltip.
+  **Copy**, **Print** (`onPrint` given) and **Edit & copy** buttons, in that order (side by side from `sm`, wrapping when
+  three don't fit; on a phone full-width and stacked). Their tooltips (`prescription.clearAllInfo`, `quickCopyInfo`,
+  `printTemplates.print.hint`, `editAndCopyInfo`) show only while there are lines: with an empty list the buttons are
+  disabled and show no tooltip.
 - `components/PrescriptionLineList.tsx`: `DosingLineList` rows: number, drug name, `LineDetails` (the Arabic dosing
   sentence, or the drug description when the dosing has no instructions: see Text formats; for a **shared** drug with
   neither, a muted «لا توجد جرعة محددة» / "No dosing set", screen only, never copied; an own drug's line keeps showing
@@ -118,6 +124,10 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
   title wraps (`overflow-wrap: anywhere`).
 - `components/EditorDialog.tsx` + `EditorContent.tsx` + `QuillEditor.tsx`: lazy-loaded Quill 1 editor, rebuilt from the
   current lines on every open (`useOpeningKey`: also when reopened during the closing animation). Edits are not saved.
+  Its actions, in this order: Close, **Print** (`onPrint` given; outlined; the hint as its tooltip; disabled, with no
+  tooltip, when `hasPrintableText(html)` is false: the editor's Copy doesn't use that check), Copy; they wrap on a phone.
+  Printing leaves the editor open with its edits. Title `prescription.editorTitle`, hint `prescription.editorHint`: both
+  say copying or printing.
   `QuillEditor` is our wrapper (react-quill 2 relied on `findDOMNode`, removed in React 19) and keeps react-quill's behavior:
   Quill is created once, `value` is pasted in on mount and when it differs from the editor's last HTML, and each text change
   reports `root.innerHTML` through `onChange` when it differs. Quill 2 is not used: it renders bullet lists as `<ol>`.
@@ -137,7 +147,7 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
 - `htmlToPlainText(html)` (editor HTML → plain text): one line per paragraph, `<br>` as a line break, list items as
   "1. ", "2. " (ordered) or "• " (bulleted), non-breaking spaces as normal spaces, at most one blank line in a row,
   trimmed.
-- `htmlForPaste(html)` (Quill classes → inline styles for Word, on `p`, `li`, `h1`–`h3`, `ol`, `ul`):
+- `htmlForPaste(html)` (Quill classes → inline styles for Word, on `p`, `li`, `h1`–`h6`, `blockquote`, `pre`, `ol`, `ul`):
   `ql-direction-rtl` → `dir="rtl"`; `ql-align-right|center|justify` → `text-align:…`; `ql-indent-N` →
   `margin-right:{3×N}em` in RTL (`margin-left` otherwise; e.g. `ql-indent-2` RTL → `margin-right:6em`); every `<p>` gets
   `margin-top:0;margin-bottom:0` (Word's paragraph spacing would otherwise add gaps the editor doesn't show); no
@@ -221,7 +231,8 @@ answer narrowed by `filterTree`, the chosen category opened; a change of them is
 ## Testing notes
 Automated since M1.6 ([testing README](../../testing/README.md)): catalog area
 [RX](../../testing/test-catalog.md#rx--prescription-builder); a change here adds or fixes its cases and tests. The
-prescription has no API of its own (no `api` cases).
+prescription has no API of its own (no `api` cases). Printing's cases are in area TPL
+([print templates](../prescription-templates/tech.md#testing-notes)).
 
 | Level | Tests |
 |---|---|

@@ -77,8 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 16 | 54 | 27 | 97 | 24 | 20 | 47 | 14 | 0 |
-| **All** | **451** | **702** | **431** | **1584** | **234** | **701** | **419** | **319** | **10** |
+| [TPL](#tpl--prescription-print-templates) | 37 | 116 | 37 | 190 | 44 | 25 | 86 | 57 | 4 |
+| **All** | **472** | **764** | **441** | **1677** | **254** | **706** | **458** | **362** | **14** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -1716,7 +1716,7 @@ Sources: [prescription business](../features/prescription/business.md), [prescri
 | RX-072 | Given the English UI, when copying, then the copied text is still the Arabic sentences, right-to-left | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-073 | Given the clipboard write fails (API rejected and execCommand false), when copying, then the error toast «تعذّر النسخ. حدّد النص وانسخه يدويًا.» appears | P1 | ui | [rx § الرسائل](../features/prescription/business.md#الرسائل-التي-تظهر-للمستخدم) |
 | RX-074 | Given a non-secure context (plain http), when copying, then the `copy`-event fallback puts both HTML and plain text on the clipboard | P1 | unit | [rx tech § Clipboard](../features/prescription/tech.md#clipboard-srcutilsclipboardts) |
-| RX-075 | Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ» opens (after loading) with «التعديلات هنا للنسخ فقط ولا يتم حفظها.» and the content: bold names, sentences, notes, right-to-left | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
+| RX-075 | Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ أو الطباعة» opens (after loading) with «للنسخ أو الطباعة؛ التعديلات لا تُحفظ.» and the content: bold names, sentences, notes, right-to-left | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-076 | Given the editor, then its toolbar offers bold, italic, underline, numbered and bulleted lists, direction, alignment and clear formatting, each control named in the UI language («عريض», «المحاذاة», … / "Bold", "Alignment", …) | P2 | ui | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-077 | Given text made bold and a numbered list in the editor, when clicking «نسخ», then the copied HTML keeps them and the plain text has "1. " items, with «تم النسخ» | P0 | e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
 | RX-078 | Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines, also when reopened during the closing animation) | P0 | ui+e2e | [rx § النسخ](../features/prescription/business.md#النسخ) |
@@ -1765,7 +1765,7 @@ Sources: [business overview § اللغات](../business/overview.md#اللغا�
 | I18N-003 | Given a language chosen, then `<html lang>` and `<html dir>` are `ar`/`rtl` or `en`/`ltr` | P0 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-004 | Given the login page (before login), then the language menu works and the choice is kept after login | P1 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
 | I18N-005 | Given the Arabic UI, then the layout is mirrored: sidebar on the right (drawer opens from the right on a phone), text right-aligned, back arrows pointing right, number avatars and action buttons on the mirrored sides | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
-| I18N-006 | Given each page and dialog of these areas (prescription with the drug tree, protocols list/editor, drugs with the read-only details, the admin drugs and categories pages, the print template designer, dosing/taper dialogs, conflict and eye dialogs, Edit & copy), then it renders without overlap or cut text in both languages | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only), [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
+| I18N-006 | Given each page and dialog of these areas (prescription with the drug tree, protocols list/editor, drugs with the read-only details, the admin drugs and categories pages, the print template designer, the print pop-up, dosing/taper dialogs, conflict and eye dialogs, Edit & copy), then it renders without overlap or cut text in both languages | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only), [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
 | I18N-007 | Given spacing written with logical properties, then paddings/margins in RTL are mirrored, never zero (no `ms`/`me` shorthands used) | P2 | ui | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-008 | Given drug and protocol names/descriptions in Arabic and English, when switching the UI language, then they show exactly as typed in both (not translated) | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
 | I18N-009 | Given the English UI, then dosing sentences (drugs table, drug tree, protocol lines, prescription lines, previews, conflict boxes) and copied text are Arabic; shared drugs show no sentence | P0 | e2e | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية) |
@@ -1799,7 +1799,7 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | UX-001 | Given a 375 px wide phone, when visiting the prescription, drugs, protocols list and protocol editor pages (Arabic and English), then there is no horizontal page scroll | P0 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
 | UX-002 | Given 375 px, when opening the drug dialog, protocol line dialog and prescription line dialog, then they are full-screen, only the content scrolls, and Save/Cancel stay visible | P0 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-003 | Given 375 px and a taper of 10 steps, then each step wraps onto 2–3 lines with a divider between steps, step 1's dose field is hidden, and nothing overflows | P1 | e2e | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
-| UX-004 | Given 375 px, then the prescription columns stack (catalog above, selected lines below) and «نسخ» / «تعديل ونسخ» are full-width stacked buttons | P1 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
+| UX-004 | Given 375 px, then the prescription columns stack (catalog above, selected lines below) and «نسخ» / «تعديل ونسخ» (and «طباعة» between them when the clinic has a template: TPL-305) are full-width stacked buttons | P1 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | UX-005 | Given 375 px, then the conflict dialog shows «الحالي» and «من البروتوكول» stacked, and the eye dialog's three buttons fit | P1 | e2e | [rx tech § Page](../features/prescription/tech.md#page--components) |
 | UX-006 | Given 375 px, then the protocol-line chips («جرعة خاصة بالبروتوكول», «العين تُحدد عند إضافة البروتوكول») wrap instead of being cut | P2 | e2e | [protocols tech § Frontend](../features/protocols/tech.md#frontend-srcfeaturesprotocols) |
 | UX-007 | Given 375 px, then the drugs table pagination hides the rows-per-page choice and fits | P2 | e2e | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
@@ -1814,7 +1814,7 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 |---|---|---|---|---|
 | UX-012 | Given every icon-only button in these areas (✎, ⊕, ✕, delete, search clear «مسح», remove step, menu), then it has a tooltip and an accessible name in the UI language | P1 | ui | [tech overview § Code conventions](../tech/overview.md#code-conventions) |
 | UX-013 | Given an ⓘ icon, when hovering, focusing it with Tab, or tapping it on a phone, then its explanation shows (after a tap it stays ~5 s, then hides) | P1 | ui+e2e | [business overview § قواعد عامة](../business/overview.md#قواعد-عامة), [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
-| UX-014 | Given the «نسخ» and «تعديل ونسخ» buttons with lines, when hovering, then «نسخ الروشتة كما هي. اللصق في Word يحتفظ بالتنسيق.» / «تعديل النص أولًا (عريض، قوائم، محاذاة) ثم نسخه.»; when disabled (empty list), no tooltip | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components), [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
+| UX-014 | Given the «نسخ» and «تعديل ونسخ» buttons with lines (and «طباعة» when the clinic has a template), when hovering, then «نسخ الروشتة كما هي. اللصق في Word يحتفظ بالتنسيق.» / «تعديل النص أولًا (عريض، قوائم، محاذاة) ثم نسخه.» (and «اطبع بمقياس 100% دون «ملاءمة للصفحة».»); when disabled (empty list), no tooltip | P2 | ui | [rx tech § Page](../features/prescription/tech.md#page--components), [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 | UX-015 | Given the generator's fields, when hovering, then «عدد المرات في اليوم في المرحلة الأولى», «عدد المرات التي تقل في كل مرحلة», «عدد المرات في اليوم في المرحلة الأخيرة», «المدة التي تستمر فيها كل مرحلة» | P2 | ui | [tapering tech § Frontend](../features/tapering/tech.md#frontend-srcfeaturesdosing) |
 
 ### Confirmations, focus and keyboard
@@ -1857,7 +1857,7 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | UX-033 | Given the "couldn't load" state on one page, when navigating to another page, then that page loads normally (boundary reset) | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-034 | Given a page crashing while rendering, then the "couldn't load" state shows instead of a blank app | P1 | ui | [tech overview § App shell](../tech/overview.md#app-shell) |
 | UX-035 | Given a list or picker loading, then a progress indicator shows; while refetching with a new search, the previous results stay with a thin progress bar; in the drug tree, a new search keeps the old tree with the thin progress bar until the new answer, then replaces it with everything closed (CAT-101) | P2 | ui | [tech overview § Data fetching](../tech/overview.md#data-fetching), [design D7](../design/m1.7-shared-catalog.md#d7-search-and-the-tree) |
-| UX-036 | Given every page of these areas visited in e2e (the drug tree, the read-only details, `/admin/drugs`, `/admin/categories` and the print template designer included), then no console errors and no serious/critical axe-core violations | P1 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
+| UX-036 | Given every page of these areas visited in e2e (the drug tree, the read-only details, `/admin/drugs`, `/admin/categories`, the print template designer and the print pop-up included), then no console errors and no serious/critical axe-core violations | P1 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
 | UX-037 | Given the app served over the real HTTPS deployment, when copying a prescription, then the async Clipboard API is used and Word keeps the formatting | P1 | manual | [M1.6 § D7](../design/m1.6-test-foundation.md#d7-what-stays-manual) |
 
 ### Toasts
@@ -2249,7 +2249,7 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 
 ## TPL — Prescription print templates
 
-Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag; each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
+Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag, and step 2, printing ([its contract](../design/prescription-templates.step2.contract.md)); each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
 
 ### Admin API
 
@@ -2367,3 +2367,131 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-251 | Given a saved custom template, when a new sheet width is typed and the focus stays in the field (not committed yet; the height the same), then the screen counts as unsaved: Save is enabled, `beforeunload` is prevented and leaving through a tab or link asks the question; pressing Save commits the size and saves in one press: one PUT holding the new width, «تم حفظ القالب» and no «تم حذف». Typed back to the committed number, it counts as clean again, no question. The sheet still doesn't resize per keystroke and no item moves until the commit (TPL-221) | P1 | ui+e2e | D16 |
 | TPL-252 | Given a huge value such as `1e26`, then `formatMm` writes it in plain digits, never an exponent | P2 | unit | § 3 |
 | TPL-253 | Given an item added whose box lies outside the sheet area's view, then its box is scrolled into view (`block` and `inline` `nearest`) and the focus stays on the panel entry | P2 | ui | D8 |
+
+### Printing: clinic read route and the button
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-100 | Given a template, when a user with `prescriptions.create` GETs `/prescription-template`, then 200 with it; with no template, 204 | P0 | api | § 5 |
+| TPL-101 | Given a user without `prescriptions.create`, or a platform token, then 403 `forbidden` | P0 | api | § 5, access |
+| TPL-102 | Given clinic B's user, when reading, then B's template only; the route takes no clinic id | P0 | api | clinic scoping |
+| TPL-103 | Given a clinic with no template, then no Print button in the panel or the editor, and Copy and «تعديل ونسخ» work as before | P0 | ui+e2e | D6 |
+| TPL-104 | Given a template and no lines, then Print beside Copy shows disabled, without a tooltip, like Copy | P1 | ui | § 4 |
+| TPL-105 | Given the read that fails when the page opens, then no Print button shows until the page is opened again, and the page works | P1 | ui | § 4 |
+
+### Printing: pop-up
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-110 | Given manual inputs «الاسم» and «السن», when Print is pressed, then the pop-up shows both in template order, labelled by their names, empty, focus on the first | P0 | ui | § 4 |
+| TPL-111 | Given a template with no manual input, when Print is pressed, then no pop-up and the print starts | P1 | ui | § 4 |
+| TPL-112 | Given the pop-up, when fields are left empty and Print is confirmed, then it prints, with those spaces blank | P0 | ui+e2e | D10 |
+| TPL-113 | Given the pop-up, when Cancel or Esc, then nothing prints; opening again shows it empty | P1 | ui | § 4 |
+| TPL-114 | Given a value of 200 characters passes; 201 can't be typed. A pasted line break becomes a space | P2 | ui | § 3 |
+| TPL-115 | Given values typed and printed, when Print is pressed again, then the fields are empty, and nothing was written to storage | P1 | ui | § 4 |
+| TPL-116 | Given the pop-up, when confirm is pressed twice quickly, then `window.print` is called once | P1 | ui | double clicks |
+| TPL-117 | Given the pop-up on a phone, then it fits at 375 px, its fields are reachable and text isn't cut | P1 | e2e | D12 |
+
+### Printing: the printed sheet
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-120 | Given A5, A4 and a custom template, when printed (`page.pdf` with `preferCSSPageSize`), then the PDF page is that size within 1 pt (A5: about 420 × 595 pt) with no margin | P0 | e2e | D13, § 4 |
+| TPL-121 | Given an item at X, Y, width, height, when the sheet is laid out for print, then its box is at those mm within 0.1 mm, in Arabic and in English UI | P0 | e2e | § 3 |
+| TPL-122 | Given print media, then only the sheet shows: no app bar, sidebar, buttons, dialog, backdrop or toast; after printing, the app is back and the print root is gone | P0 | e2e | § 4 |
+| TPL-123 | Given two drugs, when Print beside Copy, then the text equals the Copy text: names bold, dosing sentences, notes, in the prescription's order | P0 | unit+e2e | D7 |
+| TPL-124 | Given the editor with a changed word, bold and a list, when Print in the editor, then the edited text prints with them; the lines themselves are unchanged | P0 | e2e | D7 |
+| TPL-125 | Given edits in the editor, when closed without printing and Print beside Copy is pressed, then the generated text prints: edits aren't kept | P1 | ui | D7 |
+| TPL-126 | Given a mixed line «أموكسيسيلين Amoxicillin 500mg مرتين يوميًا (2×) لمدة 7 أيام», then letters are joined and the order is right in the print layout | P0 | e2e | research |
+| TPL-127 | Given each function, then its value is as in § 3 for a frozen clock (midnight, noon, one-digit day, Friday), in Arabic with Latin digits, whatever the UI language | P1 | unit | D11 |
+| TPL-128 | Given static text with line breaks, then each prints on its own line | P1 | e2e | D9 |
+| TPL-129 | Given a font size per item, then each prints at its own size | P1 | e2e | D15 |
+| TPL-130 | Given the sheet's font under its own family name, then it's loaded from the app, in regular and bold, before `window.print`, with Google Fonts blocked | P1 | e2e | D15, § 6 |
+| TPL-131 | Given a value longer than its box, then it wraps and shows past the box, cut only at the sheet's edge | P1 | e2e | § 4 |
+| TPL-132 | Given a function's name or a manual input's name, then neither prints: only values | P1 | ui | § 3 |
+| TPL-133 | Given HTML in a drug name, a note or the editor (a script, an image with `onerror`), then it prints as text or is removed and nothing runs | P0 | unit+e2e | § 4 |
+
+### Printing: continuation pages
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-140 | Given text that fits exactly, then one page; one line more, then two | P0 | unit+e2e | D14 |
+| TPL-141 | Given a prescription of 40 drugs, then every drug's text appears exactly once across the pages and none is cut | P0 | unit+e2e | § 4 |
+| TPL-142 | Given a continuation page, then every other item repeats in the same place with the same value | P0 | unit+e2e | D14 |
+| TPL-143 | Given a drug that doesn't fit the rest of the box but fits a box, then it moves whole to the next page | P1 | unit+e2e | § 4 |
+| TPL-144 | Given a paragraph taller than the box (a long note), then it splits between words and nothing is lost | P1 | unit+e2e | § 4 |
+| TPL-147 | Given the editor's HTML (Quill makes each line its own paragraph), then a drug's lines between blank paragraphs still move as one when they fit a box | P1 | unit+e2e | § 4 |
+| TPL-145 | Given a one-page prescription, then the page number prints nothing; with three pages it prints 1/3, 2/3, 3/3 | P1 | unit+e2e | D14 |
+
+### Printing: staying current
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-150 | Given a template changed after the page loaded, when Print is pressed, then the new one is used | P1 | ui | § 4 |
+| TPL-151 | Given a template removed after the page loaded, when Print is pressed, then «لم يعد لهذه العيادة قالب طباعة.», nothing prints and the button disappears | P1 | ui | § 4 |
+| TPL-152 | Given the network failing when Print is pressed, then the error message shows and nothing prints | P1 | ui | § 4 |
+| TPL-153 | Given a clinic switched, then the Print button follows the new clinic's template, never the old one | P0 | e2e | clinic scoping |
+
+### Printing: checked by hand
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-190 | Given a real printer and a pre-printed A5 sheet at 100%, then every item is within 1 mm of its place, measured with a ruler | P0 | manual | § 8 |
+| TPL-191 | Given a real phone and a printer, then the prescription prints with text intact; record the offset | P1 | manual | D12 |
+
+### Printing: edge cases
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-300 | Given `GET /prescription-template`, then a no-context token 403 `forbidden`; deactivated or removed staff 403 `noAccess`; a suspended clinic 403 `clinicSuspended`; a deleted clinic 403 `noAccess`; a role with only `drugs.list` 403 `forbidden` | P1 | api | ACC-035 to ACC-039, access |
+| TPL-301 | Given the super admin in the template clinic's context, when GET is called, then 204: the template clinic can never hold one | P2 | api | § 5, D6 |
+| TPL-302 | Given the page opened once, then a template saved, when the user goes to `/drugs` and back within 30 s, or reloads, then Print shows | P1 | ui | business file, `AppProviders.tsx:40` |
+| TPL-303 | Given the page left open and a template saved meanwhile, then no Print until the page is opened again, and nothing breaks | P2 | ui | business file |
+| TPL-304 | Given the editor with everything deleted, or only spaces, or one empty list item, then Print in the editor is disabled; typing a letter enables it; the editor's Copy behaves as today | P1 | ui | § 4.1, `prescriptionText.ts:67`, `EditorContent.tsx:78` |
+| TPL-305 | Given a template, at 375, 600, 900 and 1280 px in both languages, then the panel's three buttons and the editor's Close, Print and Copy fit, with no cut or overlap | P1 | e2e | D12, UX-004 |
+| TPL-306 | Given a Print flow, then «اطبع بمقياس 100% دون «ملاءمة للصفحة».» shows: in the pop-up, and beside Print when there's no pop-up | P1 | ui | business file, § 4.6 |
+| TPL-307 | Given Print double-clicked, then one template request and one `window.print`, or one pop-up that stays open; a click while the read is pending does nothing | P1 | ui | double clicks |
+| TPL-308 | Given the pop-up with typed values, when clicking outside, then it stays, with the values, like the protocol dialogs | P1 | ui | RX-022 |
+| TPL-309 | Given the pop-up opened from the editor, when Esc or Cancel, then only the pop-up closes; the editor stays with its edits and the focus returns to its Print | P1 | ui | § 4.3, D7 |
+| TPL-310 | Given a pop-up field, when Enter is pressed, then the print is confirmed, same as the button | P2 | ui | UX-022 |
+| TPL-311 | Given a template of 49 manual inputs, then all show in order, inside a scrolling content, with the buttons outside it | P2 | ui | § 3, `DialogForm` |
+| TPL-312 | Given a pop-up field, when Arabic is typed in the English UI, or the reverse, then the text keeps its own direction, and so does the label | P2 | ui | I18N-018 |
+| TPL-313 | Given a manual value or static text such as `<img src=x onerror=…>` or `<b>x</b>`, then it prints literally as text, no element is created and nothing runs | P0 | ui | § 8 |
+| TPL-314 | Given a value of only spaces, or with spaces around it, then it prints blank, or trimmed | P2 | ui | D10 |
+| TPL-315 | Given the template changed after the pop-up opened, when confirmed, then the copy read at the click prints, and confirming sends no request | P2 | ui | § 4.2 |
+| TPL-316 | Given a frozen clock, the pop-up opened at 23:59 and confirmed at 00:01, then the date is the new day and the time `12:01 ص`; with no pop-up, the time of the click; every page has that value | P1 | ui | business file, § 3 |
+| TPL-317 | Given the browser's locale `en-US`, `fr-FR` or `ar-SA`, then the values are still Gregorian with Latin digits (`5 نوفمبر 2026`), and each string equals § 3's character for character, with no U+200F or U+202F from `Intl` | P1 | unit | D11, § 3 |
+| TPL-318 | Given print layout, then `2026-11-05T14:30` and `2/3` read left to right inside the sheet, whatever the UI language | P1 | e2e | § 3 |
+| TPL-319 | Given the browser's dialog cancelled (`afterprint` with nothing printed), then the app is back, the lines and any editor edits unchanged, no toast, no write request; Print works again and the pop-up starts empty | P1 | ui | § 4.3, D7 |
+| TPL-320 | Given `afterprint` never fired, when Print is used again, then one print element and one `@page` rule, the new values and text, `window.print` called again | P1 | ui | § 4.4 |
+| TPL-321 | Given the print element present (`afterprint` not fired), then at 1280 and 375 px nothing of it shows on screen, no horizontal scroll, nothing inside it takes the focus, and axe passes | P1 | e2e | § 4.4 |
+| TPL-322 | Given `window.print` returning at once (some phone browsers), then the print element stays until `afterprint` or the next print, so the page isn't emptied before it prints | P1 | ui | D12, § 4.4 |
+| TPL-323 | Given a printed prescription and `afterprint` fired, or a clinic with no template, when the browser's own Ctrl+P is used (print media), then the app shows as it does today, not a blank page, not the last patient's sheet, and no leftover `@page` size | P1 | e2e | D6 |
+| TPL-324 | Given Print in the editor, when the print ends, then the editor stays open with its edits, and printing again uses them | P1 | ui | D7 |
+| TPL-325 | Given Print in the editor through the pop-up, with a three-page text, then the PDF has three pages holding only the sheet: no dialog, backdrop, toast or tooltip | P0 | e2e | § 4.4, D14 |
+| TPL-326 | Given edited text ending in many empty lines, then they make no sheet of their own and the page number doesn't count one; a continuation page doesn't start with a blank line | P1 | unit+e2e | § 4.5 |
+| TPL-327 | Given a numbered list of 30 items crossing pages, then the numbers continue, each item appears once; the same count of pages whether or not the editor (and its CSS) was opened before | P1 | unit+e2e | § 4, D14 |
+| TPL-328 | Given editor HTML using every toolbar format (bold, italic, underline, both lists, direction, all alignments, indent) and `<strong dir="ltr">`, then cleaning keeps each, and the result equals `htmlForPaste` on those parts | P1 | unit | § 4, `prescriptionText.ts:45,86-100` |
+| TPL-329 | Given pasted content with an image, a link, a color, a font family or size, or `position: fixed`, then the text stays, the image is gone and never requested, the font and size are the template's | P1 | unit | D15, § 4, `QuillEditor.tsx:53` |
+| TPL-330 | Given a line with «لا توجد جرعة محددة» or «معطّل من الإدارة» on screen, then neither prints | P1 | unit | prescription business, RX-107 |
+| TPL-331 | Given the font file failing to load (route aborted), then the print still runs once with the fallback font, no text lost, and the app stays usable | P1 | e2e | § 6 |
+| TPL-332 | Given the font file delayed by 2 s, then `window.print` isn't called before it has loaded | P1 | e2e | § 4.4 |
+| TPL-333 | Given custom 420 × 600 mm and a landscape 210 × 148 mm, then the PDF page is that size and orientation, with items in place | P1 | e2e | D13 |
+| TPL-334 | Given a custom page larger than the paper in a real printer, then record what the browser does (scale, cut); nothing is promised | P2 | manual | § 8 |
+| TPL-335 | Given a 20 mm box at 36 pt and 40 drugs, then the print ends within the test's time, the page number shows three-digit values if reached, each page has all items, each drug appears once. Replaces TPL-146, which as P2 e2e would never run | P1 | unit+e2e | D14, README |
+| TPL-336 | Given a 20 mm box at 36 pt, then each line shows whole, none clipped by the box's edge | P1 | e2e | § 3 |
+| TPL-337 | Given the same long text, then the Arabic and the English UI give the same page count and the same text on each page (column flow must not follow the UI's direction) | P1 | e2e | § 3, § 4 |
+| TPL-338 | Given the English UI, then the printed text and values are Arabic, right to left, on a sheet that doesn't mirror | P1 | e2e | D7, D11, RX-072 |
+| TPL-339 | Given an item at the sheet's bottom with a value too long for its box, then no extra page appears and the PDF's page count is unchanged | P1 | e2e | § 4.5 |
+| TPL-340 | Given a 256-character unbroken drug name, then it wraps inside the prescription box, appears once, and doesn't spill into the next page's column | P1 | unit+e2e | § 8, UX-009 |
+| TPL-341 | Given a read in flight or the pop-up open, when another tab's switch or logout reaches this tab (the page re-mounts or goes to login), then nothing prints, the pop-up is gone and the other clinic never shows it | P1 | ui | § 4.2, AUTH-197, `client.ts:73` |
+| TPL-342 | Given an expired access token at Print, then the refresh and replay run and the flow continues once; given the refresh failing, then login, nothing prints, and the lines are still there after logging in | P1 | ui | § 4.2, `client.ts:64-77` |
+| TPL-343 | Given 403 at Print (`forbidden`, or `clinicSuspended` after the replay), then one message only (the query cache already toasts a 403), nothing prints, `/me` reloads | P1 | ui | `AppProviders.tsx:25-34` |
+| TPL-344 | Given a failed read at Print, when the network returns and Print is pressed, then it works, and the button never stayed stuck | P2 | ui | § 4.2 |
+| TPL-345 | Given the editor open and the template removed, when Print there, then the message, Print gone from the editor and the panel, the editor stays with its edits and Copy works | P1 | ui | § 4.2, D7 |
+| TPL-346 | Given 375 px and no manual input, when Print, then `window.print` runs and the PDF page is the template's size with items at their mm | P1 | e2e | D12 |
+| TPL-347 | Given real Chrome on Windows, then the dialog's preview shows the template's size, no browser header or footer at margin none; Cancel returns to the app | P1 | manual | § 8 |
+| TPL-348 | Given the pop-up and the page with Print in Arabic, in English and on a phone, then axe and the cut-text check pass | P1 | e2e | test rules |
+| TPL-349 | Given a drug named `5-FU 1%` or `ALEMOX 1 GM 12 F.C.TABS.`, when printed from the editor with no edit, then it reads in that order, at the right of the box; a line holding both scripts doesn't change | P0 | unit+e2e | User, 2026-11-05 (F1) |
+| TPL-350 | Given a static text `Dr. Ahmed`, `دكتور أحمد`, `Consultant` on three lines, then each line starts from its own language's side | P1 | unit+e2e | Business file (F5) |
+| TPL-351 | Given repeated spaces and a tab typed in the editor, when printed, then they print as typed, and every sheet's text stays inside its box: the page breaks were measured with them | P1 | ui+e2e | User, 2026-11-05 |

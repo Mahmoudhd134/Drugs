@@ -3,6 +3,7 @@ import {act, screen, waitFor, within} from "@testing-library/react";
 import {http, HttpResponse} from "msw";
 import {
     aClinicContext,
+    clinicPrintTemplateHandler,
     adminClinicsHandlers,
     aDrug,
     aMe,
@@ -67,7 +68,7 @@ const openPicker = async (contexts: Context[], answer: () => Response) => {
 };
 
 // The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
-beforeEach(() => void server.use(drugCategoriesHandler()));
+beforeEach(() => void server.use(drugCategoriesHandler(), clinicPrintTemplateHandler()));
 
 describe("picking a clinic that can't be entered any more @area:auth", () => {
     test("suspended meanwhile: «العيادة «A» موقوفة.» and the user stays on the picker @AUTH-129", async () => {

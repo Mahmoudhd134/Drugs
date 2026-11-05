@@ -12,9 +12,11 @@ type Props = {
     open: boolean;
     lines: PrescriptionLine[];
     onClose: () => void;
+    /** Print inside the editor, with the edited HTML; absent when the clinic has no template (contract § 3.5) */
+    onPrint?: (html: string) => void;
 };
 
-export const EditorDialog = ({open, lines, onClose}: Props) => {
+export const EditorDialog = ({open, lines, onClose, onPrint}: Props) => {
     const {t} = useTranslation();
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
     const opening = useOpeningKey(open);
@@ -23,7 +25,7 @@ export const EditorDialog = ({open, lines, onClose}: Props) => {
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
             {/* Each opening is rebuilt from the current lines, also when reopened during the closing animation */}
             <Suspense fallback={<Box sx={{display: "flex", justifyContent: "center", py: 8}}><CircularProgress aria-label={t("common.loading")}/></Box>}>
-                <EditorContent key={opening} lines={lines} onClose={onClose}/>
+                <EditorContent key={opening} lines={lines} onClose={onClose} onPrint={onPrint}/>
             </Suspense>
         </Dialog>
     );

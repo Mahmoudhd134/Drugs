@@ -109,6 +109,9 @@ export const dateItem = (fields: Partial<LayoutItem> = {}): LayoutItem =>
 export const staticItem = (fields: Partial<LayoutItem> = {}): LayoutItem =>
     ({id: "s", kind: "staticText", text: "يُصرف مرة واحدة", xMm: 14, yMm: 175, wMm: 60, hMm: 8, fontSizePt: 10, ...fields});
 
+/** A manual input's name at the limit of 60 characters, this number telling it from the others: too long for one line on a phone. */
+export const longManualName = (number = 1) => `الاسم بالكامل كما هو مكتوب في بطاقة الرقم القومي الخاص به ${String(number).padStart(2, "0")}`;
+
 /** The catalog's layout L (A5, a prescription text, a manual input «الاسم», a full date). */
 export const layoutL = (fields: Partial<Layout> = {}): Layout =>
     ({schemaVersion: 1, page: A5, items: [textItem(), manualItem(), dateItem()], ...fields});

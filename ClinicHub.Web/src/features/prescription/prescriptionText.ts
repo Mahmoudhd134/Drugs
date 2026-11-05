@@ -6,7 +6,7 @@ const escapeHtml = (text: string) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** A right-to-left script letter (Hebrew, Arabic and their presentation forms). */
-const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+export const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
 
 /**
  * The name's own direction in the copied HTML (design M1.7b D27): from its first letter, "rtl" for Arabic, else "ltr"
@@ -83,7 +83,7 @@ const ALIGN_CLASSES = ["center", "right", "justify"];
 export const htmlForPaste = (html: string) => {
     const body = new DOMParser().parseFromString(html, "text/html").body;
 
-    body.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, ol, ul").forEach(el => {
+    body.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, ol, ul").forEach(el => {
         const styles: string[] = [];
         const rtl = el.classList.contains("ql-direction-rtl");
         if (rtl) el.setAttribute("dir", "rtl");

@@ -6,6 +6,7 @@ import {
     aProtocol,
     aLine,
     anItem,
+    clinicPrintTemplateHandler,
     protocolsHandlers,
     drugsHandlers,
     drugTreeHandler,
@@ -36,7 +37,7 @@ const week = {durationUnit: "weeks", durationValue: 1} as const;
 /** Opens the page with `lines` already in the prescription and `protocols` in the picker; `addProtocol(name)` clicks one. */
 const openPage = async (protocols: Protocol[], lines: PrescriptionLine[] = []) => {
     localStorage.setItem(KEY, JSON.stringify(lines));
-    server.use(...protocolsHandlers(protocols), drugTreeHandler([]), ...drugsHandlers([]));
+    server.use(...protocolsHandlers(protocols), drugTreeHandler([]), ...drugsHandlers([]), clinicPrintTemplateHandler());
     installIntersectionObserver();
     const success = vi.spyOn(toast, "success");
     const rendered = await renderWithProviders(<PrescriptionPage/>, {lang: "ar"});
@@ -139,7 +140,7 @@ describe("adding a protocol to the prescription @area:prescription", () => {
 
     test("in English the duplicated line reads \"Duplicated in the protocol, not added: 1\" @RX-029", async () => {
         const drug = aDrug({name: "Tobradex", defaultDosing: {eye: "right"}});
-        server.use(...protocolsHandlers([aProtocol({items: [anItem(drug), anItem(drug, {eye: "right", doseUnit: "drop"})]})]), drugTreeHandler([]), ...drugsHandlers([]));
+        server.use(...protocolsHandlers([aProtocol({items: [anItem(drug), anItem(drug, {eye: "right", doseUnit: "drop"})]})]), drugTreeHandler([]), ...drugsHandlers([]), clinicPrintTemplateHandler());
         installIntersectionObserver();
         const {user} = await renderWithProviders(<PrescriptionPage/>, {lang: "en"});
         await user.click(await screen.findByText("Post cataract"));

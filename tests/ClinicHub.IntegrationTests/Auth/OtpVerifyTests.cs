@@ -1,12 +1,17 @@
+using System.Data.Common;
 using System.Net;
 using ClinicHub.Api.Features.Identity;
 using ClinicHub.Application.Features.Identity.Login.Commands.RequestOtp;
 using ClinicHub.Application.Features.Identity.Sessions;
+using ClinicHub.Infrastructure.Database;
+using ClinicHub.IntegrationTests.Access;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Builders;
 using ClinicHub.IntegrationTests.Harness.Clients;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
 using Shouldly;
 
@@ -214,6 +219,82 @@ public class OtpVerifyTests(AppFixture app) : IntegrationTest(app)
         responses.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
         foreach (var refused in responses.Where(r => r.StatusCode != HttpStatusCode.OK))
             await refused.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidCode");
+    }
+
+    /// <summary>
+    /// The interleave the parallel test above only reaches by timing, forced: the first verification has read the code
+    /// as unused and is held right before its consuming <c>UPDATE</c> while a second one logs in. Its <c>UPDATE</c> then
+    /// finds nothing to consume. The clock moves between the two, so the code's stamp tells who consumed it.
+    /// </summary>
+    [Fact]
+    [Trait("Case", "AUTH-051")]
+    public async Task A_verification_overtaken_after_reading_the_code_is_refused_without_a_session_and_the_code_stays_consumed_once()
+    {
+        var clinic = await Data.Clinic();
+        var phone = clinic.Owner.Phone;
+        var gate = new ConsumeGate();
+        await using var variant = App.CreateVariant(services: services =>
+            services.ConfigureDbContext<AppDbContext>((_, options) => options.AddInterceptors(gate)));
+        variant.Start();
+        var code = (await (await new ApiClient(variant).RequestOtpAsync(phone)).ReadAsync<OtpRequestResponse>()).DevCode;
+        var overtaken = new ApiClient(variant);
+        var winner = new ApiClient(variant);
+
+        try
+        {
+            var held = overtaken.VerifyOtpAsync(phone, code);
+            await gate.Holding.WaitAsync(Patience, "the first verification to reach its consuming UPDATE");
+
+            variant.Clock.Advance(TimeSpan.FromSeconds(1));
+            var consumedAt = variant.Clock.GetUtcNow().UtcDateTime;
+            var won = await winner.VerifyOtpAsync(phone, code).WaitAsync(Patience, "the second verification");
+            await won.ShouldBeOkAsync();
+            won.ShouldSetRefreshCookie();
+
+            gate.Release();
+            var refused = await held.WaitAsync(Patience, "the first verification");
+
+            await refused.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "invalidCode");
+            refused.RefreshSetCookie().ShouldBeNull();
+            overtaken.RefreshCookie.ShouldBeNull();
+            overtaken.AccessToken.ShouldBeNull();
+            var sessions = await App.QueryDbAsync(db =>
+                db.Sessions.Where(s => s.UserId == clinic.Owner.UserId).Select(s => s.Id).ToListAsync());
+            sessions.ShouldBe([Guid.Parse(AuthKit.Claims(winner.AccessToken).Claim("sid"))]);
+            var row = await App.LatestCodeAsync(phone);
+            row.ConsumedAt.ShouldBe(consumedAt);
+            row.Attempts.ShouldBe(0);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+
+    /// <summary>Holds the first <c>UPDATE</c> that sets a code's <c>ConsumedAt</c> until <see cref="Release"/>; later ones pass.</summary>
+    private sealed class ConsumeGate : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource holding = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int taken;
+
+        public Task Holding => holding.Task;
+
+        public void Release() => released.TrySetResult();
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("\"OtpCodes\"") && command.CommandText.Contains("\"ConsumedAt\" = ")
+                && Interlocked.Exchange(ref taken, 1) == 0)
+            {
+                holding.TrySetResult();
+                await released.Task.WaitAsync(cancellationToken);
+            }
+            return result;
+        }
     }
 
     [Fact]

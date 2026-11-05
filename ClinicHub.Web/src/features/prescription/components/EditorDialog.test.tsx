@@ -10,7 +10,7 @@ import {EditorDialog} from "./EditorDialog.tsx";
 describe("the Edit & copy editor @area:prescription", () => {
     test("its toolbar: bold, italic, underline, numbered and bulleted lists, direction, alignment, clear formatting @RX-076", async () => {
         await renderWithProviders(<EditorDialog open lines={[aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"})]} onClose={vi.fn()}/>, {lang: "ar"});
-        expect(await screen.findByText("تعديل قبل النسخ")).toBeInTheDocument();
+        expect(await screen.findByText("تعديل قبل النسخ أو الطباعة")).toBeInTheDocument();
         const toolbar = await waitFor(() => {
             const found = document.querySelector(".ql-toolbar");
             if (!found) throw new Error("No toolbar yet");
@@ -72,5 +72,45 @@ describe("the Edit & copy editor @area:prescription", () => {
         await waitFor(() => expect(within(toolbar).getAllByRole("button").filter(b => !b.closest(".ql-picker-options"))
             .map(b => b.getAttribute("aria-label"))).toEqual(buttons));
         expect([...toolbar.querySelectorAll(".ql-align .ql-picker-item")].map(i => i.getAttribute("aria-label"))).toEqual(alignments);
+    });
+});
+
+describe("Print in the editor @area:prescription", () => {
+    const LINE = () => aLine(aDrug({name: "Tobradex"}), {doseUnit: "drop"});
+    const actions = async () => {
+        const dialog = await screen.findByRole("dialog");
+        await waitFor(() => expect(document.querySelector(".ql-editor")?.textContent).toContain("Tobradex"));
+        return within(dialog.querySelector(".MuiDialogActions-root") as HTMLElement).getAllByRole("button");
+    };
+
+    test("no `onPrint`: Close and Copy only, as before @TPL-103", async () => {
+        await renderWithProviders(<EditorDialog open lines={[LINE()]} onClose={vi.fn()}/>, {lang: "ar"});
+        expect((await actions()).map(button => button.textContent)).toEqual(["إغلاق", "نسخ"]);
+    });
+
+    test("with `onPrint`: Close, Print, Copy; the click gives it the editor's HTML and leaves the editor open @TPL-324", async () => {
+        const onPrint = vi.fn();
+        const onClose = vi.fn();
+        const {user} = await renderWithProviders(<EditorDialog open lines={[LINE()]} onClose={onClose} onPrint={onPrint}/>, {lang: "ar"});
+        const buttons = await actions();
+
+        expect(buttons.map(button => button.textContent)).toEqual(["إغلاق", "طباعة", "نسخ"]);
+        await user.click(buttons[1]);
+
+        expect(onPrint).toHaveBeenCalledTimes(1);
+        expect(onPrint.mock.calls[0][0]).toContain("Tobradex");
+        expect(onClose).not.toHaveBeenCalled();
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    test("the title and the hint say printing too, in both languages @RX-075", async () => {
+        const arabic = await renderWithProviders(<EditorDialog open lines={[LINE()]} onClose={vi.fn()}/>, {lang: "ar"});
+        expect(await screen.findByText("تعديل قبل النسخ أو الطباعة")).toBeInTheDocument();
+        expect(screen.getByText("للنسخ أو الطباعة؛ التعديلات لا تُحفظ.")).toBeInTheDocument();
+        arabic.unmount();
+
+        await renderWithProviders(<EditorDialog open lines={[LINE()]} onClose={vi.fn()}/>, {lang: "en"});
+        expect(await screen.findByText("Edit before copying or printing")).toBeInTheDocument();
+        expect(screen.getByText("For copying or printing; changes are not saved.")).toBeInTheDocument();
     });
 });

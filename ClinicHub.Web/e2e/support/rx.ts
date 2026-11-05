@@ -265,6 +265,15 @@ export const markClipboard = async (page: Page) => page.evaluate(async () => {
     await navigator.clipboard.writeText(`marker ${Math.random()}`);
 });
 
+/** Puts this HTML on the clipboard as it is, for a real paste: through a copy event, since `clipboard.write` would sanitize it. */
+export const putHtmlOnClipboard = async (page: Page, html: string) => page.evaluate(source => {
+    document.addEventListener("copy", event => {
+        event.clipboardData?.setData("text/html", source);
+        event.preventDefault();
+    }, {once: true, capture: true});
+    if (!document.execCommand("copy")) throw new Error("the copy command did not run");
+}, html);
+
 export type HtmlParagraph = { tag: string; dir: string | null; className: string | null; style: Record<string, string>; html: string; text: string };
 
 /** The copied HTML's top-level elements, parsed by the browser (attributes, inline styles, inner HTML). */

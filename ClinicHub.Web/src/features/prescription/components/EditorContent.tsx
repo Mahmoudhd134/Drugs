@@ -1,9 +1,11 @@
 import {useEffect, useRef, useState} from "react";
-import {Box, Button, DialogActions, DialogContent, DialogTitle, Typography} from "@mui/material";
+import {Box, Button, DialogActions, DialogContent, DialogTitle, Tooltip, Typography} from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import PrintIcon from "@mui/icons-material/Print";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {copyRichText} from "../../../utils/clipboard.ts";
+import {hasPrintableText} from "../../printTemplates/printHtml.ts";
 import {htmlForPaste, htmlToPlainText, linesToHtml} from "../prescriptionText.ts";
 import type {PrescriptionLine} from "../types.ts";
 import {QuillEditor, type QuillEditorHandle} from "./QuillEditor.tsx";
@@ -33,7 +35,14 @@ const TOOLBAR_NAMES: [selector: string, key: string][] = [
     ["button.ql-clean", "clean"],
 ];
 
-const EditorContent = ({lines, onClose}: { lines: PrescriptionLine[]; onClose: () => void }) => {
+type Props = {
+    lines: PrescriptionLine[];
+    onClose: () => void;
+    /** Print with the edited HTML; absent when the clinic has no template. The editor stays open with its edits */
+    onPrint?: (html: string) => void;
+};
+
+const EditorContent = ({lines, onClose, onPrint}: Props) => {
     const {t} = useTranslation();
     const [html, setHtml] = useState(() => linesToHtml(lines));
     const quillRef = useRef<QuillEditorHandle>(null);
@@ -50,6 +59,8 @@ const EditorContent = ({lines, onClose}: { lines: PrescriptionLine[]; onClose: (
         if (await copyRichText(htmlForPaste(html), htmlToPlainText(html))) toast.success(t("common.copied"));
         else toast.error(t("errors.copyFailed"));
     };
+
+    const printable = hasPrintableText(html);
 
     return (
         <>
@@ -73,8 +84,18 @@ const EditorContent = ({lines, onClose}: { lines: PrescriptionLine[]; onClose: (
                     <QuillEditor ref={quillRef} theme="snow" value={html} onChange={setHtml} modules={QUILL_MODULES}/>
                 </Box>
             </DialogContent>
-            <DialogActions sx={{px: 3, pb: 2}}>
+            {/* The gap instead of MUI's spacing, which leaves a wrapped button out of line on a phone */}
+            <DialogActions disableSpacing sx={{px: 3, pb: 2, gap: 1, flexWrap: "wrap"}}>
                 <Button onClick={onClose}>{t("common.close")}</Button>
+                {onPrint && (
+                    <Tooltip title={printable ? t("printTemplates.print.hint") : ""}>
+                        <span>
+                            <Button variant="outlined" startIcon={<PrintIcon/>} disabled={!printable} onClick={() => onPrint(html)}>
+                                {t("prescription.print")}
+                            </Button>
+                        </span>
+                    </Tooltip>
+                )}
                 <Button variant="contained" startIcon={<ContentCopyIcon/>} onClick={() => void handleCopy()}>
                     {t("common.copy")}
                 </Button>

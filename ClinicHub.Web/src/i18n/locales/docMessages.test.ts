@@ -292,6 +292,10 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["مقاس الورقة غير صحيح.", () => t("errors.templatePageInvalid")],
             ["لا يمكن إضافة أكثر من 50 عنصرًا.", () => t("errors.templateTooManyItems")],
             ["يجب أن يحتوي القالب على نص الروشتة مرة واحدة.", () => t("errors.templateTextCount")],
+            // Step 2: printing
+            ["لم يعد لهذه العيادة قالب طباعة.", () => t("printTemplates.print.gone")],
+            ["اطبع بمقياس 100% دون «ملاءمة للصفحة».", () => t("printTemplates.print.hint")],
+            ["للنسخ أو الطباعة؛ التعديلات لا تُحفظ.", () => t("prescription.editorHint")],
             ["بيانات القالب غير صحيحة.", () => t("errors.templateLayoutInvalid")],
             ["أدخل رقمًا.", () => t("printTemplates.numberRequired")],
             ["تم حذف القالب", () => t("printTemplates.deleted")],

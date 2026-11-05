@@ -4,6 +4,7 @@ import {http, HttpResponse} from "msw";
 import {pickCategory} from "../test/pages/drugDialog.ts";
 import {
     aClinicContext,
+    clinicPrintTemplateHandler,
     aDrug,
     aProtocol,
     anAccessToken,
@@ -32,7 +33,7 @@ import {installIntersectionObserver} from "../test/intersection.ts";
 const clinicA = aClinicContext({clinicId: 1, clinicName: "Clinic A"});
 
 // The drugs page reads the categories for its filters (M1.7c): answered here, as the tests answer /drugs themselves
-beforeEach(() => void server.use(drugCategoriesHandler()));
+beforeEach(() => void server.use(drugCategoriesHandler(), clinicPrintTemplateHandler()));
 
 describe("staying logged in @area:auth", () => {
     test("an expired access token: the request answering 401 is refreshed once and retried, the user sees the data @AUTH-163 @smoke", async () => {
