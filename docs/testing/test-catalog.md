@@ -77,8 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 48 | 207 | 68 | 323 | 70 | 25 | 123 | 127 | 4 |
-| **All** | **483** | **855** | **472** | **1810** | **280** | **706** | **495** | **432** | **14** |
+| [TPL](#tpl--prescription-print-templates) | 49 | 210 | 72 | 331 | 73 | 25 | 125 | 133 | 4 |
+| **All** | **484** | **858** | **476** | **1818** | **283** | **706** | **497** | **438** | **14** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2641,3 +2641,6 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-588 | Given each way the sheet first appears (load, «إنشاء قالب» from the empty state, widening from below 900 px), then Fit is computed then, from a measured area, not 0 | P1 | e2e | step3.md:67 |
 | TPL-589 | Given a panel drag entering the 24 px band from the panel's side (the left in English, the right in Arabic) on a scrollable sheet, then the drop counts the scroll at the drop | P2 | e2e | step3.md:70 |
 | TPL-590 | Given 1280 × 720 and the page not scrolled, when a drag reaches the area's bottom, then the band can be reached in the window and it scrolls (not measured: `maxHeight` assumes 200 px above the area, and the zoom toolbar adds height) | P2 | e2e | `TemplateDesigner.tsx:252` |
+| TPL-591 | Given A4 at Fit on a 1280 × 720 window (about 33%) and a sheet at 25%, with nothing selected, then every box's outline stays visible all round: about 1 px on screen at 25%, 33%, 50%, 100% and 200%, whatever the box's pixel position; selected, about 2 px. The outline is inset: the box's measured size stays exact | P1 | e2e | acceptance #1 |
+| TPL-592 | Given a window tall enough for everything (1920 × 970, nothing selected), then the page has no vertical scrollbar and the area's bottom is inside the window; at 1280 × 720 too the area's bottom is inside the window with the page not scrolled | P2 | e2e | acceptance #8 |
+| TPL-593 | Given a panel drag at 50% and at 200%, then the ghost's text is the item's font × the zoom (11 pt × zoom / 100) | P2 | e2e | acceptance #11 |

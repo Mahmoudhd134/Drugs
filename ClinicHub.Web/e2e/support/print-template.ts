@@ -457,6 +457,85 @@ export const expectFit = async (designer: Designer, what: string) => {
     }), {message: `${what}: the whole sheet shows, filling the area`}).toEqual({scrolls: false, fills: true});
 };
 
+export type BoxOutline = { id: string; selected: boolean; onScreenPx: number; widthPx: number; heightPx: number; pxPerMm: number };
+
+/**
+ * Each box's outline and size now, in the layout's order. `onScreenPx`: the largest inset spread of its computed `box-shadow` × the
+ * zoom in force, the frame's width over the sheet's mm (the sheet's transform scales the spread). No inset shadow: 0.
+ */
+export const boxOutlines = (designer: Designer): Promise<BoxOutline[]> => designer.boxes.evaluateAll((all, mm) => {
+    const sheet = all[0].closest<HTMLElement>("[data-testid=template-sheet]")!;
+    const frame = sheet.closest("[data-testid=template-sheet-frame]")!;
+    const widthMm = parseFloat(sheet.style.width);
+    const zoom = frame.getBoundingClientRect().width / (widthMm * mm);
+    const pxPerMm = sheet.getBoundingClientRect().width / widthMm;
+    return all.map(box => {
+        const spreads = [...getComputedStyle(box).boxShadow.matchAll(/(-?[\d.]+)px inset/g)].map(([, spread]) => parseFloat(spread));
+        const {width, height} = box.getBoundingClientRect();
+        return {
+            id: box.getAttribute("data-item-id") ?? "",
+            selected: box.getAttribute("aria-pressed") === "true",
+            onScreenPx: Math.max(0, ...spreads) * zoom,
+            widthPx: width,
+            heightPx: height,
+            pxPerMm,
+        };
+    });
+}, MM);
+
+/**
+ * A pixel holding the outline, by its red channel (the outline is teal, red is what it takes from white). Half of the thinnest
+ * outline's coverage is about 200, a 1 px line split over two pixels; the mm grid under it never comes below about 225 at Fit.
+ */
+const OUTLINE_RED_AT_MOST = 215;
+
+/**
+ * Real pixels: how much of each edge of a box on screen shows the outline, 0 to 1, from a shot of the window. Decoded in the page, no
+ * library needed. Measured along each edge without its corners, in the pixels the edge's line can fall on, whatever its pixel position.
+ */
+export const outlineOnEdges = async (page: Page, box: Locator) => {
+    const rect = await box.boundingBox();
+    if (!rect) throw new Error("the box isn't on screen");
+    const left = Math.floor(rect.x) - 2;
+    const top = Math.floor(rect.y) - 2;
+    const clip = {x: left, y: top, width: Math.ceil(rect.x + rect.width) + 2 - left, height: Math.ceil(rect.y + rect.height) + 2 - top};
+    const shot = await page.screenshot({clip, scale: "css"});
+    return page.evaluate(async ({png, box, redAtMost}) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${png}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext("2d", {willReadFrequently: true})!;
+        context.drawImage(image, 0, 0);
+        const {data, width} = context.getImageData(0, 0, image.width, image.height);
+        const strong = (x: number, y: number) => data[(y * width + x) * 4] <= redAtMost;
+
+        /** The share of the places from `from` to `to` where a pixel on the line across `edge` holds the outline. */
+        const share = (from: number, to: number, edge: number, at: (along: number, across: number) => boolean) => {
+            const across = Math.floor(edge);
+            let found = 0;
+            for (let along = Math.floor(from) + 2; along <= Math.ceil(to) - 3; along++) {
+                if ([across - 1, across, across + 1].some(line => at(along, line))) found++;
+            }
+            return found / (Math.ceil(to) - 3 - Math.floor(from) - 1);
+        };
+        const onColumn = (along: number, across: number) => strong(across, along);
+        const onRow = (along: number, across: number) => strong(along, across);
+        return {
+            left: share(box.top, box.bottom, box.left, onColumn),
+            right: share(box.top, box.bottom, box.right, onColumn),
+            top: share(box.left, box.right, box.top, onRow),
+            bottom: share(box.left, box.right, box.bottom, onRow),
+        };
+    }, {
+        png: shot.toString("base64"),
+        box: {left: rect.x - left, top: rect.y - top, right: rect.x + rect.width - left, bottom: rect.y + rect.height - top},
+        redAtMost: OUTLINE_RED_AT_MOST,
+    });
+};
+
 /** Tab until the target has the focus. */
 export const tabTo = async (page: Page, target: Locator) => {
     for (let presses = 0; presses < 80; presses++) {

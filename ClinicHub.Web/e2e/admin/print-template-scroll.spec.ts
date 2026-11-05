@@ -11,12 +11,14 @@ import {
     expectMm,
     expectUnderPointer,
     expectUntouched,
+    layoutL,
     manualItem,
     ONE_LANGUAGE,
     openDesigner,
     plainLayout,
     pressBox,
     pressEntry,
+    reopenDesigner,
     scrollAreaTo,
     sheetOnScreen,
     textItem,
@@ -212,5 +214,27 @@ test.describe("Print template: scrolling during a drag @area:admin", () => {
             await page.keyboard.press("Escape");
             await drag.release();
             await expectUntouched(designer);
+        });
+
+    test("1920 x 970, nothing selected: the page has no vertical scrollbar and the area's bottom is in the window; 1280 x 720: the area's bottom is in the window, the page not scrolled @TPL-592",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            await page.setViewportSize({width: 1920, height: 970});
+            const {designer} = await openDesigner(page, data, lang, layoutL());
+            await expect(designer.boxes.and(page.locator("[aria-pressed=true]")), "nothing selected").toHaveCount(0);
+
+            const {scrollHeight, clientHeight} = await page.evaluate(() => {
+                const {scrollHeight, clientHeight} = document.documentElement;
+                return {scrollHeight, clientHeight};
+            });
+            expect(scrollHeight, "no vertical scrollbar on the page").toBeLessThanOrEqual(clientHeight);
+            const tall = await areaRect(designer);
+            expect(tall.y + tall.height, "the area's bottom is in the window").toBeLessThanOrEqual(970);
+
+            await page.setViewportSize({width: 1280, height: 720});
+            await reopenDesigner(page, designer);
+            const low = await areaRect(designer);
+            expect(await page.evaluate(() => window.scrollY), "the page isn't scrolled").toBe(0);
+            expect(low.y + low.height, "the area's bottom is in the window").toBeLessThanOrEqual(720);
         });
 });

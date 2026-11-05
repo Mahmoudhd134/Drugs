@@ -5,9 +5,11 @@ import {
     A4,
     A5,
     areaScroll,
+    boxOutlines,
     COMPUTER_ONLY,
     customLayout,
     dateItem,
+    type Designer,
     designerOf,
     designerShown,
     expectClose,
@@ -15,10 +17,13 @@ import {
     expectMm,
     expectUnderPointer,
     getTemplate,
+    type Layout,
     layoutL,
+    manualItem,
     MM,
     ONE_LANGUAGE,
     openDesigner,
+    outlineOnEdges,
     plainLayout,
     pressBox,
     pressEntry,
@@ -35,6 +40,38 @@ import {
 import {expectNoCutOrOverlap, pageChecks} from "../support/ux.ts";
 
 /** Zoom and Fit, through the real app: step 3 design § 3 "Zoom", "Settled: Zoom"; contract § 3.2, § 3.3, § 3.8. */
+
+/** Boxes whose edges fall differently on the pixel grid at any zoom, none on a line of the mm grid. */
+const outlineLayout = (page: Layout["page"]): Layout => ({
+    schemaVersion: 1,
+    page,
+    items: [
+        textItem({xMm: 14.3, yMm: 80.6, wMm: 120.2, hMm: 90.4}),
+        manualItem({xMm: 58.1, yMm: 46.7, wMm: 72.4, hMm: 8.3}),
+        dateItem({xMm: 14.6, yMm: 46.2, wMm: 30.7, hMm: 8.9}),
+        staticItem({xMm: 20.9, yMm: 190.4, wMm: 60.2, hMm: 8.6}),
+    ],
+});
+
+/** What a computed value and the frame's measure may be off by, in px on screen. */
+const OUTLINE_SLACK_PX = 0.02;
+
+/** The outline at the zoom in force: `wanted` px on screen for each box, about that, not growing with the zoom; each box's size exact. */
+const expectOutlines = async (designer: Designer, layout: Layout, selectedId: string | null, what: string) => {
+    const outlines = await boxOutlines(designer);
+    expect(outlines.map(outline => outline.id), what).toEqual(layout.items.map(item => item.id));
+    outlines.forEach((outline, index) => {
+        const item = layout.items[index];
+        const selected = item.id === selectedId;
+        const wanted = selected ? 2 : 1;
+        const named = `${what}, the box ${item.id}`;
+        expect(outline.selected, `${named}: selected`).toBe(selected);
+        expect(outline.onScreenPx, `${named}: the outline on screen`).toBeGreaterThanOrEqual(wanted - OUTLINE_SLACK_PX);
+        expect(outline.onScreenPx, `${named}: the outline doesn't grow with the zoom`).toBeLessThanOrEqual(2 * wanted + OUTLINE_SLACK_PX);
+        expect(Math.abs(outline.widthPx - item.wMm * outline.pxPerMm), `${named}: its width`).toBeLessThanOrEqual(0.1);
+        expect(Math.abs(outline.heightPx - item.hMm * outline.pxPerMm), `${named}: its height`).toBeLessThanOrEqual(0.1);
+    });
+};
 
 test.describe("Print template: zoom and Fit @area:admin", () => {
     test.skip(({isMobile}) => isMobile, COMPUTER_ONLY);
@@ -296,6 +333,57 @@ test.describe("Print template: zoom and Fit @area:admin", () => {
                 await page.setViewportSize({width: 1280, height: 800});
                 await designerShown(designer);
                 await expectFit(designer, "after widening");
+            });
+        });
+
+    test("A4 at Fit on 1280 x 720, and 25%, 50%, 100%, 200%: every box's outline is about 1 px on screen all round, 2 px selected, and its size stays exact @TPL-591",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            await page.setViewportSize({width: 1280, height: 720});
+            const a4 = outlineLayout(A4);
+            const {clinic, designer} = await openDesigner(page, data, lang, a4);
+
+            const onScreen = async (layout: Layout, what: string) => {
+                await expectOutlines(designer, layout, null, what);
+                await designer.box("m").click();
+                await expect(designer.box("m")).toHaveAttribute("aria-pressed", "true");
+                await expectOutlines(designer, layout, "m", `${what}, selected`);
+                await page.keyboard.press("Escape");
+                await expect(designer.box("m")).toHaveAttribute("aria-pressed", "false");
+            };
+            /** Before any press: nothing selected, no focus ring. */
+            const inPixels = async (layout: Layout, what: string) => {
+                for (const item of layout.items) {
+                    const edges = await outlineOnEdges(page, designer.box(item.id));
+                    for (const [edge, share] of Object.entries(edges)) {
+                        expect(share, `${what}, the box ${item.id}: how much of its ${edge} edge shows the outline`).toBeGreaterThanOrEqual(0.9);
+                    }
+                }
+            };
+
+            await test.step("A4 at Fit", async () => {
+                await expectFit(designer, "A4");
+                const fit = await trueZoom(designer);
+                expect(fit, "below 50%").toBeLessThan(50);
+                expect(fit, "above 25%").toBeGreaterThan(25);
+                await inPixels(a4, "at Fit");
+                await onScreen(a4, "at Fit");
+            });
+
+            for (const zoom of [50, 100, 200]) {
+                await test.step(`${zoom}%`, async () => {
+                    await zoomTo(designer, zoom);
+                    await onScreen(a4, `at ${zoom}%`);
+                });
+            }
+
+            await test.step("25%", async () => {
+                const large = outlineLayout({size: "custom", widthMm: 420, heightMm: 600});
+                await putTemplate(data, clinic, large);
+                await reopenDesigner(page, designer);
+                await expect(designer.zoomPercent).toHaveText("25%");
+                await inPixels(large, "at 25%");
+                await onScreen(large, "at 25%");
             });
         });
 });

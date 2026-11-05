@@ -22,6 +22,9 @@ import {
 
 /** Dragging from the side panel, through the real app: step 3 design § 3 "Dragging from the panel", contract § 3.3 and § 3.4. */
 
+/** A new item's 11 pt in CSS px, at 100%. */
+const NEW_ITEM_FONT_PX = 11 * 96 / 72;
+
 test.describe("Print template: dragging from the panel @area:admin", () => {
     test.skip(({isMobile}) => isMobile, COMPUTER_ONLY);
 
@@ -285,5 +288,29 @@ test.describe("Print template: dragging from the panel @area:admin", () => {
             await page.keyboard.press("ArrowRight");
             await expectMm(designer.box("i1"), {x: 61, y: 40}, "nudged");
             await expect(designer.box("i1")).toBeFocused();
+        });
+
+    test("a drag at 50% and at 200%: the ghost's text is the new item's font × the zoom @TPL-593",
+        async ({page, data, lang}) => {
+            test.skip(lang !== "ar", ONE_LANGUAGE);
+            const {designer, pt} = await openDesigner(page, data, lang, {
+                schemaVersion: 1, page: A4, items: [textItem({xMm: 14, yMm: 100, wMm: 120, hMm: 90})],
+            });
+
+            for (const zoom of [50, 200]) {
+                await test.step(`${zoom}%`, async () => {
+                    await zoomTo(designer, zoom);
+                    const drag = await pressEntry(page, designer, pt.manualInput);
+                    await drag.by(30, 0);
+                    await expect(designer.ghost).toHaveText(pt.manualInput);
+                    const fontPx = await designer.ghost.evaluate(ghost => parseFloat(getComputedStyle(ghost).fontSize));
+                    expect(Math.abs(fontPx - NEW_ITEM_FONT_PX * zoom / 100), `the ghost's font is ${fontPx} px at ${zoom}%`).toBeLessThanOrEqual(0.1);
+
+                    await page.keyboard.press("Escape");
+                    await drag.release();
+                    await expect(designer.ghost).toHaveCount(0);
+                    await expectUntouched(designer);
+                });
+            }
         });
 });

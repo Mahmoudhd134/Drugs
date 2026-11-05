@@ -1,6 +1,6 @@
 # Prescription print templates, step 3 (drag): contract (T0)
 
-Scope: [step 3's design](prescription-templates.step3.md) (S1–S5 and its § 3 "Settled by the T0 reviews" approved, not reopened), cases TPL-400…482 and TPL-500…590, and the changed TPL-054, TPL-227, TPL-228. **Frontend only:** no route, no table, no migration, no new library. **Out of scope:** guide image, calibration, test print (step 4), multi-select, rotation, anything dimmed in the panel, printing changes beyond keeping print at true size.
+Scope: [step 3's design](prescription-templates.step3.md) (S1–S5 and its § 3 "Settled by the T0 reviews" approved, not reopened), cases TPL-400…482 and TPL-500…593, and the changed TPL-054, TPL-227, TPL-228. **Frontend only:** no route, no table, no migration, no new library. **Out of scope:** guide image, calibration, test print (step 4), multi-select, rotation, anything dimmed in the panel, printing changes beyond keeping print at true size.
 
 This contract **is compiled code**: `npx tsc -b` and `npx eslint src e2e` are clean, the solution builds with 0 warnings. `dragGeometry.ts` and `layoutHistory.ts` are stubs; the constants, the i18n keys and the test support named below are done. Every exported name and signature, key, text, accessible name and test id here is final: a track that needs to change one goes through the session (both sides). How the coder splits the code behind them (hooks, internal helpers, internal props) is free. It builds on steps 1 and 2, still moving on their own branches: [step 1's contract](prescription-templates.contract.md) and [step 2's](prescription-templates.step2.contract.md) stay in force but for what § 3.7 changes.
 
@@ -46,7 +46,7 @@ The signatures and the rules are in the file's comments, which are part of this 
 
 ### 2.3 Constants (`constants.ts`, done)
 
-`CSS_PX_PER_MM`, `DRAG_THRESHOLD_PX` 4, `GUIDE_REACH_MM` 1, `HANDLE_SIZE_PX` 8, `SMALL_BOX_PX` 36, `ZOOM_MIN` 50, `ZOOM_MAX` 200, `ZOOM_STEP` 25, `FIT_MIN_ZOOM` 25, `AUTO_SCROLL_BAND_PX` 24, `AUTO_SCROLL_PX_PER_FRAME` 8, `HISTORY_LIMIT` 50, `NUDGE_RUN_MS` 1000, `AREA_PADDING_PX` 16, `AREA_BOTTOM_GAP_PX` 16, `AREA_MIN_HEIGHT_PX` 240. The minimums are step 1's.
+`CSS_PX_PER_MM`, `DRAG_THRESHOLD_PX` 4, `GUIDE_REACH_MM` 1, `HANDLE_SIZE_PX` 8, `SMALL_BOX_PX` 36, `ZOOM_MIN` 50, `ZOOM_MAX` 200, `ZOOM_STEP` 25, `FIT_MIN_ZOOM` 25, `AUTO_SCROLL_BAND_PX` 24, `AUTO_SCROLL_PX_PER_FRAME` 8, `HISTORY_LIMIT` 50, `NUDGE_RUN_MS` 1000, `AREA_PADDING_PX` 16, `AREA_BOTTOM_GAP_PX` 24 (the page's own bottom padding, § 6.24), `AREA_MIN_HEIGHT_PX` 240. The minimums are step 1's.
 
 ---
 
@@ -227,7 +227,7 @@ The coder runs `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx esl
 - ui: TPL-402, 440, 443–445, 455, 456, 458, 459, 461, 463, 482, 508, 516, 517, 519–521, 538, 552, 556, 557, 560, 563–567, 569–575, 579, 581, 583; the ui half of TPL-515, 544.
 
 **`tests-e2e`**
-- e2e: TPL-400, 401, 403, 410, 411, 413, 414, 421, 423, 424, 434, 441, 454, 460, 462, 464, 465, 470, 471, 480, 481, 500–507, 509–514, 518, 522–532, 541–543, 546–550, 553–555, 559, 561, 562, 568, 580, 582, 584–590; the e2e half of TPL-420, 431, 515. Changed: TPL-054, 227, 228.
+- e2e: TPL-400, 401, 403, 410, 411, 413, 414, 421, 423, 424, 434, 441, 454, 460, 462, 464, 465, 470, 471, 480, 481, 500–507, 509–514, 518, 522–532, 541–543, 546–550, 553–555, 559, 561, 562, 568, 580, 582, 584–593; the e2e half of TPL-420, 431, 515. Changed: TPL-054, 227, 228.
 - **Screenshots** for the ready report: the "Done when" journey (TPL-500) attaches Arabic and English shots, with a guide showing and with the handles.
 
 **Manual, never reported as passed:** Windows Alt not focusing the browser's menu, and a drag across a real second monitor. The `defaultPrevented` checks and the off-viewport move are the automated proof.
@@ -259,6 +259,7 @@ The coder runs `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx esl
 21. **Key repeat** isn't special: a held Delete removes one because nothing is selected after it.
 22. **`data-mm` holds the exact target,** a half-tenth center included (75.25), not rounded. **The fit's measure** uses `max(clientWidth, offsetWidth)`, so a scrollbar at 200% doesn't make a second Fit differ from a first. **A committed drag or nudge clears that item's raw text** in X, Y, width and height (TPL-582).
 23. **Guide and handle colors:** handles the selected box's `#0f766e`; guides `#db2777`, so they stand out on the mm grid. Neither prints.
+24. **Settled by the acceptance run (TPL-591, TPL-592, TPL-593).** The outline stays at about 1 px on screen at any zoom, 2 px selected: the box's inset `box-shadow` spread follows the zoom, so it never thins away at Fit, and being inset it never grows the box. The area's bottom gap is 24 px, matching the page's padding, so a window tall enough for everything has no page scrollbar. The ghost's text follows the zoom: the new item's font × the zoom, as its size does.
 
 ## 7. Wording
 
