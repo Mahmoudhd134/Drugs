@@ -1,16 +1,19 @@
 using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Messaging;
 using ClinicHub.Application.Common.Results;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Prescriptions.Templates.Queries.GetPrescriptionTemplate;
 
-/// <summary>Contract stub (track <c>print-templates/backend</c>; contract § 1.5).</summary>
+/// <summary>The clinic's template (the query filter picks the clinic), or a null success when it has none (MVC: 204).</summary>
 internal sealed class GetPrescriptionTemplateQueryHandler(IAppDbContext db)
     : IQueryHandler<GetPrescriptionTemplateQuery, PrescriptionTemplateDto>
 {
-    public Task<Result<PrescriptionTemplateDto>> Handle(GetPrescriptionTemplateQuery query, CancellationToken cancellationToken)
+    public async Task<Result<PrescriptionTemplateDto>> Handle(GetPrescriptionTemplateQuery query, CancellationToken cancellationToken)
     {
-        _ = db;
-        throw new NotImplementedException("contract stub");
+        var row = await db.PrescriptionTemplates.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        return row is null
+            ? Result<PrescriptionTemplateDto>.Success(null)
+            : new PrescriptionTemplateDto(PrescriptionLayoutRules.Deserialize(row.Layout), row.UpdatedAt);
     }
 }
