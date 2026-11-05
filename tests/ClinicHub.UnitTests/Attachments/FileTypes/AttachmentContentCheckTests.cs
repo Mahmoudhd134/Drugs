@@ -66,6 +66,14 @@ public class AttachmentContentCheckTests
     private static bool Matches(string typeKey, byte[] content) =>
         AttachmentContentCheck.Matches(typeKey, new MemoryStream(content));
 
+    /// <summary>A real upload's stream may hand out less than asked: this one, as little as it can.</summary>
+    private sealed class OneBytePerRead(byte[] content) : MemoryStream(content)
+    {
+        public override int Read(byte[] buffer, int offset, int count) => base.Read(buffer, offset, Math.Min(count, 1));
+
+        public override int Read(Span<byte> buffer) => base.Read(buffer[..Math.Min(buffer.Length, 1)]);
+    }
+
     // ---- ATT-040: every type passes ----
 
     [Fact]
@@ -117,6 +125,16 @@ public class AttachmentContentCheckTests
         Matches(sample.TypeKey, sample.Bytes).ShouldBeTrue();
     }
 
+    [Theory]
+    [Trait("Case", "ATT-040")]
+    [MemberData(nameof(SignatureNames))]
+    public void Every_form_of_a_signature_passes_from_a_stream_handing_out_one_byte_at_a_time(string signature)
+    {
+        var sample = AttachmentSamples.SignatureNamed(signature);
+
+        AttachmentContentCheck.Matches(sample.TypeKey, new OneBytePerRead(AttachmentSamples.Padded(sample.Bytes))).ShouldBeTrue();
+    }
+
     [Fact]
     [Trait("Case", "ATT-040")]
     public void The_entry_names_of_a_new_office_file_are_compared_in_any_case()
@@ -151,6 +169,24 @@ public class AttachmentContentCheckTests
             wrong[at] ^= 0x01;
 
             Matches(sample.TypeKey, wrong).ShouldBeFalse($"{signature} with byte {at} wrong");
+        }
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-041")]
+    [InlineData("docx")]
+    [InlineData("xlsx")]
+    [InlineData("pptx")]
+    public void A_new_office_file_with_any_byte_of_the_zip_start_wrong_fails(string typeKey)
+    {
+        for (var at = 0; at < 4; at++)
+        {
+            var wrong = AttachmentSamples.For(typeKey);
+            wrong[at] ^= 0x01;
+
+            // A ZIP reader alone would take it, as it lists from the end: only the file's start tells it apart
+            AttachmentSamples.EntryNamesOf(wrong).ShouldNotBeEmpty();
+            Matches(typeKey, wrong).ShouldBeFalse($"{typeKey} with byte {at} of its start wrong");
         }
     }
 
@@ -389,6 +425,35 @@ public class AttachmentContentCheckTests
     {
         Judge("a.txt", content).ShouldBe("txt", encoding);
         Judge("a.csv", content).ShouldBe("csv", encoding);
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-051")]
+    [MemberData(nameof(TextsThatPass))]
+    public void Text_from_a_stream_handing_out_one_byte_at_a_time_is_accepted(string encoding, byte[] content)
+    {
+        AttachmentContentCheck.Matches("txt", new OneBytePerRead(content)).ShouldBeTrue(encoding);
+        AttachmentContentCheck.Matches("csv", new OneBytePerRead(content)).ShouldBeTrue(encoding);
+    }
+
+    [Theory]
+    [Trait("Case", "ATT-051")]
+    [InlineData("txt", 0x61)]
+    [InlineData("csv", 0x61)]
+    [InlineData("txt", 0xFF)]
+    [InlineData("txt", 0x0A)]
+    public void A_one_byte_text_file_is_accepted_not_an_exception(string typeKey, byte only)
+    {
+        Matches(typeKey, [only]).ShouldBeTrue();
+        AttachmentContentCheck.Matches(typeKey, new OneBytePerRead([only])).ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-052")]
+    public void A_one_byte_text_file_holding_a_control_character_is_refused_and_so_is_one_handed_out_a_byte_at_a_time()
+    {
+        Matches("txt", [0x00]).ShouldBeFalse();
+        AttachmentContentCheck.Matches("txt", new OneBytePerRead([0x61, 0x62, 0x00])).ShouldBeFalse();
     }
 
     [Fact]

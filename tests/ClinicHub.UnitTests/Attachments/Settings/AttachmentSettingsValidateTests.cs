@@ -52,6 +52,11 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
 
     private static string WithSeparator(string path) => path + Path.DirectorySeparatorChar;
 
+    /// <summary>DoNotVerify: on Linux the plain call answers "" until that folder exists, whatever the code does.</summary>
+    private static string DefaultFolder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify),
+        "ClinicHub", "attachments");
+
     // ---- The control: everything here starts ----
 
     [Theory]
@@ -287,6 +292,25 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
         settings.Physical.RootPath.ShouldBe(contentRoot + "Files");
     }
 
+    [Fact]
+    [Trait("Case", "ATT-069")]
+    public void A_root_differing_only_by_case_from_the_content_root_follows_the_systems_rule()
+    {
+        // The pure rule with both systems' arguments is ATT-070: this proves what Validate passes it on the system it runs on
+        var otherCase = Path.Combine(sandbox, "SITE", "files");
+        var settings = Valid(otherCase);
+
+        if (OperatingSystem.IsWindows())
+        {
+            ShouldNotStart(settings);
+            return;
+        }
+
+        ShouldStart(settings);
+        settings.Physical.RootPath.ShouldBe(otherCase);
+        Directory.Exists(otherCase).ShouldBeTrue();
+    }
+
     [Theory]
     [Trait("Case", "ATT-071")]
     [InlineData("")]
@@ -307,9 +331,24 @@ public sealed class AttachmentSettingsValidateTests : IDisposable
     [InlineData(null)]
     public void An_empty_root_in_development_means_the_default_folder(string empty)
     {
-        var expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClinicHub", "attachments");
+        AttachmentSettings.DefaultedRoot(empty, isDevelopment: true).ShouldBe(DefaultFolder);
+    }
 
-        AttachmentSettings.DefaultedRoot(empty, isDevelopment: true).ShouldBe(expected);
+    [Theory]
+    [Trait("Case", "ATT-071")]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void An_empty_root_in_development_starts_on_the_default_folder_and_creates_it(string empty)
+    {
+        var settings = Valid();
+        settings.Physical.RootPath = empty;
+
+        // As a Development start does, this leaves the default folder on the machine: it may be a developer's own, so it isn't removed
+        ShouldStart(settings, isDevelopment: true);
+
+        settings.Physical.RootPath.ShouldBe(DefaultFolder);
+        Directory.Exists(DefaultFolder).ShouldBeTrue();
     }
 
     [Theory]
