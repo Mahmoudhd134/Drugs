@@ -306,6 +306,9 @@ test.describe("Printing: the flow @area:prescription", () => {
             await finishPrint(page);
             await expect(printRoot(page)).toHaveCount(0);
             expect(await pageRules(page), "no @page rule left").toBe(0);
+            // The pop-up fades out for 195 ms still holding what was typed, and with the job over nothing hides it from a print: from
+            // the DOM, as a closing dialog's role can't be relied on
+            await expect(page.locator(".MuiDialog-root"), "the pop-up is gone").toHaveCount(0);
             const after = await printedPdf(page);
             expect(timesPrinted(after.pages, name), "the app's own text").toBeGreaterThanOrEqual(1);
             expect(timesPrinted(after.pages, patient), "not the last patient's sheet").toBe(0);
