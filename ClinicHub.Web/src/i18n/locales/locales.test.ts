@@ -84,6 +84,9 @@ describe("locale files @area:i18n", () => {
             // The shared catalog (design M1.7 § 7; M1.7b contract § 2.4)
             "sharedDrugReadOnly", "categoryRequired", "categoryNotFound", "subCategoryNotFound", "textTooLong", "drugWithdrawn",
             "categoryNameTaken", "subCategoryNameTaken", "categoryInUse", "subCategoryInUse",
+            // The print templates (contract § 3.1)
+            "templateLayoutInvalid", "templateTextCount", "templatePageInvalid", "templateItemOutsidePage", "templateItemSizeInvalid",
+            "templateFontSizeInvalid", "templateItemNameTaken", "templateStaticTextRequired", "templateStaticTextTooLong", "templateTooManyItems",
         ];
         for (const code of codes) {
             expect(enTexts[`errors.${code}`], `en errors.${code}`).toBeTypeOf("string");
@@ -93,6 +96,24 @@ describe("locale files @area:i18n", () => {
             expect(enTexts[`errors.${code}`]).toBeUndefined();
             expect(arTexts[`errors.${code}`]).toBeUndefined();
         }
+    });
+});
+
+describe("print template error texts @area:admin", () => {
+    test.each([
+        ["templateLayoutInvalid", "The template's data isn't valid.", "بيانات القالب غير صحيحة."],
+        ["templateTextCount", "The template must hold the prescription text exactly once.", "يجب أن يحتوي القالب على نص الروشتة مرة واحدة."],
+        ["templatePageInvalid", "The sheet size isn't valid.", "مقاس الورقة غير صحيح."],
+        ["templateItemOutsidePage", "The item is outside the sheet.", "العنصر خارج حدود الورقة."],
+        ["templateItemSizeInvalid", "The item is smaller than the allowed size.", "مقاس العنصر أصغر من الحد المسموح."],
+        ["templateFontSizeInvalid", "The font size must be between 6 and 36.", "حجم الخط يجب أن يكون بين 6 و36."],
+        ["templateItemNameTaken", "Another item already uses this name.", "هذا الاسم مستخدم في عنصر آخر."],
+        ["templateStaticTextRequired", "Enter the text.", "اكتب النص."],
+        ["templateStaticTextTooLong", "The text is longer than 1000 characters.", "النص أطول من 1000 حرف."],
+        ["templateTooManyItems", "A template can't have more than 50 items.", "لا يمكن إضافة أكثر من 50 عنصرًا."],
+    ])("errors.%s is in both files, with the contract's text @TPL-244", (code, en, ar) => {
+        expect(enTexts[`errors.${code}`]).toBe(en);
+        expect(arTexts[`errors.${code}`]).toBe(ar);
     });
 });
 

@@ -21,7 +21,9 @@
     "src/hooks/useSingleFlight.ts",
     "src/utils/clipboard.ts",
     "src/features/drugs/components/drugTreeModel.ts",
-    "src/features/drugs/pages/drugListParams.ts"
+    "src/features/drugs/pages/drugListParams.ts",
+    "src/features/printTemplates/layout.ts",
+    "src/features/printTemplates/unsavedGuard.ts"
   ],
   "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": {

@@ -2,6 +2,7 @@ import {expect, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {visitCatalogAdmin} from "../support/admin-catalog.ts";
 import type {Lang} from "../support/texts.ts";
 import {dialog, expectNoCutOrOverlap, fitsTheScreen, noHorizontalScroll, open, pageChecks, rxTab, setLanguage, tourClinic, tourPages} from "../support/ux.ts";
+import {designerOf, designerShown, tabPath} from "../support/print-template.ts";
 import {IMPORTED} from "../support/shared.ts";
 import {TREE_TEXTS} from "../support/texts-rx.ts";
 import {DrugTreeUi} from "../support/tree.ts";
@@ -63,6 +64,40 @@ test.describe("Every page and dialog of the catalog and prescription @area:ux", 
                 const open = dialog(page);
                 await expectNoCutOrOverlap((await open.count()) ? open : page.locator("main"), what);
             });
+        });
+
+    test("the print template designer and its question, or the phone's message: dir/lang, no horizontal scroll, no serious axe violation, no console error, no cut text @UX-036 @I18N-006",
+        async ({page, t, lang, data, isMobile}) => {
+            test.slow();
+            const clinic = await data.clinic();
+            const designer = designerOf(page, lang);
+            const {pt} = designer;
+            await signInSuperAdmin(page, tabPath(clinic));
+
+            if (isMobile) {
+                const message = page.getByRole("alert").filter({hasText: pt.desktopOnly});
+                await expect(message).toBeVisible();
+                await pageChecks(page, "the designer's message on a phone");
+                await expectNoCutOrOverlap(message, "the designer's message on a phone");
+                return;
+            }
+
+            const check = async (what: string) => {
+                await pageChecks(page, what);
+                const open = dialog(page);
+                await expectNoCutOrOverlap((await open.count()) ? open : page.locator("main"), what);
+            };
+            await expect(designer.create).toBeVisible();
+            await check("the designer's empty state");
+            await designer.create.click();
+            await designerShown(designer);
+            await designer.entry(pt.manualInput).click();
+            await check("the designer with an item selected");
+            await page.getByRole("tab", {name: t.tabOverview, exact: true}).click();
+            await expect(designer.question).toBeVisible();
+            await check("the designer's question");
+            await designer.question.getByRole("button", {name: pt.leave, exact: true}).click();
+            await expect(designer.question).toHaveCount(0);
         });
 
     test("a 375 px phone in Arabic and English: no horizontal page scroll on the prescription, drugs, protocols and protocol editor pages and their dialogs @UX-001 @I18N-006",

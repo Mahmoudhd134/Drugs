@@ -5,9 +5,10 @@ import {localPhone, uniqueDigits, uniquePhone} from "../support/phones.ts";
 import {type Lang, TEXTS, type Texts} from "../support/texts.ts";
 import {expectToast, toast} from "../support/ui.ts";
 import {visitCatalogAdmin} from "../support/admin-catalog.ts";
+import {designerOf, designerShown, PT_TEXTS} from "../support/print-template.ts";
 
 /** Each admin page and dialog of a clinic, in turn: `check` runs on each one. */
-const visitAdmin = async (page: Page, t: Texts, clinic: ClinicHandle, staffName: string, check: (what: string) => Promise<void>) => {
+const visitAdmin = async (page: Page, t: Texts, lang: Lang, clinic: ClinicHandle, staffName: string, check: (what: string) => Promise<void>) => {
     await page.goto(`/admin?search=${encodeURIComponent(clinic.name.split(" ")[1])}`);
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await check("clinics list");
@@ -51,6 +52,27 @@ const visitAdmin = async (page: Page, t: Texts, clinic: ClinicHandle, staffName:
     await check("staff editor");
     await page.getByRole("dialog").getByRole("button", {name: t.cancel}).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // The print template tab: the designer on a computer, the desktop-only message on a phone (contract § 3.2)
+    const pt = PT_TEXTS[lang];
+    await page.getByRole("tab", {name: pt.tab, exact: true}).click();
+    if (page.viewportSize()!.width < 900) {
+        await expect(page.getByRole("alert").filter({hasText: pt.desktopOnly})).toBeVisible();
+        await check("print template message");
+        return;
+    }
+    const designer = designerOf(page, lang);
+    await expect(designer.create).toBeVisible();
+    await check("print template empty state");
+    await designer.create.click();
+    await designerShown(designer);
+    await designer.entry(pt.manualInput).click();
+    await check("print template designer");
+    await page.getByRole("tab", {name: t.tabOverview, exact: true}).click();
+    await expect(designer.question).toBeVisible();
+    await check("print template question dialog");
+    await designer.question.getByRole("button", {name: pt.leave, exact: true}).click();
+    await expect(designer.question).toHaveCount(0);
 };
 
 /** A clinic named in Arabic only, with an Arabic-named staff member and role (no Latin letter in the data but the default role names). */
@@ -110,7 +132,7 @@ const noHorizontalScroll = async (page: Page, what: string) => {
 };
 
 test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
-    test("Arabic UI: every admin page and dialog (the shared drugs and categories too) is RTL in Arabic, with no English UI string, and phones stay LTR @ADM-282",
+    test("Arabic UI: every admin page and dialog (the print template tab, the shared drugs and categories too) is RTL in Arabic, with no English UI string, and phones stay LTR @ADM-282",
         async ({page, t, lang, data, healthy}) => {
             // Many pages, scans or clinics: three times the usual time
             test.slow();
@@ -118,11 +140,13 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
             const {clinic, staff} = await arabicClinic(data, `عيادة الشفاء ${uniqueDigits()}`);
             await signInSuperAdmin(page);
 
-            await visitAdmin(page, t, clinic, staff.fullName, async what => {
+            await visitAdmin(page, t, lang, clinic, staff.fullName, async what => {
                 await test.step(what, async () => {
                     await healthy();
-                    // Role names are clinic data (Doctor, Assistant stay as stored): the rest is Arabic
-                    const text = await page.evaluate(() => document.body.innerText);
+                    // Role names are clinic data (Doctor, Assistant stay as stored): the rest is Arabic. The designer's own
+                    // Latin stays too: X, Y, A5, A4, ISO, JavaScript (contract § 4.5)
+                    const designersLatin = what.startsWith("print template") ? /\b(X|Y|A5|A4|ISO|JavaScript)\b/g : /$^/g;
+                    const text = (await page.evaluate(() => document.body.innerText)).replace(designersLatin, "");
                     const latin = text.replace(/\b(Doctor|Assistant)\b/g, "").match(/[A-Za-z]+/g) ?? [];
                     expect(latin, `${what}: English UI strings`).toEqual([]);
                 });
@@ -147,7 +171,7 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
             expect(await phone.evaluate(e => getComputedStyle(e).direction)).toBe("ltr");
         });
 
-    test("a 375 px phone in both languages: no horizontal scroll on the admin pages and dialogs (the shared drugs and categories too); a 157-character name wraps in dialogs and toasts @ADM-283",
+    test("a 375 px phone in both languages: no horizontal scroll on the admin pages and dialogs (the print template tab's message, the shared drugs and categories too); a 157-character name wraps in dialogs and toasts @ADM-283",
         async ({page, data, isMobile}) => {
             // Many pages, scans or clinics: three times the usual time
             test.slow();
@@ -166,7 +190,7 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
                     await expect(page.locator("html")).toHaveAttribute("lang", lang);
                     // The session restored (its refresh answered) before the next page load
                     await settled(page);
-                    await visitAdmin(page, t, clinic, staff.fullName, async what => {
+                    await visitAdmin(page, t, lang, clinic, staff.fullName, async what => {
                         await noHorizontalScroll(page, `${lang} ${what}`);
                         await fitsTheScreen(page, page.getByRole("dialog"), `${lang} ${what} dialog`);
                         // The disable and delete confirmations show the name in their text (the rename dialog in its field)
