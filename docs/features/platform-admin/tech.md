@@ -21,7 +21,8 @@ an adapter (design D9), so a clinic-side screen can mount them later ([Roles and
 M1.7b: the **shared drug catalog and categories** admin (`/api/v1/admin/drugs…`, `/admin/drug-categories…`,
 `/admin/drug-subcategories/{id}`, the `/admin/drugs` and `/admin/categories` screens), documented in
 [shared catalog](../shared-catalog/tech.md); provisioning and the dev seed changed with it ([Provisioning](#provisioning),
-[Dev seed](#dev-seed)).
+[Dev seed](#dev-seed)). Prescription print templates, step 1: the clinic page's **Print template** tab and
+`/admin/clinics/{clinicId}/prescription-template`, documented in [print templates](../prescription-templates/tech.md).
 
 ## Data model
 Migration **`AddClinicDeletedAt`** (M1.5.1, on top of `AddRoles`; adds one nullable column, no data step needed).
@@ -81,7 +82,8 @@ type ClinicDetails = ClinicSummary & { owners: { staffId: number; fullName: stri
 
 ### Roles and staff (M1.5.3)
 Under `/api/v1/admin/clinics/{clinicId}`, controllers `AdminRolesController` and `AdminStaffController`
-(`Api/Features/Platform`), policy `PlatformAdmin` + `[AdminClinic]` on the class.
+(`Api/Features/Platform`), policy `PlatformAdmin` + `[AdminClinic]` on the class. `AdminPrescriptionTemplateController` has the same
+policy and filter: `GET`, `PUT` and `DELETE …/prescription-template` ([print templates](../prescription-templates/tech.md#api)).
 
 | Method | Route | Request | Response | Errors (codes) |
 |---|---|---|---|---|
@@ -264,16 +266,17 @@ these pages, and the API refuses them anyway with 403 `forbidden`).
 | `/admin/clinics/:id` (index) | `ClinicOverview` (tab **Overview**) | Details (name, status, created date, active staff, owners: name + phone LTR); **Rename** (dialog, `PUT`; `name` errors on the input; not closable while saving; each opening starts from the current name, also when reopened during the closing animation); **Disable** (confirm saying staff lose access on their next action, the focus on Cancel; `suspend`) / **Enable** (no confirm; `activate`); **Delete** (dialog "Delete this clinic?", the name shown once: the button stays disabled until the name is typed exactly, both sides compared as typable text: NFC, invisible format characters (`\p{Cf}`) removed, white space runs as one space, trimmed; case kept; `DELETE` → the list as it was left, with a toast). Every action runs once per click burst (`useSingleFlight`). "Disabled" (chip and the Disable button) uses the theme's warning amber `#b45309` (`WARNING_COLOR` in `app/theme.ts`, ≈ 5:1 on white; `disabledTone.ts`). A long unbroken owner name wraps (`overflow-wrap: anywhere`), never cut |
 | `/admin/clinics/:id/roles` | `ClinicRolesTab` (tab **Roles**, lazy) | `RoleList` with `adminRolesApi(clinicId)` ([below](#roles-and-staff-screens-m155)) |
 | `/admin/clinics/:id/staff` | `ClinicStaffTab` (tab **Staff**, lazy) | `StaffList` with `adminStaffApi(clinicId)` and `adminRolesApi(clinicId)` |
+| `/admin/clinics/:id/print-template` | `ClinicPrintTemplateTab` (tab **Print template**, lazy) | `TemplateDesigner` with `adminPrintTemplateApi(clinicId)` ([print templates](../prescription-templates/tech.md#frontend)) |
 | `/admin/*` | | → `/admin` |
 | `/platform` | | → `/admin` (the placeholder page is gone) |
 
 | Piece | Role |
 |---|---|
-| `features/admin/components/AdminLayout.tsx` | The admin frame: `AppShell` with "Platform admin" in the app bar, `ADMIN_NAV_ITEMS`, and **"Edit template clinic"** («تعديل العيادة النموذجية») below the sections: switches to the template context (`switchContext` with the session's template context, once) and opens `/drugs` (template banner shown there) |
+| `features/admin/components/AdminLayout.tsx` | The admin frame: `AppShell` with "Platform admin" in the app bar, `ADMIN_NAV_ITEMS`, and **"Edit template clinic"** («تعديل العيادة النموذجية») below the sections: switches to the template context (`switchContext` with the session's template context, once, after `confirmLeave()`: unsaved changes in the print template designer ask first) and opens `/drugs` (template banner shown there) |
 | `components/layout/AppLayout.tsx` | In the template, for a user who also has the platform context (the super admin), the banner has **"Back to platform admin"**: switches to the platform context and opens `/admin`. The app bar names the template "Template clinic" / «العيادة النموذجية» (`useContextLabel`), not its stored English name |
 | `components/layout/AppShell.tsx` | Shared frame: app bar (logo link, context label, `LanguageMenu`, `UserMenu`), sidebar in a `<nav>` landmark (permanent ≥ md, drawer below), optional banner, the page in a `PageBoundary` (spinner while its chunk loads, "Couldn't load — Reload" when it fails). `AppLayout` (clinic app) and `AdminLayout` are thin wrappers around it. An entry is active on its path (`end`: exactly) and under each `activeFor` path |
 | `app/navigation.tsx` | `ADMIN_NAV_ITEMS` next to the clinic `NAV_ITEMS`: Clinics today; a new section (e.g. M2.1's Forms) is one entry here + its route |
-| `features/admin/clinicTabs.tsx` | `CLINIC_TABS` (`path`, `labelKey`, `element`; `""` = the index tab), mapped to child routes in `App.tsx`: Overview, Roles, Staff (the last two `lazy`: their own chunks, loaded on first visit inside the page's `PageBoundary`). Overview is imported eagerly (one spinner, not two; it ships in the main chunk because `App.tsx` imports `CLINIC_TABS`). `useTabClinic()` is in `useTabClinic.ts` (no import cycle with the tab components) |
+| `features/admin/clinicTabs.tsx` | `CLINIC_TABS` (`path`, `labelKey`, `element`; `""` = the index tab), mapped to child routes in `App.tsx`: Overview, Roles, Staff, Print template (the last three `lazy`: their own chunks, loaded on first visit inside the page's `PageBoundary`). Overview is imported eagerly (one spinner, not two; it ships in the main chunk because `App.tsx` imports `CLINIC_TABS`). `useTabClinic()` is in `useTabClinic.ts` (no import cycle with the tab components) |
 | `features/admin/api.ts` | `adminClinicKeys` (`all`, `lists` = `[...all, "list"]`, `list(search, status, page, pageSize)`, `detail(id)`); `useAdminClinics` (`keepPreviousData`), `useAdminClinic` (`staleTime: 0`), `useCreateClinic` / `useRenameClinic` (put the answer in the detail cache, reload the lists), `useSetClinicStatus` (updates the cached status, reloads the lists), `useDeleteClinic` (removes the cached lists, so the next list shown loads without the clinic instead of showing it first; the page drops the details with `useForgetClinic` only after leaving, so they aren't loaded again: no stray 404). Lists are reloaded with `refetchType: "all"`: also the list left for the clinic's page, so coming back never shows the old row first. A change answering 404 (deleted meanwhile) reloads the details ("not found") and the lists |
 | `features/admin/listState.ts` | `ClinicsListState` (the list's query, passed as navigation state) and `useClinicsListPath()` (the Back target, kept across tabs) |
 | `features/admin/components/` | `ClinicStatusChip`, `ClinicOverview`, `RenameClinicDialog`, `DeleteClinicDialog`, `disabledTone.ts` |

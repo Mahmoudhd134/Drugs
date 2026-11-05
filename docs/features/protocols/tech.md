@@ -157,7 +157,7 @@ Thin controller: each action sends one use case (below) and maps its `Result`. E
   `errors.duplicateProtocolItem`. Arabic says «بروتوكول» (masculine: «هذا البروتوكول»; plural «البروتوكولات»).
 
 ## Edge cases & limitations
-- Sidebar navigation with unsaved changes discards them without asking (BrowserRouter has no blocker).
+- Sidebar navigation with unsaved changes discards them without asking (this editor has no blocker; the app's data router allows one, and today only the [print template designer](../prescription-templates/tech.md) uses it).
 - An open editor is not updated live: a drug edited in another tab (or a protocol saved elsewhere) while the editor is open
   shows up the next time the editor is opened (accepted; each open fetches the protocol again).
 - No "duplicate protocol" action; no per-line note in protocols.

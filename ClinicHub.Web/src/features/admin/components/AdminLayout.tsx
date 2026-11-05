@@ -10,6 +10,7 @@ import {ADMIN_NAV_ITEMS} from "../../../app/navigation.tsx";
 import {getErrorMessage} from "../../../api/errors.ts";
 import {useAuth} from "../../auth/useAuth.ts";
 import {OtherUserSignedInError} from "../../auth/session.ts";
+import {confirmLeave} from "../../printTemplates/unsavedGuard.ts";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 
 /** The platform admin's frame (super admin, platform context): its sections and a way into the template. */
@@ -39,6 +40,8 @@ const EditTemplateButton = () => {
     if (!template) return null;
 
     const open = () => once(async () => {
+        // A switch changes the session first, which nothing blocks: unsaved changes ask here (print templates D16)
+        if (!(await confirmLeave())) return;
         setPending(true);
         try {
             await switchContext(template);
