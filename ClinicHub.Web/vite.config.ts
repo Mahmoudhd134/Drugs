@@ -27,6 +27,8 @@ const PURE_LOGIC = [
     'src/features/printTemplates/functions.ts',
     'src/features/printTemplates/printHtml.ts',
     'src/features/printTemplates/pagination.ts',
+    'src/features/printTemplates/dragGeometry.ts',
+    'src/features/printTemplates/layoutHistory.ts',
 ]
 
 // https://vite.dev/config/

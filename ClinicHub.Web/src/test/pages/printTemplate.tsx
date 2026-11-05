@@ -1,4 +1,4 @@
-import {act, screen, waitFor, within} from "@testing-library/react";
+import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import type {RequestHandler} from "msw";
 import {expect} from "vitest";
@@ -129,6 +129,60 @@ export const zoomPercent = () => screen.getByTestId("template-zoom-percent").tex
 export const handleOf = (id: string) => screen.queryByTestId(`template-handle-${id}`);
 /** Every resize handle on screen, by id. */
 export const handleIds = () => screen.queryAllByTestId(/^template-handle-/).map(handle => handle.dataset.handle);
+/** The guide lines on screen. */
+export const guideLines = () => screen.queryAllByTestId("template-guide");
+/** A panel drag's ghost, or null. */
+export const dragGhost = () => screen.queryByTestId("template-drag-ghost");
+/** The designer's root (step 3 contract § 3.5): the keys act on what is inside it. */
+export const designerRoot = () => screen.getByTestId("template-designer");
+
+/** The `code` of a key without a modifier, for the designer's listener; a test of the layouts sets its own `code` and `key`. */
+const CODE_OF: Record<string, string> = {Alt: "AltLeft", Escape: "Escape", Delete: "Delete", Backspace: "Backspace"};
+
+/**
+ * A `keydown` on `target`, which must hold the focus as a real key's would (`focusOn`). True when the designer handled the key:
+ * `fireEvent` answers false when `preventDefault` ran (step 3 contract § 4.1).
+ */
+export const pressKey = (target: Element, key: string, init: KeyboardEventInit = {}) =>
+    !fireEvent.keyDown(target, {key, code: CODE_OF[key] ?? key, ...init});
+/** A `keyup` on `target`; true when `preventDefault` ran. */
+export const releaseKey = (target: Element, key: string, init: KeyboardEventInit = {}) =>
+    !fireEvent.keyUp(target, {key, code: CODE_OF[key] ?? key, ...init});
+/** `pressKey` on whatever has the focus. */
+export const pressKeyOnFocus = (key: string, init: KeyboardEventInit = {}) =>
+    pressKey(document.activeElement ?? document.body, key, init);
+/** The three shortcuts on a Latin layout (contract § 3.5); `code` decides, whatever the layout's `key`. */
+export const UNDO_KEYS = {key: "z", code: "KeyZ", ctrlKey: true} as const;
+export const REDO_KEYS = {key: "y", code: "KeyY", ctrlKey: true} as const;
+export const REDO_SHIFT_KEYS = {key: "z", code: "KeyZ", ctrlKey: true, shiftKey: true} as const;
+/** A shortcut (`UNDO_KEYS`, …) on `target`; true when the designer handled it. */
+export const pressShortcut = (target: Element, keys: KeyboardEventInit) => !fireEvent.keyDown(target, keys);
+
+/** Moves the focus, as a Tab or a click would. */
+export const focusOn = (element: HTMLElement) => act(() => element.focus());
+/** Nothing focused: `document.activeElement` is `body` (a focused box just left). */
+export const blurAll = () => act(() => (document.activeElement as HTMLElement | null)?.blur());
+
+const pointer = (clientX: number, clientY: number) => ({pointerId: 1, button: 0, buttons: 1, clientX, clientY});
+/**
+ * The main button pressed on `element`, then moved past the threshold, button held: a drag in progress. jsdom has no layout, so
+ * where it would land can't be read here (step 3 contract § 4.1), only that it runs. End it with Esc.
+ */
+export const startDrag = (element: HTMLElement) => {
+    fireEvent.pointerDown(element, pointer(100, 100));
+    fireEvent.pointerMove(element, pointer(130, 100));
+};
+/** A press, a move of `distance` px to the right, and the release, as a mouse gives them. */
+export const pressMoveRelease = (element: HTMLElement, distance: number) => {
+    fireEvent.pointerDown(element, pointer(100, 100));
+    if (distance > 0) fireEvent.pointerMove(element, pointer(100 + distance, 100));
+    fireEvent.pointerUp(element, {...pointer(100 + distance, 100), buttons: 0});
+};
+/** `pressMoveRelease` and the `click` a mouse's release gives (`detail` 1). */
+export const pressAndRelease = (element: HTMLElement, distance: number) => {
+    pressMoveRelease(element, distance);
+    fireEvent.click(element, {detail: 1, clientX: 100 + distance, clientY: 100});
+};
 
 export const saveButton = () => screen.getByRole("button", {name: label("common.save")});
 export const deleteButton = () => screen.getByRole("button", {name: label("common.delete")});
