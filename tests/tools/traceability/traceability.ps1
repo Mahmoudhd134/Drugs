@@ -32,7 +32,7 @@
   Writes <OutDir>/traceability.md and traceability.json.
 
 .PARAMETER Areas
-  Scope: only these catalog areas (AUTH, ISO, ACC, ERR, ADM, DRUG, GRP, DOSE, TAPER, RX, I18N, UX). Default: all.
+  Scope: only these catalog areas (AUTH, ISO, ACC, ERR, ADM, DRUG, GRP, DOSE, TAPER, RX, I18N, UX, CAT, TPL). Default: all.
 
 .PARAMETER Levels
   Scope: only these levels (unit, api, ui, e2e). Default: all automated levels.

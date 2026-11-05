@@ -68,7 +68,8 @@ The layout rules exist twice: C# `SavePrescriptionTemplateCommandValidator` + `P
 suites run every row (TPL-048), so the two can't drift:
 
 - **xUnit** (`tests/ClinicHub.UnitTests/Prescriptions/Templates`): `SavePrescriptionTemplateCommand.From(layout)` + the validator; the
-  `errors` are compared in order. `PrescriptionLayoutRules.Round` on `rounding`.
+  `errors` are compared in order. `PrescriptionLayoutRules.Round` on `rounding`. The integration tests also send every row as a real PUT
+  (`tests/ClinicHub.IntegrationTests/Admin/PrescriptionTemplates/PrintLayoutFixtureApiTests`, the file found above the test assembly).
 - **Vitest** (`ClinicHub.Web/src/features/printTemplates/layout.parity.test.ts`): `validateLayout(layout)`, in order; `roundTenth` on `rounding`.
   Stryker leaves it out (it reads a file outside `ClinicHub.Web`).
 
