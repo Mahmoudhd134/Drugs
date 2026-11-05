@@ -73,11 +73,11 @@ produces a ready-to-copy folder: **`D:\ClinicHub\publish`**.
 `ConnectionStrings__DefaultConnection` (in `web.config` under `<environmentVariables>`).
 
 **Attached files — the app won't start without this:** files live on the server's disk, in a folder of their own. Set
-`Attachments__Physical__RootPath` to an absolute folder **outside the site**, e.g. `C:\ClinicHubFiles` (one inside the site folder stops the app,
-so files can never be served as static files or overwritten by an update). Give the app pool **Modify** on it; the app creates the folder if it can, and
-stops at startup if it can't write there:
+`Attachments__Physical__RootPath` (in `web.config` under `<environmentVariables>`, like the database) to an absolute folder **outside the site**, e.g. `C:\ClinicHubFiles` (one inside the site folder stops the app,
+so files can never be served as static files or overwritten by an update). Create the folder and give the app pool **Modify** on it; the app stops at startup if it can't write there:
 
 ```powershell
+New-Item -ItemType Directory -Force "C:\ClinicHubFiles"
 icacls "C:\ClinicHubFiles" /grant "IIS AppPool\ClinicHubPool:(OI)(CI)M" /T
 ```
 
@@ -120,7 +120,7 @@ are seeded only in Development).
 
 1. Run `.\deploy.ps1` again on your dev machine.
 2. In IIS Manager, **Stop** the `ClinicHub` site (releases the running `.exe`).
-3. Copy the new `publish` contents over the server folder (data lives in PostgreSQL and attached files in `Attachments__Physical__RootPath`, neither in this folder).
+3. Copy the new `publish` contents over the server folder (data lives in PostgreSQL and attached files in `Attachments__Physical__RootPath`, neither in this folder). **Keep the server's `web.config`** (leave the new one out of the copy) or re-apply its changes to the new one: `publish` holds a fresh default, so overwriting it silently loses the environment variables, and with them the database and the attachments folder (the app stops with 500.30), and the raised IIS limit (uploads get 404.13 again). The same goes for any setting edited in the server's `appsettings.json`.
 4. **Start** the site.
 
 ---

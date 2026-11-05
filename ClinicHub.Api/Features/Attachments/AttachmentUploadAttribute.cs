@@ -24,6 +24,7 @@ public sealed class AttachmentUploadAttribute : TypeFilterAttribute
 /// feature; refuses a larger <c>Content-Length</c> unread (400 <c>attachmentTooLarge</c>); installs its own form limit and reads the form, turning
 /// a body over the limit with no <c>Content-Length</c> into <c>attachmentTooLarge</c>. A body that can't be read as one multipart form
 /// (not multipart, no boundary, no closing boundary, a header past its limit) or holds more than one file part answers 400 <c>invalidRequest</c>.
+/// A server failure while reading the form, such as a full disk while buffering it, goes on to the unexpected handler (logged, 500 <c>unexpected</c>).
 /// </summary>
 public sealed class AttachmentUploadFilter(string module, AttachmentSettings settings) : IAsyncResourceFilter
 {
@@ -31,10 +32,18 @@ public sealed class AttachmentUploadFilter(string module, AttachmentSettings set
     public const long FramingAllowanceBytes = 64 * 1024;
 
     /// <summary>
-    /// How the framework's <see cref="InvalidDataException"/> for <see cref="FormOptions.MultipartBodyLengthLimit"/> begins: it has no type of its
-    /// own. The real Kestrel case ATT-082 fails if an upgrade changes it.
+    /// How the framework's <see cref="InvalidDataException"/> for a multipart length limit begins: it has no type of its own, and the reader's own
+    /// 16 KB limit on what comes before the first boundary uses the same words, so only the number tells this filter's limit apart. The real Kestrel
+    /// case ATT-082 doesn't guard this message: Kestrel's limit is the same number and also counts the part's headers, so its 413 comes first. The unit
+    /// tests of ATT-081 and ATT-186, on a real <see cref="FormFeature"/>, fail if an upgrade changes it.
     /// </summary>
     private const string BodyLengthLimitMessage = "Multipart body length limit";
+
+    /// <summary>
+    /// How the framework's plain <see cref="IOException"/> for a body with no closing boundary begins: nothing else separates it from a server's
+    /// own I/O failure. ATT-094 and ATT-185 fail if an upgrade changes it.
+    /// </summary>
+    private const string NoClosingBoundaryMessage = "Unexpected end of Stream";
 
     public async Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next)
     {
@@ -56,7 +65,10 @@ public sealed class AttachmentUploadFilter(string module, AttachmentSettings set
         await next();
     }
 
-    /// <summary>The refusal, or null with the form read, so model binding finds it there. A client that went away isn't answered: its error goes on.</summary>
+    /// <summary>
+    /// The refusal, or null with the form read, so model binding finds it there. A client that went away isn't answered, and a server failure
+    /// isn't the client's fault: both errors go on.
+    /// </summary>
     private static async Task<Error> ReadFormAsync(HttpContext httpContext, long limit)
     {
         if (!IsMultipartForm(httpContext.Request.ContentType))
@@ -73,15 +85,23 @@ public sealed class AttachmentUploadFilter(string module, AttachmentSettings set
         {
             return AttachmentErrors.TooLarge;
         }
-        catch (InvalidDataException exception) when (exception.Message.StartsWith(BodyLengthLimitMessage, StringComparison.Ordinal))
+        catch (InvalidDataException exception) when (exception.Message.StartsWith($"{BodyLengthLimitMessage} {limit} exceeded", StringComparison.Ordinal))
         {
             return AttachmentErrors.TooLarge;
         }
-        catch (Exception exception) when (exception is InvalidDataException or IOException && !httpContext.RequestAborted.IsCancellationRequested)
+        catch (Exception exception) when (IsMalformedBody(exception) && !httpContext.RequestAborted.IsCancellationRequested)
         {
             return CommonErrors.InvalidRequest;
         }
     }
+
+    /// <summary>The client's bad body, as opposed to a server failure. <see cref="BadHttpRequestException"/> is an <see cref="IOException"/> too, so the order matters.</summary>
+    private static bool IsMalformedBody(Exception exception) => exception switch
+    {
+        InvalidDataException or BadHttpRequestException => true,
+        IOException => exception.Message.StartsWith(NoClosingBoundaryMessage, StringComparison.Ordinal),
+        _ => false,
+    };
 
     private static bool IsMultipartForm(string contentType) =>
         MediaTypeHeaderValue.TryParse(contentType, out var parsed)
