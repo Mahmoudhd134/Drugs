@@ -88,8 +88,8 @@ export const AUTO_SCROLL_PX_PER_FRAME = 8;
 export const HISTORY_LIMIT = 50;
 export const NUDGE_RUN_MS = 1000;
 
-/** The sheet area's padding on each side, and what it keeps from the window's bottom, in px. */
+/** The sheet area's padding on each side, and what it keeps from the window's bottom, in px: the page's bottom padding from 900 px up (`AppShell`), so the page gets no scrollbar of its own (TPL-592). */
 export const AREA_PADDING_PX = 16;
-export const AREA_BOTTOM_GAP_PX = 16;
+export const AREA_BOTTOM_GAP_PX = 24;
 /** The area never gets shorter than this, on a window too low for the page's header. */
 export const AREA_MIN_HEIGHT_PX = 240;

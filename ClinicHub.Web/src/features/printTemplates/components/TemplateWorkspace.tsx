@@ -195,6 +195,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                                 onBoxPress={drag.pressBox}
                                 sheetRef={sheet}
                                 sampleText={t("printTemplates.sheet.sampleText")}
+                                zoom={zoom}
                             />
                         </div>
                         <TemplateOverlay
@@ -221,7 +222,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                     onRemove={removeItem}
                 />
             </Box>
-            {view?.kind === "entry" && <TemplateDragGhost label={view.label} point={view.point} widthPx={view.widthPx} heightPx={view.heightPx}/>}
+            {view?.kind === "entry" && <TemplateDragGhost label={view.label} point={view.point} widthPx={view.widthPx} heightPx={view.heightPx} zoom={zoom}/>}
         </Stack>
     );
 };
