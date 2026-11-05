@@ -87,6 +87,8 @@ describe("locale files @area:i18n", () => {
             // The print templates (contract § 3.1)
             "templateLayoutInvalid", "templateTextCount", "templatePageInvalid", "templateItemOutsidePage", "templateItemSizeInvalid",
             "templateFontSizeInvalid", "templateItemNameTaken", "templateStaticTextRequired", "templateStaticTextTooLong", "templateTooManyItems",
+            // The attachments (design attachments § 5)
+            "attachmentTypeNotAllowed", "attachmentTooLarge", "attachmentEmpty",
         ];
         for (const code of codes) {
             expect(enTexts[`errors.${code}`], `en errors.${code}`).toBeTypeOf("string");
@@ -114,6 +116,17 @@ describe("print template error texts @area:admin", () => {
     ])("errors.%s is in both files, with the contract's text @TPL-244", (code, en, ar) => {
         expect(enTexts[`errors.${code}`]).toBe(en);
         expect(arTexts[`errors.${code}`]).toBe(ar);
+    });
+});
+
+describe("attachment error texts @area:attachments", () => {
+    test.each([
+        ["attachmentTypeNotAllowed", "This file type isn't allowed.", "نوع هذا الملف غير مسموح به."],
+        ["attachmentTooLarge", "This file is larger than allowed.", "حجم هذا الملف أكبر من المسموح به."],
+        ["attachmentEmpty", "This file is empty.", "هذا الملف فارغ."],
+    ])("errors.%s is in both files, with the business file's text @ATT-181", (code, english, arabic) => {
+        expect(enTexts[`errors.${code}`]).toBe(english);
+        expect(arTexts[`errors.${code}`]).toBe(arabic);
     });
 });
 
