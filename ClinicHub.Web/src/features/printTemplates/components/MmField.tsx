@@ -6,7 +6,7 @@ type Props = {
     label: string;
     /** The field's number in the layout */
     value: number;
-    /** What was typed that isn't a usable number: shown instead of the number */
+    /** Text the layout doesn't hold (not a usable number, or not committed yet): shown instead of the number */
     rawInput?: string;
     error?: string;
     disabled?: boolean;

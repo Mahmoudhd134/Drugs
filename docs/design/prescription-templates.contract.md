@@ -282,7 +282,7 @@ The page never scrolls sideways (TPL-227).
    - `printTemplates.panel.static`: `kinds.staticText`.
    - `printTemplates.panel.later`, dimmed, `disabled`, in this order: `kinds.internalData` (visible hint `panel.internalDataHint`, its `aria-describedby`), `kinds.expression` (`panel.expressionHint`, last, D8 § 3).
    - The prescription text is not listed: every layout has it and it can't be added or removed.
-   - A click whose `event.detail > 1` is ignored (TPL-240); Enter and Space add (a keyboard click's `detail` is 0). The new item is selected; the focus stays on the entry.
+   - A click whose `event.detail > 1` is ignored (TPL-240); Enter and Space add (a keyboard click's `detail` is 0). The new item is selected and its box is scrolled into view (`scrollIntoView({block: "nearest", inline: "nearest"})`, TPL-253); the focus stays on the entry.
 3. **Sheet area**: `Box` with `role="region"`, `aria-label={t("printTemplates.sheet.label")}`, `tabIndex={0}` (a scrollable region needs focus, axe), `overflow: auto`, `maxHeight: "calc(100vh - 200px)"`, holding `TemplateSheet` (§ 3.4). Never `dir="rtl"` inside.
 4. **Settings**: `<section aria-label={t("printTemplates.config.label")}>` (role `region`), top to bottom:
    - Heading `printTemplates.page.title`; `TextField select` label `printTemplates.page.size` (role `combobox`), options `page.sizes.A5`, `A4`, `custom`; number fields `page.width`, `page.height` (`disabled` unless custom).
@@ -291,11 +291,12 @@ The page never scrolls sideways (TPL-227).
 
 **Number fields** (position, size, font, page width and height): `TextField type="text"`, `slotProps.htmlInput: {inputMode: "decimal", dir: "ltr"}`, never `type="number"` (Arabic digits, TPL-225); left to right in both languages (TPL-226). `parseMmInput` on every change. Items: a number → `updateItem` at once, the sheet follows (TPL-044); null → the layout keeps its last number, the text is kept in the draft's `rawInputs` and shows `printTemplates.numberRequired` (TPL-224). On blur a valid field shows `formatMm(value)`.
 
-**Page width and height** commit on blur or Enter, never per keystroke (TPL-221): a number within the rules → `applyPageSize`; anything else → nothing moves, the text stays in `rawInputs`, with `numberRequired` (not a number) or `errors.templatePageInvalid` (out of range). The size select commits at once (`pageOfSize` + `applyPageSize`).
+**Page width and height** commit on blur or Enter, never per keystroke (TPL-221): a number within the rules → `applyPageSize`; anything else → nothing moves, the text stays in `rawInputs`, with `numberRequired` (not a number) or `errors.templatePageInvalid` (out of range). The size select commits at once (`pageOfSize` + `applyPageSize`). Until the commit, a text that differs from the committed number (as `parseMmInput` reads it) is held in the draft's `typedPage`: no message, nothing moves, but the screen counts as unsaved (TPL-251); typed back to the committed number, it and that measure's `rawInputs` go, so the screen is clean again.
 
 **Messages on fields.** `validateLayout` runs on every render of the draft. A field shows its first error (`errors.<code>`, `helperText` + `error`) once it has been changed since the last load, or after a Save pressed; typing `wMm` or `hMm` also counts as changing `xMm` or `yMm`, the field that carries that size's `templateItemOutsidePage` (TPL-224), and a new static text still doesn't start red. `rawInputs` keys: `<itemId>.<field>`, `page.widthMm`, `page.heightMm`.
 
 **Save** (`useSingleFlight`; `useSavePrintTemplate`):
+0. A measure still in `typedPage` commits first, so one press sends one PUT with the new size (TPL-251): the field's blur on mouse-down or on Tab has usually done it; Save does it when no blur came (the window narrowed and widened while typing).
 1. Any `rawInputs`, or `validateLayout(draft)` not empty: nothing is sent. All messages show; the first problem's item becomes selected (TPL-238); an error no field shows (`items`, `schemaVersion`, `items[i].id`, `items[i].kind`, `items[i].function`) is toasted.
 2. Else `sent = normalizeLayout(draft)`, PUT. Success: `toast.success(printTemplates.saved)`, `baseline = sent`; the draft isn't replaced (TPL-242).
 3. Failure: `toast.error(getErrorMessage(error))`; `getFieldErrors(error)` shown on the named fields until the next edit, the named item selected (TPL-236); edits stay, Save works again (TPL-058). A 404 reloads the clinic through `affects` (TPL-235).
@@ -335,9 +336,9 @@ the first whose trimmed, lower-cased form isn't taken (TPL-218). No `maxLength` 
 
 ### 3.6 Draft and dirty (all in `TemplateDesigner`'s local state)
 
-- **The draft lives above the desktop-only switch**: `{layout, baseline, rawInputs, selectedId, touched, serverErrors}` is state of the component that also decides state 1 of § 3.2, so narrowing the window and widening it keeps edits, selection and dirty (TPL-229). Only the display switches. The guard (§ 3.8) stays mounted below 900 px too.
+- **The draft lives above the desktop-only switch**: `{layout, baseline, rawInputs, typedPage, selectedId, revealId, touched, serverErrors}` is state of the component that also decides state 1 of § 3.2, so narrowing the window and widening it keeps edits, selection and dirty (TPL-229). Only the display switches. The guard (§ 3.8) stays mounted below 900 px too.
 - **A background refetch never overwrites the draft**: the draft is seeded once, from the first answer made since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, and later answers are ignored while a draft exists. Without a draft (no template, or just deleted) the screen follows the query.
-- **Dirty** = `baseline === null || !sameLayout(layout, baseline) || rawInputs not empty`.
+- **Dirty** = `baseline === null || !sameLayout(layout, baseline) || rawInputs not empty || typedPage not empty` (§ 3.3; TPL-251).
 - **The new sheet counts as unsaved** (`baseline === null`), TPL-230, until its first save.
 - **After a save the baseline is what was sent**, `normalizeLayout(draft)` at the moment of Save, not the answer and not the current draft: an edit made while the request is in flight stays and keeps the screen dirty (TPL-242).
 - **The tab remounts per clinic**: `ClinicPage` keys its `PageBoundary` by the clinic id, so nothing of A's draft, selection or edits shows under B (TPL-245). Nothing to add.
