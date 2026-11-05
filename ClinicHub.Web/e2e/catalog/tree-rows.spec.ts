@@ -236,6 +236,8 @@ test.describe("The drug tree: rows and keys @area:catalog", () => {
             await expect(glaucoma).toBeFocused();
             await page.keyboard.press("Enter");
             await rx.tree.expectOpen(glaucoma);
+            // Open is not loaded: until its drugs are rows, ↓ goes to the next subcategory
+            await expect(rx.drug(a.name)).toBeVisible();
             await page.keyboard.press("ArrowDown");
             await expect(rx.drug(a.name)).toBeFocused();
             await page.keyboard.press("Enter");
