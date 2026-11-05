@@ -637,6 +637,13 @@ const ar: Translations = {
             fontSize: "حجم الخط (نقطة)",
             remove: "حذف العنصر",
         },
+        toolbar: {
+            undo: "تراجع",
+            redo: "إعادة",
+            zoomOut: "تصغير",
+            zoomIn: "تكبير",
+            fit: "ملاءمة",
+        },
     },
     roles: {
         title: "الأدوار",

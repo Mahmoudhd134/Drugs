@@ -61,3 +61,35 @@ export const PRINT_LINE_HEIGHT = 1.4;
 export const MANUAL_VALUE_MAX_LENGTH = 200;
 /** How long printing waits for the print font; after that it carries on with the fallback font (design § 4.4, TPL-331). */
 export const FONT_LOAD_TIMEOUT_MS = 10_000;
+
+/** 1 mm in CSS px at 100% zoom. */
+export const CSS_PX_PER_MM = 96 / 25.4;
+
+/** Drag (step 3 contract § 2.3): a movement counts past this many px, in a straight line. */
+export const DRAG_THRESHOLD_PX = 4;
+/** A guide line sticks within this many mm, inclusive. */
+export const GUIDE_REACH_MM = 1;
+/** A handle's target on screen, at any zoom. */
+export const HANDLE_SIZE_PX = 8;
+/** Corners only when both sides are below this many px on screen. */
+export const SMALL_BOX_PX = 36;
+
+/** Zoom, in percent: minus and plus stay in `ZOOM_MIN`–`ZOOM_MAX`, by `ZOOM_STEP`; Fit alone may go down to `FIT_MIN_ZOOM`. */
+export const ZOOM_MIN = 50;
+export const ZOOM_MAX = 200;
+export const ZOOM_STEP = 25;
+export const FIT_MIN_ZOOM = 25;
+
+/** A drag within this many px of the area's edge scrolls it, by `AUTO_SCROLL_PX_PER_FRAME` each animation frame. */
+export const AUTO_SCROLL_BAND_PX = 24;
+export const AUTO_SCROLL_PX_PER_FRAME = 8;
+
+/** Undo: the last steps kept, and the pause that ends a run of nudges. */
+export const HISTORY_LIMIT = 50;
+export const NUDGE_RUN_MS = 1000;
+
+/** The sheet area's padding on each side, and what it keeps from the window's bottom, in px. */
+export const AREA_PADDING_PX = 16;
+export const AREA_BOTTOM_GAP_PX = 16;
+/** The area never gets shorter than this, on a window too low for the page's header. */
+export const AREA_MIN_HEIGHT_PX = 240;

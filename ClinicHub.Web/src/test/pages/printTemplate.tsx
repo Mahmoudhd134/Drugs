@@ -117,6 +117,19 @@ export const measuresOf = ({style}: HTMLElement) =>
 /** The size of the sheet as drawn. */
 export const sheetSize = () => ({w: theSheet().style.width, h: theSheet().style.height});
 
+/** The toolbar's buttons (step 3 contract § 3.2). */
+export const undoButton = () => screen.getByRole("button", {name: label("printTemplates.toolbar.undo")});
+export const redoButton = () => screen.getByRole("button", {name: label("printTemplates.toolbar.redo")});
+export const zoomOutButton = () => screen.getByRole("button", {name: label("printTemplates.toolbar.zoomOut")});
+export const zoomInButton = () => screen.getByRole("button", {name: label("printTemplates.toolbar.zoomIn")});
+export const fitButton = () => screen.getByRole("button", {name: label("printTemplates.toolbar.fit")});
+/** The percentage as shown: jsdom has no layout, so Fit is 100 there (`fitZoom`). */
+export const zoomPercent = () => screen.getByTestId("template-zoom-percent").textContent;
+/** A resize handle of the selected item (step 3 contract § 3.3), or null. */
+export const handleOf = (id: string) => screen.queryByTestId(`template-handle-${id}`);
+/** Every resize handle on screen, by id. */
+export const handleIds = () => screen.queryAllByTestId(/^template-handle-/).map(handle => handle.dataset.handle);
+
 export const saveButton = () => screen.getByRole("button", {name: label("common.save")});
 export const deleteButton = () => screen.getByRole("button", {name: label("common.delete")});
 export const paperSize = () => within(settingsPanel()).getByRole("combobox", {name: name => name.startsWith(label("printTemplates.page.size"))});

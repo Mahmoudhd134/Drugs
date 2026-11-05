@@ -29,6 +29,10 @@ function scrollElementTo(this: Element, xOrOptions?: number | ScrollToOptions, y
 }
 Element.prototype.scrollTo = scrollElementTo as Element["scrollTo"];
 Element.prototype.scroll = scrollElementTo as Element["scroll"];
+// jsdom has `PointerEvent` but no pointer capture: the print template designer captures on every press (step 3 contract § 4.1)
+Element.prototype.setPointerCapture = () => undefined;
+Element.prototype.releasePointerCapture = () => undefined;
+Element.prototype.hasPointerCapture = () => false;
 
 installMatchMedia();
 setViewportWidth();

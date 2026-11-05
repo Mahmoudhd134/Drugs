@@ -667,6 +667,13 @@ const en = {
             fontSize: "Font size (pt)",
             remove: "Remove item",
         },
+        toolbar: {
+            undo: "Undo",
+            redo: "Redo",
+            zoomOut: "Zoom out",
+            zoomIn: "Zoom in",
+            fit: "Fit",
+        },
     },
     // A clinic's roles and staff (reusable components; the platform admin's clinic page shows them today)
     roles: {

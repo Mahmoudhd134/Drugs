@@ -42,6 +42,11 @@ const ar = {
     home: "الذهاب إلى قائمة العيادات",
     navClinics: "العيادات",
     outside: "العنصر خارج حدود الورقة.",
+    undo: "تراجع",
+    redo: "إعادة",
+    zoomOut: "تصغير",
+    zoomIn: "تكبير",
+    fit: "ملاءمة",
 };
 
 export type PrintTemplateTexts = typeof ar;
@@ -80,6 +85,11 @@ const en: PrintTemplateTexts = {
     home: "Go to the clinics list",
     navClinics: "Clinics",
     outside: "The item is outside the sheet.",
+    undo: "Undo",
+    redo: "Redo",
+    zoomOut: "Zoom out",
+    zoomIn: "Zoom in",
+    fit: "Fit",
 };
 
 export const PT_TEXTS: Record<Lang, PrintTemplateTexts> = {ar, en};
@@ -143,6 +153,18 @@ export const designerOf = (page: Page, lang: Lang) => {
         create: page.getByRole("button", {name: pt.create, exact: true}),
         question: page.getByRole("dialog", {name: pt.unsaved, exact: true}),
         deleteQuestion: page.getByRole("dialog", {name: pt.deleteConfirm, exact: true}),
+        // Step 3 (contract § 3.2, § 3.3)
+        undo: page.getByRole("button", {name: pt.undo, exact: true}),
+        redo: page.getByRole("button", {name: pt.redo, exact: true}),
+        zoomOut: page.getByRole("button", {name: pt.zoomOut, exact: true}),
+        zoomIn: page.getByRole("button", {name: pt.zoomIn, exact: true}),
+        fit: page.getByRole("button", {name: pt.fit, exact: true}),
+        zoomPercent: page.getByTestId("template-zoom-percent"),
+        frame: page.getByTestId("template-sheet-frame"),
+        handle: (id: string) => page.getByTestId(`template-handle-${id}`),
+        handles: page.locator("[data-handle]"),
+        guides: page.getByTestId("template-guide"),
+        ghost: page.getByTestId("template-drag-ghost"),
     };
 };
 
@@ -151,6 +173,17 @@ export type Designer = ReturnType<typeof designerOf>;
 /** The tab with its designer on screen (a saved template or a new sheet shown). */
 export const designerShown = async (designer: Designer) => {
     await expect(designer.sheet).toBeVisible();
+};
+
+/** Plus or minus until the percentage shows `percent`, a multiple of 25 from 50 to 200 (step 3 § 3 "Zoom"): true size is 100. */
+export const zoomTo = async (designer: Designer, percent: number) => {
+    await expect(designer.zoomPercent).toHaveText(/^\d+%$/);
+    for (let presses = 0; presses < 10; presses++) {
+        const shown = parseInt((await designer.zoomPercent.textContent()) ?? "", 10);
+        if (shown === percent) return;
+        await (shown < percent ? designer.zoomIn : designer.zoomOut).click();
+    }
+    await expect(designer.zoomPercent).toHaveText(`${percent}%`);
 };
 
 /** A box's place and size in mm, measured from the sheet's top-left corner on the screen. */
