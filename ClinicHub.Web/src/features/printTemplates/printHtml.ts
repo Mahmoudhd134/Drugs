@@ -13,6 +13,8 @@ const BLOCKS = "p, h1, h2, h3, ol, ul, li";
 /** The lines a right-to-left direction can reorder. */
 const RTL_LINES = ["p", "li", "h1", "h2", "h3"].map(tag => `${tag}[dir="rtl"]`).join(", ");
 
+const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
+
 const DIRECTIONS = new Set(["ltr", "rtl", "auto"]);
 const ALIGNMENT = /^(left|right|center|justify|start|end)$/;
 const SIDE_MARGINS = new Set(["margin-left", "margin-right", "margin-inline-start", "margin-inline-end"]);
@@ -131,15 +133,50 @@ const tidyList = (list: Element) => {
     }
 };
 
+/** U+FEFF (Quill's cursor) is in `RTL_LETTER`'s range but isn't a letter. */
+const holdsRtlLetter = (text: string) => RTL_LETTER.test(text.replace(/\uFEFF/g, ""));
+
+/** A block's lines: the runs of children between its `<br>`s and the blocks in it (a `li`'s nested list). */
+const linesOf = (block: Element) => {
+    const lines: ChildNode[][] = [[]];
+    block.childNodes.forEach(node => {
+        if (node instanceof Element && node.matches(`br, ${BLOCKS}`)) lines.push([]);
+        else lines[lines.length - 1].push(node);
+    });
+    return lines;
+};
+
+/** The line is one element with its own `dir`, such as a drug's name. */
+const hasOwnDirection = (line: ChildNode[]) => {
+    const [first, ...others] = line.filter(node => !isWhiteSpace(node));
+    return !others.length && first instanceof Element && first.hasAttribute("dir");
+};
+
+/** In a block that holds right-to-left letters, and so doesn't flip: each line with none and at least a letter or digit reads left to right in its own span. */
+const wrapLeftToRightLines = (block: Element) => {
+    linesOf(block).forEach(line => {
+        const text = line.map(node => node.textContent).join("");
+        if (holdsRtlLetter(text) || !LETTER_OR_DIGIT.test(text) || hasOwnDirection(line)) return;
+        const span = block.ownerDocument.createElement("span");
+        span.setAttribute("dir", "ltr");
+        line[0].before(span);
+        span.append(...line);
+    });
+};
+
 /**
  * A line with no right-to-left letter reads left to right, at its own alignment (F1): Quill drops a name's `dir="ltr"` on load, and `5-FU 1%` would print
  * `FU 1%-5`. With no alignment of its own it stays on the right, where it was; a list item's number stays beside its text, not at the box's far side.
- * A blank line has nothing to reorder and stays as it is. U+FEFF (Quill's cursor) is in `RTL_LETTER`'s range but isn't a letter.
+ * A blank line has nothing to reorder and stays as it is. A block holding right-to-left letters doesn't flip: its lines count at their `<br>`s.
  */
 const leftToRightWithoutRtlLetter = (root: Element) => {
     root.querySelectorAll(RTL_LINES).forEach(line => {
         const text = line.textContent!;
-        if (!isPrintableText(text) || RTL_LETTER.test(text.replace(/\uFEFF/g, ""))) return;
+        if (!isPrintableText(text)) return;
+        if (holdsRtlLetter(text)) {
+            wrapLeftToRightLines(line);
+            return;
+        }
         line.setAttribute("dir", "ltr");
         const style = line.getAttribute("style");
         const declarations = style ? [style] : [];
