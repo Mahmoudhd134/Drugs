@@ -1,5 +1,6 @@
 using System.Text;
 using ClinicHub.Application.Common.Settings;
+using ClinicHub.Application.Features.Attachments.Files;
 
 namespace ClinicHub.Api.Shared;
 

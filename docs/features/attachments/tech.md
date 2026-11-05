@@ -49,7 +49,7 @@ public async Task<ActionResult> Upload(IFormFile file, CancellationToken ct) =>
 | 400 `nameInvalid`, `nameTooLong` | The same characters as `ValidName`; over 256 characters |
 | 400 `invalidRequest` | Not multipart, no boundary or closing boundary, a header past the multipart limit, or more than one file part |
 | 404 `notFound` (`AttachmentErrors.NotFound`) | A missing or deleted file, another owner's, another clinic's, or a platform file a clinic tries to change |
-| 500 `unexpected` | Written with no clinic and outside `UseSharedCatalog()` (a programmer error), or a disk write that failed |
+| 500 `unexpected` | Written with no clinic and outside `UseSharedCatalog()` (a programmer error), or a disk write that failed, also while the upload filter buffers the form (logged) |
 
 A download (`Result<AttachmentContent>.ToFile()`) is a `FileStreamResult`, streamed, with the checked `Content-Type`, always
 `Content-Disposition: attachment` (the framework writes `filename*`, so Arabic names work), `X-Content-Type-Options: nosniff` and
@@ -58,7 +58,7 @@ the key.
 
 ## Backend
 **Folders:** `Application/Features/Attachments/` (`AttachmentErrors`), `Files/` (`IAttachmentService`, `AttachmentService`, `IAttachmentFileProvider`,
-`AttachmentRecords`, `AttachmentModules`, `AttachmentFileName`), `FileTypes/` (`AttachmentType`, `AttachmentTypes`, `AttachmentContentCheck`);
+`AttachmentRecords`, `AttachmentModules`, `AttachmentFileName`, `AttachmentSettingsValidation`), `FileTypes/` (`AttachmentType`, `AttachmentTypes`, `AttachmentContentCheck`);
 `Application/Common/Settings/` (`AttachmentSettings`, `AttachmentRootRule`); `Infrastructure/Attachments/PhysicalAttachmentFileProvider`;
 `Api/Features/Attachments/` (`[AttachmentUpload]`, `AttachmentUploadFilter`, `ToAttachmentUpload()`); `Api/Errors/ResultHttpExtensions.ToFile()`.
 
@@ -118,13 +118,16 @@ empty segment), because CI runs on Linux, where `..\` and `C:` are ordinary char
 2. Refuses a larger `Content-Length` with `attachmentTooLarge`, unread.
 3. Refuses a body that isn't `multipart/form-data` with `invalidRequest`. `AddApi` sets `SuppressConsumesConstraintForFormFileParameters`, or `[ApiController]` would answer 415 first.
 4. Installs its own `FormFeature` with `MultipartBodyLengthLimit` at the same limit (the default caps at 128 MB) and reads the form. `BadHttpRequestException` with status 413 or the
-   form's own limit answers `attachmentTooLarge`; any other `InvalidDataException` or `IOException` answers `invalidRequest`, except a request the client aborted, whose error goes on. More
-   than one file part answers `invalidRequest`.
+   limit this filter installed answers `attachmentTooLarge`, compared by its number, because the reader's own 16 KB limit (a wrong boundary with a long preamble) throws the same words. Any other
+   `InvalidDataException` or `BadHttpRequestException`, and the plain `IOException` of a missing closing boundary ("Unexpected end of Stream…"), answers `invalidRequest`. Any other `IOException`
+   is a server failure, such as a full disk while buffering the form: it goes on, so the unexpected handler logs it and answers 500 `unexpected`. A request the client aborted is never answered: its
+   error goes on too. More than one file part answers `invalidRequest`.
 
 The service still checks the file's real size. After the over-limit answer Kestrel closes the connection (`Connection: close`), so a client still writing a big chunked body may see the
 reset before it reads the answer; the browser's check in part 2 covers the common case.
 
-**Config** (`AttachmentSettings`, section `Attachments`; validated last in `AppSettings.Validate`, so other startup failures keep their own reason):
+**Config** (`AttachmentSettings`, section `Attachments`; validated last in `AppSettings.Validate`, so other startup failures keep their own reason). The check is the extension method
+`AttachmentSettingsValidation.Validate` in `Features/Attachments/Files/`, not on the settings class, because it needs `AttachmentModules` and `AttachmentTypes` and `Common` never references `Features`:
 
 | Key | Rules |
 |---|---|
@@ -152,6 +155,6 @@ Nothing mounted yet. Only the error texts, in `en.ts` and `ar.ts`: `errors.attac
 - A soft-deleted clinic keeps its rows and files. Attachments aren't copied from the template clinic to a new one.
 
 ## Testing notes
-Catalog area **ATT**, cases ATT-001 to ATT-184 ([test catalog](../../testing/test-catalog.md)); trait `attachments`. Unit tests: `tests/ClinicHub.UnitTests/Attachments/`. API tests:
+Catalog area **ATT**, cases ATT-001 to ATT-186 ([test catalog](../../testing/test-catalog.md)); trait `attachments`. Unit tests: `tests/ClinicHub.UnitTests/Attachments/`. API tests:
 `tests/ClinicHub.IntegrationTests/Attachments/`, through test-only controllers on the real pipeline (real Kestrel for the over-limit paths, since TestServer enforces no body limit). ATT-098 (the real IIS
-limit) is a `manual` case for the dress rehearsal. Mutation by `-Mutate`: `AttachmentService`, the type checks, `AttachmentSettings`, the provider and the upload filter.
+limit) is a `manual` case for the dress rehearsal. Mutation by `-Mutate`: `AttachmentService`, the type checks, `AttachmentSettings`, `AttachmentSettingsValidation`, the provider and the upload filter.

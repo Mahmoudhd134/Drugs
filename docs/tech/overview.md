@@ -90,7 +90,7 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                (SavePrescriptionTemplate, DeletePrescriptionTemplate), Queries/GetPrescriptionTemplate; no
                                clinic id anywhere: the current clinic's template
   Features/Attachments/        AttachmentErrors; Files/ (IAttachmentService/AttachmentService, IAttachmentFileProvider, AttachmentRecords,
-                               AttachmentModules, AttachmentFileName), FileTypes/ (AttachmentType, AttachmentTypes, AttachmentContentCheck);
+                               AttachmentModules, AttachmentFileName, AttachmentSettingsValidation), FileTypes/ (AttachmentType, AttachmentTypes, AttachmentContentCheck);
                                no use cases: features call the service from their own
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)

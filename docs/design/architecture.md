@@ -371,12 +371,13 @@ public interface IAppDbContext
   super admin's per-clinic admin endpoints (`ClinicErrors.NotFound` for a missing, deleted or template clinic;
   suspended allowed; switching to a *different* clinic once one is set throws) and `using (scope.Use(clinicId))`
   for non-HTTP code (sets it for a block, restores the previous one; nestable).
-- **Shared rows** (M1.7b, `IClinicOrShared`: `Drug` only, `ClinicId` null = a shared drug of the platform catalog):
-  the filter shows the shared rows plus the current clinic's (a platform request sees only the shared ones). Shared
-  rows are written only inside `using (scope.UseSharedCatalog())` (the admin shared-drug handlers): it sets
+- **Shared rows** (M1.7b, `IClinicOrShared`, `ClinicId` null = a platform row: `Drug`, a shared drug of the platform
+  catalog, and `Attachment`, a platform file): the filter shows the shared rows plus the current clinic's (a platform
+  request sees only the shared ones). Shared rows are written only inside `using (scope.UseSharedCatalog())` (the admin
+  shared-drug handlers, and a feature's handler that writes a platform file): it sets
   `IClinicContext.WritingSharedCatalog` for a block (nestable), throws when a clinic is in context, and `Use` /
   `EnterAsync` throw inside it. The save interceptor applies the M1.7 design's D2 table (shared rows read-only in a
-  clinic, never deleted, no owner change, no dosing on a shared drug, an own drug never withdrawn):
+  clinic, never deleted, no owner change, and for `Drug` only: no dosing on a shared drug, an own drug never withdrawn):
   [clinic scoping](../features/clinic-scoping/tech.md#backend).
 - **Search columns** (M1.7b): `SearchName` (drugs, protocols, clinics, staff) and `SearchOther` (drugs) are ordinary
   columns filled by the save interceptor from their source properties (`HasSearchName(source)` / `HasSearchOther()`
@@ -389,9 +390,10 @@ public interface IAppDbContext
   failure through the usual `Result` → ProblemDetails mapping (404 `notFound`, even for a malformed body). The role
   and staff use cases then run in that clinic like the Catalog ones: the query filter hides another clinic's role
   or staff id (404), and the save interceptor stamps the clinic.
-- **Cross-clinic work** (Platform code only): reads across clinics are explicit, `IgnoreQueryFilters()`, read
-  only (e.g. the admin clinic list's staff counts, `ClinicQueries.SelectDetails`' staff count and owners); writes go one clinic
-  at a time through `scope.Use(clinicId)`; the save interceptor refuses a row of another clinic. Deleted clinics
+- **Cross-clinic work:** reads across clinics are explicit, `IgnoreQueryFilters()`, read only, and reserved for Platform code
+  (e.g. the admin clinic list's staff counts, `ClinicQueries.SelectDetails`' staff count and owners), the Access module's
+  membership queries and access-cache loads by id, and the attachment cleanup's one lookup by ID. Writes (Platform code)
+  go one clinic at a time through `scope.Use(clinicId)`; the save interceptor refuses a row of another clinic. Deleted clinics
   are excluded explicitly (`Clinics.NotDeleted()`, `Manageable()` also without the template; no query filter on `Clinics`).
 - **Raw SQL, stored procedures, Dapper or another store:** add a **purpose-built interface** in Application
   (for example `IDrugReportQueries.GetUsageAsync(...)`), implemented in Infrastructure. The handler depends
