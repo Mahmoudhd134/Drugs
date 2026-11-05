@@ -637,7 +637,7 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `RX-067` (P0, unit) Given lines, then the HTML is one `<p class="ql-direction-rtl ql-align-right">` per drug with `<strong>name</strong><br>details`, separated by empty RTL paragraphs, and multi-line text uses `<br>`
 - [ ] `RX-071` (P0, e2e) Given lines, when clicking «نسخ», then the clipboard holds both formats (plain text and HTML read back equal the expected ones) and the toast «تم النسخ» (English "Copied to clipboard") appears
 - [ ] `RX-072` (P0, e2e) Given the English UI, when copying, then the copied text is still the Arabic sentences, right-to-left
-- [ ] `RX-075` (P0, e2e) Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ» opens (after loading) with «التعديلات هنا للنسخ فقط ولا يتم حفظها.» and the content: bold names, sentences, notes, right-to-left
+- [ ] `RX-075` (P0, e2e) Given lines, when clicking «تعديل ونسخ», then «تعديل قبل النسخ أو الطباعة» opens (after loading) with «للنسخ أو الطباعة؛ التعديلات لا تُحفظ.» and the content: bold names, sentences, notes, right-to-left
 - [ ] `RX-077` (P0, e2e) Given text made bold and a numbered list in the editor, when clicking «نسخ», then the copied HTML keeps them and the plain text has "1. " items, with «تم النسخ»
 - [ ] `RX-078` (P0, ui+e2e) Given edits in the editor, when closing it with «إغلاق», then the prescription lines are unchanged, and reopening shows the original text again (rebuilt from the current lines, also when reopened during the closing animation)
 - [ ] `RX-080` (P0, manual) Given the copied text pasted into Word (desktop), then names are bold, sentences Arabic, paragraphs right-to-left and right-aligned, a blank line between drugs, editor formatting kept
@@ -687,3 +687,12 @@ result in the app, e.g. the exact sentence or the copied text).
 
 - [ ] `UX-029` (P0, e2e) Given a new version deployed while the app is open, when opening a page whose chunk no longer exists, then the app reloads itself once and the page opens
 - [ ] `UX-037` (P1, manual) Given the app served over the real HTTPS deployment, when copying a prescription, then the async Clipboard API is used and Word keeps the formatting
+
+### 10. Print templates on real paper (4)
+
+No printer was available when printing was built: alignment on real paper and the real print dialog are unverified. CI proves the PDF's page size, the items' positions and every drug present once, not these.
+
+- [ ] `TPL-190` (P0, manual) Given a real printer and a pre-printed A5 sheet at 100%, then every item is within 1 mm of its place, measured with a ruler
+- [ ] `TPL-191` (P1, manual) Given a real phone and a printer, then the prescription prints with text intact; record the offset
+- [ ] `TPL-334` (P2, manual) Given a custom page larger than the paper in a real printer, then record what the browser does (scale, cut); nothing is promised
+- [ ] `TPL-347` (P1, manual) Given real Chrome on Windows, then the dialog's preview shows the template's size, no browser header or footer at margin none; Cancel returns to the app
