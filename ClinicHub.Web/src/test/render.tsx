@@ -1,7 +1,7 @@
 import type {ReactElement, ReactNode} from "react";
 import {act, render, type RenderOptions} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {MemoryRouter, type Location, Route, Routes} from "react-router-dom";
+import {createMemoryRouter, MemoryRouter, type Location, Route, RouterProvider, Routes} from "react-router-dom";
 import {QueryCache, QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {CacheProvider} from "@emotion/react";
 import createCache from "@emotion/cache";
@@ -55,6 +55,12 @@ export type RenderWithProvidersOptions = Omit<RenderOptions, "wrapper"> & {
     queryClient?: QueryClient;
     /** A stubbed async clipboard and execCommand (see stubClipboard), returned as `clipboard` */
     clipboard?: ClipboardOptions;
+    /**
+     * A data router (`createMemoryRouter`) instead of `MemoryRouter`: `useBlocker` (the print template designer's unsaved
+     * guard) throws without one. The same providers and result, plus `router` (e.g. `router.navigate(-1)` is the browser's
+     * Back). Testing Library's `rerender` doesn't apply (the tree is the router's).
+     */
+    dataRouter?: boolean;
 };
 
 /** The queries that answered 403 in a QueryClient of `createTestQueryClient` since the last `takeForbiddenQueries()`. */
@@ -122,15 +128,16 @@ export const buildAuth = (user: TestUser = {}, overrides: Partial<AuthValue> = {
 
 /**
  * Renders `ui` inside the app's real providers: MUI theme (+ RTL emotion cache in Arabic), i18n in `lang` (and
- * `<html lang dir>`), a fresh QueryClient (`createTestQueryClient`), a MemoryRouter at `route`, the auth context of `user`, and the
- * app's Toaster (`AppToaster`: toasts are in the DOM). Returns Testing Library's result plus `user` (userEvent), `auth` (the mocks),
- * `queryClient`, `location()` and `clipboard` (with the `clipboard` option).
+ * `<html lang dir>`), a fresh QueryClient (`createTestQueryClient`), a MemoryRouter at `route` (a data router with the
+ * `dataRouter` option), the auth context of `user`, and the app's Toaster (`AppToaster`: toasts are in the DOM). Returns Testing
+ * Library's result plus `user` (userEvent), `auth` (the mocks), `queryClient`, `location()`, `clipboard` (with the `clipboard`
+ * option) and `router` (with the `dataRouter` option).
  *
  * @example
  * const {user, auth} = await renderWithProviders(<DrugsPage/>, {lang: "ar", user: {permissions: ["drugs.list"]}});
  */
 export const renderWithProviders = async (ui: ReactElement, options: RenderWithProvidersOptions = {}) => {
-    const {lang = "en", route = "/", path = "*", user, auth: authOverrides, queryClient = createTestQueryClient(), clipboard, ...rest} = options;
+    const {lang = "en", route = "/", path = "*", user, auth: authOverrides, queryClient = createTestQueryClient(), clipboard, dataRouter = false, ...rest} = options;
     await act(async () => {
         await i18n.changeLanguage(lang);
     });
@@ -142,30 +149,44 @@ export const renderWithProviders = async (ui: ReactElement, options: RenderWithP
         current = location;
     };
 
-    const Providers = ({children}: { children: ReactNode }) => (
+    const Theme = ({children}: { children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>
             <CacheProvider value={emotionCaches[dir]}>
                 <ThemeProvider theme={theme}>
                     <CssBaseline/>
-                    <MemoryRouter initialEntries={[route]}>
-                        <AuthContext.Provider value={auth}>
-                            <LocationProbe onChange={setLocation}/>
-                            {children}
-                        </AuthContext.Provider>
-                    </MemoryRouter>
+                    {children}
                     <AppToaster/>
                 </ThemeProvider>
             </CacheProvider>
         </QueryClientProvider>
     );
+    const InRouter = ({children}: { children: ReactNode }) => (
+        <AuthContext.Provider value={auth}>
+            <LocationProbe onChange={setLocation}/>
+            {children}
+        </AuthContext.Provider>
+    );
+    const Providers = ({children}: { children: ReactNode }) => (
+        <Theme>
+            <MemoryRouter initialEntries={[route]}>
+                <InRouter>{children}</InRouter>
+            </MemoryRouter>
+        </Theme>
+    );
 
-    const result = render(
+    const routes = (
         <Routes>
             <Route path={path} element={ui}/>
             {path !== "*" && <Route path="*" element={null}/>}
-        </Routes>,
-        {wrapper: Providers, ...rest},
+        </Routes>
     );
+    // As in the app (App.tsx): one splat route holding the providers and the <Routes>
+    const router = dataRouter
+        ? createMemoryRouter([{path: "*", element: <InRouter>{routes}</InRouter>}], {initialEntries: [route]})
+        : undefined;
+    const result = router
+        ? render(<RouterProvider router={router}/>, {wrapper: Theme, ...rest})
+        : render(routes, {wrapper: Providers, ...rest});
     // No pause between keystrokes: same events, faster tests
     const userEvents = userEvent.setup({delay: null});
     return {
@@ -177,5 +198,7 @@ export const renderWithProviders = async (ui: ReactElement, options: RenderWithP
         queryClient,
         /** Where the app is now (after navigations) */
         location: () => current!,
+        /** The data router (`dataRouter` option): `router.navigate(-1)` is the browser's Back */
+        router,
     };
 };

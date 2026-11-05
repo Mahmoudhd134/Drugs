@@ -14,13 +14,14 @@ const pureLogicTests = [
     'src/utils/clipboard.test.ts',
     'src/features/drugs/components/drugTreeModel.test.ts',
     'src/features/drugs/pages/drugListParams.test.ts',
+    'src/features/printTemplates/{layout,unsavedGuard}.test.ts',
 ]
 
 // The Vitest run of StrykerJS: the app's test set-up, without the tests that read files outside ClinicHub.Web (Stryker
 // runs in a copy of this folder) and without coverage.
 const config = mergeConfig(viteConfig, defineConfig({
     test: {
-        exclude: ['src/i18n/locales/docMessages.test.ts', 'src/features/dosing/parity.test.ts'],
+        exclude: ['src/i18n/locales/docMessages.test.ts', 'src/features/dosing/parity.test.ts', 'src/features/printTemplates/layout.parity.test.ts'],
         sequence: {shuffle: false},
     },
 }))

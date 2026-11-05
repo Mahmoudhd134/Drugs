@@ -21,7 +21,7 @@ public class ErrorCodeTextsTests
 
     /// <summary>The error classes the tech overview names, plus the routing-only <c>methodNotAllowed</c>.</summary>
     private static readonly string[] DocumentedClasses =
-        ["CommonErrors", "DrugErrors", "ProtocolErrors", "CategoryErrors", "SharedDrugErrors", "IdentityErrors", "AccessErrors", "ClinicErrors", "RoleErrors", "StaffErrors", nameof(ApiProblemFactory)];
+        ["CommonErrors", "DrugErrors", "ProtocolErrors", "CategoryErrors", "SharedDrugErrors", "IdentityErrors", "AccessErrors", "ClinicErrors", "RoleErrors", "StaffErrors", "PrescriptionTemplateErrors", nameof(ApiProblemFactory)];
 
     /// <summary>Every <c>static</c> <see cref="Error"/> the Application and Api declare, by declaring class.</summary>
     private static readonly IReadOnlyList<(string Class, string Code)> Declared =
@@ -59,5 +59,17 @@ public class ErrorCodeTextsTests
             $"(docs/tech/overview.md § Conventions), or, if it is a transport code, the doc's list and WithoutText here ({SpaSources.ReaderHint})");
         unexpected.ShouldBeEmpty($"{localeFile}: transport codes / noContexts with a text");
         codes.Except(WithoutText).Count().ShouldBeGreaterThanOrEqualTo(26);
+    }
+
+    [Fact]
+    [Trait("Case", "ERR-030")]
+    public void The_print_template_class_declares_the_ten_template_codes()
+    {
+        // Contract § 1.4: names reuse the common codes, so these ten are all a template adds
+        Declared.Where(d => d.Class == "PrescriptionTemplateErrors").Select(d => d.Code).ShouldBe(
+        [
+            "templateLayoutInvalid", "templateTextCount", "templatePageInvalid", "templateItemOutsidePage", "templateItemSizeInvalid",
+            "templateFontSizeInvalid", "templateItemNameTaken", "templateStaticTextRequired", "templateStaticTextTooLong", "templateTooManyItems",
+        ], ignoreOrder: true);
     }
 }

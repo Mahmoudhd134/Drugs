@@ -18,6 +18,8 @@ export const subCategoryFilter = (scope: Page | Locator, lang: Lang) => select(s
 /** Opens `field` (an MUI select) and picks the option `label`. */
 export const pick = async (page: Page, field: Locator, label: string) => {
     await field.click();
+    // The menu grows open: a click during that can press one row and release on another, and then picks nothing
+    await expect(page.getByRole("listbox").locator("xpath=..")).toHaveCSS("transform", /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
     await page.getByRole("option", {name: label, exact: true}).click();
     await expect(page.getByRole("listbox")).toHaveCount(0);
 };

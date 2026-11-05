@@ -3,6 +3,7 @@ using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
 using ClinicHub.Domain.Identity;
 using ClinicHub.Domain.Platform;
+using ClinicHub.Domain.Prescriptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Common.Abstractions;
@@ -29,6 +30,8 @@ public interface IAppDbContext
     /// <summary>Platform rows (not clinic-owned): every clinic reads them; only the admin handlers write them.</summary>
     DbSet<Category> Categories { get; }
     DbSet<SubCategory> SubCategories { get; }
+    /// <summary>One per clinic at most (design prescription-templates D4).</summary>
+    DbSet<PrescriptionTemplate> PrescriptionTemplates { get; }
 
     /// <summary>
     /// Marks the row as changed so its UpdatedAt moves (e.g. a protocol whose items changed); the

@@ -1,5 +1,7 @@
 import {api} from "../../api/client.ts";
 import type {PagedResult} from "../../api/types.ts";
+import {readTemplate} from "../printTemplates/api.ts";
+import type {PrintTemplate, PrintTemplateAdapter} from "../printTemplates/types.ts";
 import type {Role, RolesAdapter} from "../roles/types.ts";
 import type {StaffAdapter, StaffMember} from "../staff/types.ts";
 import {adminClinicKeys} from "./api.ts";
@@ -28,6 +30,24 @@ export const adminRolesApi = (clinicId: number): RolesAdapter => {
         update: async (id, body) => (await api.put<Role>(`${base}/${id}`, body)).data,
         delete: async (id) => {
             await api.delete(`${base}/${id}`);
+        },
+    };
+};
+
+/**
+ * One clinic's print template (design prescription-templates D5). Under the clinic's details, as the roles and staff; a
+ * 404 (the clinic is gone) reloads the clinic, whose page then says "not found" (TPL-235).
+ */
+export const adminPrintTemplateApi = (clinicId: number): PrintTemplateAdapter => {
+    const base = `/admin/clinics/${clinicId}/prescription-template`;
+    return {
+        scope: [...adminClinicKeys.detail(clinicId), "printTemplate"] as const,
+        affects: [adminClinicKeys.detail(clinicId)],
+        container: adminClinicKeys.detail(clinicId),
+        get: async () => readTemplate((await api.get<PrintTemplate | "">(base)).data),
+        save: async (layout) => (await api.put<PrintTemplate>(base, layout)).data,
+        remove: async () => {
+            await api.delete(base);
         },
     };
 };

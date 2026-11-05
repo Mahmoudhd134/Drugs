@@ -7,6 +7,7 @@ import type {Protocol} from "../features/protocols/types.ts";
 import type {Category, Drug, DrugTreeCategory, DrugTreeData, ProtocolDrug} from "../features/drugs/types.ts";
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory} from "../features/admin/categories/types.ts";
+import type {PrintLayout, PrintTemplate} from "../features/printTemplates/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
 import {aCategory, aMe, asDrug, PERMISSION_CATALOG} from "./data.ts";
@@ -248,6 +249,30 @@ export const rolesHandler = (clinicId: number, roles: Role[]) =>
 /** `GET /admin/clinics/:clinicId/staff` (paged, searched by name). */
 export const staffHandler = (clinicId: number, staff: StaffMember[]) =>
     http.get(api(`/admin/clinics/${clinicId}/staff`), ({request}) => json(pageOf(request, staff)));
+
+/**
+ * `GET`, `PUT` and `DELETE /admin/clinics/:clinicId/prescription-template`. `GET` answers `template` (default null: 204);
+ * `PUT` answers the body as saved (`{layout, updatedAt}`); `DELETE` 204. With `stateful`, writes change what the next `GET`
+ * answers (a reload shows the save); without it (default), `GET` keeps answering `template`. Errors are per test
+ * (`http.put(api(`/admin/clinics/${id}/prescription-template`), () => problem(400, "templatePageInvalid"))`, added after these).
+ */
+export const printTemplateHandlers = (clinicId: number,
+                                      {template = null, stateful = false}: { template?: PrintTemplate | null; stateful?: boolean } = {}) => {
+    const url = api(`/admin/clinics/${clinicId}/prescription-template`);
+    let current = template;
+    return [
+        http.get(url, () => (current ? json(current) : new HttpResponse(null, {status: 204}))),
+        http.put(url, async ({request}) => {
+            const saved: PrintTemplate = {layout: await request.json() as PrintLayout, updatedAt: "2026-11-05T10:00:00Z"};
+            if (stateful) current = saved;
+            return json(saved);
+        }),
+        http.delete(url, () => {
+            if (stateful) current = null;
+            return new HttpResponse(null, {status: 204});
+        }),
+    ];
+};
 
 export type RecordedRequest = { method: string; path: string; search: string; body: unknown };
 

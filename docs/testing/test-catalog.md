@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -77,7 +77,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| **All** | **435** | **648** | **404** | **1487** | **210** | **681** | **372** | **305** | **10** |
+| [TPL](#tpl--prescription-print-templates) | 16 | 54 | 27 | 97 | 24 | 20 | 47 | 14 | 0 |
+| **All** | **451** | **702** | **431** | **1584** | **234** | **701** | **419** | **319** | **10** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -643,7 +644,7 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 | ERR-027 | Given errors on `name` and `owner.phone`, then `getFieldErrors` maps each field to the translated message of its first error, and `getOtherErrors(inputFields)` returns the messages no input shows | P1 | unit | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 | ERR-028 | Given an error with `clinicNames` ["A", "B"], then `getErrorMessage` uses `errors.<code>_named` with `count` 2 and the names quoted (`common.quotedName`) and joined by `Intl.ListFormat` in the UI language («A» و«B» / “A” and “B”); without `clinicNames`, `errors.<code>` («هذه العيادة موقوفة.» / "This clinic is disabled.", «تم إيقاف حسابك. تواصل مع مالك العيادة.») | P1 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | ERR-029 | Given a ProblemDetails body, then `toApiError` reads `clinicNames` (non-string entries dropped; missing → `[]`) | P2 | unit | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
-| ERR-030 | Given every API error code other than the transport codes and `noContexts`, then `en.ts` and `ar.ts` both have `errors.<code>` | P1 | unit | [tech overview § Conventions](../tech/overview.md#conventions) |
+| ERR-030 | Given every API error code other than the transport codes and `noContexts` (the 10 `template*` codes included: TPL-244), then `en.ts` and `ar.ts` both have `errors.<code>` | P1 | unit | [tech overview § Conventions](../tech/overview.md#conventions) |
 | ERR-031 | Given the API is unreachable, when an action is done (e.g. saving a drug or protocol), then the toast «تعذّر الاتصال بالخادم. تحقّق من الاتصال.» (en "Can't reach the server. Check your connection.") and the form keeps the typed data | P1 | ui+e2e | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 | ERR-032 | Given a query fails with a network error or 5xx, then it is retried once; with a 4xx, it is not retried | P1 | ui | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 
@@ -795,7 +796,7 @@ clinic A (owner O, assistant S with Assistant), clinic B (owner O, S with a cust
 | ADM-095 | Given `/admin/clinics/999999`, then «العيادة غير موجودة» + «هذه العيادة غير موجودة أو تم حذفها.» / "Clinic not found" + "This clinic doesn't exist or was deleted." and «العودة إلى العيادات» / "Back to clinics" opens the list | P1 | e2e | [business: messages][adm-b-msg] |
 | ADM-096 | Given ids `05`, `abc`, `0`, `-1`, `99999999999`, then "Clinic not found" (no request sent for a malformed id) | P2 | ui | [tech frontend][adm-t-fe] |
 | ADM-097 | Given the clinic details request fails (500), then the header with Back and «تعذّر تحميل البيانات.» with Retry | P2 | ui | [business: messages][adm-b-msg] |
-| ADM-098 | Given A's page, then the tabs Overview / Roles / Staff («نظرة عامة» / «الأدوار» / «الموظفون») each have a URL (`/admin/clinics/{A}`, `/roles`, `/staff`), and a reload keeps the tab | P2 | e2e | [tech frontend][adm-t-fe] |
+| ADM-098 | Given A's page, then the tabs Overview / Roles / Staff / Print template («نظرة عامة» / «الأدوار» / «الموظفون» / «قالب الطباعة») each have a URL (`/admin/clinics/{A}`, `/roles`, `/staff`, `/print-template`), and a reload keeps the tab | P2 | e2e | [tech frontend][adm-t-fe] |
 | ADM-099 | Given a long clinic name, then the page header cuts it after 3 lines with the full name in its tooltip | P2 | ui | [tech frontend][adm-t-fe] |
 | ADM-100 | Given A's Staff tab with a search and an open dialog, when navigating to B's Staff tab (e.g. Back), then no dialog, search, page or row of A is carried to B | P2 | ui | [tech roles/staff screens][adm-t-rsui] |
 
@@ -1053,8 +1054,8 @@ The lockout itself (next request refused, the lost-clinic messages, login refusa
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| ADM-282 | Given the Arabic UI, then every admin page (list, create, clinic tabs, `/admin/drugs`, `/admin/categories`, dialogs) is RTL (`dir="rtl"`, `lang="ar"`), has no English UI string, and phones stay LTR | P1 | e2e | [tech frontend][adm-t-fe], [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
-| ADM-283 | Given a phone (375 px) in both languages, then the clinics list, create page, clinic tabs, `/admin/drugs`, `/admin/categories` and their dialogs have no horizontal scroll and the dialogs/toasts with a 157-character name wrap | P1 | e2e | [tech testing notes][adm-t-test], [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
+| ADM-282 | Given the Arabic UI, then every admin page (list, create, clinic tabs with the print template tab, `/admin/drugs`, `/admin/categories`, dialogs) is RTL (`dir="rtl"`, `lang="ar"`), has no English UI string (the designer's own Latin excepted: X, Y, A5, A4, ISO, JavaScript), and phones stay LTR | P1 | e2e | [tech frontend][adm-t-fe], [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
+| ADM-283 | Given a phone (375 px) in both languages, then the clinics list, create page, clinic tabs (the print template tab showing its desktop-only message), `/admin/drugs`, `/admin/categories` and their dialogs have no horizontal scroll and the dialogs/toasts with a 157-character name wrap | P1 | e2e | [tech testing notes][adm-t-test], [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
 | ADM-284 | Given the "Disabled" chip and button, then their colour is `#b45309` (≈ 5:1 contrast on white) | P2 | ui | [tech frontend][adm-t-fe] |
 
 [adm-b-users]: ../features/platform-admin/business.md#المستخدمون
@@ -1764,14 +1765,14 @@ Sources: [business overview § اللغات](../business/overview.md#اللغا�
 | I18N-003 | Given a language chosen, then `<html lang>` and `<html dir>` are `ar`/`rtl` or `en`/`ltr` | P0 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-004 | Given the login page (before login), then the language menu works and the choice is kept after login | P1 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
 | I18N-005 | Given the Arabic UI, then the layout is mirrored: sidebar on the right (drawer opens from the right on a phone), text right-aligned, back arrows pointing right, number avatars and action buttons on the mirrored sides | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
-| I18N-006 | Given each page and dialog of these areas (prescription with the drug tree, protocols list/editor, drugs with the read-only details, the admin drugs and categories pages, dosing/taper dialogs, conflict and eye dialogs, Edit & copy), then it renders without overlap or cut text in both languages | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only), [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
+| I18N-006 | Given each page and dialog of these areas (prescription with the drug tree, protocols list/editor, drugs with the read-only details, the admin drugs and categories pages, the print template designer, dosing/taper dialogs, conflict and eye dialogs, Edit & copy), then it renders without overlap or cut text in both languages | P1 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only), [design D9](../design/m1.7-shared-catalog.md#d9-frontend) |
 | I18N-007 | Given spacing written with logical properties, then paddings/margins in RTL are mirrored, never zero (no `ms`/`me` shorthands used) | P2 | ui | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-008 | Given drug and protocol names/descriptions in Arabic and English, when switching the UI language, then they show exactly as typed in both (not translated) | P0 | e2e | [overview § اللغات](../business/overview.md#اللغات) |
 | I18N-009 | Given the English UI, then dosing sentences (drugs table, drug tree, protocol lines, prescription lines, previews, conflict boxes) and copied text are Arabic; shared drugs show no sentence | P0 | e2e | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية) |
 | I18N-010 | Given the English UI, then the Arabic sentence under a drug name is aligned under the name (left side) yet reads right-to-left; in the Arabic UI it is right-aligned | P1 | e2e | [dosing tech § Frontend](../features/dosing/tech.md#frontend-srcfeaturesdosing) |
 | I18N-011 | Given both locale files, then every key of `en.ts` exists in `ar.ts` and vice versa (type check + test), and `rxText` is identical in both | P0 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-012 | Given each plural key family (`rxText.*`, `dosing.taper.total*`, others), then it has all six suffixes `_zero/_one/_two/_few/_many/_other` in both files | P1 | unit | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
-| I18N-013 | Given every message quoted in the business docs' message tables (every feature), then the Arabic text equals the `ar.ts` value | P0 | unit | [M1.6 § D2](../design/m1.6-test-foundation.md#d2-test-catalog) |
+| I18N-013 | Given every message quoted in the business docs' message tables (every feature, `docs/features/prescription-templates/business.md` included), then the Arabic text equals the `ar.ts` value | P0 | unit | [M1.6 § D2](../design/m1.6-test-foundation.md#d2-test-catalog) |
 | I18N-014 | Given numbers in the UI (counts «الأدوية: 12», pagination, step numbers, totals, sentences), then all use Western digits in both languages; counts and pagination are grouped: «1–20 من N» with N the list's `totalCount` from the same response, grouped (e.g. «23,417»; no literal catalog total) | P0 | e2e | [dosing § القواعد](../features/dosing/business.md#القواعد-التشغيلية), [design D12](../design/m1.7-shared-catalog.md#d12-tests-carry-the-full-catalog) |
 | I18N-015 | Given a Latin name (drug, protocol, clinic, role or staff member) in an Arabic message (e.g. «Tobradex» موجود بالفعل في القائمة) or an Arabic name in an English message, then the quotes stay around the name and the rest of the sentence stays in order (bidi isolates U+2068/U+2069) | P0 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
 | I18N-016 | Given names that start or end with digits or punctuation ("500 Vit C.", «قطرة 2%»), when shown in messages and confirmations in either UI direction, then they display correctly in their place | P2 | e2e | [tech overview § i18n](../tech/overview.md#internationalization-ui-text-only) |
@@ -1856,7 +1857,7 @@ Sources: [tech overview § Frontend](../tech/overview.md#app-shell), [shared com
 | UX-033 | Given the "couldn't load" state on one page, when navigating to another page, then that page loads normally (boundary reset) | P2 | ui | [tech overview § Shared components](../tech/overview.md#shared-components-componentscommon) |
 | UX-034 | Given a page crashing while rendering, then the "couldn't load" state shows instead of a blank app | P1 | ui | [tech overview § App shell](../tech/overview.md#app-shell) |
 | UX-035 | Given a list or picker loading, then a progress indicator shows; while refetching with a new search, the previous results stay with a thin progress bar; in the drug tree, a new search keeps the old tree with the thin progress bar until the new answer, then replaces it with everything closed (CAT-101) | P2 | ui | [tech overview § Data fetching](../tech/overview.md#data-fetching), [design D7](../design/m1.7-shared-catalog.md#d7-search-and-the-tree) |
-| UX-036 | Given every page of these areas visited in e2e (the drug tree, the read-only details, `/admin/drugs` and `/admin/categories` included), then no console errors and no serious/critical axe-core violations | P1 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
+| UX-036 | Given every page of these areas visited in e2e (the drug tree, the read-only details, `/admin/drugs`, `/admin/categories` and the print template designer included), then no console errors and no serious/critical axe-core violations | P1 | e2e | [M1.6 § D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout) |
 | UX-037 | Given the app served over the real HTTPS deployment, when copying a prescription, then the async Clipboard API is used and Word keeps the formatting | P1 | manual | [M1.6 § D7](../design/m1.6-test-foundation.md#d7-what-stays-manual) |
 
 ### Toasts
@@ -2245,3 +2246,124 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 |---|---|---|---|---|
 | CAT-268 | Given a test subcategory holding A's own drugs "Mid", "Alpha", "Zeta" created in that order at one instant, then "Mid" (lowest id) dated a minute later, and shared drugs created a minute apart as "Cc", "Aa", then "Bb" and a second "Aa", when the bucket is paged with no search (one page, pages of 3, `source=own`, `source=shared`), then "Mid", "Zeta", "Alpha" (`CreatedAt`, then id, descending), then "Aa" (lower id), "Aa", "Bb", "Cc" (shared by name, then id ascending; their creation time never ranks); the drugs page list starts with the same 3 own drugs | P1 | api | [design D7](../design/m1.7-shared-catalog.md#d7-search-and-the-tree) "Order", design § 8 "Order without a search", Stryker on `DrugQueries.cs` |
 | CAT-269 | Given a test subcategory holding, for a unique term, own drugs "Zz own term", "Aa own term" and twice "term own drops", and shared drugs the same way, when searching the term (the drugs page list, and the bucket in one page and in pages of 3), then the own part first: the two "term own drops" (lower id first), "Aa", "Zz"; then the shared part the same way; and "tobra" lists its 34 shared matches with the 9 names starting with "TOBRA" first, each group by name | P1 | api | [design D7](../design/m1.7-shared-catalog.md#d7-search-and-the-tree) "Order", Stryker on `DrugQueries.cs` |
+
+## TPL — Prescription print templates
+
+Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag; each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
+
+### Admin API
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-001 | Given clinic A with no template, when the super admin GETs its template, then 204 | P0 | api | § 5 |
+| TPL-002 | Given L, when the super admin PUTs it for A and GETs it back, then 200 with the same page and items in the same order | P0 | api | § 5 |
+| TPL-003 | Given A has a template, when the super admin PUTs another layout, then it replaces the first and A still has one row | P0 | api | D4 |
+| TPL-004 | Given A has a template, when the super admin DELETEs it, then 204 and GET answers 204 | P0 | api | § 5 |
+| TPL-005 | Given A has no template, when the super admin DELETEs, then 204 | P2 | api | § 5 |
+| TPL-006 | Given templates saved for A and B, when each is read, then each answers its own layout; writing A's leaves B's unchanged | P0 | api | D4, clinic scoping |
+| TPL-007 | Given a clinic-context token (the Owner's too) or no token, when it calls any admin template route, then 403 `forbidden` or 401 | P0 | api | D5 |
+| TPL-008 | Given a missing, deleted or template clinic id, when the super admin calls any admin template route, then 404 `notFound` | P0 | api | § 5 |
+| TPL-009 | Given a suspended clinic, when the super admin saves its template, then 200 | P2 | api | § 5 |
+| TPL-010 | Given a new clinic created from the template clinic, when its template is read, then 204 | P1 | api | D6 |
+
+### Validation (server)
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-020 | Given a layout with no prescription text or with two, when saved, then 400 `templateTextCount` and nothing is stored | P0 | unit+api | D7, § 3 |
+| TPL-021 | Given an unknown `kind`, an unknown `function`, an unknown `schemaVersion` or a duplicate item id, when saved, then 400 `templateLayoutInvalid` | P1 | unit+api | § 5 |
+| TPL-022 | Given a selectable-later kind (`internalData`, `expression`), when saved, then 400 `templateLayoutInvalid` | P1 | unit | § 3 |
+| TPL-023 | Given A5 or A4 with sizes that don't match them, an unknown size, or a custom size outside 50–420 × 50–600 mm (49, 50, 420, 421 and 49, 50, 600, 601), when saved, then outside values are 400 `templatePageInvalid` and the borders pass | P1 | unit | § 3, D13 |
+| TPL-024 | Given an item ending exactly on the sheet's edge, then it passes; 0.1 mm past the edge, or a negative X or Y, then 400 `templateItemOutsidePage` | P1 | unit | § 3 |
+| TPL-025 | Given width 4.9 / 5, height 3.9 / 4, prescription text height 19.9 / 20, then below 400 `templateItemSizeInvalid` and at the limit it passes | P1 | unit | § 3 |
+| TPL-026 | Given font size 5.9 / 6 / 36 / 36.1, then outside is 400 `templateFontSizeInvalid` and the borders pass | P1 | unit | D15 |
+| TPL-027 | Given an empty or only-spaces name on a manual input or function, then 400 `nameRequired` | P1 | unit | § 3, § 5 |
+| TPL-028 | Given a name of 60 and of 61 characters, then 61 is 400 `nameTooLong` | P2 | unit | § 3, § 5 |
+| TPL-029 | Given two items named «الاسم» and « الاسم », or "Age" and "age", then 400 `templateItemNameTaken` | P1 | unit | § 3 |
+| TPL-030 | Given static text empty or only spaces, then 400 `templateStaticTextRequired`; 1,000 characters pass and 1,001 are 400 `templateStaticTextTooLong`; line breaks are kept | P1 | unit | D9 |
+| TPL-031 | Given 50 items pass, and 51 are 400 `templateTooManyItems` | P2 | unit | § 3 |
+| TPL-032 | Given a name with a bidi override or control character, then 400 `nameInvalid`; given static text with one (a line break or tab excepted), then 400 `invalidText` | P1 | unit | § 5 |
+| TPL-033 | Given a body that isn't a layout (malformed JSON, missing `page`), then 400 `invalidRequest` | P2 | api | Errors |
+
+### Designer
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-040 | Given a clinic page, when the super admin opens it, then the tab «قالب الطباعة» is listed after Staff and opens at its own URL | P1 | ui | § 6 |
+| TPL-041 | Given no template, when the tab opens, then the empty state with «إنشاء قالب»; pressing it shows an A5 sheet holding only the prescription text, not saved yet | P0 | ui | § 6 |
+| TPL-042 | Given the panel, then it lists manual input, the six functions and static text, and internal data and JS expression dimmed, not addable, with an explanation | P0 | ui | D8, § 3 |
+| TPL-043 | Given the panel, when an item is clicked, then it appears on the sheet, selected, with its config, and its type shown as information, not as a control | P0 | ui | D8 |
+| TPL-044 | Given a selected item, when its X, Y, width, height or font size is typed, then the sheet updates at once (the true scale: TPL-228) | P0 | ui | § 3 |
+| TPL-045 | Given the prescription text selected, then the config has no name and no remove action | P1 | ui | D7 |
+| TPL-046 | Given a manual input selected, when it's removed, then it leaves the sheet and the selection clears | P1 | ui | § 3 |
+| TPL-047 | Given A5, when A4 or custom is chosen, then the sheet resizes, items keep their mm; going to a smaller size moves any item that would fall off back onto the sheet | P1 | ui | D13 |
+| TPL-048 | Given invalid values (each rule of TPL-023–031), when Save is pressed, then the messages show on the selected item's fields (TPL-238), no request is sent, and the rules match the server's (shared cases) | P1 | ui | § 5 |
+| TPL-049 | Given a valid layout, when Save is pressed twice quickly, then one request and one «تم حفظ القالب» | P1 | ui | double clicks |
+| TPL-050 | Given unsaved changes, when closing or reloading the page, then the browser's prompt shows; after a save it doesn't. Exits inside the app: TPL-232, TPL-247, TPL-248 | P1 | ui | D16 |
+| TPL-051 | Given a saved template, when the page reloads, then the sheet shows it as saved, in order | P0 | e2e | § 5 |
+| TPL-052 | Given a saved template, when «حذف» is confirmed, then the empty state shows; Cancel keeps it; a destructive dialog starts on Cancel | P1 | ui | «القواعد» |
+| TPL-053 | Given a width below 900 px (899), then the tab shows «افتح هذه الصفحة من جهاز كمبيوتر.» and no designer; at 900 the designer | P1 | ui+e2e | D12 |
+| TPL-054 | Given Arabic and English UI, then the X and Y mean the same physical place in both; the panel and config flip with the language and the sheet does not | P1 | e2e | § 3 |
+| TPL-055 | Given names and static text in Arabic and in English, then each shows in its own direction on the sheet and in the config | P2 | ui | § 3 |
+| TPL-056 | Given the designer in Arabic, English, and at desktop width, then axe and the cut-text check pass | P1 | e2e | test rules |
+| TPL-057 | Given every control of the designer, then each has an accessible name, and an item can be added, selected and placed with the keyboard alone | P1 | ui | a11y |
+| TPL-058 | Given a saved template, when a save fails with a network error or 500, then the error message shows, the edits stay on screen and Save works again | P1 | ui | dialogs contract |
+
+### Edge cases
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-200 | Given a database at the migration before it, when `AddPrescriptionTemplates` runs up, down and up, then the table exists with `Layout` of type `text` and a unique `ClinicId`, and no other table's rows change | P1 | api | D2, § 5 |
+| TPL-201 | Given a saved template, when it's saved again after the clock advances, then the same row `Id` and `CreatedAt`, and `UpdatedAt` moves | P2 | api | § 5 |
+| TPL-202 | Given A has a valid template, when an invalid layout is PUT (any `template*` code), then 400 and GET still answers the earlier layout unchanged | P1 | api | § 5 |
+| TPL-203 | Given an item carrying an extra property (`"script": "x"`) or another kind's field (`text` on a prescription text, `name` on a static text), when saved, then GET answers without them: only the DTO's fields are stored | P1 | api | § 5 |
+| TPL-204 | Given a wrong type (`fontSizePt: "big"`, `xMm: "a"`, `items: "x"`), when saved, then 400 `invalidRequest` naming the field, and a stored template is unchanged. An unknown `kind` stays `templateLayoutInvalid` (TPL-021), so `kind` can't be a binding error | P2 | api | ERR-011, § 5 |
+| TPL-205 | Given a malformed body, when sent for a missing clinic, then 404 `notFound`; when sent with a clinic-context token, then 403 `forbidden` | P2 | api | platform-admin tech (`AdminClinicFilter`), ACC-033 |
+| TPL-206 | Given A has a template, when A is suspended and activated, then the template is unchanged; while suspended, the super admin's GET answers 200 and DELETE 204 | P2 | api | § 5 |
+| TPL-207 | Given two windows with the same template open, when window 1 saves and window 2 then saves its older copy, then 200 with no conflict message and GET answers window 2's | P2 | ui | business file, § 5 |
+| TPL-208 | Given two items with the same box, when saved, then 200 and both stay | P1 | unit | business file, § 3 |
+| TPL-209 | Given 12.34 in a position or size, then the request holds and GET answers 12.3; the server applies the same rule to a body sent with 12.34 | P1 | unit+ui | § 5 |
+| TPL-210 | Given a custom page 210.1 mm wide and an item at X 0.3, width 209.8 (as doubles the sum is 210.10000000000002), then it passes on the server and in `layout.ts`; X 0.4 is refused on both | P2 | unit | § 3 |
+| TPL-211 | Given a name of only invisible format characters (zero-width space), then `nameRequired`; with U+200E, U+200F, U+061C or ZWNJ inside (pasted Arabic), then it passes; with U+202A-U+202E or U+2066-U+2069 inside, then `nameInvalid` | P1 | unit | § 5, `ValidationExtensions.cs:19-34` |
+| TPL-212 | Given static text pasted with `\r\n` line breaks, or with a tab, then the line breaks are kept and the save doesn't answer `invalidText` for them | P2 | unit | D9, `ValidationExtensions.cs:36-39` |
+| TPL-213 | Given a name of 60 characters with spaces around it, then it passes and GET answers it trimmed | P2 | unit | § 3 |
+| TPL-214 | Given `items: []` or missing, then `templateTextCount`; an item with a missing or empty `id`, then `templateLayoutInvalid` | P2 | unit | § 5 |
+| TPL-215 | Given the tab loading, then a progress indicator and no empty state; given its GET failing with 500, then «تعذّر تحميل البيانات.» with Retry and no «إنشاء قالب», so a saved template can't be replaced by a blank sheet | P0 | ui | § 6, ADM-097 |
+| TPL-216 | Given A5, when each kind is added, then its box is inside the sheet and within the minimum sizes, its font size 11, and it passes `layout.ts`'s size, position and font rules with no edit | P1 | ui | business file, § 3 |
+| TPL-217 | Given a custom 50 × 50 mm page, when each kind is added, then its box is inside the sheet (the prescription text's height at least 20 mm) | P2 | ui | § 3 |
+| TPL-218 | Given two «التاريخ الكامل», or two manual inputs, added in a row, then the second starts with a distinct name («التاريخ الكامل 2») | P1 | ui | § 3 |
+| TPL-219 | Given two items on the sheet, when the other one is clicked, then it becomes selected and the config shows its X, Y, width, height, font size and name or text; a changed name or static text shows on the sheet at once | P0 | ui | business file |
+| TPL-220 | Given each kind selected, then the config holds: text: geometry + font; manual input and function: name + geometry + font; static: text + geometry + font, no name. Enter in the static text field adds a line and doesn't save | P1 | ui | § 3, D9 |
+| TPL-221 | Given a custom width being typed through a valid value on its way (`50`, then `500`), when the typing ends at 500, then no item has been moved | P1 | ui | business file |
+| TPL-222 | Given an item wider or taller than the new page (a 180 mm text box on A4, going to A5), when the size changes, then the item ends fully inside, its size reduced only as far as needed and never below the minimums, and the layout saves | P1 | unit+ui | business file |
+| TPL-223 | Given A4 and an item at X 140, width 20, when A5 is chosen, then X is 128 and its width stays; items already inside don't move; going back to A4 doesn't restore the old X | P1 | unit | business file |
+| TPL-224 | Given a number field emptied, or given a negative or off-sheet value, then the field shows its message, the item isn't silently corrected, and Save sends nothing | P1 | ui | TPL-048, § 3 |
+| TPL-225 | Given the Arabic UI, when `12.5`, `12,5` and «١٢٫٥» are typed in a mm field, then each is 12.5, never 125 or 0 | P1 | e2e | § 3, `DosingFields.tsx:106` |
+| TPL-226 | Given the Arabic UI, then the mm fields are left to right, and X still means from the left edge | P2 | ui | § 3 |
+| TPL-227 | Given a custom 420 × 600 mm page at 1280 px, then the sheet scrolls inside its own area, the panels stay reachable, an item at the far corner can be selected, and the page has no horizontal scroll | P1 | e2e | § 3, test rules |
+| TPL-228 | Given an item of 50 × 20 mm, then its box measures the same in the designer and in print layout, within 0.1 mm | P1 | e2e | § 6 |
+| TPL-229 | Given unsaved edits, when the window narrows below 900 px and widens again, then the edits are still there and still count as unsaved | P2 | ui | D12 |
+| TPL-230 | Given «إنشاء قالب» pressed and nothing saved, when leaving or reloading, then the unsaved warning shows; after confirming, the empty state returns and GET answers 204 | P1 | ui | § 6 |
+| TPL-231 | Given a new sheet not saved yet, then no «حذف»; once saved, it shows | P2 | ui | business file |
+| TPL-232 | Given unsaved changes, when the header's Back, another clinic tab, a sidebar entry or the logo is used, then «لديك تغييرات لم تُحفظ. هل تريد الخروج؟» asks; staying keeps the edits, leaving drops them. A reload or closing the page shows the browser's prompt | P1 | ui+e2e | D16 |
+| TPL-247 | Given unsaved changes, when the browser's Back or Forward is used, then the same question asks; staying keeps the URL, the screen and the edits | P1 | e2e | D16 |
+| TPL-248 | Given unsaved changes, when switching clinic or logging out from the user menu, or using «تعديل العيادة النموذجية» in the sidebar, then the question asks first; staying does none of them and keeps the edits | P1 | ui+e2e | D16 |
+| TPL-249 | Given unsaved changes and the session or the context lost (a forced move), then no question blocks it: the move's own message shows | P1 | ui | D16 |
+| TPL-250 | Given the data router, then deep links, reloads on a nested route, redirects and browser Back still work for a clinic user and the super admin | P0 | e2e | § 6 |
+| TPL-233 | Given a value changed and typed back, when leaving, then no warning | P2 | ui | § 6, GRP-091 |
+| TPL-234 | Given unsaved edits, when the UI language changes, then the edits stay and the sheet doesn't mirror | P2 | ui | § 3 |
+| TPL-235 | Given the clinic deleted meanwhile, when Save answers 404, then a message and the page's "Clinic not found" state | P1 | ui | § 5, `api/dataScope.ts` |
+| TPL-236 | Given a 400 from the server on a rule the screen passed (old SPA, new rule), then its message shows, the edits stay and Save works again | P2 | ui | § 5 |
+| TPL-237 | Given 50 items, when another is added, then there is no 51st and a message or a disabled panel says why | P2 | ui | § 3 |
+| TPL-238 | Given an invalid item that isn't selected, when Save is pressed, then that item gets selected and its field shows the message, since the config shows one item only | P1 | ui | TPL-048 |
+| TPL-239 | Given a 60-character unbroken name and a 1,000-character static text in a small box, then the config wraps the static text; the name stays one line, scrolling inside its field; the sheet shows them past the box, unclipped, and the page has no horizontal scroll | P1 | e2e | § 4.5, § 6 |
+| TPL-240 | Given the panel, when an item is double-clicked, then one item is added, as on the prescription page (`event.detail > 1`) | P1 | ui | double clicks, RX-012 |
+| TPL-241 | Given «إنشاء قالب» double-clicked, then one new sheet; given the delete confirm double-clicked, then one DELETE and no error toast | P2 | ui | UX-028 |
+| TPL-242 | Given a save in flight, when a field is edited before the answer, then the edit stays and the screen still counts as unsaved | P2 | ui | § 6 |
+| TPL-243 | Given each case, then the exact texts in both languages: «لا يوجد قالب طباعة لهذه العيادة.», «حذف قالب الطباعة؟ سيختفي زر «طباعة» من العيادة، ولا يمكن التراجع عن ذلك.», «الاسم مطلوب.», «هذا الاسم مستخدم في عنصر آخر.», «الاسم طويل جدًا.», «اكتب النص.», «العنصر خارج حدود الورقة.» (English texts in the contract) | P1 | ui | «الرسائل» |
+| TPL-244 | Given every new `template*` code, then `errors.<code>` is in `en.ts` and `ar.ts` | P1 | unit | § 5, ERR-030 |
+| TPL-245 | Given clinic A's designer with unsaved edits, when going to clinic B's tab by history, then none of A's sheet, selection or edits shows under B | P1 | ui | ADM-100, `ClinicPage.tsx:87` |
+| TPL-246 | Given 375 px in both languages, then the four clinic tabs are reachable, the message wraps, and the page has no horizontal scroll | P1 | e2e | D12, ADM-283 |
+| TPL-251 | Given a saved custom template, when a new sheet width is typed and the focus stays in the field (not committed yet; the height the same), then the screen counts as unsaved: Save is enabled, `beforeunload` is prevented and leaving through a tab or link asks the question; pressing Save commits the size and saves in one press: one PUT holding the new width, «تم حفظ القالب» and no «تم حذف». Typed back to the committed number, it counts as clean again, no question. The sheet still doesn't resize per keystroke and no item moves until the commit (TPL-221) | P1 | ui+e2e | D16 |
+| TPL-252 | Given a huge value such as `1e26`, then `formatMm` writes it in plain digits, never an exponent | P2 | unit | § 3 |
+| TPL-253 | Given an item added whose box lies outside the sheet area's view, then its box is scrolled into view (`block` and `inline` `nearest`) and the focus stays on the panel entry | P2 | ui | D8 |

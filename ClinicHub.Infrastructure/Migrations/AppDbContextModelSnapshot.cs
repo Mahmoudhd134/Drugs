@@ -524,6 +524,35 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("Clinics");
                 });
 
+            modelBuilder.Entity("ClinicHub.Domain.Prescriptions.PrescriptionTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Layout")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId")
+                        .IsUnique();
+
+                    b.ToTable("PrescriptionTemplates");
+                });
+
             modelBuilder.Entity("ClinicHub.Domain.Access.Role", b =>
                 {
                     b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
@@ -764,6 +793,15 @@ namespace ClinicHub.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Prescriptions.PrescriptionTemplate", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ClinicHub.Domain.Access.Role", b =>

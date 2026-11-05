@@ -11,6 +11,7 @@ import drugsDoc from "../../../../docs/features/drugs/business.md?raw";
 import adminDoc from "../../../../docs/features/platform-admin/business.md?raw";
 import sharedCatalogDoc from "../../../../docs/features/shared-catalog/business.md?raw";
 import prescriptionDoc from "../../../../docs/features/prescription/business.md?raw";
+import printTemplatesDoc from "../../../../docs/features/prescription-templates/business.md?raw";
 import taperingDoc from "../../../../docs/features/tapering/business.md?raw";
 
 /*
@@ -272,6 +273,31 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["حذف التصنيف الفرعي «الاسم»؟ لا يمكن التراجع عن ذلك.",
                 () => `${t("adminCategories.deleteSubCategoryTitle", {name: "الاسم"})} ${t("adminCategories.deleteSubCategoryMessage")}`],
         ],
+    },
+    {
+        name: "prescription templates", doc: printTemplatesDoc, entries: [
+            ["افتح هذه الصفحة من جهاز كمبيوتر.", () => t("printTemplates.desktopOnly")],
+            ["لا يوجد قالب طباعة لهذه العيادة.", () => t("printTemplates.empty")],
+            ["تم حفظ القالب", () => t("printTemplates.saved")],
+            ["حذف قالب الطباعة؟ سيختفي زر «طباعة» من العيادة، ولا يمكن التراجع عن ذلك.", () => t("printTemplates.deleteConfirm")],
+            ["لديك تغييرات لم تُحفظ. هل تريد الخروج؟", () => t("printTemplates.unsavedMessage")],
+            ["هذا الاسم مستخدم في عنصر آخر.", () => t("errors.templateItemNameTaken")],
+            ["اكتب النص.", () => t("errors.templateStaticTextRequired")],
+            ["النص أطول من 1000 حرف.", () => t("errors.templateStaticTextTooLong")],
+            // The row «نص ثابت برموز غير مسموحة»
+            ["النص يحتوي على رموز غير مسموح بها.", () => t("errors.invalidText")],
+            ["العنصر خارج حدود الورقة.", () => t("errors.templateItemOutsidePage")],
+            ["مقاس العنصر أصغر من الحد المسموح.", () => t("errors.templateItemSizeInvalid")],
+            ["حجم الخط يجب أن يكون بين 6 و36.", () => t("errors.templateFontSizeInvalid")],
+            ["مقاس الورقة غير صحيح.", () => t("errors.templatePageInvalid")],
+            ["لا يمكن إضافة أكثر من 50 عنصرًا.", () => t("errors.templateTooManyItems")],
+            ["يجب أن يحتوي القالب على نص الروشتة مرة واحدة.", () => t("errors.templateTextCount")],
+            ["بيانات القالب غير صحيحة.", () => t("errors.templateLayoutInvalid")],
+            ["أدخل رقمًا.", () => t("printTemplates.numberRequired")],
+            ["تم حذف القالب", () => t("printTemplates.deleted")],
+        ],
+        // The rows that name the system's usual messages instead of quoting one
+        descriptions: ["الرسالة المعتادة للاسم المطلوب في النظام", "الرسائل المعتادة للاسم في النظام"],
     },
     {
         name: "tapering", doc: taperingDoc, entries: [

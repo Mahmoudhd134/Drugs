@@ -154,7 +154,9 @@ const KNOWN_CUT: {bug: string; path: string; selector: string}[] = [];
  * No cut UI text in `scope`, and no overlapping buttons. Checked: every visible button, tab, chip label, form label,
  * legend, h1/h2, dialog title and toggle; and any p/li/span/h3–h6 that can cut its text (`nowrap` or ellipsis; the
  * documented line clamps, `-webkit-line-clamp`, are left out). "Cut": see `cutReason` (own overflow, or clipped by a
- * scrolling/clipping ancestor in width). Not checked: overlaps between non-button elements, and text cut in height.
+ * scrolling/clipping ancestor in width). Not checked: overlaps between non-button elements, and text cut in height; the
+ * print template's sheet and everything inside it (contract § 4.4: its boxes scroll inside the sheet's own area and may
+ * overlap; their true geometry has its own cases, TPL-227, TPL-228, TPL-239).
  */
 export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
     const {problems, known} = await scope.evaluate((root, {reasonSource, knownCut}) => {
@@ -165,6 +167,7 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
             return r.width > 0 && r.height > 0 && style.visibility !== "hidden" && style.display !== "none";
         };
         const name = (e: Element) => `${e.tagName.toLowerCase()}.${[...e.classList].slice(0, 2).join(".")} «${(e.textContent ?? "").trim().slice(0, 40)}»`;
+        const inSheet = (e: Element) => e.closest("[data-testid=template-sheet]") !== null;
         const found: string[] = [];
         const knownFound: string[] = [];
         const always = [...root.querySelectorAll("button, [role=tab], .MuiChip-label, label, legend, h1, h2, .MuiDialogTitle-root, .MuiToggleButton-root")];
@@ -174,7 +177,7 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
                 && style.getPropertyValue("-webkit-line-clamp") === "none";
         });
         for (const e of new Set([...always, ...cutting])) {
-            if (!visible(e) || !(e.textContent ?? "").trim()) continue;
+            if (inSheet(e) || !visible(e) || !(e.textContent ?? "").trim()) continue;
             // MUI's notched-outline legend (and its span) is a visually hidden copy of the label
             if (e.closest("fieldset legend")) continue;
             const reason = reasonOf(e);
@@ -196,7 +199,7 @@ export const expectNoCutOrOverlap = async (scope: Locator, what: string) => {
             }
             return {left, top, right, bottom};
         };
-        const buttons = [...root.querySelectorAll("button, [role=button]")].filter(visible);
+        const buttons = [...root.querySelectorAll("button, [role=button]")].filter(e => visible(e) && !inSheet(e));
         for (let i = 0; i < buttons.length; i++) {
             for (let j = i + 1; j < buttons.length; j++) {
                 const a = buttons[i], b = buttons[j];

@@ -5,6 +5,7 @@ using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
 using ClinicHub.Domain.Identity;
 using ClinicHub.Domain.Platform;
+using ClinicHub.Domain.Prescriptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Infrastructure.Database;
@@ -33,6 +34,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     public DbSet<Staff> Staff { get; set; }
     public DbSet<Role> Roles { get; set; }
     public DbSet<StaffRole> StaffRoles { get; set; }
+    public DbSet<PrescriptionTemplate> PrescriptionTemplates { get; set; }
 
     /// <inheritdoc />
     public void Touch(IHasTimestamps entity) =>
