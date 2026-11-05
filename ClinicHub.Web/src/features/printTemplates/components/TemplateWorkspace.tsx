@@ -1,4 +1,4 @@
-import {useLayoutEffect, useMemo, useRef, useState} from "react";
+import {type SetStateAction, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {flushSync} from "react-dom";
 import {Box, Button, Stack} from "@mui/material";
 import {useTranslation} from "react-i18next";
@@ -49,11 +49,13 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
     const root = useRef<HTMLDivElement>(null);
     const area = useRef<HTMLDivElement>(null);
     const sheet = useRef<HTMLDivElement>(null);
+    const saveButton = useRef<HTMLButtonElement>(null);
     const [zoom, setZoom] = useState(100);
     const page = useLatest(draft.layout.page);
 
     const focusArea = () => area.current?.focus();
     const boxElement = (id: string) => sheet.current?.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
+    const showBox = (id: string) => boxElement(id)?.scrollIntoView({block: "nearest", inline: "nearest"});
 
     // A fixed height from the window, so Fit isn't measured against its own content. Set on the element, before the fit below
     // reads it, in the same layout pass. The window changing keeps the zoom
@@ -70,6 +72,16 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
     }, []);
 
     useLayoutEffect(() => setZoom(fitOf(area.current, page.current)), [draft.fitRequests, page]);
+
+    // After every render, as the toolbar's: Save off still holds the focus here, and the browser would drop it to the body (TPL-596)
+    useLayoutEffect(() => {
+        const button = saveButton.current;
+        if (button?.disabled && document.activeElement === button) focusArea();
+    });
+
+    useEffect(() => {
+        if (draft.revealId) sheet.current?.querySelector(`[data-item-id="${draft.revealId}"]`)?.scrollIntoView({block: "nearest", inline: "nearest"});
+    }, [draft.revealId]);
 
     const dropNew = (addable: AddableItem, label: string, box: MmBox) => {
         const id = flushSync(() => ops.dropNew(addable, label, box));
@@ -95,13 +107,23 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
     const selected = draft.layout.items.find(item => item.id === draft.selectedId) ?? null;
     const shownSelected = shownLayout.items.find(item => item.id === draft.selectedId) ?? null;
 
-    /** A focused box the step removed: without this the focus would fall to the page's body. */
-    const afterTravel = (answer: TimeTravel | null) => {
-        const focusedId = document.activeElement?.closest("[data-item-id]")?.getAttribute("data-item-id");
-        if (answer && focusedId && !answer.layout.items.some(item => item.id === focusedId)) focusArea();
+    /** Now, not at the next paint: the selected box is scrolled to where the new zoom put it (TPL-595). */
+    const changeZoom = (next: SetStateAction<number>) => {
+        flushSync(() => setZoom(next));
+        if (draft.selectedId) showBox(draft.selectedId);
     };
-    const undo = () => afterTravel(ops.undo());
-    const redo = () => afterTravel(ops.redo());
+
+    /** An undo or a redo, rendered with the zoom of a step that re-fits, since `flushSync` also runs that render. */
+    const travel = (move: () => TimeTravel | null) => {
+        // Read before the render: a box the step removes takes the focus with it, down to the page's body
+        const focusedId = document.activeElement?.closest("[data-item-id]")?.getAttribute("data-item-id");
+        const answer = flushSync(move);
+        if (!answer) return;
+        if (focusedId && !answer.layout.items.some(item => item.id === focusedId)) focusArea();
+        if (answer.selectedId) showBox(answer.selectedId);
+    };
+    const undo = () => travel(ops.undo);
+    const redo = () => travel(ops.redo);
 
     const removeItem = (item: Parameters<DraftOps["removeSelected"]>[0]) => {
         ops.removeSelected(item);
@@ -117,7 +139,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
         onNudge: (item, dxMm, dyMm) => {
             // Now, not at the next paint: the box is scrolled to where it just went (TPL-561)
             flushSync(() => ops.nudge(item, dxMm, dyMm, Date.now()));
-            boxElement(item.id)?.scrollIntoView({block: "nearest", inline: "nearest"});
+            showBox(item.id);
         },
         onDelete: removeItem,
         onDeselect: () => ops.select(null),
@@ -134,13 +156,13 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                     zoom={zoom}
                     onUndo={undo}
                     onRedo={redo}
-                    onZoomOut={() => setZoom(zoomOut)}
-                    onZoomIn={() => setZoom(zoomIn)}
-                    onFit={() => setZoom(fitOf(area.current, draft.layout.page))}
+                    onZoomOut={() => changeZoom(zoomOut)}
+                    onZoomIn={() => changeZoom(zoomIn)}
+                    onFit={() => changeZoom(fitOf(area.current, draft.layout.page))}
                     onFocusedButtonOff={focusArea}
                 />
                 <Stack direction="row" sx={{gap: 1, flexWrap: "wrap"}}>
-                    <Button variant="contained" disabled={!dirty || saving} onClick={onSave}>
+                    <Button ref={saveButton} variant="contained" disabled={!dirty || saving} onClick={onSave}>
                         {t("common.save")}
                     </Button>
                     {draft.baseline !== null && (

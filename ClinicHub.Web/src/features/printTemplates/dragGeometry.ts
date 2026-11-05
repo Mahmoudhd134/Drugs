@@ -285,7 +285,7 @@ export const canZoomIn = (percent: number): boolean => percent < ZOOM_MAX;
 
 export const canZoomOut = (percent: number): boolean => percent > ZOOM_MIN;
 
-/** One axis of auto-scroll: distances from a point inside the span to its two edges; the nearer in reach, a tie to the start. */
+/** One axis of auto-scroll: distances from a point to the span's two edges, negative past that edge; the nearer in reach, a tie to the start. */
 const scrollOnAxis = (fromStart: number, fromEnd: number): -1 | 0 | 1 => {
     if (fromStart <= AUTO_SCROLL_BAND_PX && fromStart <= fromEnd) return -1;
     return fromEnd <= AUTO_SCROLL_BAND_PX ? 1 : 0;
@@ -297,8 +297,8 @@ const scrollOnAxis = (fromStart: number, fromEnd: number): -1 | 0 | 1 => {
  * `pastEdge` (a move or a resize): a pointer past an edge also scrolls that way, on that axis, whatever the other axis does.
  * Not `pastEdge` (a panel drag): the pointer must be inside the rectangle on both axes, so crossing the panel never scrolls.
  */
-export const autoScrollDirection = (point: ScreenPoint, areaRect: ScreenRect): { x: -1 | 0 | 1; y: -1 | 0 | 1 } => {
-    if (!isInside(point, areaRect)) return {x: 0, y: 0};
+export const autoScrollDirection = (point: ScreenPoint, areaRect: ScreenRect, pastEdge: boolean): { x: -1 | 0 | 1; y: -1 | 0 | 1 } => {
+    if (!pastEdge && !isInside(point, areaRect)) return {x: 0, y: 0};
     return {
         x: scrollOnAxis(point.clientX - areaRect.left, areaRect.left + areaRect.width - point.clientX),
         y: scrollOnAxis(point.clientY - areaRect.top, areaRect.top + areaRect.height - point.clientY),

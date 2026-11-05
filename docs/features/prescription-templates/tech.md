@@ -186,7 +186,7 @@ Step 3 ([design](../../design/prescription-templates.step3.md), [contract](../..
 | Handles | All eight, or the corners when **both** sides are below 36 px at this zoom. Eight sit centered on their corners and edges; four sit fully outside the box, so a part of it always starts a move |
 | Fit | `min(area width / sheet width, area height / sheet height)`, floored to one decimal, in 25–200; no size to measure: 100 |
 | Zoom buttons | The next multiple of 25, in 50–200 (61.5 → 75 or 50; 30 → 50, minus off) |
-| Auto-scroll | Only with the pointer inside the area, within 24 px of an edge (exactly 24 counts), 8 px a frame; both edges in reach: the nearer, a tie to the start |
+| Auto-scroll | `autoScrollDirection(point, areaRect, pastEdge)`: within 24 px of an edge inside the area (exactly 24 counts), 8 px a frame, each axis on its own; both edges in reach: the nearer, a tie to the start. A move or a resize (`pastEdge`) also goes on scrolling with the pointer past an edge, on that axis. A panel drag only with the pointer inside the area, so crossing the panel never scrolls the sheet |
 
 **The screen.** The transform stays around the sheet, never in it, so print can't see it:
 
@@ -247,7 +247,11 @@ Typing still updates the layout at once; the first change sets `openField`, and 
 | A press or a drag on a box or handle | That box |
 | Esc | Stays |
 | Delete, Remove item, an undo or redo removing the focused box | The area |
-| A toolbar button turning off by its own press | The area |
+| A toolbar button turning off by its own press, or Save (a save going, or the answer leaving nothing unsaved) | The area |
+| A Save the rules refuse, which stays on | Stays on it |
+| A failing Save, on again after the answer | Stays on the area |
+
+**The selected box stays in view:** after a zoom press, Fit, undo or redo has rendered (`flushSync`, which also runs a step's re-fit), the selected box is scrolled into view (`nearest`). Nothing selected: the scroll stays. Opening, a window resize, a page-size change that isn't an undo or redo, selecting and a drag's cancel don't scroll it.
 
 ## Printing
 Browser print, on the front end (D1). The buttons are on the prescription page ([tech](../prescription/tech.md)): `printer.available` decides whether they exist.

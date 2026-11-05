@@ -127,7 +127,7 @@ export const useDesignerDrag = (options: Options) => {
         const scrollFrame = () => {
             const element = area.current;
             if (element) {
-                const direction = autoScrollDirection(last, element.getBoundingClientRect());
+                const direction = autoScrollDirection(last, element.getBoundingClientRect(), target.kind !== "entry");
                 if (direction.x !== 0) element.scrollLeft += direction.x * AUTO_SCROLL_PX_PER_FRAME;
                 if (direction.y !== 0) element.scrollTop += direction.y * AUTO_SCROLL_PX_PER_FRAME;
             }
