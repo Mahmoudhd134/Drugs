@@ -28,6 +28,11 @@ namespace ClinicHub.IntegrationTests.Harness.Hosting;
 /// entries and tag invalidations, and with the frozen app clock an answer cached right after a login (same instant as
 /// the login's invalidations) would never be kept, unlike production.
 /// </para>
+/// <para>
+/// The attachments folder (<see cref="AttachmentRoot"/>): outside Development an empty <c>Attachments:Physical:RootPath</c>
+/// stops the app, so every factory has a temp folder of its own, removed when it's disposed, unless the caller's
+/// settings set the key. Startup cases such as AUTH-005 still fail for their own reason.
+/// </para>
 /// </summary>
 /// <param name="settings">Config overrides (<c>"Otp:Mode" = "Sms"</c>…), applied over the Testing settings.</param>
 /// <param name="services">Service overrides, after the app's (e.g. a throwing <c>IOtpSender</c>).</param>
@@ -37,6 +42,14 @@ public class ClinicHubFactory(
     Action<IServiceCollection> services = null) : WebApplicationFactory<Program>
 {
     public const string Environment = "Testing";
+    public const string AttachmentRootKey = "Attachments:Physical:RootPath";
+
+    private readonly bool ownsAttachmentRoot = settings is null || !settings.ContainsKey(AttachmentRootKey);
+
+    /// <summary>Where this app stores attachments: the caller's <see cref="AttachmentRootKey"/>, else a temp folder of this factory.</summary>
+    public string AttachmentRoot { get; } = settings is not null && settings.TryGetValue(AttachmentRootKey, out var root)
+        ? root
+        : Path.Combine(Path.GetTempPath(), $"clinichub-it-attachments-{Guid.NewGuid():N}");
 
     public TestClock Clock { get; } = new();
     /// <summary>The access cache's clock: real time plus <see cref="Clock"/>'s advance, never backwards.</summary>
@@ -54,6 +67,8 @@ public class ClinicHubFactory(
     {
         builder.UseEnvironment(Environment);
         builder.UseSetting("ConnectionStrings:DefaultConnection", ConnectionString);
+        if (ownsAttachmentRoot)
+            builder.UseSetting(AttachmentRootKey, AttachmentRoot);
         foreach (var (key, value) in settings ?? new Dictionary<string, string>())
             builder.UseSetting(key, value);
 
@@ -105,6 +120,22 @@ public class ClinicHubFactory(
                 return options;
             }, built.Lifetime));
         });
+    }
+
+    /// <summary>The app first, then this factory's own attachments folder. Best effort: the OS cleans its temp folder anyway.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (!disposing || !ownsAttachmentRoot || !Directory.Exists(AttachmentRoot))
+            return;
+        try
+        {
+            Directory.Delete(AttachmentRoot, recursive: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            TestRun.Warn($"could not remove the attachments folder {AttachmentRoot}: {e.Message}");
+        }
     }
 
     /// <summary>
