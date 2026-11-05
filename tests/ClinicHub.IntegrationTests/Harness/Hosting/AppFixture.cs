@@ -76,8 +76,11 @@ public class AppFixture : IAsyncLifetime
     {
         DatabaseName = await TestRun.CreateCopyAsync(UsesBareTemplate);
         var connectionString = TestRun.ConnectionString(DatabaseName);
-        Factory = await TestRun.StartAppAsync(() => new ClinicHubFactory(connectionString), $"the app of {DatabaseName}");
+        Factory = await TestRun.StartAppAsync(() => CreateFactory(connectionString), $"the app of {DatabaseName}");
     }
+
+    /// <summary>The collection's app. A fixture overrides it to add test-only services (<c>AttachmentsAppFixture</c>).</summary>
+    protected virtual ClinicHubFactory CreateFactory(string connectionString) => new(connectionString);
 
     /// <summary>
     /// End of the collection: the baseline is checked once more (design M1.7 D12, CAT-228: a change made by the last

@@ -13,7 +13,11 @@ public sealed class CapturedLogs : ILoggerProvider
 {
     private readonly ConcurrentQueue<Entry> entries = new();
 
-    public sealed record Entry(string Category, LogLevel Level, string Message);
+    /// <param name="Exception">The logged exception's full text, null when none.</param>
+    public sealed record Entry(string Category, LogLevel Level, string Message, string Exception = null);
+
+    /// <summary>Every entry, of every category and level, in order.</summary>
+    public IReadOnlyList<Entry> All => entries.ToList();
 
     /// <summary>The setting that logs <typeparamref name="T"/>'s category from <c>Information</c> on.</summary>
     public static KeyValuePair<string, string> LevelSetting<T>() => new($"Logging:LogLevel:{typeof(T).FullName}", "Information");
@@ -40,6 +44,6 @@ public sealed class CapturedLogs : ILoggerProvider
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
             Func<TState, Exception, string> formatter) =>
-            entries.Enqueue(new Entry(category, logLevel, formatter(state, exception)));
+            entries.Enqueue(new Entry(category, logLevel, formatter(state, exception), exception?.ToString()));
     }
 }
