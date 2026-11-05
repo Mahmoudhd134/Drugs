@@ -6,6 +6,7 @@ import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {useTranslation} from "react-i18next";
 import {useAuth} from "../useAuth.ts";
+import {confirmLeave} from "../../printTemplates/unsavedGuard.ts";
 
 /** App bar account menu: who is logged in, switch clinic (when there are several contexts), log out. */
 export const UserMenu = () => {
@@ -44,7 +45,10 @@ export const UserMenu = () => {
                 )}
                 <MenuItem onClick={() => {
                     close();
-                    void logout();
+                    // A logout changes the session first, which nothing blocks: unsaved changes ask here (print templates D16)
+                    void confirmLeave().then(leave => {
+                        if (leave) void logout();
+                    });
                 }}>
                     <ListItemIcon><LogoutIcon fontSize="small"/></ListItemIcon>
                     <ListItemText>{t("auth.logout")}</ListItemText>

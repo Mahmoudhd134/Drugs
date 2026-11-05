@@ -1,5 +1,5 @@
-import {lazy, type ReactNode} from "react";
-import {BrowserRouter, Navigate, Route, Routes} from "react-router-dom";
+import {lazy, type ReactNode, useState} from "react";
+import {createBrowserRouter, Navigate, Route, RouterProvider, Routes} from "react-router-dom";
 import {AppProviders} from "./AppProviders.tsx";
 import {AppLayout} from "../components/layout/AppLayout.tsx";
 import {SimpleLayout} from "../components/layout/SimpleLayout.tsx";
@@ -51,47 +51,49 @@ const CLINIC_ROUTES: ClinicRoute[] = [
     {path: "drugs", page: <DrugsPage/>, permission: PERMISSIONS.drugs.list},
 ];
 
-export const App = () => (
-    <BrowserRouter>
-        <AppProviders>
-            <Routes>
-                <Route element={<SimpleLayout/>}>
-                    <Route path="login" element={<LoginPage/>}/>
-                    <Route element={<RequireAuth/>}>
-                        <Route path="select-clinic" element={<SelectClinicPage/>}/>
-                    </Route>
+const AppRoutes = () => (
+    <Routes>
+        <Route element={<SimpleLayout/>}>
+            <Route path="login" element={<LoginPage/>}/>
+            <Route element={<RequireAuth/>}>
+                <Route path="select-clinic" element={<SelectClinicPage/>}/>
+            </Route>
+        </Route>
+        {/* Platform admin (super admin, platform context) */}
+        <Route element={<RequireAuth context="platform"/>}>
+            <Route path="admin" element={<AdminLayout/>}>
+                <Route index element={<ClinicsPage/>}/>
+                <Route path="clinics/new" element={<CreateClinicPage/>}/>
+                <Route path="drugs" element={<AdminDrugsPage/>}/>
+                <Route path="categories" element={<AdminCategoriesPage/>}/>
+                <Route path="clinics/:id" element={<ClinicPage/>}>
+                    {CLINIC_TABS.map(tab => tab.path
+                        ? <Route key={tab.path} path={tab.path} element={tab.element}/>
+                        : <Route key="index" index element={tab.element}/>)}
                 </Route>
-                {/* Platform admin (super admin, platform context) */}
-                <Route element={<RequireAuth context="platform"/>}>
-                    <Route path="admin" element={<AdminLayout/>}>
-                        <Route index element={<ClinicsPage/>}/>
-                        <Route path="clinics/new" element={<CreateClinicPage/>}/>
-                        <Route path="drugs" element={<AdminDrugsPage/>}/>
-                        <Route path="categories" element={<AdminCategoriesPage/>}/>
-                        <Route path="clinics/:id" element={<ClinicPage/>}>
-                            {CLINIC_TABS.map(tab => tab.path
-                                ? <Route key={tab.path} path={tab.path} element={tab.element}/>
-                                : <Route key="index" index element={tab.element}/>)}
-                        </Route>
-                        <Route path="*" element={<Navigate to="/admin" replace/>}/>
-                    </Route>
-                </Route>
-                {/* The platform's placeholder page before the admin area (M1.5.4) */}
-                <Route path="platform" element={<Navigate to="/admin" replace/>}/>
-                <Route element={<RequireAuth context="clinic"/>}>
-                    <Route element={<AppLayout/>}>
-                        {CLINIC_ROUTES.map(({path, page, denied, ...rule}) => {
-                            const element = <RequirePermission {...rule} fallback={denied}>{page}</RequirePermission>;
-                            return path === undefined
-                                ? <Route key="index" index element={element}/>
-                                : <Route key={path} path={path} element={element}/>;
-                        })}
-                        {/* Old URL from before the redesign */}
-                        <Route path="manage" element={<Navigate to="/drugs" replace/>}/>
-                        <Route path="*" element={<Navigate to="/" replace/>}/>
-                    </Route>
-                </Route>
-            </Routes>
-        </AppProviders>
-    </BrowserRouter>
+                <Route path="*" element={<Navigate to="/admin" replace/>}/>
+            </Route>
+        </Route>
+        {/* The platform's placeholder page before the admin area (M1.5.4) */}
+        <Route path="platform" element={<Navigate to="/admin" replace/>}/>
+        <Route element={<RequireAuth context="clinic"/>}>
+            <Route element={<AppLayout/>}>
+                {CLINIC_ROUTES.map(({path, page, denied, ...rule}) => {
+                    const element = <RequirePermission {...rule} fallback={denied}>{page}</RequirePermission>;
+                    return path === undefined
+                        ? <Route key="index" index element={element}/>
+                        : <Route key={path} path={path} element={element}/>;
+                })}
+                {/* Old URL from before the redesign */}
+                <Route path="manage" element={<Navigate to="/drugs" replace/>}/>
+                <Route path="*" element={<Navigate to="/" replace/>}/>
+            </Route>
+        </Route>
+    </Routes>
 );
+
+// A data router (what `useBlocker` needs, print templates D16), created at mount so each test's URL is read; the routes stay descendants of its splat route
+export const App = () => {
+    const [router] = useState(() => createBrowserRouter([{path: "*", element: <AppProviders><AppRoutes/></AppProviders>}]));
+    return <RouterProvider router={router}/>;
+};

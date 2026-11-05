@@ -1,23 +1,53 @@
-import type {AddableItem, LayoutError, PageSize, PrintLayout, TemplateItem, TemplatePage} from "./types.ts";
+import {
+    CASCADE_START_MM,
+    CASCADE_STEP_MM,
+    DEFAULT_FONT_SIZE_PT,
+    DEFAULT_ITEM_SIZES,
+    DEFAULT_TEXT_BOX,
+    ITEM_ID_MAX_LENGTH,
+    MAX_CUSTOM_HEIGHT_MM,
+    MAX_CUSTOM_WIDTH_MM,
+    MAX_FONT_SIZE_PT,
+    MAX_ITEMS,
+    MIN_CUSTOM_HEIGHT_MM,
+    MIN_CUSTOM_WIDTH_MM,
+    MIN_FONT_SIZE_PT,
+    MIN_ITEM_HEIGHT_MM,
+    MIN_ITEM_WIDTH_MM,
+    MIN_TEXT_HEIGHT_MM,
+    NAME_MAX_LENGTH,
+    PAGE_SIZES,
+    SCHEMA_VERSION,
+    STATIC_TEXT_MAX_LENGTH,
+    TEMPLATE_FUNCTIONS,
+    TEMPLATE_KINDS,
+} from "./constants.ts";
+import type {AddableItem, LayoutError, PageSize, PrintLayout, TemplateFunction, TemplateItem, TemplateItemKind, TemplatePage} from "./types.ts";
 
 /*
  * The designer's pure rules (contract § 2.2), mirroring the server's validator and `PrescriptionLayoutRules`. StrykerJS
- * mutates this file (PURE_LOGIC). Contract stubs: track print-templates/frontend writes the bodies.
+ * mutates this file (PURE_LOGIC).
  */
-
-const stub = (): never => {
-    throw new Error("contract stub");
-};
 
 /**
  * One decimal, midpoint away from zero, as `Math.Round(value, 1, MidpointRounding.AwayFromZero)` on the server:
  * 12.34 → 12.3, 12.35 → 12.4, -12.35 → -12.4, 0.05 → 0.1. Doubles can't hold 12.35, so the scaled value drops its noise
- * before rounding: `Math.sign(v) * Math.round(Number((Math.abs(v) * 10).toPrecision(12))) / 10`.
+ * before rounding.
  */
-export const roundTenth: (value: number) => number = stub;
+export const roundTenth = (value: number) =>
+    Math.sign(value) * Math.round(Number((Math.abs(value) * 10).toPrecision(12))) / 10;
 
 /** Whole tenths of a mm, for every comparison and sum (0.3 + 209.8 → 3 + 2098 = 2101 = 210.1 → 2101: TPL-210). */
-export const toTenths: (value: number) => number = stub;
+export const toTenths = (value: number) => Math.round(roundTenth(value) * 10);
+
+const AROUND_NUMBER = /^[\s‎‏؜]+|[\s‎‏؜]+$/g;
+const NUMBER_TEXT = /^-?(\d+([.,٫]\d*)?|[.,٫]\d+)$/;
+
+/** An Arabic-Indic (٠–٩) or Persian (۰–۹) digit as its Latin one. */
+const latinDigit = (digit: string) => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06F0 ? code - 0x06F0 : code - 0x0660);
+};
 
 /**
  * What a typed number field holds: `12.5`, `12,5` and `١٢٫٥` are all 12.5, rounded by {@link roundTenth}; spaces around it
@@ -25,32 +55,232 @@ export const toTenths: (value: number) => number = stub;
  * leading `-` is kept (the rules then refuse it, it is never corrected silently). null: empty or anything else
  * (`abc`, `1.2.3`, `1e3`, `٫`, `-`).
  */
-export const parseMmInput: (text: string) => number | null = stub;
+export const parseMmInput = (text: string) => {
+    const latin = text.replace(AROUND_NUMBER, "").replace(/[٠-٩۰-۹]/g, latinDigit);
+    if (!NUMBER_TEXT.test(latin)) return null;
+    return roundTenth(Number(latin.replace(/[,٫]/, ".")));
+};
 
 /** A number as its field shows it: Latin digits, a dot, at most one decimal (`12.5`, `148`). */
-export const formatMm: (value: number) => string = stub;
+export const formatMm = (value: number) => String(roundTenth(value));
+
+const roundIfNumber = (value: number) => (typeof value === "number" ? roundTenth(value) : value);
+
+const normalizeItem = (item: TemplateItem): TemplateItem => {
+    if (!item) return item;
+    const rounded = {
+        ...item,
+        xMm: roundIfNumber(item.xMm),
+        yMm: roundIfNumber(item.yMm),
+        wMm: roundIfNumber(item.wMm),
+        hMm: roundIfNumber(item.hMm),
+        fontSizePt: roundIfNumber(item.fontSizePt),
+    };
+    return "name" in rounded && typeof rounded.name === "string" ? {...rounded, name: rounded.name.trim()} : rounded;
+};
 
 /**
  * What is validated, compared and sent (the server's `Normalize`): every number rounded, a name trimmed; a static text as
- * typed. The order of the items is kept.
+ * typed. The order of the items is kept. Takes what the API could hold: a missing page, list or number stays missing.
  */
-export const normalizeLayout: (layout: PrintLayout) => PrintLayout = stub;
+export const normalizeLayout = (layout: PrintLayout): PrintLayout => ({
+    ...layout,
+    page: layout.page && {
+        ...layout.page,
+        widthMm: roundIfNumber(layout.page.widthMm),
+        heightMm: roundIfNumber(layout.page.heightMm),
+    },
+    items: layout.items && layout.items.map(normalizeItem),
+});
+
+const BLANK_TEXT = /^[\s\u0085\p{Cf}]*$/u;
+const REFUSED_IN_NAME = /[\p{Cc}\p{Zl}\p{Zp}‪-‮⁦-⁩]/u;
+const REFUSED_IN_TEXT = /(?![\n\r\t])[\p{Cc}\p{Zl}\p{Zp}‪-‮⁦-⁩]/u;
+const ITEM_ID = new RegExp(`^[A-Za-z0-9_-]{1,${ITEM_ID_MAX_LENGTH}}$`);
+
+/** Nothing but white space and invisible format characters (null too): the server's `IsBlank`. */
+const isBlank = (text: string | null | undefined) => typeof text !== "string" || BLANK_TEXT.test(text);
+
+const nameKey = (name: string) => name.trim().toLowerCase();
+
+const isMissing = (value: number | null | undefined) => value === null || value === undefined;
+
+/** `min <= value <= max`, in whole tenths. */
+const inRange = (value: number, min: number, max: number) =>
+    toTenths(value) >= toTenths(min) && toTenths(value) <= toTenths(max);
+
+/** The box fits the sheet on one axis (the server's `Fits`); a negative or missing length counts as 0. */
+const fits = (start: number, length: number | null | undefined, sheet: number) => {
+    const startTenths = toTenths(start);
+    const lengthTenths = Math.max(toTenths(length ?? 0), 0);
+    const sheetTenths = toTenths(sheet);
+    return startTenths >= 0 && lengthTenths <= sheetTenths && startTenths <= sheetTenths - lengthTenths;
+};
+
+/** Rules 3–5 of contract § 1.4. Returns whether the page passed them. */
+const validatePage = (page: TemplatePage, errors: LayoutError[]) => {
+    const fixed = PAGE_SIZES[page.size as keyof typeof PAGE_SIZES];
+    if (!fixed && page.size !== "custom") {
+        errors.push({field: "page.size", code: "templatePageInvalid"});
+        return false;
+    }
+    const before = errors.length;
+    if (isMissing(page.widthMm)) errors.push({field: "page.widthMm", code: "invalidRequest"});
+    if (isMissing(page.heightMm)) errors.push({field: "page.heightMm", code: "invalidRequest"});
+    const widthFits = fixed
+        ? toTenths(page.widthMm) === toTenths(fixed.widthMm)
+        : inRange(page.widthMm, MIN_CUSTOM_WIDTH_MM, MAX_CUSTOM_WIDTH_MM);
+    const heightFits = fixed
+        ? toTenths(page.heightMm) === toTenths(fixed.heightMm)
+        : inRange(page.heightMm, MIN_CUSTOM_HEIGHT_MM, MAX_CUSTOM_HEIGHT_MM);
+    if (!isMissing(page.widthMm) && !widthFits) errors.push({field: "page.widthMm", code: "templatePageInvalid"});
+    if (!isMissing(page.heightMm) && !heightFits) errors.push({field: "page.heightMm", code: "templatePageInvalid"});
+    return errors.length === before;
+};
+
+/** What an item may hold while being checked: any kind, any field missing. */
+type ItemToCheck = {
+    id?: string | null;
+    kind?: string | null;
+    function?: string | null;
+    name?: string | null;
+    text?: string | null;
+    xMm: number;
+    yMm: number;
+    wMm: number;
+    hMm: number;
+    fontSizePt: number;
+};
+
+/** Rule 8d, as the shared `ValidName(60)`: each part is checked on its own. */
+const validateName = (name: string | null | undefined, field: string, errors: LayoutError[]) => {
+    const trimmed = typeof name === "string" ? name.trim() : "";
+    if (isBlank(name)) errors.push({field, code: "nameRequired"});
+    else if (REFUSED_IN_NAME.test(trimmed)) errors.push({field, code: "nameInvalid"});
+    if (trimmed.length > NAME_MAX_LENGTH) errors.push({field, code: "nameTooLong"});
+};
+
+/** Rules 8f–8h. */
+const validateStaticText = (text: string | null | undefined, field: string, errors: LayoutError[]) => {
+    if (isBlank(text)) errors.push({field, code: "templateStaticTextRequired"});
+    if (typeof text !== "string") return;
+    if (REFUSED_IN_TEXT.test(text)) errors.push({field, code: "invalidText"});
+    if (text.length > STATIC_TEXT_MAX_LENGTH) errors.push({field, code: "templateStaticTextTooLong"});
+};
+
+/** Rules 8i and 8j. `pageOk`: the page passed rules 2–5, so "outside" can be checked. */
+const validateBox = (item: ItemToCheck, prefix: string, page: TemplatePage, pageOk: boolean, errors: LayoutError[]) => {
+    if (isMissing(item.xMm)) errors.push({field: `${prefix}.xMm`, code: "invalidRequest"});
+    else if (pageOk && !fits(item.xMm, item.wMm, page.widthMm)) errors.push({field: `${prefix}.xMm`, code: "templateItemOutsidePage"});
+
+    if (isMissing(item.yMm)) errors.push({field: `${prefix}.yMm`, code: "invalidRequest"});
+    else if (pageOk && !fits(item.yMm, item.hMm, page.heightMm)) errors.push({field: `${prefix}.yMm`, code: "templateItemOutsidePage"});
+
+    if (isMissing(item.wMm)) errors.push({field: `${prefix}.wMm`, code: "invalidRequest"});
+    else if (toTenths(item.wMm) < toTenths(MIN_ITEM_WIDTH_MM)) errors.push({field: `${prefix}.wMm`, code: "templateItemSizeInvalid"});
+
+    const minHeight = item.kind === "prescriptionText" ? MIN_TEXT_HEIGHT_MM : MIN_ITEM_HEIGHT_MM;
+    if (isMissing(item.hMm)) errors.push({field: `${prefix}.hMm`, code: "invalidRequest"});
+    else if (toTenths(item.hMm) < toTenths(minHeight)) errors.push({field: `${prefix}.hMm`, code: "templateItemSizeInvalid"});
+
+    if (isMissing(item.fontSizePt)) errors.push({field: `${prefix}.fontSizePt`, code: "invalidRequest"});
+    else if (!inRange(item.fontSizePt, MIN_FONT_SIZE_PT, MAX_FONT_SIZE_PT)) errors.push({field: `${prefix}.fontSizePt`, code: "templateFontSizeInvalid"});
+};
 
 /**
  * Every broken rule of `normalizeLayout(layout)`, in the server's order with the server's fields and codes (contract § 1.4;
  * the shared cases: tests/fixtures/print-layout-cases.json). Empty: valid. Takes what the API could hold, so unknown kinds
  * and functions are checked at run time too.
  */
-export const validateLayout: (layout: PrintLayout) => LayoutError[] = stub;
+export const validateLayout = (layout: PrintLayout): LayoutError[] => {
+    const {schemaVersion, page, items} = normalizeLayout(layout);
+    const errors: LayoutError[] = [];
+
+    if (schemaVersion !== SCHEMA_VERSION) errors.push({field: "schemaVersion", code: "templateLayoutInvalid"});
+
+    let pageOk = false;
+    if (page) pageOk = validatePage(page, errors);
+    else errors.push({field: "page", code: "invalidRequest"});
+
+    const list = (items ?? []) as (ItemToCheck | null)[];
+    if (list.length > MAX_ITEMS) {
+        errors.push({field: "items", code: "templateTooManyItems"});
+        return errors;
+    }
+    if (list.filter(item => item?.kind === "prescriptionText").length !== 1) {
+        errors.push({field: "items", code: "templateTextCount"});
+    }
+
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    list.forEach((item, index) => {
+        const prefix = `items[${index}]`;
+        if (!item) {
+            errors.push({field: prefix, code: "templateLayoutInvalid"});
+            return;
+        }
+
+        const id = item.id ?? "";
+        if (!ITEM_ID.test(id) || seenIds.has(id)) errors.push({field: `${prefix}.id`, code: "templateLayoutInvalid"});
+        seenIds.add(id);
+
+        if (!TEMPLATE_KINDS.includes(item.kind as TemplateItemKind)) {
+            errors.push({field: `${prefix}.kind`, code: "templateLayoutInvalid"});
+            return;
+        }
+
+        if (item.kind === "function" && !TEMPLATE_FUNCTIONS.includes(item.function as TemplateFunction)) {
+            errors.push({field: `${prefix}.function`, code: "templateLayoutInvalid"});
+        }
+        if (item.kind === "manualInput" || item.kind === "function") {
+            validateName(item.name, `${prefix}.name`, errors);
+            if (!isBlank(item.name)) {
+                const key = nameKey(item.name as string);
+                if (seenNames.has(key)) errors.push({field: `${prefix}.name`, code: "templateItemNameTaken"});
+                seenNames.add(key);
+            }
+        }
+        if (item.kind === "staticText") validateStaticText(item.text, `${prefix}.text`, errors);
+        validateBox(item, prefix, page, pageOk, errors);
+    });
+    return errors;
+};
 
 /** The item index a field names: `items[2].name` → 2; `page.widthMm`, `items` → null. */
-export const itemIndexOfField: (field: string) => number | null = stub;
+export const itemIndexOfField = (field: string) => {
+    const match = /^items\[(\d+)]/.exec(field);
+    return match ? Number(match[1]) : null;
+};
 
 /** A new A5 sheet holding only the prescription text (`DEFAULT_TEXT_BOX`, font 11, id `i1`). */
-export const newLayout: () => PrintLayout = stub;
+export const newLayout = (): PrintLayout => ({
+    schemaVersion: SCHEMA_VERSION,
+    page: {size: "A5", ...PAGE_SIZES.A5},
+    items: [{id: "i1", kind: "prescriptionText", ...DEFAULT_TEXT_BOX, fontSizePt: DEFAULT_FONT_SIZE_PT}],
+});
 
 /** True while another item fits (fewer than `MAX_ITEMS`). */
-export const canAddItem: (layout: PrintLayout) => boolean = stub;
+export const canAddItem = (layout: PrintLayout) => layout.items.length < MAX_ITEMS;
+
+/** The first `i<n>` no item has. */
+const freeItemId = (items: TemplateItem[]) => {
+    const taken = new Set(items.map(item => item.id));
+    let n = 1;
+    while (taken.has(`i${n}`)) n++;
+    return `i${n}`;
+};
+
+/** `defaultName`, else `defaultName 2`, `defaultName 3`…: the first no manual input or function has (TPL-218). */
+const distinctName = (items: TemplateItem[], defaultName: string) => {
+    const taken = new Set(items.flatMap(item => ("name" in item ? [nameKey(item.name)] : [])));
+    let name = defaultName;
+    for (let n = 2; taken.has(nameKey(name)); n++) name = `${defaultName} ${n}`;
+    return name;
+};
+
+/** Where the n-th item starts on one axis: a cascade, always inside the sheet (a 50 × 50 mm page too). */
+const cascade = (n: number, sheet: number, length: number) =>
+    (CASCADE_START_MM + CASCADE_STEP_MM * n) % (Math.floor(sheet - length) + 1);
 
 /**
  * The layout with the panel's item added last, and that item; null at `MAX_ITEMS` (no 51st). The id is the first free
@@ -60,23 +290,81 @@ export const canAddItem: (layout: PrintLayout) => boolean = stub;
  * in the UI language), or `defaultName 2`, `defaultName 3`… the first not taken (trimmed, ignoring case). Static text:
  * empty text, no name.
  */
-export const addItem: (layout: PrintLayout, addable: AddableItem, defaultName: string) => { layout: PrintLayout; item: TemplateItem } | null = stub;
+export const addItem = (layout: PrintLayout, addable: AddableItem, defaultName: string): { layout: PrintLayout; item: TemplateItem } | null => {
+    if (!canAddItem(layout)) return null;
+    const {page, items} = layout;
+    const size = DEFAULT_ITEM_SIZES[addable.kind];
+    const box = {
+        id: freeItemId(items),
+        xMm: cascade(items.length, page.widthMm, size.wMm),
+        yMm: cascade(items.length, page.heightMm, size.hMm),
+        ...size,
+        fontSizePt: DEFAULT_FONT_SIZE_PT,
+    };
+    let item: TemplateItem;
+    if (addable.kind === "staticText") item = {...box, kind: "staticText", text: ""};
+    else if (addable.kind === "manualInput") item = {...box, kind: "manualInput", name: distinctName(items, defaultName)};
+    else item = {...box, kind: "function", function: addable.function, name: distinctName(items, defaultName)};
+    return {layout: {...layout, items: [...items, item]}, item};
+};
 
 /** The layout without the item; the prescription text is never removed (the layout comes back unchanged). */
-export const removeItem: (layout: PrintLayout, id: string) => PrintLayout = stub;
+export const removeItem = (layout: PrintLayout, id: string): PrintLayout => {
+    const item = layout.items.find(i => i.id === id);
+    if (item?.kind === "prescriptionText") return layout;
+    return {...layout, items: layout.items.filter(i => i.id !== id)};
+};
 
 /** The layout with the item's fields changed, exactly as given (no moving, no correcting: TPL-224). */
-export const updateItem: (layout: PrintLayout, id: string, changes: Partial<TemplateItem>) => PrintLayout = stub;
+export const updateItem = (layout: PrintLayout, id: string, changes: Partial<TemplateItem>): PrintLayout => ({
+    ...layout,
+    items: layout.items.map(item => (item.id === id ? {...item, ...changes} as TemplateItem : item)),
+});
 
 /** The measures of a size: A5 and A4 theirs, custom the current ones (`current` unchanged, only `size` differs). */
-export const pageOfSize: (size: PageSize, current: TemplatePage) => TemplatePage = stub;
+export const pageOfSize = (size: PageSize, current: TemplatePage): TemplatePage =>
+    size === "custom" ? {...current, size} : {size, ...PAGE_SIZES[size]};
+
+/** One axis of an item on a new sheet, in tenths: the length shrinks only as far as needed, then the start moves back in. */
+const fitAxis = (start: number, length: number, sheet: number, minimum: number) => {
+    const lengthTenths = toTenths(length);
+    const sheetTenths = toTenths(sheet);
+    const fitted = Math.max(Math.min(lengthTenths, sheetTenths), Math.min(lengthTenths, toTenths(minimum)));
+    const moved = Math.max(Math.min(toTenths(start), sheetTenths - fitted), 0);
+    return {start: moved / 10, length: fitted / 10};
+};
 
 /**
  * The layout on a new page (design § 3): items keep their mm. On each axis, length = `min(length, sheet)` unless that goes
  * below the item's minimum (a sheet is never smaller than a minimum, so only an item already below it keeps its length);
  * then start = clamped to `[0, sheet - length]`. Items already inside don't change (TPL-222, TPL-223). Works in tenths.
  */
-export const applyPageSize: (layout: PrintLayout, page: TemplatePage) => PrintLayout = stub;
+export const applyPageSize = (layout: PrintLayout, page: TemplatePage): PrintLayout => ({
+    ...layout,
+    page,
+    items: layout.items.map(item => {
+        const across = fitAxis(item.xMm, item.wMm, page.widthMm, MIN_ITEM_WIDTH_MM);
+        const minHeight = item.kind === "prescriptionText" ? MIN_TEXT_HEIGHT_MM : MIN_ITEM_HEIGHT_MM;
+        const down = fitAxis(item.yMm, item.hMm, page.heightMm, minHeight);
+        return {...item, xMm: across.start, wMm: across.length, yMm: down.start, hMm: down.length};
+    }),
+});
+
+const PAGE_FIELDS = ["size", "widthMm", "heightMm"] as const;
+const ITEM_FIELDS = ["id", "kind", "function", "name", "text", "xMm", "yMm", "wMm", "hMm", "fontSizePt"] as const;
+
+const sameItem = (a: TemplateItem, b: TemplateItem) => {
+    const left = a as ItemToCheck;
+    const right = b as ItemToCheck;
+    return ITEM_FIELDS.every(field => left[field] === right[field]);
+};
 
 /** Same normalized layout: the same page and the same items, fields and order (TPL-233). */
-export const sameLayout: (a: PrintLayout, b: PrintLayout) => boolean = stub;
+export const sameLayout = (a: PrintLayout, b: PrintLayout) => {
+    const left = normalizeLayout(a);
+    const right = normalizeLayout(b);
+    return left.schemaVersion === right.schemaVersion
+        && PAGE_FIELDS.every(field => left.page[field] === right.page[field])
+        && left.items.length === right.items.length
+        && left.items.every((item, index) => sameItem(item, right.items[index]));
+};
