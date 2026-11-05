@@ -1,10 +1,15 @@
+import type {Locator} from "@playwright/test";
 import {expect, signIn, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {visitCatalogAdmin} from "../support/admin-catalog.ts";
+import {unique} from "../support/phones.ts";
 import type {Lang} from "../support/texts.ts";
-import {dialog, expectNoCutOrOverlap, fitsTheScreen, noHorizontalScroll, open, pageChecks, rxTab, setLanguage, tourClinic, tourPages} from "../support/ux.ts";
-import {designerOf, designerShown, tabPath} from "../support/print-template.ts";
+import {dialog, expectNoCutOrOverlap, expectNoDialog, fitsTheScreen, noHorizontalScroll, open, pageChecks, rxTab, setLanguage, tourClinic, tourPages} from "../support/ux.ts";
+import {closeEditor, openEditor, openPrescription, printButton, printPopup} from "../support/print.ts";
+import {designerOf, designerShown, layoutL, manualItem, tabPath, textItem} from "../support/print-template.ts";
+import {RxPage} from "../support/rx.ts";
 import {IMPORTED} from "../support/shared.ts";
-import {TREE_TEXTS} from "../support/texts-rx.ts";
+import {RX_TEXTS, TREE_TEXTS} from "../support/texts-rx.ts";
+import {DOSINGS} from "../support/texts-ux.ts";
 import {DrugTreeUi} from "../support/tree.ts";
 
 test.describe("Every page and dialog of the catalog and prescription @area:ux", () => {
@@ -98,6 +103,49 @@ test.describe("Every page and dialog of the catalog and prescription @area:ux", 
             await check("the designer's question");
             await designer.question.getByRole("button", {name: pt.leave, exact: true}).click();
             await expect(designer.question).toHaveCount(0);
+        });
+
+    test("the page with Print, the editor with Print and the print pop-up, in the project's language and on a phone in both: dir/lang, no horizontal scroll, no serious axe violation, no console error, no cut text @UX-036 @I18N-006 @TPL-348",
+        async ({page, data, lang, isMobile}) => {
+            test.slow();
+            const manual = manualItem({name: "الاسم بالكامل كما في البطاقة"});
+            const {rx: first} = await openPrescription(page, data, lang, layoutL({items: [textItem(), manual, manualItem({id: "m2", name: "السن", yMm: 56})]}), [
+                {name: `Tobradex ${unique()}`, dosing: DOSINGS.oneDropFour.dosing},
+            ]);
+            await expect(first.lines).toHaveCount(1);
+
+            for (const language of isMobile ? ["en", "ar"] as Lang[] : [lang]) {
+                await test.step(language, async () => {
+                    await setLanguage(page, language);
+                    const rt = RX_TEXTS[language];
+                    const rx = new RxPage(page, rt);
+                    const check = async (what: string, scope: Locator) => {
+                        await pageChecks(page, `${language} ${what}`);
+                        await expectNoCutOrOverlap(scope, `${language} ${what}`);
+                    };
+
+                    await expect(printButton(rx.panel, rt)).toBeEnabled();
+                    await check("the page with Print", page.locator("main"));
+
+                    const popup = printPopup(page, rt);
+                    await printButton(rx.panel, rt).click();
+                    await expect(popup.getByRole("textbox", {name: manual.name, exact: true})).toBeVisible();
+                    await check("the pop-up", popup);
+                    await fitsTheScreen(page, popup, `${language} the pop-up`);
+                    await popup.getByRole("button", {name: rt.cancel, exact: true}).click();
+                    await expectNoDialog(page);
+
+                    const editor = await openEditor(page, rt);
+                    await expect(printButton(editor, rt)).toBeEnabled();
+                    await check("the editor with Print", editor);
+                    await printButton(editor, rt).click();
+                    await expect(popup.getByRole("textbox", {name: manual.name, exact: true})).toBeVisible();
+                    await check("the pop-up over the editor", popup);
+                    await popup.getByRole("button", {name: rt.cancel, exact: true}).click();
+                    await expect(popup).toBeHidden();
+                    await closeEditor(editor, rt);
+                });
+            }
         });
 
     test("a 375 px phone in Arabic and English: no horizontal page scroll on the prescription, drugs, protocols and protocol editor pages and their dialogs @UX-001 @I18N-006",

@@ -97,7 +97,7 @@ test.describe("Prescription: copy and Edit & copy @area:prescription", () => {
         expectWordHtml(await parseHtml(page, clipboard.html ?? ""), [[a.name, RX_DOSINGS.dropRightAfterMealsContinuous.sentence]]);
     });
 
-    test("«تعديل ونسخ» opens «تعديل قبل النسخ» with its hint and the lines: bold names, sentences, notes, right-to-left @RX-075 @smoke",
+    test("«تعديل ونسخ» opens «تعديل قبل النسخ أو الطباعة» with its hint «للنسخ أو الطباعة؛ التعديلات لا تُحفظ.» and the lines: bold names, sentences, notes, right-to-left @RX-075 @smoke",
         async ({page, lang, data}, testInfo) => {
             const rt = RX_TEXTS[lang];
             const clinic = await data.clinic();
@@ -105,6 +105,7 @@ test.describe("Prescription: copy and Edit & copy @area:prescription", () => {
             const {a, b, c} = await threeLines(page, rx, data, clinic);
 
             const dialog = await openEditor(page, rt);
+            await expect(dialog.getByRole("heading", {name: rt.editorTitle, exact: true})).toBeVisible();
             await expect(dialog.getByText(rt.editorHint, {exact: true})).toBeVisible();
             await expectEditorHealthy(page, lang, testInfo);
             const editor = dialog.locator(".ql-editor");
