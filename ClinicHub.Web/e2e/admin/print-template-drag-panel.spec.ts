@@ -24,6 +24,9 @@ import {
 
 /** A new item's 11 pt in CSS px, at 100%. */
 const NEW_ITEM_FONT_PX = 11 * 96 / 72;
+/** The sheet's own font and line height, which an item has and so its ghost. */
+const PRINT_FONT = /^["']?ClinicHub Print["']?\s*(,|$)/;
+const PRINT_LINE_HEIGHT = 1.4;
 
 test.describe("Print template: dragging from the panel @area:admin", () => {
     test.skip(({isMobile}) => isMobile, COMPUTER_ONLY);
@@ -305,6 +308,42 @@ test.describe("Print template: dragging from the panel @area:admin", () => {
                     await expect(designer.ghost).toHaveText(pt.manualInput);
                     const fontPx = await designer.ghost.evaluate(ghost => parseFloat(getComputedStyle(ghost).fontSize));
                     expect(Math.abs(fontPx - NEW_ITEM_FONT_PX * zoom / 100), `the ghost's font is ${fontPx} px at ${zoom}%`).toBeLessThanOrEqual(0.1);
+
+                    await page.keyboard.press("Escape");
+                    await drag.release();
+                    await expect(designer.ghost).toHaveCount(0);
+                    await expectUntouched(designer);
+                });
+            }
+        });
+
+    test("a drag of the longest entry at 50% and at 200%: the ghost's font and wrapping match the item, its text wrapped, not cut or running out sideways @TPL-593",
+        async ({page, data, lang}) => {
+            const {designer, pt} = await openDesigner(page, data, lang, {
+                schemaVersion: 1, page: A4, items: [textItem({xMm: 14, yMm: 100, wMm: 120, hMm: 90})],
+            });
+
+            for (const zoom of [50, 200]) {
+                await test.step(`${zoom}%`, async () => {
+                    await zoomTo(designer, zoom);
+                    await designer.entry(pt.isoDateTime).scrollIntoViewIfNeeded();
+                    const drag = await pressEntry(page, designer, pt.isoDateTime);
+                    await drag.by(30, 0);
+                    await expect(designer.ghost).toHaveText(pt.isoDateTime);
+
+                    const ghost = await designer.ghost.evaluate(element => {
+                        const style = getComputedStyle(element);
+                        return {
+                            fontFamily: style.fontFamily,
+                            lineHeightPx: parseFloat(style.lineHeight),
+                            fontPx: parseFloat(style.fontSize),
+                            scrollWidth: element.scrollWidth,
+                            clientWidth: element.clientWidth,
+                        };
+                    });
+                    expect(ghost.fontFamily, "the sheet's font").toMatch(PRINT_FONT);
+                    expect(Math.abs(ghost.lineHeightPx / ghost.fontPx - PRINT_LINE_HEIGHT), `a line height of ${ghost.lineHeightPx} px on a font of ${ghost.fontPx} px`).toBeLessThanOrEqual(0.01);
+                    expect(ghost.scrollWidth, "the text wrapped inside the ghost's width").toBeLessThanOrEqual(ghost.clientWidth);
 
                     await page.keyboard.press("Escape");
                     await drag.release();

@@ -96,7 +96,7 @@ Box role="region" (the area, step 1's, dir="ltr", tabIndex 0)
 - **`TemplateSheet`'s boxes** (designer only): same button, same `data-item-id`, `aria-pressed`; `touch-action: none`, `user-select: none`, `cursor: move`. Inline positions in mm, as always.
 - **Handles:** only the selected item's, from `handlesFor` at the current zoom, at `handlePositionPx` (`cornersOnly`: the set on screen has four), each `HANDLE_SIZE_PX` square at any zoom, drawn in `ALL_HANDLES` order; white with a 1 px `#0f766e` border, `touch-action: none`, cursors `nwse-resize`, `ns-resize`, `nesw-resize`, `ew-resize`. Never focusable: keyboard resizing stays in the number fields. Ids: `nw n ne e se s sw w`, physical, the same in both languages. **The set is frozen during a drag.**
 - **Guides:** one per entry of a drag's `guides`, `data-mm` holding the value, a 1 px line across the whole sheet, `#db2777`. Gone at the end of the drag.
-- **The ghost:** `data-testid="template-drag-ghost"`, `aria-hidden="true"`, `position: fixed`, its top-left at the pointer, the new item's default size × zoom, showing the entry's label; `pointer-events: none`. Rendered in the designer, not in a portal under `body`.
+- **The ghost:** `data-testid="template-drag-ghost"`, `aria-hidden="true"`, `position: fixed`, its top-left at the pointer, the new item's default size × zoom, showing the entry's label, its font and wrapping matching the item (`PRINT_FONT_FAMILY`, `PRINT_LINE_HEIGHT`, `white-space: pre-wrap`, `overflow-wrap: anywhere`, text at the box's start; TPL-593); `pointer-events: none`. Rendered in the designer, not in a portal under `body`.
 
 ### 3.4 Pointer flows
 
