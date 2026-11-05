@@ -9,9 +9,11 @@ import {
     expectPageSize,
     expectPrintCalls,
     expectRunAt,
+    expectRunEndsAtRight,
     expectRunOnFirstLine,
     finishPrint,
     functionItem,
+    itemLineEdges,
     linesOf,
     MM_PT,
     mmToPt,
@@ -290,6 +292,59 @@ test.describe("Printing: the sheet @area:prescription", () => {
             expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned), "nothing ran").toBeUndefined();
             await finishPrint(page);
             await closeEditor(editor, rt);
+        });
+
+    test("drugs named 5-FU 1% and ALEMOX 1 GM 12 F.C.TABS., printed beside Copy and from the editor with no edit: the PDF reads them in that order, each ending at the box's right; a line of both scripts reads as before @TPL-349 @smoke",
+        async ({page, lang, data}) => {
+            const fu = "5-FU 1%";
+            const alemox = "ALEMOX 1 GM 12 F.C.TABS.";
+            const latin = `Zmix${unique()}`;
+            const box = textItem();
+            const {rx, rt} = await openPrescription(page, data, lang, layoutL({items: [box]}), [{name: fu}, {name: alemox}, {name: `قطرة ${latin}`}]);
+
+            const expectPrintedText = async (where: string) => {
+                const {pages} = await printedPdf(page);
+                expect(pages, where).toHaveLength(1);
+                const [sheet] = pages;
+                expect(pdfText(sheet).split("\n").slice(0, 2), `${where}: the names read in order, on their own lines`).toEqual([fu, alemox]);
+                for (const name of [fu, alemox]) expectRunEndsAtRight(pdfRun(sheet, name), box, `${where}: ${name}`);
+
+                // The line of both scripts stays right to left: it starts with the Arabic word at the right edge, the Latin one on its left
+                const word = pdfRun(sheet, latin);
+                const arabic = sheet.items.filter(item => item !== word && Math.abs(item.yPt - word.yPt) < 1);
+                expect(arabic.length, `${where}: the Arabic word on the Latin one's line`).toBeGreaterThan(0);
+                for (const item of arabic) expect(item.xPt, `${where}: the Arabic word is right of the Latin one`).toBeGreaterThanOrEqual(word.xPt + word.widthPt - MM_PT);
+                expectRunEndsAtRight(arabic.reduce((a, b) => (a.xPt > b.xPt ? a : b)), box, `${where}: the line of both scripts`);
+            };
+
+            await printButton(rx.panel, rt).click();
+            await expectPrintCalls(page, 1);
+            await expectPrintedText("beside Copy");
+            await finishPrint(page);
+
+            const editor = await openEditor(page, rt);
+            await printButton(editor, rt).click();
+            await expectPrintCalls(page, 2);
+            await expectPrintedText("from the editor");
+            await finishPrint(page);
+            await closeEditor(editor, rt);
+        });
+
+    test("a static text of Dr. Ahmed, دكتور أحمد and Consultant on three lines: under print media each line starts from its own language's side, the English at the box's left and the Arabic ending at its right @TPL-350",
+        async ({page, lang, data}) => {
+            const lines = ["Dr. Ahmed", "دكتور أحمد", "Consultant"];
+            const fixed = staticItem({text: lines.join("\n"), xMm: 14, yMm: 20, wMm: 100, hMm: 24, fontSizePt: 11});
+            const {rx, rt} = await openPrescription(page, data, lang, layoutL({items: [textItem(), fixed]}), [{name: `Zname${unique()}`}]);
+            await printButton(rx.panel, rt).click();
+            await expectPrintCalls(page, 1);
+
+            const edges = await itemLineEdges(sheetItem(page, 0, fixed.id));
+            expect(edges.map(edge => edge.text)).toEqual(lines);
+            const [doctor, arabic, consultant] = edges;
+            for (const line of [doctor, consultant]) {
+                expect(Math.abs(line.leftMm), `«${line.text}» starts ${line.leftMm} mm from the box's left`).toBeLessThanOrEqual(0.1);
+            }
+            expect(Math.abs(arabic.rightMm - fixed.wMm), `«${arabic.text}» ends at ${arabic.rightMm} mm of a ${fixed.wMm} mm box`).toBeLessThanOrEqual(0.1);
         });
 
     test("in the print layout 2026-11-05T14:30 and 2/3 read left to right inside the sheet, whatever the UI language @TPL-318",

@@ -280,6 +280,22 @@ export const characterLefts = (element: Locator) => inPrintMedia(element.page(),
     return lefts;
 }));
 
+/** Each line of a short item's text (its `\n`s), under print media, by `Range` rects: its text, and its left and right edges in mm from the box's left. */
+export const itemLineEdges = (box: Locator) => inPrintMedia(box.page(), () => box.evaluate((root, mm) => {
+    const {left} = root.getBoundingClientRect();
+    const node = document.createTreeWalker(root, NodeFilter.SHOW_TEXT).nextNode();
+    if (!node) throw new Error("the item holds no text");
+    let start = 0;
+    return (node.textContent ?? "").split("\n").map(text => {
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, start + text.length);
+        start += text.length + 1;
+        const rect = range.getBoundingClientRect();
+        return {text, leftMm: (rect.left - left) / mm, rightMm: (rect.right - left) / mm};
+    });
+}, MM));
+
 /** The item of a sheet on the page (for a look at its DOM). */
 export const sheetItem = (page: Page, sheet: number, id: string) =>
     page.locator(PRINT_SHEET).nth(sheet).locator(`[data-item-id="${id}"]`);
