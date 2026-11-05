@@ -18,7 +18,8 @@ import {loadCatalog} from "./support/catalogLoad.ts";
  * - `Platform:SuperAdminPhones`: a pool of super admin phones, one claimed per test, so the OTP limits of one phone
  *   (5 codes per hour) never meet the many super admin logins of a run;
  * - `Otp:ResendSeconds` = 0: a test may log the same person in twice in a row (another tab, after a logout); the
- *   60 s rule itself is proven by the api tests (AUTH-020…). The hourly limit (5) and the 5 tries stay as intended.
+ *   60 s rule itself is proven by the api tests (AUTH-020…). The hourly limit (5) and the 5 tries stay as intended;
+ * - `Attachments:Physical:RootPath`: a folder of this run, because outside Development an empty one stops the API.
  *
  * `CLINICHUB_E2E_NO_BUILD=1` reuses the last SPA and API builds (faster local iterations).
  */
@@ -161,7 +162,7 @@ const cleanUpKilledRuns = (root: string) => {
             spawnSync("taskkill", ["/pid", String(info.apiPid), "/T", "/F"], {stdio: "ignore"});
         }
         try { dropDatabase(info.database); } catch (e) { console.warn(`e2e: could not drop ${info.database}: ${(e as Error).message}`); }
-        for (const copy of ["api", "wwwroot"]) {
+        for (const copy of ["api", "wwwroot", "attachments"]) {
             try { fs.rmSync(path.join(root, entry.name, copy), {recursive: true, force: true, maxRetries: 5, retryDelay: 500}); } catch { /* best effort */ }
         }
         fs.rmSync(file, {force: true});
@@ -246,6 +247,8 @@ export default async function globalSetup() {
     if (!fs.existsSync(path.join(apiProject, "wwwroot", "index.html"))) throw new Error("ClinicHub.Api/wwwroot has no SPA: npm run build, or drop CLINICHUB_E2E_NO_BUILD");
     const apiCopy = path.join(runDir, "api");
     const webCopy = path.join(runDir, "wwwroot");
+    // Outside the content root and the web root, as the API's startup requires; gone with the run
+    const attachmentsRoot = path.join(runDir, "attachments");
     fs.cpSync(bin, apiCopy, {recursive: true});
     fs.cpSync(path.join(apiProject, "wwwroot"), webCopy, {recursive: true});
     const log = path.join(runDir, "api.log");
@@ -261,6 +264,7 @@ export default async function globalSetup() {
             ASPNETCORE_URLS: baseURL,
             ConnectionStrings__DefaultConnection: `Host=localhost;Port=5432;Database=${database};Username=drags;Password=drags`,
             Otp__ResendSeconds: "0",
+            Attachments__Physical__RootPath: attachmentsRoot,
             Logging__LogLevel__Default: "Warning",
             // Kestrel's "Now listening on: …" line: how setup knows the answering API is this run's
             "Logging__LogLevel__Microsoft.Hosting.Lifetime": "Information",
@@ -294,8 +298,8 @@ export default async function globalSetup() {
         try { dropDatabase(database); } catch (e) { console.warn(`e2e: could not drop ${database}: ${(e as Error).message}`); }
         api?.release();
         fs.rmSync(pidFile, {force: true});
-        // The copies go; the run's folder keeps api.log
-        for (const copy of [apiCopy, webCopy]) {
+        // The copies and the run's attachments go; the run's folder keeps api.log
+        for (const copy of [apiCopy, webCopy, attachmentsRoot]) {
             try { fs.rmSync(copy, {recursive: true, force: true, maxRetries: 5, retryDelay: 500}); } catch { /* best effort */ }
         }
     };

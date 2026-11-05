@@ -80,7 +80,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     /// <summary>
     /// FK to the clinic (restrict, nullable: null = shared) and the filter of design M1.7 D1: the shared rows plus the
     /// current clinic's; a request with no clinic (platform) sees only the shared rows. <c>IgnoreQueryFilters()</c> stays
-    /// Platform-only (the category delete counts every clinic's drugs).
+    /// Platform-only (the category delete counts every clinic's drugs), plus the one read-only lookup of a failed upload's
+    /// cleanup (docs/design/attachments.md § 6).
     /// </summary>
     private void ConfigureClinicOrShared<T>(ModelBuilder modelBuilder) where T : class, IClinicOrShared
     {

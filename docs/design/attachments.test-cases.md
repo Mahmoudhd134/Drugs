@@ -1,7 +1,7 @@
 # Attachments: test cases
 
 Status: **approved** (user, T0, 2026-11-06). Same format and rules as the [test catalog](../testing/test-catalog.md). New area **ATT**. Sources:
-the [design](attachments.md) (§ / An) and the [business file](attachments.business.md) («…»). Moved into the catalog with the feature.
+the [design](attachments.md) (§ / An) and the [business file](../features/attachments/business.md) («…»). Moved into the catalog with the feature.
 
 Two parts (§ 9). **Part 1, backend:** levels `unit` and `api`; `api` cases run on the test-only controller. **Part 2, components:** levels `unit`,
 `ui` and `e2e` on the harness page (§ 12). Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 MB); G = any other

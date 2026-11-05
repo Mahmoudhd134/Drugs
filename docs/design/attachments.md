@@ -1,8 +1,8 @@
 # Attachments: design
 
-Status: **approved** (user, T0, 2026-11-06). Nothing is built yet. Companion files:
-[business (Arabic)](attachments.business.md) and [test cases](attachments.test-cases.md). When built, this moves into
-`docs/features/attachments/`, the overviews and the [test catalog](../testing/test-catalog.md).
+Status: **approved** (user, T0, 2026-11-06). Part 1 (the backend) is built ([tech](../features/attachments/tech.md)); part 2 (§ 12) isn't.
+Companion files: [business (Arabic)](../features/attachments/business.md) and [test cases](attachments.test-cases.md). When all is built, this
+moves into `docs/features/attachments/`, the overviews and the [test catalog](../testing/test-catalog.md).
 
 Builds on: [tech overview](../tech/overview.md), [backend architecture](architecture.md),
 [clinic scoping](../features/clinic-scoping/tech.md), [access](../features/access/tech.md),

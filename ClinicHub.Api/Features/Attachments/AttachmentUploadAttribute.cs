@@ -1,6 +1,11 @@
+using ClinicHub.Api.Errors;
+using ClinicHub.Application.Common.Results;
 using ClinicHub.Application.Common.Settings;
+using ClinicHub.Application.Features.Attachments;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Net.Http.Headers;
 
 namespace ClinicHub.Api.Features.Attachments;
 
@@ -25,6 +30,60 @@ public sealed class AttachmentUploadFilter(string module, AttachmentSettings set
     /// <summary>What the multipart framing may add on top of the file.</summary>
     public const long FramingAllowanceBytes = 64 * 1024;
 
-    public Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next) =>
-        throw new NotImplementedException();
+    /// <summary>
+    /// How the framework's <see cref="InvalidDataException"/> for <see cref="FormOptions.MultipartBodyLengthLimit"/> begins: it has no type of its
+    /// own. The real Kestrel case ATT-082 fails if an upgrade changes it.
+    /// </summary>
+    private const string BodyLengthLimitMessage = "Multipart body length limit";
+
+    public async Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next)
+    {
+        var httpContext = context.HttpContext;
+        var limit = settings.RulesFor(module).MaxFileSizeBytes + FramingAllowanceBytes;
+
+        // TestServer has no such feature; it's read only once the body has been started
+        if (httpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } bodySize)
+            bodySize.MaxRequestBodySize = limit;
+
+        var refusal = httpContext.Request.ContentLength > limit
+            ? AttachmentErrors.TooLarge
+            : await ReadFormAsync(httpContext, limit);
+        if (refusal is not null)
+        {
+            context.Result = Result.Failure(refusal).ToProblem();
+            return;
+        }
+        await next();
+    }
+
+    /// <summary>The refusal, or null with the form read, so model binding finds it there. A client that went away isn't answered: its error goes on.</summary>
+    private static async Task<Error> ReadFormAsync(HttpContext httpContext, long limit)
+    {
+        if (!IsMultipartForm(httpContext.Request.ContentType))
+            return CommonErrors.InvalidRequest;
+
+        // The default caps at 128 MB, whatever the module's limit
+        httpContext.Features.Set<IFormFeature>(new FormFeature(httpContext.Request, new FormOptions { MultipartBodyLengthLimit = limit }));
+        try
+        {
+            var form = await httpContext.Request.ReadFormAsync(httpContext.RequestAborted);
+            return form.Files.Count > 1 ? CommonErrors.InvalidRequest : null;
+        }
+        catch (BadHttpRequestException exception) when (exception.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            return AttachmentErrors.TooLarge;
+        }
+        catch (InvalidDataException exception) when (exception.Message.StartsWith(BodyLengthLimitMessage, StringComparison.Ordinal))
+        {
+            return AttachmentErrors.TooLarge;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException && !httpContext.RequestAborted.IsCancellationRequested)
+        {
+            return CommonErrors.InvalidRequest;
+        }
+    }
+
+    private static bool IsMultipartForm(string contentType) =>
+        MediaTypeHeaderValue.TryParse(contentType, out var parsed)
+        && parsed.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase);
 }

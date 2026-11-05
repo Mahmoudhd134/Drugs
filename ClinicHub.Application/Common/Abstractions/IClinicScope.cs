@@ -25,10 +25,12 @@ public interface IClinicScope
     IDisposable Use(int clinicId);
 
     /// <summary>
-    /// Opens shared-catalog writing for a block (<c>using (scope.UseSharedCatalog()) { … }</c>; design M1.7 D2): sets
+    /// Opens writing of platform rows (<c>IClinicOrShared</c> with no clinic) for a block
+    /// (<c>using (scope.UseSharedCatalog()) { … }</c>; design M1.7 D2): sets
     /// <see cref="IClinicContext.WritingSharedCatalog"/> and restores it on dispose (nestable: writing stays open until
-    /// the outermost block is disposed). Throws when a clinic is in context. Only the admin catalog handlers
-    /// (<c>Features/Platform/SharedDrugs</c>) call it.
+    /// the outermost block is disposed). Throws when a clinic is in context. Called by the admin catalog handlers
+    /// (<c>Features/Platform/SharedDrugs</c>) and by a feature's handler that writes platform files; the attachment service
+    /// never opens it itself (docs/design/attachments.md § 4).
     /// </summary>
     IDisposable UseSharedCatalog();
 }

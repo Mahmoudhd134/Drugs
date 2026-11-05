@@ -10,7 +10,8 @@ public interface IClinicContext
 
     /// <summary>
     /// True only inside <see cref="IClinicScope.UseSharedCatalog"/> (design M1.7 D2): the save interceptor then lets a
-    /// request with no clinic add or modify shared drugs (never delete them). Never true while a clinic is set.
+    /// request with no clinic add or modify shared rows, drugs or platform files (never delete them). Never true while a
+    /// clinic is set.
     /// </summary>
     bool WritingSharedCatalog { get; }
 }

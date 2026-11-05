@@ -22,7 +22,7 @@ public static class DependencyInjection
 
     /// <summary>
     /// The use cases and the services they share. The settings (<c>AuthSettings</c>, <c>OtpSettings</c>,
-    /// <c>PlatformSettings</c>) are registered by the Api, which validates them.
+    /// <c>PlatformSettings</c>, <c>AttachmentSettings</c>) are registered by the Api, which validates them.
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
