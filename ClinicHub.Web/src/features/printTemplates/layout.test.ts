@@ -173,6 +173,15 @@ describe("formatMm: a number as its field shows it @area:admin", () => {
     ])("%d shows as %s: Latin digits, a dot, at most one decimal @TPL-225", (value, shown) => {
         expect(formatMm(value)).toBe(shown);
     });
+
+    test.each([
+        [1e21, /^\d{22}$/],
+        [1e26, /^\d{27}$/],
+        [-1e26, /^-\d{27}$/],
+    ])("%d is written in plain digits, never an exponent, and reads back as the same number @TPL-252", (value, shown) => {
+        expect(formatMm(value)).toMatch(shown);
+        expect(parseMmInput(formatMm(value))).toBe(value);
+    });
 });
 
 describe("normalizeLayout: what is validated, compared and sent @area:admin", () => {

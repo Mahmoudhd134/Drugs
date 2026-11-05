@@ -284,6 +284,8 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["هذا الاسم مستخدم في عنصر آخر.", () => t("errors.templateItemNameTaken")],
             ["اكتب النص.", () => t("errors.templateStaticTextRequired")],
             ["النص أطول من 1000 حرف.", () => t("errors.templateStaticTextTooLong")],
+            // The row «نص ثابت برموز غير مسموحة»
+            ["النص يحتوي على رموز غير مسموح بها.", () => t("errors.invalidText")],
             ["العنصر خارج حدود الورقة.", () => t("errors.templateItemOutsidePage")],
             ["مقاس العنصر أصغر من الحد المسموح.", () => t("errors.templateItemSizeInvalid")],
             ["حجم الخط يجب أن يكون بين 6 و36.", () => t("errors.templateFontSizeInvalid")],

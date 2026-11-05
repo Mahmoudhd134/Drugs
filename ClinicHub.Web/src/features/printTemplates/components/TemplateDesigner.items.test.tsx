@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {act, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {aPrintLayout, aTemplateItem, choose, expectOwnDirection, recordRequests} from "../../../test";
@@ -125,6 +125,29 @@ describe("print template: the side panel @area:admin", () => {
         await user.click(panelEntry("Manual input"));
         await user.click(panelEntry("Manual input"));
         expect(sheetBoxes()).toHaveLength(3);
+    });
+
+    test("an item added: its box is scrolled into view, the nearest way, and the focus stays on the entry @TPL-253", async () => {
+        const {user} = await renderDesigner(layoutL());
+        // jsdom has no layout (setup.ts makes scrollIntoView a no-op): record what the screen scrolls to
+        const scrolled: { element: Element; options: unknown }[] = [];
+        vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+            scrolled.push({element: this, options});
+        });
+        const scrollsOf = (box: HTMLElement) => scrolled.filter(({element}) => element === box).map(({options}) => options);
+        const NEAREST = {block: "nearest", inline: "nearest"};
+
+        await user.click(panelEntry("Manual input"));
+        const added = sheetBoxes()[3];
+        await waitFor(() => expect(scrollsOf(added)).toContainEqual(NEAREST));
+        expect(panelEntry("Manual input")).toHaveFocus();
+
+        // By the keyboard too: the next new box, the focus still on its entry
+        act(() => panelEntry("Static text").focus());
+        await user.keyboard("{Enter}");
+        const next = sheetBoxes()[4];
+        await waitFor(() => expect(scrollsOf(next)).toContainEqual(NEAREST));
+        expect(panelEntry("Static text")).toHaveFocus();
     });
 
     test("at 50 items: a message says why, every addable entry is off, the sheet holds 50 @TPL-237", async () => {

@@ -23,9 +23,12 @@ import {
     boxOf,
     designerShown,
     dialogsGone,
+    expectFieldMessage,
+    expectNothingSent,
     FIELD_LABEL,
     label,
     leaveQuestion,
+    measuresOf,
     noLeaveQuestion,
     paperSize,
     renderDesigner,
@@ -33,7 +36,9 @@ import {
     saveButton,
     selectedIds,
     settingsField,
+    sheetBoxes,
     sheetItem,
+    sheetSize,
     tabPath,
     templatePath,
     theSheet,
@@ -277,6 +282,159 @@ describe("print template: a value typed back @area:admin", () => {
         expect(unloadAsks()).toBe(true);
         await user.click(screen.getByRole("button", {name: "Remove item"}));
         expect(unloadAsks()).toBe(false);
+    });
+});
+
+describe("print template: a sheet size typed, the focus still in its field @area:admin", () => {
+    /** A saved custom 200 × 200 mm sheet: the manual input falls off when the sheet goes below 190 mm. */
+    const customL = () => aPrintLayout({
+        page: {size: "custom", widthMm: 200, heightMm: 200},
+        items: [
+            aTemplateItem("prescriptionText", {id: "t", xMm: 10, yMm: 10, wMm: 100, hMm: 30}),
+            aTemplateItem("manualInput", {id: "m", xMm: 150, yMm: 150, wMm: 40, hMm: 8}),
+        ],
+    });
+
+    /** Types in the field and checks the focus has stayed: nothing has committed it. */
+    const typeAndStay = async (user: UserEvent, fieldLabel: string, value: string) => {
+        await typeInField(user, settingsField(fieldLabel), value);
+        expect(settingsField(fieldLabel)).toHaveFocus();
+    };
+
+    const MEASURES: [name: string, fieldLabel: string, page: { widthMm: number; heightMm: number }, moved: { xMm: number; yMm: number }][] = [
+        ["width", FIELD_LABEL.pageWidth, {widthMm: 120, heightMm: 200}, {xMm: 80, yMm: 150}],
+        ["height", FIELD_LABEL.pageHeight, {widthMm: 200, heightMm: 120}, {xMm: 150, yMm: 112}],
+    ];
+
+    test.each(MEASURES)("a new %s counts as unsaved: Save is on, the browser's prompt shows; the sheet hasn't resized and no item has moved @TPL-251 @TPL-221", async (_name, fieldLabel) => {
+        const {user} = await renderDesigner(customL());
+        const before = sheetBoxes().map(measuresOf);
+        await typeAndStay(user, fieldLabel, "120");
+
+        expect(saveButton()).toBeEnabled();
+        expect(unloadAsks()).toBe(true);
+        expect(settingsField(fieldLabel)).toHaveValue("120");
+        expect(sheetSize()).toEqual({w: "200mm", h: "200mm"});
+        expect(sheetBoxes().map(measuresOf)).toEqual(before);
+    });
+
+    test.each(EXITS)("%s: the question asks; staying keeps the size, leaving sends nothing @TPL-251", async (_name, press, leavesFor) => {
+        const clinic = aClinicDetails();
+        const recorded = recordRequests();
+        const {user, location} = await renderDesigner(customL(), {clinic, layout: true});
+        await typeAndStay(user, FIELD_LABEL.pageWidth, "300");
+        expect(unloadAsks()).toBe(true);
+
+        await user.click(press());
+        await answerQuestion(user, "stay");
+        expect(location().pathname).toBe(tabPath(clinic.id));
+        expect(settingsField(FIELD_LABEL.pageWidth)).toHaveValue("300");
+        expect(saveButton()).toBeEnabled();
+
+        await user.click(press());
+        await answerQuestion(user, "leave");
+        const target = leavesFor === "overview" ? `/admin/clinics/${clinic.id}` : leavesFor;
+        await waitFor(() => expect(location().pathname).toBe(target));
+        expect(recorded.writes()).toEqual([]);
+    });
+
+    test("browser Back, which takes no focus from the field: the question asks; staying keeps the URL and the size @TPL-251", async () => {
+        const clinic = aClinicDetails();
+        const {user, router, location} = await renderDesigner(customL(), {clinic});
+        await act(() => router!.navigate(`/admin/clinics/${clinic.id}`));
+        await act(() => router!.navigate(tabPath(clinic.id)));
+        await designerShown();
+        await within(await screen.findByRole("region", {name: "Sheet preview"})).findByRole("button", {name: "الاسم"});
+        await typeAndStay(user, FIELD_LABEL.pageWidth, "300");
+
+        await act(() => router!.navigate(-1));
+        await answerQuestion(user, "stay");
+
+        expect(location().pathname).toBe(tabPath(clinic.id));
+        expect(settingsField(FIELD_LABEL.pageWidth)).toHaveValue("300");
+    });
+
+    test.each([
+        ["as it was", "200"],
+        ["in another form", "200.0"],
+    ])("typed back to the committed number, %s: clean again, and leaving asks nothing @TPL-251 @TPL-233", async (_name, typedBack) => {
+        const clinic = aClinicDetails();
+        const {user, location} = await renderDesigner(customL(), {clinic});
+        await typeAndStay(user, FIELD_LABEL.pageWidth, "300");
+        expect(saveButton()).toBeEnabled();
+        expect(unloadAsks()).toBe(true);
+
+        await typeAndStay(user, FIELD_LABEL.pageWidth, typedBack);
+
+        expect(saveButton()).toBeDisabled();
+        expect(unloadAsks()).toBe(false);
+        await user.click(screen.getByRole("tab", {name: "Overview"}));
+        await waitFor(() => expect(location().pathname).toBe(`/admin/clinics/${clinic.id}`));
+        noLeaveQuestion();
+    });
+
+    test.each(MEASURES)("a new %s, Save pressed once: the size is committed and saved, in one PUT and one toast @TPL-251", async (_name, fieldLabel, page, moved) => {
+        const {user, clinic} = await renderDesigner(customL());
+        const recorded = recordRequests();
+        await typeAndStay(user, fieldLabel, "120");
+
+        expect(saveButton()).toBeEnabled();
+        await user.click(saveButton());
+
+        // Exactly this toast: no «تم حذف», no message on top
+        await expectToasts("Template saved");
+        expect(recorded.writes()).toEqual([expect.objectContaining({
+            method: "PUT",
+            path: templatePath(clinic.id),
+            body: expect.objectContaining({
+                page: {size: "custom", ...page},
+                items: [
+                    expect.objectContaining({id: "t", xMm: 10, yMm: 10}),
+                    expect.objectContaining({id: "m", ...moved}),
+                ],
+            }),
+        })]);
+        expect(sheetSize()).toEqual({w: `${page.widthMm}mm`, h: `${page.heightMm}mm`});
+        expect(boxOf("m").style.left).toBe(`${moved.xMm}mm`);
+        expect(boxOf("m").style.top).toBe(`${moved.yMm}mm`);
+        expect(settingsField(fieldLabel)).toHaveValue("120");
+        expect(saveButton()).toBeDisabled();
+        expect(unloadAsks()).toBe(false);
+    });
+
+    test("in Arabic, with Arabic digits: one press, «تم حفظ القالب» and no «تم حذف» @TPL-251", async () => {
+        const {user, clinic} = await renderDesigner(customL(), {lang: "ar"});
+        const recorded = recordRequests();
+        await typeAndStay(user, "عرض الورقة (مم)", "١٢٠");
+
+        expect(saveButton()).toBeEnabled();
+        await user.click(saveButton());
+
+        await expectToasts("تم حفظ القالب");
+        expect(screen.queryByText(/تم حذف/)).not.toBeInTheDocument();
+        expect(recorded.writes()).toEqual([expect.objectContaining({
+            method: "PUT",
+            path: templatePath(clinic.id),
+            body: expect.objectContaining({page: {size: "custom", widthMm: 120, heightMm: 200}}),
+        })]);
+    });
+
+    test.each([
+        ["out of range", "500", "The sheet size isn't valid."],
+        ["not a number", "abc", "Enter a number."],
+    ])("a size %s, Save pressed: the field says why, nothing is sent and nothing moves @TPL-251 @TPL-221", async (_name, typed, message) => {
+        const {user} = await renderDesigner(customL());
+        const recorded = recordRequests();
+        const before = sheetBoxes().map(measuresOf);
+        await typeAndStay(user, FIELD_LABEL.pageWidth, typed);
+
+        expect(saveButton()).toBeEnabled();
+        await user.click(saveButton());
+
+        expectFieldMessage(settingsField(FIELD_LABEL.pageWidth), message);
+        await expectNothingSent(recorded);
+        expect(sheetSize().w).toBe("200mm");
+        expect(sheetBoxes().map(measuresOf)).toEqual(before);
     });
 });
 

@@ -121,6 +121,9 @@ full date).
 | TPL-244 | Given every new `template*` code, then `errors.<code>` is in `en.ts` and `ar.ts` | P1 | unit | § 5, ERR-030 |
 | TPL-245 | Given clinic A's designer with unsaved edits, when going to clinic B's tab by history, then none of A's sheet, selection or edits shows under B | P1 | ui | ADM-100, `ClinicPage.tsx:87` |
 | TPL-246 | Given 375 px in both languages, then the four clinic tabs are reachable, the message wraps, and the page has no horizontal scroll | P1 | e2e | D12, ADM-283 |
+| TPL-251 | Given a saved custom template, when a new sheet width is typed and the focus stays in the field (not committed yet; the height the same), then the screen counts as unsaved: Save is enabled, `beforeunload` is prevented and leaving through a tab or link asks the question; pressing Save commits the size and saves in one press: one PUT holding the new width, «تم حفظ القالب» and no «تم حذف». Typed back to the committed number, it counts as clean again, no question. The sheet still doesn't resize per keystroke and no item moves until the commit (TPL-221) | P1 | ui | D16 |
+| TPL-252 | Given a huge value such as `1e26`, then `formatMm` writes it in plain digits, never an exponent | P2 | unit | § 3 |
+| TPL-253 | Given an item added whose box lies outside the sheet area's view, then its box is scrolled into view (`block` and `inline` `nearest`) and the focus stays on the panel entry | P2 | ui | D8 |
 
 ## Step 2: printing
 
