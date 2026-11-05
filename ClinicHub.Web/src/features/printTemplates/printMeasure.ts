@@ -12,10 +12,11 @@ export type TextMeasurer = {
 /** How much a height may pass the box and still count as fitting: rounding, not a line. */
 const FIT_TOLERANCE_PX = 0.01;
 
-/** The prescription text's styles: one helper for the sheet and the hidden box, so what's measured is what prints (contract § 3.4). */
+/** The prescription text's styles: one helper for the sheet and the hidden box, so what's measured is what prints (contract § 3.4). Repeated spaces and tabs print as typed. */
 export const printTextStyle = (fontSizePt: number): CSSProperties => ({
     fontSize: `${fontSizePt}pt`,
     lineHeight: PRINT_LINE_HEIGHT,
+    whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
     textAlign: "start",
 });
