@@ -49,13 +49,34 @@ const copyAttributes = (from: Element, to: Element) => {
     if (style) to.setAttribute("style", style);
 };
 
+/** A line break in the markup and the spaces around it: not a typed line. */
+const MARKUP_BREAK = /[ \t]*\n+[ \t]*/g;
+/** What a line starts or ends against. */
+const LINE_EDGES = `br, body, ${[...BECOME_P].join(", ")}, ${BLOCKS}`;
+
+const isLineEdge = (neighbor: Node | null, parent: ParentNode) => {
+    const edge = neighbor ?? parent;
+    return edge instanceof Element && edge.matches(LINE_EDGES);
+};
+
+/**
+ * Print keeps white space as typed (`pre-wrap`), so a line break left in the markup would print as a line and its indent as an indent: `linesToHtml`
+ * turns `\n` into `<br>` but leaves a stored `\r`, which the parser reads as `\n`. It's one space between words, as in Copy, and nothing at a line's ends.
+ */
+const withoutMarkupBreaks = (node: Text) =>
+    node.data.replace(MARKUP_BREAK, (run, offset: number) =>
+        (offset === 0 && isLineEdge(node.previousSibling, node.parentNode!))
+        || (offset + run.length === node.length && isLineEdge(node.nextSibling, node.parentNode!))
+            ? ""
+            : " ");
+
 /** A text node's copy; in a `pre`, each line break a `<br>`. */
-const appendText = (text: string, into: Element, inPre: boolean) => {
+const appendText = (node: Text, into: Element, inPre: boolean) => {
     if (!inPre) {
-        into.append(text);
+        into.append(withoutMarkupBreaks(node));
         return;
     }
-    text.split("\n").forEach((line, index) => {
+    node.data.split("\n").forEach((line, index) => {
         if (index > 0) into.append(into.ownerDocument.createElement("br"));
         if (line) into.append(line);
     });
@@ -65,7 +86,7 @@ const appendText = (text: string, into: Element, inPre: boolean) => {
 const copyAllowed = (from: Node, into: Element, inPre: boolean) => {
     from.childNodes.forEach(node => {
         if (node.nodeType === Node.TEXT_NODE) {
-            appendText((node as Text).data, into, inPre);
+            appendText(node as Text, into, inPre);
             return;
         }
         if (!(node instanceof Element)) return;
