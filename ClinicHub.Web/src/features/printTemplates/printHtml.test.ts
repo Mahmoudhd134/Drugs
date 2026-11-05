@@ -809,9 +809,121 @@ describe("line breaks in a <pre> @area:prescription", () => {
         expect(cleanPrintHtml(html)).toBe(expected);
     });
 
-    test("outside a <pre> a line break stays in the text: only a <pre> shows it @TPL-329", () => {
-        expect(cleanPrintHtml("<p>a\nb</p>")).toBe("<p>a\nb</p>");
-        expect(cleanPrintHtml("<pre>a</pre><p>b\nc</p>")).toBe("<p>a</p><p>b\nc</p>");
+    test("outside a <pre> a line break in the markup is one space between words: only a <pre> shows it as a line @TPL-329 @TPL-351", () => {
+        expect(cleanPrintHtml("<p>a\nb</p>")).toBe("<p>a b</p>");
+        expect(cleanPrintHtml("<pre>a</pre><p>b\nc</p>")).toBe("<p>a</p><p>b c</p>");
+    });
+});
+
+describe("line breaks in the markup aren't lines @area:prescription", () => {
+    test.each([
+        ["one", "<p>a\nb</p>", "<p>a b</p>"],
+        ["several in a row", "<p>a\n\n\nb</p>", "<p>a b</p>"],
+        ["two in one text", "<p>a\nb\nc</p>", "<p>a b c</p>"],
+        ["spaces around it", "<p>a   \n   b</p>", "<p>a b</p>"],
+        ["tabs around it", "<p>a\t\n\tb</p>", "<p>a b</p>"],
+        ["inside a kept tag", "<p><strong>a\nb</strong></p>", "<p><strong>a b</strong></p>"],
+        ["inside a dropped tag", "<p><b>a\nb</b></p>", "<p>a b</p>"],
+        ["before an inline tag", "<p>a\n<strong>b</strong></p>", "<p>a <strong>b</strong></p>"],
+        ["after an inline tag", "<p><strong>a</strong>\nb</p>", "<p><strong>a</strong> b</p>"],
+        ["alone between two inline tags", "<p><strong>a</strong>\n<em>b</em></p>", "<p><strong>a</strong> <em>b</em></p>"],
+        ["in text outside any block", "a\nb", "<p>a b</p>"],
+        ["in a heading", "<h2>a\nb</h2>", "<h2>a b</h2>"],
+        ["in a list item", "<ol><li>a\nb</li></ol>", "<ol><li>a b</li></ol>"],
+        ["in a block that becomes a <p>", "<blockquote>a\nb</blockquote>", "<p>a b</p>"],
+    ])("between words it's one space: %s @TPL-351 @smoke", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test.each([
+        ["\\r\\n", "<p>a\r\nb</p>"],
+        ["\\r", "<p>a\rb</p>"],
+        ["\\r\\r\\n", "<p>a\r\r\nb</p>"],
+        ["\\r\\n with spaces", "<p>a  \r\n  b</p>"],
+    ])("a stored %s is the same: one space @TPL-351", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe("<p>a b</p>");
+    });
+
+    test.each([
+        ["at the start", "<p>\na</p>", "<p>a</p>"],
+        ["at the end", "<p>a\n</p>", "<p>a</p>"],
+        ["at both, with spaces", "<p>\n  a  \n</p>", "<p>a</p>"],
+        ["a stored \\r\\n at the end", "<p>a\r\n</p>", "<p>a</p>"],
+        ["nothing else in the block", "<p>\n</p>", "<p></p>"],
+        ["a heading", "<h2>\na\n</h2>", "<h2>a</h2>"],
+        ["a list item", "<ol><li>\na\n</li></ol>", "<ol><li>a</li></ol>"],
+        ["a block that becomes a <p>", "<div>\na\n</div>", "<p>a</p>"],
+        ["text outside any block, at its end", "a\n", "<p>a</p>"],
+        ["text between two blocks", "<p>a</p>\nb\n<p>c</p>", "<p>a</p><p>b</p><p>c</p>"],
+        ["around a block a lift takes out", "<div>a\n<div>b</div>\nc</div>", "<p>a</p><p>b</p><p>c</p>"],
+    ])("at a block's start or end it's nothing: %s @TPL-351", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test("at the edge of an inline tag that starts or ends a block it's nothing too: a line's start and end @TPL-351", () => {
+        expect(cleanPrintHtml("<p><strong>\na\n</strong></p>")).toBe("<p><strong>a</strong></p>");
+    });
+
+    test.each([
+        ["after it", "<p>a<br>\nb</p>", "<p>a<br>b</p>"],
+        ["before it", "<p>a\n<br>b</p>", "<p>a<br>b</p>"],
+        ["on both sides", "<p>a\n<br>\nb</p>", "<p>a<br>b</p>"],
+        ["with spaces around it", "<p>a  \n<br>\n  b</p>", "<p>a<br>b</p>"],
+        ["a stored \\r\\n", "<p>a\r\n<br>b</p>", "<p>a<br>b</p>"],
+        ["the <br> first in the block", "<p>\n<br>a</p>", "<p><br>a</p>"],
+        ["the <br> last in the block", "<p>a<br>\n</p>", "<p>a<br></p>"],
+    ])("beside a <br> it's nothing, the <br> stays the only line break: %s @TPL-351", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test.each([
+        ["each \\n a <br>", "<pre>a\nb</pre>", "<p>a<br>b</p>"],
+        ["a stored \\r\\n", "<pre>a\r\nb</pre>", "<p>a<br>b</p>"],
+        ["the spaces and tabs around it stay", "<pre>a    b  \n\tc</pre>", "<p>a    b  <br>\tc</p>"],
+    ])("a <pre> still shows its lines: %s @TPL-351", (_name, html, expected) => {
+        expect(cleanPrintHtml(html)).toBe(expected);
+    });
+
+    test.each([
+        ["repeated spaces", "<p>a    b</p>"],
+        ["a tab", "<p>a\tb</p>"],
+        ["spaces at a line's ends", "<p>  a  </p>"],
+        ["a tab at a line's ends", "<p>\ta\t</p>"],
+        ["beside a <br>", "<p>a  <br>  b</p>"],
+        ["inside a kept tag", "<p><strong>a    b</strong>\tc</p>"],
+    ])("with no line break, spaces and tabs stay as typed: %s @TPL-351", (_name, html) => {
+        expect(cleanPrintHtml(html)).toBe(html);
+    });
+
+    test("those inside a line stay, beside a line break's: only the spaces around the break go @TPL-351", () => {
+        expect(cleanPrintHtml("<p>a    b  \n  c\td</p>")).toBe("<p>a    b c\td</p>");
+    });
+
+    test("the result cleans to itself @TPL-351", () => {
+        const cleaned = cleanPrintHtml("<p>\na    b\nc<br>\nd\t</p>");
+        expect(cleaned).toBe("<p>a    b c<br>d\t</p>");
+        expect(cleanPrintHtml(cleaned)).toBe(cleaned);
+    });
+
+    describe("from the generated text", () => {
+        const P = 'dir="rtl" style="text-align:right;margin-top:0;margin-bottom:0"';
+        const printed = (note: string) => cleanPrintHtml(htmlForPaste(linesToHtml([aLine(aDrug({name: "A"}), twoDropsLeft, note)])));
+        const NAME_AND_SENTENCE = `<strong dir="ltr">A</strong><br>${SENTENCE}`;
+
+        test.each([
+            ["\\r\\n", "سطر أول\r\nسطر ثان"],
+            ["\\r\\r\\n", "سطر أول\r\r\nسطر ثان"],
+        ])("a stored note's %s makes one line break and no blank line @TPL-351 @smoke", (_name, note) => {
+            expect(printed(note)).toBe(`<p ${P}>${NAME_AND_SENTENCE}<br>سطر أول<br>سطر ثان</p>`);
+        });
+
+        test("a stored note's lone \\r is one space, as in Copy @TPL-351", () => {
+            expect(printed("سطر أول\rسطر ثان")).toBe(`<p ${P}>${NAME_AND_SENTENCE}<br>سطر أول سطر ثان</p>`);
+        });
+
+        test("repeated spaces in a stored note stay @TPL-351", () => {
+            expect(printed("رج    الزجاجة")).toBe(`<p ${P}>${NAME_AND_SENTENCE}<br>رج    الزجاجة</p>`);
+        });
     });
 });
 
