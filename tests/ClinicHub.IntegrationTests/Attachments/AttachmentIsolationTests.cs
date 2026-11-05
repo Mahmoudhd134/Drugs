@@ -53,7 +53,7 @@ public class AttachmentIsolationTests(AttachmentsAppFixture app) : AttachmentTes
         var owner = NewRef();
         var original = FileSamples.Png();
         var file = await a.StoredAsync(Url(ClinicRoute, M, owner), "a.png", original);
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var diskA = Disk.OfClinic(clinicA.Id);
         var diskB = Disk.OfClinic(clinicB.Id);
 
@@ -281,11 +281,14 @@ public class AttachmentIsolationTests(AttachmentsAppFixture app) : AttachmentTes
         var owner = NewRef();
         var original = FileSamples.Png();
         var file = await a.StoredAsync(Url(ClinicRoute, M, owner), "a.png", original);
-        var rowBefore = await RowAsync(file.Id);
+        var rowBefore = await RowBeforeAsync(file.Id);
         var before = Disk.OfClinic(clinic.Id);
 
         await ShouldBeNotFoundAsync(a.ReplaceAsync(Url(ClinicRoute, M, NewRef(), file.Id), "b.png", FileSamples.Png()));
         await ShouldBeNotFoundAsync(a.ReplaceAsync(Url(ClinicRoute, G, owner, file.Id), "b.png", FileSamples.Png()));
+        // The old row is found before the new file's rules run: a refused file on the wrong owner is still 404
+        await ShouldBeNotFoundAsync(a.ReplaceAsync(Url(ClinicRoute, M, NewRef(), file.Id), "setup.exe", FileSamples.Exe()));
+        await ShouldBeNotFoundAsync(a.ReplaceAsync(Url(ClinicRoute, G, owner, file.Id), "setup.exe", FileSamples.Exe()));
         await ShouldBeNotFoundAsync(a.DeleteAsync(Url(ClinicRoute, M, NewRef(), file.Id)));
         await ShouldBeNotFoundAsync(a.DeleteAsync(Url(ClinicRoute, G, owner, file.Id)));
 

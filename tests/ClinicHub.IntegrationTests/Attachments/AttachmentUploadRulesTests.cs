@@ -458,15 +458,17 @@ public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentT
         logs.Clear();
         var url = $"{ClinicRoute}/{InG()}";
 
-        await (await owner.UploadAsync(url, $"{marker}.png", FileSamples.Png())).ShouldBeOkAsync();
+        var stored = await (await owner.UploadAsync(url, $"{marker}.png", FileSamples.Png())).ShouldBeStoredAsync();
+        await owner.DownloadedAsync($"{url}/{stored.Id}");
         await (await owner.UploadAsync(url, $"{marker}.exe", FileSamples.Exe())).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "attachmentTypeNotAllowed");
         await (await owner.UploadAsync(url, $"{marker}.png", FileSamples.Exe())).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "attachmentTypeNotAllowed");
         await (await owner.UploadAsync(url, $"{marker}\u0001.png", FileSamples.Png())).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "nameInvalid");
         variant.Services.GetRequiredService<AttachmentSeams>().FailAttachmentSave = true;
         await (await owner.UploadAsync(url, $"{marker}.png", FileSamples.Png())).ShouldBeProblemAsync(HttpStatusCode.InternalServerError, "unexpected");
 
-        logs.All.ShouldContain(e => e.Level == LogLevel.Information, "the variant logs from Information down");
-        logs.All.ShouldContain(e => e.Level == LogLevel.Error, "the failed save is logged");
+        foreach (var level in new[] { LogLevel.Trace, LogLevel.Debug, LogLevel.Information, LogLevel.Error })
+            logs.All.ShouldContain(e => e.Level == level, $"the variant logs at {level}");
+        logs.All.ShouldContain(e => e.Level == LogLevel.Information && (e.Message ?? "").Contains(nameof(ClinicAttachmentsTestController.Open), StringComparison.Ordinal), "the download went through the logged pipeline");
         logs.All.Where(e => (e.Message ?? "").Contains(marker, StringComparison.Ordinal) || (e.Exception ?? "").Contains(marker, StringComparison.Ordinal))
             .Select(e => $"{e.Category} {e.Level}: {e.Message}").ShouldBeEmpty();
     }

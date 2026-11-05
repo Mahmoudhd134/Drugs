@@ -73,6 +73,11 @@ public class ClinicAttachmentsTestController(ISender sender) : BaseApiController
     [HttpPost($"{AttachmentTestRoutes.DirectSegment}/{{refId}}"), HasPermission(Write), AttachmentUpload(G)]
     public async Task<ActionResult> Direct(string refId, IFormFile file, [FromServices] IAttachmentService attachments, CancellationToken ct) =>
         (await attachments.AddAsync(new AttachmentOwner(G, refId), file.ToAttachmentUpload(), ct)).ToOk();
+
+    /// <summary>A replace with no command, so with no transaction to hide two saves.</summary>
+    [HttpPut($"{AttachmentTestRoutes.DirectSegment}/{{refId}}/{{id:guid}}"), HasPermission(Write), AttachmentUpload(G)]
+    public async Task<ActionResult> DirectReplace(string refId, Guid id, IFormFile file, [FromServices] IAttachmentService attachments, CancellationToken ct) =>
+        (await attachments.ReplaceAsync(new AttachmentOwner(G, refId), id, file.ToAttachmentUpload(), ct)).ToOk();
 }
 
 /// <summary>The super admin acting in the route's clinic: <c>[AdminClinic]</c> is class-level.</summary>

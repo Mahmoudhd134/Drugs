@@ -99,12 +99,22 @@ public class AttachmentServingTests(AttachmentsAppFixture app) : AttachmentTest(
         var (_, owner) = await ClinicWithOwnerAsync();
         var refId = NewRef();
         var oldest = await owner.StoredAsync(Url(ClinicRoute, G, refId), "1.png", FileSamples.Png());
+        var oldestAt = Clock.GetUtcNow().UtcDateTime;
         Clock.Advance(TimeSpan.FromSeconds(1));
         var middle = await owner.StoredAsync(Url(ClinicRoute, G, refId), "2.png", FileSamples.Png());
+        var middleAt = Clock.GetUtcNow().UtcDateTime;
         Clock.Advance(TimeSpan.FromSeconds(1));
         var newest = await owner.StoredAsync(Url(ClinicRoute, G, refId), "3.png", FileSamples.Png());
+        var newestAt = Clock.GetUtcNow().UtcDateTime;
+        Clock.Advance(TimeSpan.FromSeconds(1));
 
-        (await owner.ListedAsync(Url(ClinicRoute, G, refId))).Select(f => f.Id).ShouldBe([newest.Id, middle.Id, oldest.Id]);
+        var listed = await owner.ListedAsync(Url(ClinicRoute, G, refId));
+
+        listed.Select(f => f.Id).ShouldBe([newest.Id, middle.Id, oldest.Id]);
+        listed.Select(f => f.CreatedAt).ShouldBe([newestAt, middleAt, oldestAt], "each row holds the time of its upload");
+        oldest.CreatedAt.ShouldBe(oldestAt, "the upload's answer holds it too");
+        middle.CreatedAt.ShouldBe(middleAt, "the upload's answer holds it too");
+        newest.CreatedAt.ShouldBe(newestAt, "the upload's answer holds it too");
     }
 
     [Fact]
