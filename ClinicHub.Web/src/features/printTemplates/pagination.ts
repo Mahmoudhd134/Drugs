@@ -15,20 +15,14 @@ const BREAK = "\0";
 const isSpace = (atom: string) => /^[^\S\u00A0\u202F\uFEFF]$/.test(atom);
 
 const isBlank = ({element, list}: Block) =>
-    !list && element.matches("p, h1, h2, h3") && !isPrintableText(element.textContent ?? "");
+    !list && element.matches("p, h1, h2, h3") && !isPrintableText(element.textContent!);
 
+/** `cleanPrintHtml` leaves only elements at the top level. */
 const readBlocks = (body: HTMLElement): Block[] =>
-    Array.from(body.childNodes).flatMap((node): Block[] => {
-        if (node instanceof Element) {
-            return node.matches("ol, ul")
-                ? Array.from(node.children).map((element, index) => ({element, list: {owner: node, number: index + 1, continued: false}}))
-                : [{element: node}];
-        }
-        if (node.nodeType !== Node.TEXT_NODE || !isPrintableText(node.nodeValue ?? "")) return [];
-        const paragraph = body.ownerDocument.createElement("p");
-        paragraph.append(node.cloneNode());
-        return [{element: paragraph}];
-    });
+    Array.from(body.children).flatMap((node): Block[] =>
+        node.matches("ol, ul")
+            ? Array.from(node.children).map((element, index) => ({element, list: {owner: node, number: index + 1, continued: false}}))
+            : [{element: node}]);
 
 /** Blanks at the end of the text are left out here; those at its start are dropped with any others at the top of a sheet. */
 const toRuns = (blocks: Block[]) => {
@@ -78,9 +72,8 @@ const renderSheet = (blocks: Block[]) => {
 
 /** A node's atoms: each code point (never half of one) and each `<br>`. */
 const atomsOf = (node: Node): string[] => {
-    if (node.nodeType === Node.TEXT_NODE) return Array.from(node.nodeValue ?? "");
-    if (!(node instanceof Element)) return [];
-    if (node.localName === "br") return [BREAK];
+    if (node.nodeType === Node.TEXT_NODE) return Array.from((node as Text).data);
+    if ((node as Element).localName === "br") return [BREAK];
     return Array.from(node.childNodes).flatMap(atomsOf);
 };
 

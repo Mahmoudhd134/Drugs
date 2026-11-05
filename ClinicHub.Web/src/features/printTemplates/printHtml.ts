@@ -58,7 +58,7 @@ const appendText = (text: string, into: Element, inPre: boolean) => {
 const copyAllowed = (from: Node, into: Element, inPre: boolean) => {
     from.childNodes.forEach(node => {
         if (node.nodeType === Node.TEXT_NODE) {
-            appendText(node.nodeValue ?? "", into, inPre);
+            appendText((node as Text).data, into, inPre);
             return;
         }
         if (!(node instanceof Element)) return;
@@ -166,7 +166,7 @@ export const isPrintableText = (text: string) => /[^\s\u00A0\uFEFF\u200B-\u200F\
 export const hasPrintableText = (html: string) => {
     const {body} = new DOMParser().parseFromString(html, "text/html");
     body.querySelectorAll(REMOVED.join(",")).forEach(element => element.remove());
-    return isPrintableText(body.textContent ?? "");
+    return isPrintableText(body.textContent!);
 };
 
 /** A pop-up value while it's typed or pasted: line breaks become one space (TPL-114). */
