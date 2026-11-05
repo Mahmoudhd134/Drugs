@@ -1,4 +1,5 @@
-import {type ClipboardEvent, type FormEvent, useState} from "react";
+import {type ClipboardEvent, type FormEvent, useId, useState} from "react";
+import {flushSync} from "react-dom";
 import {
     Button,
     Dialog,
@@ -30,6 +31,7 @@ type Props = {
 const PrintForm = ({items, onConfirm, onCancel}: { items: ManualInputItem[] } & Pick<Props, "onConfirm" | "onCancel">) => {
     const {t} = useTranslation();
     const [values, setValues] = useState<Record<string, string>>({});
+    const formId = useId();
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -45,8 +47,10 @@ const PrintForm = ({items, onConfirm, onCancel}: { items: ManualInputItem[] } & 
         const room = MANUAL_VALUE_MAX_LENGTH - (input.value.length - (end - start));
         // Never half of a surrogate pair at the limit
         const text = singleLine(event.clipboardData.getData("text/plain")).slice(0, Math.max(room, 0)).replace(/[\uD800-\uDBFF]$/, "");
-        input.setRangeText(text, start, end, "end");
-        setValues(current => ({...current, [id]: input.value}));
+        const value = input.value.slice(0, start) + text + input.value.slice(end);
+        // Through the state, so React's tracker knows the value and what the field shows is what prints. Writing it moves the caret: set after
+        flushSync(() => setValues(current => ({...current, [id]: value})));
+        input.setSelectionRange(start + text.length, start + text.length);
     };
 
     return (
@@ -55,22 +59,31 @@ const PrintForm = ({items, onConfirm, onCancel}: { items: ManualInputItem[] } & 
                 <Stack sx={{gap: 2}}>
                     <Typography variant="body2" color="text.secondary">{t("printTemplates.print.hint")}</Typography>
                     {items.map((item, index) => (
-                        <TextField
-                            key={item.id}
-                            // Keeps its own direction, whatever the UI's (TPL-312)
-                            label={<bdi>{item.name}</bdi>}
-                            value={values[item.id] ?? ""}
-                            onChange={event => setValues(current => ({...current, [item.id]: singleLine(event.target.value)}))}
-                            fullWidth
-                            autoFocus={index === 0}
-                            slotProps={{
-                                htmlInput: {
-                                    maxLength: MANUAL_VALUE_MAX_LENGTH,
-                                    dir: "auto",
-                                    onPaste: (event: ClipboardEvent<HTMLInputElement>) => paste(event, item.id),
-                                },
-                            }}
-                        />
+                        <div key={item.id}>
+                            {/* Above the field and wrapping: MUI's floating label cuts a long name (TPL-117). The bdi keeps its own direction, whatever the UI's (TPL-312) */}
+                            <Typography
+                                component="label"
+                                htmlFor={`${formId}-${item.id}`}
+                                variant="body2"
+                                sx={{display: "block", mb: 0.5, fontWeight: 500, overflowWrap: "anywhere"}}
+                            >
+                                <bdi>{item.name}</bdi>
+                            </Typography>
+                            <TextField
+                                id={`${formId}-${item.id}`}
+                                value={values[item.id] ?? ""}
+                                onChange={event => setValues(current => ({...current, [item.id]: singleLine(event.target.value)}))}
+                                fullWidth
+                                autoFocus={index === 0}
+                                slotProps={{
+                                    htmlInput: {
+                                        maxLength: MANUAL_VALUE_MAX_LENGTH,
+                                        dir: "auto",
+                                        onPaste: (event: ClipboardEvent<HTMLInputElement>) => paste(event, item.id),
+                                    },
+                                }}
+                            />
+                        </div>
                     ))}
                 </Stack>
             </DialogContent>

@@ -147,7 +147,7 @@ None of its own. Reads drugs and protocols through the existing endpoints (`GET 
 - `htmlToPlainText(html)` (editor HTML → plain text): one line per paragraph, `<br>` as a line break, list items as
   "1. ", "2. " (ordered) or "• " (bulleted), non-breaking spaces as normal spaces, at most one blank line in a row,
   trimmed.
-- `htmlForPaste(html)` (Quill classes → inline styles for Word, on `p`, `li`, `h1`–`h3`, `ol`, `ul`):
+- `htmlForPaste(html)` (Quill classes → inline styles for Word, on `p`, `li`, `h1`–`h6`, `blockquote`, `pre`, `ol`, `ul`):
   `ql-direction-rtl` → `dir="rtl"`; `ql-align-right|center|justify` → `text-align:…`; `ql-indent-N` →
   `margin-right:{3×N}em` in RTL (`margin-left` otherwise; e.g. `ql-indent-2` RTL → `margin-right:6em`); every `<p>` gets
   `margin-top:0;margin-bottom:0` (Word's paragraph spacing would otherwise add gaps the editor doesn't show); no

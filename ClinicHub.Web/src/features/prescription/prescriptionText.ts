@@ -83,7 +83,7 @@ const ALIGN_CLASSES = ["center", "right", "justify"];
 export const htmlForPaste = (html: string) => {
     const body = new DOMParser().parseFromString(html, "text/html").body;
 
-    body.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, ol, ul").forEach(el => {
+    body.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, ol, ul").forEach(el => {
         const styles: string[] = [];
         const rtl = el.classList.contains("ql-direction-rtl");
         if (rtl) el.setAttribute("dir", "rtl");

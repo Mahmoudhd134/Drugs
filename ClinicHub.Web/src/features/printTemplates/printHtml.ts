@@ -10,8 +10,17 @@ const BLOCKS = "p, h1, h2, h3, ol, ul, li";
 
 const DIRECTIONS = new Set(["ltr", "rtl", "auto"]);
 const ALIGNMENT = /^(left|right|center|justify|start|end)$/;
-const MARGIN_PROPERTIES = new Set(["margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "margin-inline-start", "margin-inline-end"]);
-const MARGIN = /^[-+]?(\d+(\.\d*)?|\.\d+)(em|px|pt|mm)?$/;
+const SIDE_MARGINS = new Set(["margin-left", "margin-right", "margin-inline-start", "margin-inline-end"]);
+const MARGIN_PROPERTIES = new Set(["margin-top", "margin-bottom", ...SIDE_MARGINS]);
+/** Never negative: it would pull the text off the sheet, where `fits`, which measures height only, wouldn't see it. */
+const MARGIN = /^\+?(?:\d+(?:\.\d*)?|\.\d+)(em|px|pt|mm)?$/;
+/** Each unit in px, `em` at the browser's default size, the only way to compare it with `6em` here. No unit: the browser ignores it anyway. */
+const PX_PER_UNIT: Record<string, number> = {em: 16, px: 1, pt: 4 / 3, mm: 96 / 25.4};
+const DEEPEST_SIDE_MARGIN_PX = 6 * PX_PER_UNIT.em;
+
+/** A side margin above `6em` (deep Tab indents) can't push the text off the sheet either: at most half of the box. */
+const capSideMargin = (value: string, unit = "") =>
+    parseFloat(value) * (PX_PER_UNIT[unit] ?? 0) > DEEPEST_SIDE_MARGIN_PX ? `min(${value}, 50%)` : value;
 
 /** The declarations of the allow list, property by property (design § 4). */
 const cleanStyle = (style: string) =>
@@ -20,8 +29,10 @@ const cleanStyle = (style: string) =>
         if (colon < 0) return [];
         const property = declaration.slice(0, colon).trim().toLowerCase();
         const value = declaration.slice(colon + 1).trim().toLowerCase();
-        const allowed = property === "text-align" ? ALIGNMENT.test(value) : MARGIN_PROPERTIES.has(property) && MARGIN.test(value);
-        return allowed ? [`${property}:${value}`] : [];
+        if (property === "text-align") return ALIGNMENT.test(value) ? [`${property}:${value}`] : [];
+        const margin = MARGIN_PROPERTIES.has(property) ? MARGIN.exec(value) : null;
+        if (!margin) return [];
+        return [`${property}:${SIDE_MARGINS.has(property) ? capSideMargin(value, margin[1]) : value}`];
     }).join(";");
 
 const copyAttributes = (from: Element, to: Element) => {
@@ -117,7 +128,7 @@ const tidyList = (list: Element) => {
 
 /**
  * The allow list before the print root (design § 4, contract § 2.3): tags `p br strong em u ol ul li h1 h2 h3 span`; attribute
- * `dir` (`ltr`, `rtl`, `auto`); `style` with `text-align` and `margin-*` only. Everything else is dropped, its text kept.
+ * `dir` (`ltr`, `rtl`, `auto`); `style` with `text-align` and `margin-*` only, never negative, a deep side margin capped. Everything else is dropped, its text kept.
  * Input: what `htmlForPaste` gives. Output: an HTML string safe for `dangerouslySetInnerHTML`. Parsed with `DOMParser`, never in the
  * page's DOM: nothing loads and nothing runs.
  */

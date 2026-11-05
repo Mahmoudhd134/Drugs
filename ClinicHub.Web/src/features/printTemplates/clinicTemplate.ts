@@ -13,9 +13,12 @@ export const clinicTemplateKeys = {
 const getClinicTemplate = async () =>
     readTemplate((await api.get<PrintTemplate | "">("/prescription-template")).data);
 
-/** Read when the page opens (`staleTime` 0). Print shows only on a successful answer holding a template. */
+/**
+ * Read when the page opens (`staleTime` 0) and only then: a reconnect doesn't read it again, or a failed read would hide Print on an open page.
+ * Print shows only on a successful answer holding a template.
+ */
 export const useClinicPrintTemplate = (clinicId: number) =>
-    useQuery({queryKey: clinicTemplateKeys.current(clinicId), queryFn: getClinicTemplate, staleTime: 0});
+    useQuery({queryKey: clinicTemplateKeys.current(clinicId), queryFn: getClinicTemplate, staleTime: 0, refetchOnReconnect: false});
 
 /**
  * The read at a Print click, never from a cached copy and with no retry; its answer (null: removed) becomes the page's. Goes through
