@@ -221,6 +221,6 @@ Rules: nobody edits another track's files; a rule or contract change goes throug
 14. **The controller is in the contract**: the query exists, so track `backend` has no code. Design § 7's four tracks become three.
 15. **`printSheet.css` is always loaded with the sheet**, scoped to `.print-text`. Only `@page` and the hiding rules are print-time.
 
-## 7. Wording to approve
+## 7. Wording approved by the user
 
-Labels with no text in the docs are written here (`printTemplates.print.title`). The business file gives one row for the editor's title and hint: «للنسخ أو الطباعة؛ التعديلات لا تُحفظ.». The hint uses it as it stands. **The title needs a shorter text and is proposed:** «تعديل قبل النسخ أو الطباعة» (today: «تعديل قبل النسخ»). Sent to the design session.
+Settled: the user approved both labels (2026-11-05, through the design session): the editor's title «تعديل قبل النسخ أو الطباعة» and the pop-up's title «طباعة الروشتة». The business file's one row for the editor, «للنسخ أو الطباعة؛ التعديلات لا تُحفظ.», is the editor's hint.
