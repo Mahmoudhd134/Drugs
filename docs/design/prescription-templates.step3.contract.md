@@ -29,7 +29,7 @@ The signatures and the rules are in the file's comments, which are part of this 
 | `nudgeBox(box, dxMm, dyMm, page)` | TPL-442, TPL-540, TPL-544 |
 | `handlesFor(box, zoomPercent)`, `handlePositionPx(box, handle, zoomPercent, cornersOnly)` | TPL-551, TPL-547, TPL-550 |
 | `fitZoom(areaWidthPx, areaHeightPx, page)`, `zoomIn`, `zoomOut`, `canZoomIn`, `canZoomOut` | TPL-460, TPL-461, TPL-580, TPL-587 |
-| `autoScrollDirection(point, areaRect)` | TPL-470, TPL-585 |
+| `autoScrollDirection(point, areaRect, pastEdge)` | TPL-470, TPL-585, TPL-594 |
 
 `others` is every other item's box, in the layout's order. A drag's raw position always comes from the press, so 50 small moves and one big one give the same mm (TPL-541): a move's raw top-left = the pointer in mm now, minus (the pointer in mm at the press, minus the box's start at the press); a resize's raw `edge` = the pointer in mm now, minus (the pointer in mm at the press, minus that moving edge at the press), so grabbing a handle a little off its corner doesn't jump. An off-sheet item's first handle drag also brings the axis that doesn't move inside (the unit half of TPL-544).
 
@@ -113,7 +113,7 @@ Only the main button starts anything (`event.button === 0`). Nothing in a drag c
 - Not past `pastDragThreshold` from the press yet: nothing. Once past, it stays a drag, also back at the press point.
 - A box: `moveBox`; a handle: `resizeBox` with `minimumOf(item)`; a panel entry: the ghost follows, and over the sheet (`dropCounts`) `moveBox` gives only the guides. `unsnapped` is `event.altKey` of this event, so Alt counts at each move and at the release.
 - The area's `scroll` (auto-scroll, the wheel) recomputes from the last pointer position through the new rectangle (TPL-531).
-- **Auto-scroll:** one `requestAnimationFrame` loop during a drag, `autoScrollDirection` × `AUTO_SCROLL_PX_PER_FRAME`, also with the pointer held still. It stops when the drag ends.
+- **Auto-scroll:** one `requestAnimationFrame` loop during a drag, `autoScrollDirection` × `AUTO_SCROLL_PX_PER_FRAME`, also with the pointer held still. `pastEdge` is true for a box or a handle, false for a panel drag. It stops when the drag ends.
 
 **Release:**
 - A box or handle past the threshold: `recordStep` with `{kind: "item", itemId}`, `updateItem` of the box. The same layout: no step, nothing unsaved (TPL-542). The box keeps the focus.
@@ -184,9 +184,13 @@ Anything that records a step, and undo and redo, first commits an open field (th
 | A press or a drag on a box or handle | That box |
 | Esc | Stays |
 | Delete, Remove item, an undo or redo removing the focused box | The area |
-| A toolbar button turning off by its own press | The area |
+| A toolbar button turning off by its own press, or Save | The area |
 
 ### 3.8 Zoom
+
+**The selected box stays in view** (T5, TPL-595): after a zoom press, Fit, undo or redo has rendered, the selected box is scrolled into view (`block: "nearest", inline: "nearest"`). Nothing selected: the scroll stays. Opening, a window resize, a page-size change that isn't an undo or redo, and selecting don't scroll it.
+
+**Save turning off** (T5, TPL-596): when a press on Save turns it off (a save going, or the answer leaving nothing unsaved) and the focus was on it, the focus goes to the area. A Save the rules refuse stays on, and the focus stays. Add to § 3.7's table.
 
 `zoom` is the designer's state, in percent, never in the layout or the history. **Fit** is computed when the area's element first appears, however it appears (load, «إنشاء قالب», widening from below 900 px), from its measured inner size (`clientWidth`/`clientHeight` minus the padding), after its height is set; and on a page step's `refit` and a real page-size change. Changing the window keeps the zoom. No size to measure (jsdom): 100.
 
@@ -245,7 +249,7 @@ The coder runs `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx esl
 7. **The focus rule for "designer level":** § 3.5's table. It reads design § 3's "with the selected box focused" and "keys listen at designer level" together: arrows act unless the focus is in a field, a dialog or menu, outside the designer, on another box, or on the size select. So arrows work right after a click on a panel entry, and the clinic tabs keep theirs.
 8. **Alt wins over Shift** on arrows. Ctrl + arrows do nothing. `meta` counts as `ctrl`.
 9. **Guides:** one line per axis, the nearest. Target order: other items in layout order, then the sheet. A line the sheet's limit moved the box off isn't shown. `data-mm` holds the target's value.
-10. **Auto-scroll runs only with the pointer inside the area**, in the 24 px band; past the area's edge it stops. The design's "within 24 px" read literally, and so crossing the panel never scrolls a sheet. A fixed 8 px per frame, not faster nearer the edge.
+10. **Auto-scroll** (the past-the-edge half: the user, T5): a panel drag runs only with the pointer inside the area, in the 24 px band, so crossing the panel never scrolls a sheet; a move or resize also runs with the pointer past that edge, per axis. A fixed 8 px per frame, not faster nearer the edge.
 11. **A panel drag shows no preview box on the sheet:** the ghost and the guide lines. The drop's place comes from `moveBox`.
 12. **The ghost's top-left is the pointer**, so the drop's place is what's under the pointer's tip.
 13. **A nudge run:** 999 ms joins, 1000 ms starts a new step. A net-zero run leaves no step and no run.

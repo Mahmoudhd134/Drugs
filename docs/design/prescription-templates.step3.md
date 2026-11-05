@@ -108,6 +108,12 @@ These replace anything above that says otherwise.
 - The area takes a fixed height from the window, so Fit isn't measured against its own content. Fit is computed when the sheet first appears, however it appears. Plus and minus from a non-step Fit go to the next multiple of 25, and the percentage shows a whole number.
 - Convert screen to mm through the sheet's own `getBoundingClientRect`, and recompute on auto-scroll and wheel. The area stays `dir="ltr"`, so `scrollLeft` is never negative. Esc after an auto-scroll returns the item and leaves the scroll.
 
+**Settled at T5 (user, 2026-11-05), from the acceptance run**
+- **Auto-scroll past the edge:** moves and resizes keep scrolling while the pointer is past the area's edge, on that axis. A panel drag scrolls only with the pointer inside the area, so crossing the panel never scrolls the sheet.
+- **The selected item stays in view:** after a zoom press, Fit, undo or redo, the selected box is scrolled into view (`nearest`). Nothing else moves the scroll.
+- **Save turning off** passes the focus to the sheet's area, like a toolbar button.
+- From the same run, within the rules: a box's outline stays about 1 px on screen at any zoom (2 px selected), the area's bottom gap matches the page's padding so no page scrollbar appears, and the ghost's text follows the zoom.
+
 **Step 1's tests and docs that change:** TPL-054, TPL-227 and TPL-228 and their e2e helper (`e2e/support/print-template.ts`) measure at 100%, so they set 100% zoom first; design § 3's "1 mm = 1 CSS mm" becomes "at 100%"; the contract's focus and field rules gain the above.
 
 ## 4. Frontend
@@ -136,7 +142,8 @@ Frontend only: no route, no table, no migration.
 - لوحة المفاتيح: الأسهم 1 مم، وShift مع الأسهم 5 مم، وAlt مع الأسهم 0.1 مم، وDelete لحذف العنصر (ما عدا نص الروشتة)، وEsc لإلغاء الاختيار. تتوقف الحركة عند حافة الورقة. اتجاه الأسهم واحد في اللغتين. وداخل حقول الكتابة تعمل المفاتيح كالمعتاد.
 - **تراجع وإعادة** بزرين في الشريط وبالمفاتيح Ctrl+Z وCtrl+Y وCtrl+Shift+Z، لآخر 50 خطوة، إلى أن تُغادر الصفحة أو يُحذف القالب، ولا يمحوها الحفظ. السحب الواحد خطوة واحدة، وأي تغيير جديد بعد التراجع يلغي خطوات الإعادة. والعودة إلى الشكل المحفوظ تعني أنه لا توجد تغييرات غير محفوظة.
 - **التكبير والتصغير** بخطوات 25% من 50% إلى 200%، وزر «ملاءمة» لعرض الورقة كلها، وهو البداية عند كل فتح. لا يُحفظ مع القالب، ولا يؤثر على الطباعة ولا على القياسات.
-- عند السحب قرب حافة المساحة تتحرك المساحة وحدها.
+- عند السحب قرب حافة المساحة تتحرك المساحة وحدها، ويستمر ذلك إذا تجاوز المؤشر الحافة عند تحريك عنصر أو تغيير مقاسه. أما السحب من اللوحة فلا يحرّكها إلا والمؤشر داخلها.
+- بعد التكبير أو التصغير أو «ملاءمة» أو التراجع أو الإعادة، تتحرك المساحة ليظهر العنصر المختار.
 
 ## 6. Test cases
 
@@ -288,3 +295,9 @@ IDs continue the TPL area, from TPL-400. Sources: § 3 unless noted.
 | TPL-588 | Given each way the sheet first appears (load, «إنشاء قالب» from the empty state, widening from below 900 px), then Fit is computed then, from a measured area, not 0 | P1 | e2e | step3.md:67 |
 | TPL-589 | Given a panel drag entering the 24 px band from the panel's side (the left in English, the right in Arabic) on a scrollable sheet, then the drop counts the scroll at the drop | P2 | e2e | step3.md:70 |
 | TPL-590 | Given 1280 × 720 and the page not scrolled, when a drag reaches the area's bottom, then the band can be reached in the window and it scrolls (not measured: `maxHeight` assumes 200 px above the area, and the zoom toolbar adds height) | P2 | e2e | `TemplateDesigner.tsx:252` |
+| TPL-591 | Given A4 at Fit on a laptop and at 25%, then every box's outline shows all round: about 1 px on screen at any zoom, 2 px selected, with the box's size exact | P1 | e2e | Acceptance #1 |
+| TPL-592 | Given a window tall enough for everything (1920 × 970), then the page has no scrollbar, and the area's bottom is inside the window | P2 | e2e | Acceptance #8 |
+| TPL-593 | Given a panel drag at 50% and at 200%, then the ghost's text is the item's font × the zoom | P2 | e2e | Acceptance #11 |
+| TPL-594 | Given a move or a resize with the pointer past the area's edge, then the area keeps scrolling on that axis and the item follows; given a panel drag with the pointer over the side panel on a scrolled sheet, then the area doesn't scroll | P1 | unit+e2e | User, T5 (acceptance #3) |
+| TPL-595 | Given a selected item out of view after a zoom press, Fit, undo or redo, then the area scrolls so its box shows; with nothing selected the scroll stays | P1 | ui+e2e | User, T5 (acceptance #2) |
+| TPL-596 | Given the focus on Save, when a save makes it turn off, then the focus is in the sheet's area, not on `body`; a Save refused by the rules keeps it on and the focus stays | P2 | ui | User, T5 (acceptance #9) |

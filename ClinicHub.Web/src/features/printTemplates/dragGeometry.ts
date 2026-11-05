@@ -292,8 +292,10 @@ const scrollOnAxis = (fromStart: number, fromEnd: number): -1 | 0 | 1 => {
 };
 
 /**
- * Which way a drag scrolls the area: -1, 0 or 1 per axis. The pointer must be inside the area's rectangle, within 24 px of
- * that edge (exactly 24 counts); both edges of an axis in reach (an area under 48 px): the nearer, a tie goes to the start.
+ * Which way a drag scrolls the area: -1, 0 or 1 per axis, each axis on its own. Inside the area's rectangle, within 24 px of
+ * an edge (exactly 24 counts); both edges of an axis in reach (an area under 48 px): the nearer, a tie goes to the start.
+ * `pastEdge` (a move or a resize): a pointer past an edge also scrolls that way, on that axis, whatever the other axis does.
+ * Not `pastEdge` (a panel drag): the pointer must be inside the rectangle on both axes, so crossing the panel never scrolls.
  */
 export const autoScrollDirection = (point: ScreenPoint, areaRect: ScreenRect): { x: -1 | 0 | 1; y: -1 | 0 | 1 } => {
     if (!isInside(point, areaRect)) return {x: 0, y: 0};
