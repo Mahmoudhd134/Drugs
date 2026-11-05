@@ -62,6 +62,36 @@ public sealed class PhysicalAttachmentFileProviderTests : AttachmentFileProvider
         exclusive.Length.ShouldBe(3);
     }
 
+    [Fact]
+    [Trait("Case", "ATT-161")]
+    public async Task A_file_gone_between_the_check_and_the_open_opens_as_null()
+    {
+        // A link to nothing: the check sees the link and the open finds nothing, as when a file goes in between. On Windows a link needs a privilege
+        if (OperatingSystem.IsWindows())
+            return;
+        var id = Guid.NewGuid().ToString("D");
+        var link = Path.Combine(Directory.CreateDirectory(Path.Combine(root, "clinics", "12")).FullName, id);
+        File.CreateSymbolicLink(link, Path.Combine(sandbox, "gone"));
+        File.Exists(link).ShouldBeTrue("the check must pass, so that it's the open that finds nothing");
+
+        (await Provider.OpenReadAsync($"clinics/12/{id}")).ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-168")]
+    public async Task When_the_removal_after_a_failed_write_fails_too_the_writes_own_failure_is_the_one_reported()
+    {
+        // The folder goes while the file is open, so the removal throws. Windows refuses that while the file is open
+        if (OperatingSystem.IsWindows())
+            return;
+        var folder = Path.Combine(root, "clinics", "12");
+        var content = new StreamFailingAfterDoing(new byte[1000], 500, () => Directory.Delete(folder, recursive: true));
+
+        await Should.ThrowAsync<ReadBrokeException>(async () => await Provider.SaveAsync($"clinics/12/{Guid.NewGuid():D}", content));
+
+        Directory.Exists(folder).ShouldBeFalse();
+    }
+
     [Theory]
     [Trait("Case", "ATT-163")]
     [InlineData("clinics/12/0f8fad5b-d9cb-469f-a165-70867728950e", true)]

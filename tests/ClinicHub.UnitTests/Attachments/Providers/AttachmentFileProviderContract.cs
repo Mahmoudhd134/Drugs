@@ -187,11 +187,13 @@ public abstract class AttachmentFileProviderContract
         var key = NewKey();
         using var request = new CancellationTokenSource();
         await request.CancelAsync();
+        var before = EverythingOnTheStore();
 
         await Throws<OperationCanceledException>(() => Provider.SaveAsync(key, new MemoryStream(Content()), request.Token));
 
         (await Provider.OpenReadAsync(key)).ShouldBeNull();
         StoredFiles().ShouldBeEmpty();
+        EverythingOnTheStore().ShouldBe(before, "not even a folder");
     }
 
     [Fact]
@@ -204,6 +206,36 @@ public abstract class AttachmentFileProviderContract
             Provider.SaveAsync(key, new StreamCancellingAfter(Content(), BreaksAfter, request), request.Token));
 
         await Provider.SaveAsync(key, new MemoryStream(Content()));
+
+        await StoredShouldBe(key, Content());
+    }
+
+    // ---- ATT-167: a token already cancelled ----
+
+    [Fact]
+    [Trait("Case", "ATT-167")]
+    public async Task An_open_with_a_token_already_cancelled_throws()
+    {
+        var key = NewKey();
+        await Provider.SaveAsync(key, new MemoryStream(Content()));
+        using var request = new CancellationTokenSource();
+        await request.CancelAsync();
+
+        await Throws<OperationCanceledException>(() => Provider.OpenReadAsync(key, request.Token));
+
+        await StoredShouldBe(key, Content());
+    }
+
+    [Fact]
+    [Trait("Case", "ATT-167")]
+    public async Task A_delete_with_a_token_already_cancelled_throws_and_the_file_stays()
+    {
+        var key = NewKey();
+        await Provider.SaveAsync(key, new MemoryStream(Content()));
+        using var request = new CancellationTokenSource();
+        await request.CancelAsync();
+
+        await Throws<OperationCanceledException>(() => Provider.DeleteAsync(key, request.Token));
 
         await StoredShouldBe(key, Content());
     }
@@ -248,6 +280,13 @@ public abstract class AttachmentFileProviderContract
 
     // ---- ATT-163: a bad key ----
 
+    /// <summary>The framework adds <c>(Parameter 'key')</c> to any message, so that part doesn't count: the provider's own text must say it too.</summary>
+    private static void ShouldNameTheKey(ArgumentException error)
+    {
+        error.ParamName.ShouldBe("key");
+        error.Message.Replace("(Parameter 'key')", "", StringComparison.Ordinal).ShouldContain("key");
+    }
+
     public static TheoryData<string> BadKeys =>
     [
         @"..\x", "../x", "a/../../x", "C:x", @"\\s\x", "x:ads", "CON", "x.", "Clinics/1/x", "clinics/1/X", "",
@@ -261,7 +300,7 @@ public abstract class AttachmentFileProviderContract
     {
         var before = EverythingOnTheStore();
 
-        await Throws<ArgumentException>(() => Provider.SaveAsync(key, new StreamFailingAfter(Content(), 0)));
+        ShouldNameTheKey(await Throws<ArgumentException>(() => Provider.SaveAsync(key, new StreamFailingAfter(Content(), 0))));
 
         EverythingOnTheStore().ShouldBe(before);
     }
@@ -273,8 +312,8 @@ public abstract class AttachmentFileProviderContract
     {
         var before = EverythingOnTheStore();
 
-        await Throws<ArgumentException>(() => Provider.OpenReadAsync(key));
-        await Throws<ArgumentException>(() => Provider.DeleteAsync(key));
+        ShouldNameTheKey(await Throws<ArgumentException>(() => Provider.OpenReadAsync(key)));
+        ShouldNameTheKey(await Throws<ArgumentException>(() => Provider.DeleteAsync(key)));
 
         EverythingOnTheStore().ShouldBe(before);
     }
@@ -350,7 +389,7 @@ public abstract class AttachmentFileProviderContract
         using var request = new CancellationTokenSource();
         await request.CancelAsync();
 
-        await Throws<Exception>(() => Provider.SaveAsync(key, new MemoryStream(Content(seed: 2)), request.Token));
+        await Throws<OperationCanceledException>(() => Provider.SaveAsync(key, new MemoryStream(Content(seed: 2)), request.Token));
 
         await StoredShouldBe(key, Content(seed: 1));
     }

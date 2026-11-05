@@ -72,6 +72,16 @@ public sealed class StreamFailingAfter(byte[] content, int goodBytes) : StreamAc
     protected override void AtTheLimit() => throw new ReadBrokeException();
 }
 
+/// <summary>A failure partway through the content, with something happening to the store just before it.</summary>
+public sealed class StreamFailingAfterDoing(byte[] content, int goodBytes, Action action) : StreamActingAfter(content, goodBytes)
+{
+    protected override void AtTheLimit()
+    {
+        action();
+        throw new ReadBrokeException();
+    }
+}
+
 /// <summary>Delivers its first bytes, then throws the given exception: a body whose read fails midway for a named reason.</summary>
 public sealed class StreamThrowingAfter(byte[] content, int goodBytes, Exception failure) : StreamActingAfter(content, goodBytes)
 {

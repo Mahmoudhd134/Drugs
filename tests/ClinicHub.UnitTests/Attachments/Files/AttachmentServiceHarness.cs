@@ -32,6 +32,11 @@ public sealed class AttachmentServiceHarness
 
     public AttachmentSettings Settings { get; } = DesignSettings();
 
+    public ClinicContext Clinic { get; } = new() { ClinicId = ClinicInContext };
+
+    /// <summary>No signed-in user in context, when true.</summary>
+    public bool NoUser { get; set; }
+
     /// <summary>The design's example config (§ 5).</summary>
     public static AttachmentSettings DesignSettings() => new()
     {
@@ -45,8 +50,8 @@ public sealed class AttachmentServiceHarness
 
     internal AttachmentService Service => new(
         UnreachableDatabase.Create(),
-        new ClinicContext { ClinicId = ClinicInContext },
-        new SignedInUser(),
+        Clinic,
+        new SignedInUser(NoUser ? null : 5),
         Files,
         Settings,
         new QueuedActions(),
@@ -73,10 +78,10 @@ public sealed class AttachmentServiceHarness
         return Files.Saves[0].Key;
     }
 
-    private sealed class SignedInUser : ICurrentUser
+    private sealed class SignedInUser(int? userId) : ICurrentUser
     {
         public bool IsAuthenticated => true;
-        public int? UserId => 5;
+        public int? UserId => userId;
         public Guid? SessionId => Guid.Empty;
         public int? ClinicId => ClinicInContext;
         public int? StaffId => 3;

@@ -463,9 +463,13 @@ public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentT
         await (await owner.UploadAsync(url, $"{marker}.exe", FileSamples.Exe())).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "attachmentTypeNotAllowed");
         await (await owner.UploadAsync(url, $"{marker}.png", FileSamples.Exe())).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "attachmentTypeNotAllowed");
         await (await owner.UploadAsync(url, $"{marker}\u0001.png", FileSamples.Png())).ShouldBeProblemAsync(HttpStatusCode.BadRequest, "nameInvalid");
-        variant.Services.GetRequiredService<AttachmentSeams>().FailAttachmentSave = true;
+        var seams = variant.Services.GetRequiredService<AttachmentSeams>();
+        seams.FailAttachmentSave = true;
         await (await owner.UploadAsync(url, $"{marker}.png", FileSamples.Png())).ShouldBeProblemAsync(HttpStatusCode.InternalServerError, "unexpected");
 
+        var removed = seams.BeingSaved.Last();
+        logs.All.Where(e => e.Category == "ClinicHub.Application.Features.Attachments.Files.AttachmentService" && e.Level == LogLevel.Information)
+            .ShouldHaveSingleItem().Message.ShouldContain(removed.Id.ToString(), customMessage: "the cleanup's line says which file, by its ID");
         foreach (var level in new[] { LogLevel.Trace, LogLevel.Debug, LogLevel.Information, LogLevel.Error })
             logs.All.ShouldContain(e => e.Level == level, $"the variant logs at {level}");
         logs.All.ShouldContain(e => e.Level == LogLevel.Information && (e.Message ?? "").Contains(nameof(ClinicAttachmentsTestController.Open), StringComparison.Ordinal), "the download went through the logged pipeline");
