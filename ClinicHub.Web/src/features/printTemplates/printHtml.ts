@@ -54,9 +54,12 @@ const MARKUP_BREAK = /[ \t]*\n+[ \t]*/g;
 /** What a line starts or ends against. */
 const LINE_EDGES = `br, body, ${[...BECOME_P].join(", ")}, ${BLOCKS}`;
 
-const isLineEdge = (neighbor: Node | null, parent: ParentNode) => {
-    const edge = neighbor ?? parent;
-    return edge instanceof Element && edge.matches(LINE_EDGES);
+/** Whether the node stands at a line's start or end on that side, out through the inline tags it's the first or last of. */
+const isLineEdge = (node: Node, side: "previousSibling" | "nextSibling"): boolean => {
+    const neighbor = node[side];
+    if (neighbor) return neighbor instanceof Element && neighbor.matches(LINE_EDGES);
+    const parent = node.parentNode as Element;
+    return parent.matches(LINE_EDGES) || isLineEdge(parent, side);
 };
 
 /**
@@ -65,8 +68,8 @@ const isLineEdge = (neighbor: Node | null, parent: ParentNode) => {
  */
 const withoutMarkupBreaks = (node: Text) =>
     node.data.replace(MARKUP_BREAK, (run, offset: number) =>
-        (offset === 0 && isLineEdge(node.previousSibling, node.parentNode!))
-        || (offset + run.length === node.length && isLineEdge(node.nextSibling, node.parentNode!))
+        (offset === 0 && isLineEdge(node, "previousSibling"))
+        || (offset + run.length === node.length && isLineEdge(node, "nextSibling"))
             ? ""
             : " ");
 
