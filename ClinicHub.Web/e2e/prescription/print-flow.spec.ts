@@ -24,10 +24,10 @@ import {
     stubPrint,
     timesPrinted,
 } from "../support/print.ts";
-import {A4, layoutL, manualItem, putTemplate, staticItem, textItem} from "../support/print-template.ts";
+import {A4, layoutL, longManualName, manualItem, putTemplate, staticItem, textItem} from "../support/print-template.ts";
 import {markClipboard, readClipboard, RxPage, rxDrug} from "../support/rx.ts";
 import {RX_DOSINGS, RX_TEXTS} from "../support/texts-rx.ts";
-import {expectContextLabel, expectToast, openSwitchClinic, pickerEntry} from "../support/ui.ts";
+import {expectContextLabel, expectToast, openSwitchClinic, pickerEntry, toast} from "../support/ui.ts";
 import {expectNoCutOrOverlap, fitsTheScreen, noHorizontalScroll, setLanguage} from "../support/ux.ts";
 
 /** The way to a print: the button, the pop-up, the font, the app around it. Business file «طباعة الروشتة»; contract step 2 § 3. */
@@ -46,6 +46,10 @@ test.describe("Printing: the flow @area:prescription", () => {
             await rx.panel.getByRole("button", {name: rt.quickCopy, exact: true}).click();
             await expectToast(page, rt.copied);
             expect((await readClipboard(page)).text).toBe(name);
+            // The panel's toast gone, or the editor's Copy would show two alike. The mouse off Copy, as a finger never hovers: on a
+            // phone its tooltip would lie over the next button
+            await page.mouse.move(0, 0);
+            await expect(toast(page, rt.copied)).toHaveCount(0);
 
             const editor = await openEditor(page, rt);
             await expect(editor.locator(".ql-editor")).toContainText(name);
@@ -85,7 +89,7 @@ test.describe("Printing: the flow @area:prescription", () => {
     test("the pop-up on a phone fits at 375 px, its fields are reachable and text isn't cut @TPL-117",
         async ({page, lang, data, isMobile, healthy}) => {
             test.skip(!isMobile, "the phone project");
-            const names = Array.from({length: 14}, (_, i) => `حقل يدوي بعنوان طويل نسبيًا ${i + 1}`);
+            const names = Array.from({length: 14}, (_, i) => longManualName(i + 1));
             const items = names.map((name, i) => manualItem({id: `m${i}`, name, xMm: 10, yMm: 10 + i * 4, wMm: 60, hMm: 4}));
             const {rx, rt} = await openPrescription(page, data, lang, layoutL({items: [textItem(), ...items]}), [{name: `Zname${unique()}`}]);
 

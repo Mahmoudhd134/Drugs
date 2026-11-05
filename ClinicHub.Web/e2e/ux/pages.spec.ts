@@ -5,7 +5,7 @@ import {unique} from "../support/phones.ts";
 import type {Lang} from "../support/texts.ts";
 import {dialog, expectNoCutOrOverlap, expectNoDialog, fitsTheScreen, noHorizontalScroll, open, pageChecks, rxTab, setLanguage, tourClinic, tourPages} from "../support/ux.ts";
 import {closeEditor, openEditor, openPrescription, printButton, printPopup} from "../support/print.ts";
-import {designerOf, designerShown, layoutL, manualItem, tabPath, textItem} from "../support/print-template.ts";
+import {designerOf, designerShown, layoutL, longManualName, manualItem, tabPath, textItem} from "../support/print-template.ts";
 import {RxPage} from "../support/rx.ts";
 import {IMPORTED} from "../support/shared.ts";
 import {RX_TEXTS, TREE_TEXTS} from "../support/texts-rx.ts";
@@ -108,7 +108,7 @@ test.describe("Every page and dialog of the catalog and prescription @area:ux", 
     test("the page with Print, the editor with Print and the print pop-up, in the project's language and on a phone in both: dir/lang, no horizontal scroll, no serious axe violation, no console error, no cut text @UX-036 @I18N-006 @TPL-348",
         async ({page, data, lang, isMobile}) => {
             test.slow();
-            const manual = manualItem({name: "الاسم بالكامل كما في البطاقة"});
+            const manual = manualItem({name: longManualName()});
             const {rx: first} = await openPrescription(page, data, lang, layoutL({items: [textItem(), manual, manualItem({id: "m2", name: "السن", yMm: 56})]}), [
                 {name: `Tobradex ${unique()}`, dosing: DOSINGS.oneDropFour.dosing},
             ]);

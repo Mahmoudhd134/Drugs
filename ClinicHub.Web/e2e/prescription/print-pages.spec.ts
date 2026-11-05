@@ -24,6 +24,7 @@ import {
 } from "../support/print.ts";
 import {A5, layoutL, manualItem, putTemplate, staticItem, textItem} from "../support/print-template.ts";
 import {RX_DOSINGS, RX_TEXTS} from "../support/texts-rx.ts";
+import {toast} from "../support/ui.ts";
 import {setLanguage} from "../support/ux.ts";
 
 /**
@@ -334,15 +335,21 @@ test.describe("Printing: continuation pages @area:prescription", () => {
             await expect(rx.lines).toHaveCount(6);
 
             const editor = await openEditor(page, rt);
-            // A toast on screen, and the mouse left on Print: its tooltip
-            await editor.getByRole("button", {name: rt.quickCopy, exact: true}).click();
             await printButton(editor, rt).click();
             const popup = printPopup(page, rt);
             await popup.getByRole("textbox", {name: manual.name, exact: true}).fill(patient);
             await printButton(popup, rt).click();
             await expect(popup).toBeHidden();
             await expectPrintCalls(page, 1);
-            await printButton(editor, rt).hover();
+
+            // A toast and a tooltip on screen as the page prints. By keyboard: on a phone the toast lies over the editor's buttons,
+            // so a mouse couldn't reach Print under it; keyboard focus on Print shows the tooltip all the same
+            await editor.getByRole("button", {name: rt.quickCopy, exact: true}).focus();
+            await page.keyboard.press("Enter");
+            await page.keyboard.press("Shift+Tab");
+            await expect(printButton(editor, rt)).toBeFocused();
+            await expect(toast(page, rt.copied)).toBeVisible();
+            await expect(page.locator("[role=tooltip]").filter({hasText: rt.printHint})).toBeVisible();
 
             const sheets = await printSheets(page);
             expect(sheetLines(sheets)).toEqual([[names[0], names[1]], [names[2], names[3]], [names[4], names[5]]]);

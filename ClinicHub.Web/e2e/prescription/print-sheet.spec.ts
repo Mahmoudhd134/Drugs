@@ -28,7 +28,7 @@ import {
     timesPrinted,
 } from "../support/print.ts";
 import {A4, A5, expectClose, type Layout, type LayoutItem, layoutL, manualItem, putTemplate, staticItem, textItem} from "../support/print-template.ts";
-import {markClipboard, readClipboard} from "../support/rx.ts";
+import {markClipboard, putHtmlOnClipboard, readClipboard} from "../support/rx.ts";
 import {RX_DOSINGS} from "../support/texts-rx.ts";
 import {expectToast} from "../support/ui.ts";
 
@@ -252,7 +252,8 @@ test.describe("Printing: the sheet @area:prescription", () => {
         });
 
     test("HTML in a drug name, a note or the editor prints as text or is removed, and nothing runs @TPL-133 @smoke",
-        async ({page, lang, data}) => {
+        async ({page, context, lang, data}) => {
+            await context.grantPermissions(["clipboard-read", "clipboard-write"]);
             const u = unique();
             const name = `<b>Zname${u}</b>`;
             const note = `<img src=x onerror="window.__pwned=1"><script>window.__pwned=2</script>Znote${u}`;
@@ -271,15 +272,15 @@ test.describe("Printing: the sheet @area:prescription", () => {
             // In the editor: HTML pasted into it is cleaned
             const editor = await openEditor(page, rt);
             const quill = editor.locator(".ql-editor");
+            const gif = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+            await putHtmlOnClipboard(page, `<p><img src="${gif}" onload="window.__pwned=3"><a href="javascript:window.__pwned=4">Zpasted${u}</a></p><script>window.__pwned=5</script>`);
             await quill.click();
             await page.keyboard.press("Control+End");
-            const gif = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-            await quill.evaluate((element, html) => {
-                const clipboardData = new DataTransfer();
-                clipboardData.setData("text/html", html);
-                element.dispatchEvent(new ClipboardEvent("paste", {clipboardData, bubbles: true, cancelable: true}));
-            }, `<p><img src="${gif}" onload="window.__pwned=3"><a href="javascript:window.__pwned=4">Zpasted${u}</a></p><script>window.__pwned=5</script>`);
+            // A real paste, the only one Quill 1 takes: it reads what the browser pastes, never the event's data. Chromium has
+            // taken out the script, the handlers and the link's address by then; printHtml.test.ts proves those on their own
+            await page.keyboard.press("Control+V");
             await expect(quill).toContainText(`Zpasted${u}`);
+            await expect(quill.locator("img"), "the image is in the editor's HTML, for the print to remove").toHaveCount(1);
             await printButton(editor, rt).click();
             await expectPrintCalls(page, 2);
             await expect(root).toContainText(`Zpasted${u}`);

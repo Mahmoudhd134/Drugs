@@ -106,11 +106,14 @@ test.describe("Printing: the proof @area:prescription", () => {
                 expectRunAt(pdfRun(sheet, staticToken), fixed, baseline, `${where}: the static text`);
                 expectRunAt(pdfRun(sheet, "2026-11-05T14:30"), iso, baseline, `${where}: the ISO date`);
                 expectRunAt(pdfRun(sheet, `${index + 1}/${pdf.pages.length}`), number, baseline, `${where}: the page number`);
-                // An Arabic date starts at its box's right edge: the year sits on its first line, inside the box
+                // An Arabic date starts at its box's right edge: the day ends there and the year sits on the same first line, inside the box
                 const year = sheet.items.find(item => item.text === "2026");
                 if (!year) throw new Error(`${where}: no year in ${pdfText(sheet)}`);
                 expectRunOnFirstLine(year, date, baseline, `${where}: the date`);
                 expect(year.xPt, `${where}: the date inside its box`).toBeGreaterThanOrEqual(mmToPt(date.xMm - 1));
+                const day = sheet.items.find(item => item.text === "5" && Math.abs(item.yPt - year.yPt) < 1);
+                if (!day) throw new Error(`${where}: no day on the date's line in ${pdfText(sheet)}`);
+                expectRunEndsAtRight(day, date, `${where}: the date`);
 
                 // The sheet's first drug: on the text box's first line, its Latin name ending at the right edge
                 const first = names.filter(drug => pdfText(sheet).includes(drug))[0];
