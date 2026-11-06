@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.harness.tsbuildinfo"
+  },
+  "include": ["e2e/harness", "src/vite-env.d.ts"]
+}

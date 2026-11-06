@@ -333,7 +333,7 @@ added to the traceability script, the runner's area mapping and the testing READ
 | Levels | `unit`, `api` | `unit`, `ui`, `e2e` on the harness page |
 | T5 acceptance agent | An **adversarial API agent**: from this doc and the business file only, it tries to reach another clinic's file through the test controller | On the harness page, in Arabic, English and at phone width |
 | T6 walkthrough, gallery | The ready report only: numbers, and the isolation and "file still on disk" results | The user opens the harness page; screenshots from it |
-| `full`, `release`, coverage, Stryker | Unchanged | Unchanged (Stryker for backend logic only, as today) |
+| `full`, `release`, coverage, Stryker | Unchanged | Unchanged (StrykerJS on the new pure logic, `functions.ts`, as the [testing guide](../testing/README.md#mutation-testing) says) |
 
 ## 9. The split
 
@@ -430,8 +430,8 @@ raw HTML string built with one could run a script with the staff member's login.
 
 **Download all** saves each file in turn, with no ZIP on the server; a browser may ask once to allow several downloads.
 
-**Replace:** `canReplace` shows a Replace action on a row, which picks one file. With `multiple={false}`, `canReplace` and a stored file, a new pick
-replaces it through `adapter.replace`; a refusal keeps the old one.
+**Replace:** `canReplace` shows a Replace action on a row, which picks one file and sends it at once, with progress and Cancel on the row. With `multiple={false}`, `canReplace` and a stored file, a new pick,
+once Upload is pressed, replaces it through `adapter.replace`; a refusal keeps the old one.
 
 **Rules on the client:** `rules()` gives the `accept` attribute and an instant message for a wrong type or a big file, with no hard-coded
 limits. **The server still decides**: a client check is only a convenience.

@@ -24,7 +24,7 @@ reset the disk.
 | ATT-207 | Given an upload running, when cancelled, then the request is aborted and the file stays selected | P1 | ui | § 12 |
 | ATT-208 | Given a double click on Upload, then one upload runs per file | P1 | ui | § 12 |
 | ATT-209 | Given `multiple={false}`, when a second file is picked, then it replaces the first; given `maxFiles`, then more are refused with a message | P1 | ui | § 12 |
-| ATT-210 | Given an expired token during an upload, on the real client with `page.route`, then the refresh replays it with the same boundary and file bytes | P1 | e2e | § 12 |
+| ATT-210 | Given an expired token during an upload, on the real client with `page.route`, then the refresh replays it: the replayed body's boundary matches its own header, and the file's name and bytes are the same | P1 | e2e | § 12 |
 | ATT-211 | Given files dropped on the drop area (a simulated `DataTransfer`), then they're selected as if picked | P1 | e2e | § 12 |
 | ATT-212 | Given keyboard only, then the pick control is a real button and a file can be picked and uploaded | P1 | ui | § 12 |
 | ATT-213 | Given a zero-byte pick, then the "empty" message shows and no request is sent | P1 | ui | Messages |
@@ -39,7 +39,7 @@ reset the disk.
 | ATT-237 | Given 500 files selected, then their previews load lazily and no request is sent | P2 | ui | § 12 |
 | ATT-238 | Given an upload finishing after a list refresh, then the file ends in the list once, not in the selection | P1 | ui | § 12 |
 | ATT-244 | Given a selected name with a bidi override, then it's isolated and doesn't reorder its row | P2 | ui | § 12 |
-| ATT-245 | Given `multiple={false}`, `canReplace` and a stored file, when a new file is picked, then `replace` is called; a refusal keeps the old file | P0 | ui | § 12 |
+| ATT-245 | Given `multiple={false}`, `canReplace` and a stored file, when a new file is picked, then it's only selected; when Upload is pressed, then `replace` is called on the newest stored file; a refusal keeps the old file | P0 | ui | § 12 |
 
 ## Part 2: list, download, preview, delete
 
@@ -70,6 +70,7 @@ reset the disk.
 | ATT-231 | Given a preview opened and closed, or the component unmounted, then every object URL is revoked | P1 | ui | § 12 |
 | ATT-232 | Given Delete confirmed, then it leaves the list; Cancel changes nothing, and a double click sends one request | P0 | ui | § 12 |
 | ATT-233 | Given a row deleted meanwhile, when acted on, then 404 reloads the list and says the item is gone | P1 | ui | § 12 |
+| ATT-259 | Given a row's Replace running, then its row shows its progress and Cancel; when cancelled, then the request is aborted, the old file stays, no error shows and the list reloads; when it fails, then a toast shows with no Retry | P1 | ui | § 12 |
 | ATT-234 | Given `canUpload` and `canDelete` left out, then those controls aren't shown | P0 | ui | § 12 |
 
 ## Part 2: customizing and layout

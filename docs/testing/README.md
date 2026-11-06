@@ -560,7 +560,7 @@ describe("drug dialog: opening and the name @area:catalog", () => {
 
 - Global set-up (`src/test/setup.ts`, `vite.config.ts`), so no test file tunes its own: `findBy…` / `waitFor` wait up
   to 20 s (a passing wait returns at once), a test may take 60 s, half the cores run test files (CPU-bound: more
-  workers only slow each test down), `scrollIntoView` is a no-op (spy on it to check the calls), a request no MSW
+  workers only slow each test down), `scrollIntoView` is a no-op (spy on it to check the calls), `Blob` and `File` have `text()` and `arrayBuffer()` (jsdom's have only `slice`), a request no MSW
   handler answers fails the test (add the handler the page needs, even for a call the test doesn't look at), and after
   each test: unmount, toasts removed, handlers, mocks, globals, timers, clipboard, storage, language and viewport
   reset. Tests run shuffled: never depend on another test.
