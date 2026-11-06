@@ -149,7 +149,22 @@ The panel had four parts stacked, and selecting an item pushed the rest down, so
 | Numbers side by side | In `minmax(0, 1fr)` pairs: the sheet's width and height, the item's X and Y, its width and height. Name, text and font stay full width; the correction's X and Y stay one per row, since their labels are longer |
 | The panel's own scroll | From 1200 px `TemplateSettings` has `max-height` of the area's measured height and `overflow-y: auto`, so it never grows the page and the sheet stays in view. From 900 to 1199 px the shared column already scrolls |
 
+Settled in use: **paired fields' labels sit above their inputs and wrap,** since they don't fit on the border in a pair. **When selecting opens the item's section, it's scrolled into view in its column** (`block: "nearest"`, only when selecting opened it). **From 1200 px the add panel also has the area's measured height as `max-height`, with `overflow-y: auto`,** so it never grows the page.
+
 New texts: `printTemplates.config.itemSection` en `Item`, ar `العنصر`; `printTemplates.config.sectionError` en `Has an error`, ar `فيه خطأ`.
+
+### 4.3.2 Horizontal alignment per item (user, 2026-11-06, at the walkthrough)
+
+| Rule | Detail |
+|---|---|
+| Applies to | Manual inputs, functions, static text. Not the prescription text: no control, and its lines keep their own alignment, so printed text stays equal to Copy |
+| Data | Optional `align` on the item in the layout's JSON: `right`, `center`, `left`, case-sensitive. Missing or null reads as right, so old templates need no data step and opening one isn't dirty. `Normalize` keeps it only on those three kinds. No migration. `schemaVersion` stays 1 |
+| Rule | Another value: `templateLayoutInvalid` on `items[i].align`, on both sides and in the shared fixture |
+| Control | `ToggleButtonGroup`, exclusive, in the item's section, named `config.align`; buttons named `config.alignLeft`, `alignCenter`, `alignRight`, each with a tooltip. **Each button sits on the side it aligns to,** left, center, right from the screen's left in both languages. One is always on. A change is one `{kind: "item"}` undo step and counts as unsaved |
+| Render | `TemplateSheet`'s one renderer, so designer, real print and Test print match: the value takes the box's full width with a physical `text-align`. `dir` stays as it is: ISO and page number stay `dir="ltr"`, aligned by this setting. The box's position and a value's wrapping don't change |
+| Vertical alignment | None (user asked; moving the box or changing its height does the same) |
+
+Texts: `printTemplates.config.align` en `Alignment`, ar `المحاذاة`; `alignRight` `Right`, `يمين`; `alignCenter` `Center`, `وسط`; `alignLeft` `Left`, `يسار`.
 
 ### 4.4 Printing
 
@@ -362,6 +377,8 @@ Coders run `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx eslint 
 27. **Test print's sample goes through `cleanPrintHtml` with `dir="rtl"` on its lines, as a real prescription's lines (T5, TPL-728),** so it starts at the same side of the box as a real print, Latin lines at their own side by the same rule.
 
 28. **Collapsible sections, not tabs: the user's choice** at the walkthrough (§ 4.3.1). The sheet's section opens first, as a new layout starts there; everything else in § 4.3.1 follows from "one at a time" and from not hiding a warning or an error in a closed section.
+
+29. **Alignment defaults to right, for every kind** (user). So Latin values that used to start at the left, such as ISO date and page number, now sit at the right unless changed.
 
 ## 11. Wording
 

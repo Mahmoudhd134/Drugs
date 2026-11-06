@@ -282,6 +282,12 @@ IDs continue from TPL-596. Levels: unit, api, ui, e2e, manual. **Source** is thi
 | TPL-734 | Given 1280 × 800 and an item selected, in both languages, then all section headers and the sheet are in view with no page scroll; the settings scroll inside themselves; the sheet stays in view while the opacity slider moves | P1 | e2e | contract § 4.3.1 |
 | TPL-735 | Given the paired number fields at 1000 and 1280 px, in both languages, then no cut text and no axe failure | P1 | e2e | contract § 4.3.1 |
 | TPL-736 | Given another section open, when reopened or widened from below 900 px, then the sheet's section is open | P2 | ui | contract § 4.3.1 |
+| TPL-737 | Given a short item, then right is on by default; a press on center or left applies at once on the sheet, is one undo step, turns Save on, and saved and reloaded it stays; an old template's items read right and it isn't dirty | P0 | ui | contract § 4.3.2 |
+| TPL-738 | Given `align` on each kind, then a short item keeps it and the prescription text drops it; another value, `Center` included, answers `templateLayoutInvalid` on `items[i].align`; server and client agree through the fixture | P1 | unit | contract § 4.3.2 |
+| TPL-739 | Given a PUT with `align`, then it's stored and answered; missing or null saves and reads as right; a bad value or a wrong type is refused by the route | P1 | api | contract § 4.3.2 |
+| TPL-740 | Given a static text, a manual input and an ISO value, each at right, center and left, then in the real print's PDF and Test print's, in Arabic and English, its run ends at the box's right edge, centers on it, or starts at its left, within 0.5 mm, the box itself unmoved | P0 | e2e | contract § 4.3.2 |
+| TPL-741 | Given both languages, then the buttons read left, center, right from the screen's left, each named, with a tooltip, and reachable by keyboard | P2 | ui | contract § 4.3.2 |
+| TPL-742 | Given the prescription text selected, then no alignment control shows | P1 | ui | contract § 4.3.2 |
 
 **Existing cases changed (none retired):**
 
