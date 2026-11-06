@@ -71,7 +71,8 @@ export default defineConfig({
             include: ['src/**/*.{ts,tsx}'],
             exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts', 'src/main.tsx'],
             // One entry per file: a file pattern's thresholds apply to the files it matches
-            thresholds: Object.fromEntries(PURE_LOGIC.map(file => [file, {lines: 95, branches: 90}])),
+            // A CI part (--shard) holds only some tests: CI's merge of the parts judges them, against all the tests
+            thresholds: process.argv.some(arg => arg.startsWith('--shard')) ? {} : Object.fromEntries(PURE_LOGIC.map(file => [file, {lines: 95, branches: 90}])),
         },
     },
 })

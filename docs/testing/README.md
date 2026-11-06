@@ -86,7 +86,9 @@ All at once; none stops the others (so one run reports every failure).
 |---|---|---|
 | Start | picks the tier's jobs, the random seed | 5 s |
 | Backend | Release build, unit + integration tests (compose PostgreSQL in the job); with coverage and its gates on `full`/`release` | 2 min |
-| Frontend | `tsc -b`, `eslint src`, the e2e specs' `tsc` and eslint, Vitest (`npm run test:coverage` and its gates on `full`/`release`) | 4 min |
+| Frontend | `tsc -b`, `eslint src`, the e2e specs' `tsc` and eslint | 2 min |
+| Vitest (1/3, 2/3, 3/3) | The tests in parallel parts, by file (`--shard`), with coverage on `full`/`release` | 10 to 20 min each |
+| Vitest report | `full`/`release`: merges the parts (`--merge-reports`) and runs the coverage gates on all the tests, which a part alone can't (`vite.config.ts` turns its thresholds off under `--shard`) | 1 min |
 | E2E (smoke) | `step`: the `@smoke` tests of every project in one job | 4 min |
 | E2E (1/6 … 6/6) | `full`/`release`: the three main Playwright projects (`ar-desktop`, `en-desktop`, `ar-phone`) in 6 shards, each with its own API and database | 5 min each |
 | E2E (template) | `full`/`release`: `ar-desktop-template` alone (`--no-deps`): its `dependencies` in `playwright.config.ts` would keep the whole suite in one shard | 1.5 min |

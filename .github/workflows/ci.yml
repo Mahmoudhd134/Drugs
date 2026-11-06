@@ -178,7 +178,7 @@ jobs:
     name: Frontend
     needs: start
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: ClinicHub.Web
@@ -198,9 +198,66 @@ jobs:
       - name: Type check and lint (e2e specs)
         if: ${{ !cancelled() }}
         run: npx tsc -p e2e && npx eslint e2e playwright.config.ts
-      - name: Vitest (with its coverage gates on full and release)
-        if: ${{ !cancelled() }}
-        run: npm run ${{ needs.start.outputs.tier == 'step' && 'test' || 'test:coverage' }}
+
+  # Vitest in parallel parts, by file: the designer's tests alone outgrew one job. The coverage gates need all the tests, so
+  # each part only collects (vite.config.ts turns the thresholds off under --shard) and vitest-report merges and judges.
+  vitest:
+    name: Vitest (${{ matrix.shard }}/3)
+    needs: start
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Vitest, this part
+        run: >-
+          npx vitest run --shard=${{ matrix.shard }}/3 --reporter=default --reporter=blob
+          --outputFile.blob=../artifacts/vitest/blob-${{ matrix.shard }}.json
+          ${{ needs.start.outputs.tier != 'step' && '--coverage' || '' }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && needs.start.outputs.tier != 'step' }}
+        with:
+          name: vitest-blob-${{ matrix.shard }}
+          path: artifacts/vitest
+          if-no-files-found: ignore
+          retention-days: 1
+
+  vitest-report:
+    name: Vitest report
+    needs: [start, vitest]
+    if: ${{ !cancelled() && needs.start.outputs.tier != 'step' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ClinicHub.Web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ClinicHub.Web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: vitest-blob-*
+          merge-multiple: true
+          path: artifacts/vitest
+      - name: Merge the parts, with the coverage gates
+        run: npx vitest run --merge-reports=../artifacts/vitest --coverage
       - name: Summary
         if: ${{ !cancelled() }}
         run: |
@@ -424,7 +481,7 @@ jobs:
 
   gates:
     name: Gates
-    needs: [start, backend, frontend, e2e, mutation-backend, mutation-frontend]
+    needs: [start, backend, frontend, vitest, vitest-report, e2e, mutation-backend, mutation-frontend]
     # Always reports (the required check), whatever the other jobs did
     if: ${{ always() }}
     runs-on: ubuntu-latest
@@ -498,7 +555,7 @@ jobs:
         if: ${{ always() }}
         env:
           RESULTS: >-
-            backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} e2e=${{ needs.e2e.result }}
+            backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} vitest=${{ needs.vitest.result }} vitest-report=${{ needs.vitest-report.result }} e2e=${{ needs.e2e.result }}
             e2e-report=${{ steps.e2e.outcome }} traceability=${{ steps.traceability.outcome }}
             mutation-backend=${{ needs.mutation-backend.result }} mutation-frontend=${{ needs.mutation-frontend.result }}
         run: |
@@ -508,6 +565,7 @@ jobs:
             name=${pair%%=*}; result=${pair#*=}
             case "$name:$result" in
               *:success) ;;
+              vitest-report:skipped) if [ "$TIER" != step ]; then echo "::error::$name: skipped on $TIER"; ok=false; fi ;;
               mutation-*:skipped) if [ "$TIER" = release ]; then echo "::error::$name: skipped on release"; ok=false; fi ;;
               *) echo "::error::$name: $result"; ok=false ;;
             esac
