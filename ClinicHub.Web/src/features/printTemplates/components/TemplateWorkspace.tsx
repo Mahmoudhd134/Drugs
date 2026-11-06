@@ -47,7 +47,7 @@ const fitOf = (area: HTMLElement | null, page: TemplatePage) => {
 };
 
 /**
- * What shows at ≥ 900 px with a draft: the panel, the sheet with its zoom and drags, the settings. Mounted only then, so the
+ * What shows at ≥ 900 px with a draft, and stays through a print: the panel, the sheet with its zoom and drags, the settings. Mounted only then, so the
  * keys listen only then (§ 3.5), a drag ends with it (TPL-514), and the zoom starts at Fit however the sheet first appears
  * (load, «إنشاء قالب», widening from below 900 px: TPL-588).
  */
