@@ -120,7 +120,7 @@ describe("a text file holding markup @area:attachments", () => {
         expect(within(exact).queryByText("Showing the first 1 MB only.")).not.toBeInTheDocument();
     });
 
-    test("a failed fetch toasts and closes the dialog", async () => {
+    test("a failed fetch toasts and closes the dialog @ATT-265", async () => {
         const adapter = fakeAdapter({files: [storedOf("notes.txt", "txt")]});
         adapter.download.mockRejectedValue(apiRefusal(500, "unexpected"));
         const {user} = await renderManager({adapter});
@@ -190,7 +190,7 @@ describe("object URLs @area:attachments", () => {
         expect(urls.live()).toEqual([]);
     });
 
-    test("unmounted while it's loading: the request is aborted, no toast, and a late answer makes no URL that stays @ATT-231", async () => {
+    test("unmounted while it's loading: the request is aborted, no toast, no reload, and a late answer makes no URL at all @ATT-231", async () => {
         const urls = stubObjectUrls();
         const answer = deferred<Blob>();
         const adapter = fakeAdapter({files: [storedOf("scan.png", "png")], download: () => answer.promise});
@@ -198,14 +198,34 @@ describe("object URLs @area:attachments", () => {
         await openPreview(user, "scan.png");
         await waitFor(() => expect(adapter.download).toHaveBeenCalledTimes(1));
         const signal = adapter.download.mock.calls[0][1];
+        const loads = adapter.list.mock.calls.length;
 
         await leave();
 
         expect(signal?.aborted).toBe(true);
         await act(async () => answer.resolve(new Blob(["x"])));
         await pastPendingWork();
+        expect(urls.created).toEqual([]);
         expect(urls.live()).toEqual([]);
         expect(toastTexts()).toEqual([]);
+        expect(adapter.list.mock.calls.length).toBe(loads);
+    });
+
+    test("unmounted while it's loading, the request fails late: no toast and no reload @ATT-231", async () => {
+        stubObjectUrls();
+        const answer = deferred<Blob>();
+        const adapter = fakeAdapter({files: [storedOf("scan.png", "png")], download: () => answer.promise});
+        const {user, leave} = await renderLeavableManager({adapter});
+        await openPreview(user, "scan.png");
+        await waitFor(() => expect(adapter.download).toHaveBeenCalledTimes(1));
+        const loads = adapter.list.mock.calls.length;
+
+        await leave();
+        await act(async () => answer.reject(apiRefusal(500, "unexpected")));
+        await pastPendingWork();
+
+        expect(toastTexts()).toEqual([]);
+        expect(adapter.list.mock.calls.length).toBe(loads);
     });
 
     test("a selected image's thumbnail: revoked when removed @ATT-231", async () => {
@@ -281,8 +301,8 @@ describe("object URLs @area:attachments", () => {
 });
 
 describe("a preview's request @area:attachments", () => {
-    test("a double click on Preview: one request @ATT-240", async () => {
-        stubObjectUrls();
+    test("a double click on Preview: one request, one URL, no toast, and the URL is revoked on close @ATT-240", async () => {
+        const urls = stubObjectUrls();
         const adapter = fakeAdapter({files: [storedOf("scan.png", "png")]});
         const {user} = await renderManager({adapter});
 
@@ -290,13 +310,20 @@ describe("a preview's request @area:attachments", () => {
 
         const dialog = await screen.findByRole("dialog", {name: named.previewOf("scan.png")});
         await within(dialog).findByRole("img");
+        await pastPendingWork();
         expect(adapter.download).toHaveBeenCalledTimes(1);
+        expect(urls.created).toHaveLength(1);
+        expect(toastTexts()).toEqual([]);
+
+        await closePreview(user, dialog);
+
+        expect(urls.live()).toEqual([]);
     });
 
-    test("two clicks before the screen can change: one request @ATT-240", async () => {
-        stubObjectUrls();
+    test("two clicks before the screen can change: one request, one URL, no toast, and the URL is revoked on close @ATT-240", async () => {
+        const urls = stubObjectUrls();
         const adapter = fakeAdapter({files: [storedOf("scan.png", "png")]});
-        await renderManager({adapter});
+        const {user} = await renderManager({adapter});
         const button = await screen.findByRole("button", {name: named.preview("scan.png")});
 
         act(() => {
@@ -306,7 +333,14 @@ describe("a preview's request @area:attachments", () => {
 
         const dialog = await screen.findByRole("dialog");
         await within(dialog).findByRole("img");
+        await pastPendingWork();
         expect(adapter.download).toHaveBeenCalledTimes(1);
+        expect(urls.created).toHaveLength(1);
+        expect(toastTexts()).toEqual([]);
+
+        await closePreview(user, dialog);
+
+        expect(urls.live()).toEqual([]);
     });
 
     test("closed while loading, the answer arrives late: ignored, no toast, and no URL stays @ATT-240", async () => {
@@ -461,13 +495,15 @@ describe("focus @area:attachments", () => {
         expect(list).toHaveAttribute("tabindex", "-1");
     });
 
-    test("after deleting the only row: focus isn't lost on the page's body @ATT-242", async () => {
+    test("after deleting the only row: focus moves to the list, which stays though it's empty @ATT-242", async () => {
         const {user} = await renderManager({canDelete: true, adapter: fakeAdapter({files: [storedOf("only.png", "png")]})});
 
         await deleteConfirmed(user, "only.png");
 
         await screen.findByText("No files yet.");
-        await waitFor(() => expect(document.activeElement).not.toBe(document.body));
+        const list = screen.getByRole("list", {name: "Stored files"});
+        await waitFor(() => expect(list).toHaveFocus());
+        expect(list).toHaveAttribute("tabindex", "-1");
     });
 });
 

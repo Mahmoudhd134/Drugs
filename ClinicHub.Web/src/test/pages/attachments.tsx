@@ -580,7 +580,7 @@ export const refuseUploadOf = (adapter: FakeAdapter, name: string, error: unknow
 
 /**
  * `renderManager` with a button that takes the manager off the page, as a clinic switch does: the rest of the app, the
- * toaster too, stays. `leave()` clicks it.
+ * toaster too, stays. `leave()` clicks it: `hidden`, because an open dialog hides the page behind it from the tree.
  */
 export const renderLeavableManager = async (
     {adapter = fakeAdapter(), ...props}: Partial<Omit<AttachmentManagerProps, "adapter">> & { adapter?: FakeAdapter } = {},
@@ -590,6 +590,6 @@ export const renderLeavableManager = async (
     return {
         ...rendered,
         adapter,
-        leave: () => rendered.user.click(screen.getByRole("button", {name: "Leave the page"})),
+        leave: () => rendered.user.click(screen.getByRole("button", {name: "Leave the page", hidden: true})),
     };
 };

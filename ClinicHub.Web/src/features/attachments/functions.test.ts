@@ -91,7 +91,7 @@ describe("the client's check of a file @area:attachments", () => {
         expect(checkFile(named(name), RULES)).toBe("attachmentTypeNotAllowed");
     });
 
-    test("the server's order: empty, then size, then extension", () => {
+    test("the server's order: empty, then size, then extension @ATT-266", () => {
         expect(checkFile(named("a.exe", 0), RULES)).toBe("attachmentEmpty");
         expect(checkFile(named("a.exe", 1001), RULES)).toBe("attachmentTooLarge");
         expect(checkFile(named("a.exe", 1000), RULES)).toBe("attachmentTypeNotAllowed");
@@ -156,9 +156,12 @@ describe("a file's size @area:attachments", () => {
         [1126, "1.1 KB"],
         [1536, "1.5 KB"],
         [1_048_064, "1023.5 KB"],
+        // Rounding up to the next unit shows it, never 1024 of this one
+        [1_048_575, "1 MB"],
         [1_048_576, "1 MB"],
         [1_572_864, "1.5 MB"],
         [20 * 1_048_576, "20 MB"],
+        [1_073_741_823, "1 GB"],
         [1_073_741_824, "1 GB"],
         [1_610_612_736, "1.5 GB"],
     ])("%d bytes: %s, at most one decimal", (bytes, text) => {
@@ -210,6 +213,20 @@ describe("decoding a text file @area:attachments", () => {
         expect(decodeText(bytes(0xEF, 0xBB, 0xBF), false)).toBe("");
         expect(decodeText(bytes(0xFF, 0xFE), false)).toBe("");
         expect(decodeText(bytes(0xFE, 0xFF), false)).toBe("");
+    });
+
+    // Windows-1256: 0xEF ï, 0xBB », 0xBF ؟, 0xFE the right-to-left mark (plausible at the start of an Arabic file), 0xFF ے
+    test.each([
+        ["the UTF-8 mark's first byte", [0xEF, 0x41], "ïA"],
+        ["its first two bytes", [0xEF, 0xBB, 0x41], "ï»A"],
+        ["its first and last bytes", [0xEF, 0x41, 0xBF], "ïA؟"],
+        ["its last two bytes", [0x41, 0xBB, 0xBF], "A»؟"],
+        ["little endian's first byte", [0xFF, 0x41], "ےA"],
+        ["little endian's second byte", [0x41, 0xFE], "A‏"],
+        ["big endian's first byte", [0xFE, 0x41], "‏A"],
+        ["big endian's second byte", [0x41, 0xFF], "Aے"],
+    ])("part of a mark isn't a mark: %s read as Windows-1256 @ATT-247", (_what, values, text) => {
+        expect(decodeText(bytes(...values), false)).toBe(text);
     });
 
     test("no mark and valid UTF-8: UTF-8, Arabic and Latin alike @ATT-247", () => {
@@ -353,15 +370,28 @@ describe("splitting a drop @area:attachments", () => {
         expect(dropped.folders).toEqual([]);
     });
 
-    test("only items of kind file count; `files` isn't read", () => {
+    test("only items of kind file count, whatever another item answers; `files` isn't read", () => {
         const a = aFile("a.png", 1);
         const dragged = aDataTransfer({files: [a]});
         const withText = {
-            items: [{kind: "string", type: "text/plain", getAsFile: () => null, webkitGetAsEntry: () => null}, ...dragged.items],
+            items: [
+                {kind: "string", type: "text/plain", getAsFile: () => aFile("from-a-string.png", 1), webkitGetAsEntry: () => null},
+                ...dragged.items,
+            ],
             files: [aFile("not-an-item.png", 1)],
         } as unknown as DataTransfer;
         const dropped = splitDropped(withText);
         expect(dropped.files).toEqual([a]);
         expect(dropped.folders).toEqual([]);
+    });
+
+    test("a file item that gives no file is left out", () => {
+        const a = aFile("a.png", 1);
+        const dragged = aDataTransfer({files: [a]});
+        const withEmpty = {
+            items: [{kind: "file", type: "", getAsFile: () => null, webkitGetAsEntry: () => null}, ...dragged.items],
+            files: [],
+        } as unknown as DataTransfer;
+        expect(splitDropped(withEmpty)).toEqual({files: [a], folders: []});
     });
 });

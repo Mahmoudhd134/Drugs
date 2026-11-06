@@ -121,7 +121,7 @@ describe("the stored files @area:attachments", () => {
         expect(adapter.download.mock.calls[0][0]).toBe(report.id);
     });
 
-    test("Download all saves each file in turn, one request at a time", async () => {
+    test("Download all saves each file in turn, one request at a time @ATT-268", async () => {
         const browser = stubDownloads();
         const first = deferred<Blob>();
         const stored = files();

@@ -302,11 +302,12 @@ describe("a double click on Upload @area:attachments", () => {
         expect(adapter.upload.mock.calls.map(([file]) => file.name)).toEqual(["a.png", "b.png"]);
     });
 
-    test("two clicks before the screen can change: one upload per file @ATT-208", async () => {
+    test("two clicks before the screen can change: one run, one request at a time, and Upload is disabled during it @ATT-208", async () => {
         const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
         await renderManager({canUpload: true, adapter});
-        await pickFiles(aFile("a.png", 1));
-        await expectSelected("a.png");
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
         const button = upload();
 
         act(() => {
@@ -314,9 +315,20 @@ describe("a double click on Upload @area:attachments", () => {
             fireEvent.click(button);
         });
 
-        await expectStored("a.png");
+        const a = await gate.held("a.png");
         await pastPendingWork();
-        expect(adapter.upload).toHaveBeenCalledTimes(1);
+        expect(gate.running()).toEqual(["a.png"]);
+        expect(upload()).toBeDisabled();
+
+        await a.finish();
+        const b = await gate.held("b.png");
+        expect(gate.running()).toEqual(["b.png"]);
+        expect(upload()).toBeDisabled();
+        await b.finish();
+
+        await expectStored("a.png", "b.png");
+        await pastPendingWork();
+        expect(gate.started).toEqual(["a.png", "b.png"]);
     });
 
     test("Upload is disabled during a run, and with nothing to send @ATT-208", async () => {

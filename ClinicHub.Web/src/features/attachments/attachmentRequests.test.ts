@@ -91,7 +91,7 @@ describe("an adapter's calls on a feature's routes @area:attachments", () => {
     test.each([
         ["upload", (file: File) => requests.upload(file, {}), "post", "/test-files"],
         ["replace", (file: File) => requests.replace("id-1", file, {}), "put", "/test-files/id-1"],
-    ])("%s sends a FormData with one part, named file, holding the file: the client's JSON default would lose it", async (_call, send, method, url) => {
+    ])("%s sends a FormData with one part, named file, holding the file: the client's JSON default would lose it @ATT-267", async (_call, send, method, url) => {
         const seen = captureRequests();
         const file = aFile("تقرير.png", 10);
 

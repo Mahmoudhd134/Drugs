@@ -64,7 +64,8 @@ export type HarnessUi = ReturnType<typeof harnessUi>;
 /** Opens the harness page and waits until files can be picked (a drop before the rules load is ignored). */
 export const openHarness = async (page: Page, lang: Lang, params: HarnessParams = {}) => {
     const query = new URLSearchParams(params).toString();
-    await page.goto(`/__harness/attachments/${query ? `?${query}` : ""}`);
+    // With index.html: the API's SPA fallback answers the folder URL first (contract § 3)
+    await page.goto(`/__harness/attachments/index.html${query ? `?${query}` : ""}`);
     const ui = harnessUi(page, lang);
     await expect(ui.heading, "the harness page opened (is it in the run's web root?)").toBeVisible();
     await settled(page);

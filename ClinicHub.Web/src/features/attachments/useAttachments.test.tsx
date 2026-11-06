@@ -343,6 +343,38 @@ describe("useAttachments alone, a stored file @area:attachments", () => {
         await waitFor(() => expect(storedNames()).toEqual(["b.png"]));
     });
 
+    test("delete called twice at once: one request and one toast @ATT-232 @ATT-251", async () => {
+        const file = stored("a.png");
+        const adapter = fakeAdapter({files: [file, stored("b.png")]});
+        await start(adapter);
+
+        await run(() => Promise.all([hook.delete(file), hook.delete(file)]));
+
+        expect(adapter.delete).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(storedNames()).toEqual(["b.png"]));
+        await pastPendingWork();
+        await expectToasts("File deleted");
+    });
+
+    test("one preview opened over another: the first's URL is revoked, only the open one lives @ATT-231", async () => {
+        const urls = stubObjectUrls();
+        const first = stored("first.png");
+        const second = stored("second.png");
+        await start(fakeAdapter({files: [first, second]}));
+
+        await run(() => hook.openPreview(first));
+        await waitFor(() => expect(hook.preview?.status).toBe("ready"));
+        const firstUrl = hook.preview?.url;
+        expect(urls.live()).toEqual([firstUrl]);
+
+        await run(() => hook.openPreview(second));
+        await waitFor(() => expect(hook.preview).toMatchObject({name: "second.png", status: "ready"}));
+
+        expect(urls.revoked).toEqual([firstUrl]);
+        expect(urls.live()).toEqual([hook.preview?.url]);
+        expect(hook.preview?.url).not.toBe(firstUrl);
+    });
+
     test("a failure is a toast; a 404 also reloads @ATT-251", async () => {
         const file = stored("a.png");
         const adapter = fakeAdapter({files: [file]});
