@@ -19,7 +19,8 @@ import type {AttachmentPreviewProps, AttachmentPreviewState} from "../types.ts";
 /** What shows instead of the file: its name and size, and why. Download is in the dialog's actions. */
 const NoViewer = ({preview, note}: { preview: AttachmentPreviewState; note: string }) => (
     <Stack sx={{gap: 1}}>
-        <Box component="span" dir="auto" sx={{fontWeight: 500, overflowWrap: "anywhere"}}>{preview.name}</Box>
+        {/* The block follows the UI's start, as the size and the note do; the name keeps its own direction inside it */}
+        <Box sx={{fontWeight: 500, overflowWrap: "anywhere"}}><span dir="auto">{preview.name}</span></Box>
         <Typography variant="body2" color="text.secondary">{formatFileSize(preview.sizeBytes)}</Typography>
         <Typography>{note}</Typography>
     </Stack>
@@ -80,7 +81,11 @@ export const AttachmentPreview = ({files: {preview, closePreview}, renderPreview
         // No exit fade: the object URL goes as it closes, so the content has nothing left to show
         <Dialog
             open={!!preview}
-            onClose={closePreview}
+            onClose={(event, reason) => {
+                // The second click of the double click that opened it lands on the backdrop
+                if (reason === "backdropClick" && (event as MouseEvent).detail > 1) return;
+                closePreview();
+            }}
             fullWidth
             maxWidth="md"
             fullScreen={fullScreen}
