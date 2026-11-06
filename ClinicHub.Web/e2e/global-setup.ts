@@ -13,7 +13,7 @@ import {loadCatalog} from "./support/catalogLoad.ts";
  * (created and migrated by the API's own startup), the SPA built into ClinicHub.Api/wwwroot, the Release API
  * (environment Testing) on a free port from 5080 serving it, and the template's catalog. The attachments harness page
  * (e2e/harness/attachments) is built apart, and only the run's copy of the web root holds it, so the same API serves
- * it at /__harness/attachments/. The returned function is the teardown: it stops the API and drops the database.
+ * it at /__harness/attachments/index.html. The returned function is the teardown: it stops the API and drops the database.
  *
  * Settings on top of appsettings.Testing.json (environment variables):
  * - `Platform:SuperAdminPhones`: a pool of super admin phones, one claimed per test, so the OTP limits of one phone

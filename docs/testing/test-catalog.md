@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 123 and part 2 added 60: the [summary](#summary) has the count now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 131 and part 2 added 69: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 81 | 89 | 21 | 191 | 64 | 82 | 44 | 10 | 2 |
-| **All** | **565** | **950** | **498** | **2013** | **348** | **788** | **544** | **451** | **16** |
+| [ATT](#att--attachments) | 82 | 96 | 22 | 200 | 66 | 82 | 50 | 11 | 2 |
+| **All** | **566** | **957** | **499** | **2022** | **350** | **788** | **550** | **452** | **16** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2859,7 +2859,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-213 | Given a zero-byte pick, then the "empty" message shows and no request is sent | P1 | ui | Messages |
 | ATT-214 | Given `IMG.JPG`, or a size exactly at the limit, then accepted; limit + 1 refused | P1 | unit | § 12 |
 | ATT-215 | Given a queue running, when unmounted (a clinic switch), then the current upload aborts, no next request is sent, and no toast shows | P0 | ui | § 12 |
-| ATT-216 | Given rules failing to load, then an error and Retry show, picking is off and the list still works | P1 | ui | § 12 |
+| ATT-216 | Given rules failing to load, then an error and Retry show, picking is off and the list still works; a user whose only control that needs the rules is a row's Replace sees the error and Retry too, with no trigger | P1 | ui | § 12 |
 | ATT-217 | Given a file removed, when picked again, then it's listed again | P1 | ui | § 12 |
 | ATT-218 | Given a folder dropped, then a refusal shows and no request is sent | P2 | ui | § 12 |
 | ATT-219 | Given a drop outside the area, then the app stays open | P1 | e2e | § 12 |
@@ -2869,6 +2869,10 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-238 | Given an upload finishing after a list refresh, then the file ends in the list once, not in the selection | P1 | ui | § 12 |
 | ATT-244 | Given a selected name with a bidi override, then it's isolated and doesn't reorder its row | P2 | ui | § 12 |
 | ATT-245 | Given `multiple={false}`, `canReplace` and a stored file, when a new file is picked, then it's only selected; when Upload is pressed, then `replace` is called on the newest stored file; a refusal keeps the old file | P0 | ui | § 12 |
+| ATT-260 | Given `multiple={false}` + `canReplace`, or `maxFiles`, and a list loading, reloading or failed, when a file is picked, then it's selected, Upload is disabled and nothing is sent; when the list answers, then Upload goes by the real list: `replace` on the newest stored file, and never over `maxFiles`. Given several files with no `maxFiles`, `multiple={false}` with neither `canReplace` nor `maxFiles`, or no `adapter.replace`, then the list's state doesn't stop Upload | P0 | ui | Contract § 2 |
+| ATT-262 | Given Remove or Cancel on a selected row, then focus moves to the next row's first button; with no next row, to the Choose files button | P1 | ui | Contract § 2 |
+| ATT-266 | Given a file that breaks several rules, then the refusal says the first by the server's order: empty, size, extension | P2 | unit | Contract § 2 |
+| ATT-267 | Given an upload or a replace through `attachmentRequests`, then it sends a `FormData` with one part, named `file`, holding the file, and not the client's JSON default | P1 | unit | § 12 |
 
 ### Components: list, download, preview, delete
 
@@ -2885,13 +2889,13 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-240 | Given a double Preview, or a close while loading, then one request, the late answer is ignored, no toast, and the URL is revoked | P1 | ui | § 12 |
 | ATT-241 | Given an image failing to decode, then name, size and Download show | P1 | ui | § 12 |
 | ATT-242 | Given a preview closed, then focus returns to its button; after a delete, to the next row or the list | P1 | ui | § 12 |
-| ATT-243 | Every icon button and progress bar is named with its file; finishing and failing are announced | P1 | ui | § 12 |
+| ATT-243 | Every icon button and progress bar is named with its file; finishing and failing are announced, a repeated result too (a Retry failing with the same reason, a same-named file uploaded twice) | P1 | ui | § 12 |
 | ATT-246 | Given several files and Download all, then each is saved | P1 | e2e | A12 |
 | ATT-247 | Given a UTF-16 mark, or a 1 MB cut inside an Arabic character, then the text reads correctly | P1 | unit | § 12 |
 | ATT-248 | Given the viewer flag on and a PDF preview, then the iframe has a `title`, no `sandbox`, a hard-coded `application/pdf` type and `%PDF-` bytes | P0 | e2e | § 12 |
 | ATT-249 | Given the viewer flag off, then a PDF preview shows name, size and Download | P0 | ui | § 12 |
 | ATT-257 | Given a 403 on a download that isn't clinic-lost, then a toast shows and `/me` reloads | P1 | ui | § 12 |
-| ATT-258 | Given a PDF actually opening in the browser's viewer on a real desktop and phone | P2 | manual | § 12 |
+| ATT-258 | Given a PDF opened in the preview on a real desktop and on a real phone (the dress rehearsal, on a host the phone can reach), then it shows in the browser's viewer | P2 | manual | § 12 |
 | ATT-227 | Given TIFF, HEIC and Office files, when previewed, then name, size and Download show, with no viewer | P1 | ui | § 12 |
 | ATT-228 | Given a text file holding `<script>` or HTML, when previewed, then it shows as literal text and nothing runs | P0 | ui | § 12 |
 | ATT-229 | Given a file name holding HTML, when shown anywhere, then it shows as literal text | P0 | ui | § 12 |
@@ -2901,6 +2905,10 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-233 | Given a row deleted meanwhile, when acted on, then 404 reloads the list and says the item is gone | P1 | ui | § 12 |
 | ATT-259 | Given a row's Replace running, then its row shows its progress and Cancel; when cancelled, then the request is aborted, the old file stays, no error shows and the list reloads; when it fails, then a toast shows with no Retry | P1 | ui | § 12 |
 | ATT-234 | Given `canUpload` and `canDelete` left out, then those controls aren't shown | P0 | ui | § 12 |
+| ATT-261 | Given a row's Replace finishing, then focus moves to the new row's Replace button | P1 | ui | Contract § 2 |
+| ATT-264 | Given `canDelete` with no `adapter.delete`, or `canReplace` with no `adapter.replace`, then that control and its `renderItem` action aren't there; given `multiple={false}` with no `adapter.replace`, then `canReplace` alone shows no picker, and with `canUpload` Upload adds the file, which counts toward `maxFiles` | P1 | ui | Contract § 2 |
+| ATT-265 | Given a preview whose fetch fails, then a toast shows and the dialog closes | P1 | ui | Contract § 2 |
+| ATT-268 | Given Download all, then each file is requested in turn, the next only after the last answered | P1 | ui | A12 |
 
 ### Components: customizing and layout
 
@@ -2909,7 +2917,8 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-250 | Given each of `renderTrigger`, `renderItem`, `renderSelectedItem`, `renderEmpty`, `renderPreview`, then it replaces its part and the actions it receives work | P0 | ui | A13 |
 | ATT-251 | Given `useAttachments` alone with custom markup, then every action works with no component | P0 | ui | A13 |
 | ATT-252 | Given the source of the feature's components, then none uses `dangerouslySetInnerHTML` | P1 | unit | § 12 |
-| ATT-253 | Given the harness page in Arabic, English and at phone width, then axe, cut-text and RTL checks pass with a long Arabic file name | P0 | e2e | § 12 |
+| ATT-253 | Given the harness page in Arabic, English and at phone width, then axe, cut-text and RTL checks pass with a long Arabic file name, in the list, the selection, a failed row, the previews (image, text, no viewer) and the confirmation; a long name with no space wraps inside its row | P0 | e2e | § 12 |
 | ATT-254 | Given a phone width, then a file can be picked, uploaded, previewed and deleted; a PDF the browser can't show offers Download | P1 | e2e | § 12 |
 | ATT-255 | Given the production build (`ClinicHub.Api/wwwroot`, read from disk: the run's copy holds the harness), then the harness page isn't in it | P1 | e2e | § 12 |
 | ATT-256 | Every `attachments.*` key exists in `en.ts` and `ar.ts` | P1 | unit | § 12 |
+| ATT-263 | Given a touch device (no precise pointer, `pointer: coarse`), then the drop hint is hidden and the Choose files button stays; given a desktop, then the hint shows | P1 | e2e | Contract § 2 |

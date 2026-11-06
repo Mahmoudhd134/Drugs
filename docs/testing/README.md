@@ -186,7 +186,7 @@ cd ClinicHub.Web; npx vitest run src/features/dosing             # a folder or a
 cd ClinicHub.Web; npm run e2e -- e2e/auth/login.spec.ts --project ar-desktop   # or --grep "@AUTH-004"
 ```
 
-`CLINICHUB_E2E_NO_BUILD=1` reuses the last SPA and API builds for e2e (faster between edits that don't touch the app);
+`CLINICHUB_E2E_NO_BUILD=1` reuses the last SPA, attachments harness and API builds for e2e, and needs all three there (faster between edits that don't touch the app);
 `CLINICHUB_E2E_WORKERS` sets Playwright's workers (default 4).
 
 ### Reports (`artifacts/`, git-ignored)
@@ -663,7 +663,7 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
 
 ### The attachments harness page
 
-No real page mounts the attachment components yet, so their e2e cases (`e2e/attachments/`) run on a page that only wires them: `e2e/harness/attachments/`, built by `npm run build:harness` into `dist-harness/attachments`. Only the run's copy of the web root holds it, so the run's API serves it at `/__harness/attachments/`, same origin, and it's never in `ClinicHub.Api/wwwroot` (ATT-255). For the walkthrough, it opens on the main Vite at `/e2e/harness/attachments/index.html`. Its URL parameters are in the [contract](../design/attachments.components.contract.md#3-the-harness-page).
+No real page mounts the attachment components yet, so their e2e cases (`e2e/attachments/`) run on a page that only wires them: `e2e/harness/attachments/`, built by `npm run build:harness` into `dist-harness/attachments`. Only the run's copy of the web root holds it, so the run's API serves it at `/__harness/attachments/index.html`, same origin (with `index.html`: the SPA fallback answers the folder URL first), and it's never in `ClinicHub.Api/wwwroot` (ATT-255). For the walkthrough, it opens on the main Vite at `/e2e/harness/attachments/index.html`. Its URL parameters are in the [contract](../design/attachments.components.contract.md#3-the-harness-page).
 
 | Mode | Holds | Used for |
 |---|---|---|

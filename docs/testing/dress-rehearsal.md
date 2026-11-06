@@ -706,6 +706,6 @@ CI runs on Linux with Kestrel: IIS's own limit answers before the app does, what
 
 ### 12. Attachments in a real browser (1)
 
-Headless Chromium has no PDF viewer: CI proves the preview's iframe, its type and its bytes (ATT-248) and the fallback with no viewer (ATT-249, ATT-254), not a PDF on screen. No real page uses the components yet, so open the harness page on Vite (`/e2e/harness/attachments/index.html`) until one does.
+Headless Chromium has no PDF viewer: CI proves the preview's iframe, its type and its bytes (ATT-248) and the fallback with no viewer (ATT-249, ATT-254), not a PDF on screen. No real page uses the components yet, so open the harness page on Vite (`/e2e/harness/attachments/index.html`) until one does; for the phone, on a host it can reach (`npm run dev -- --host`).
 
-- [ ] `ATT-258` (P2, manual) Given a PDF actually opening in the browser's viewer on a real desktop and phone
+- [ ] `ATT-258` (P2, manual) Given a PDF opened in the preview on a real desktop and on a real phone, then it shows in the browser's viewer

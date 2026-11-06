@@ -1,6 +1,6 @@
 # Attachments part 2: compiled contract and work split
 
-Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md) (§§ 8, 9, 12), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 2 = design § 12, cases ATT-200 to ATT-259 (60 cases).
+Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md) (§§ 8, 9, 12), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 2 = design § 12, cases ATT-200 to ATT-268 (69 cases).
 
 ## 1. What the contract commit holds
 
@@ -35,10 +35,14 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - **A row's Replace** picks one file, checks the rules and sends it at once. The row shows its progress and a Cancel. Success toasts `replaced`. A refused pick or a failure is a toast, with no Retry.
 - **Cancelling a row's Replace** (`cancelReplace`, `actions.cancelReplace`) aborts the request and keeps the old file. It shows no error and reloads the list, like an upload's cancel.
 - **One row's Replace runs at a time** (`replacing`). While it runs, every row's Replace is disabled, and its own row's Delete.
+- **While the list is loading or failed, Upload is disabled** in single-replace mode (`multiple={false}` + `canReplace`) and with `maxFiles`, because until the list answers, no one knows which file Upload would replace or how many are stored. A reload counts as loading: after a send, the next Upload waits for the list's new answer. Files can still be picked. The hook's `upload` sends nothing then, for a feature with its own markup. Multi-file uploads with no `maxFiles` aren't affected: the list's failure doesn't stop them. Neither is `multiple={false}` with neither `canReplace` nor `maxFiles` (ATT-260).
+- **Upload-replace racing the same file's row Replace or Delete** isn't locked: one user would need two clicks in the same moment, and it ends in a 404 at worst. Accepted.
 
 ### Defaults
 
 - `canReplace` alone shows the trigger and Upload with `multiple={false}` and a stored file.
+- **A control shows only with the permission and the adapter's call:** `canDelete` needs `adapter.delete`, `canReplace` needs `adapter.replace`, for the row's button and for `renderItem`'s action alike. In single-file mode with no replace call, Upload isn't a replace: `canReplace` alone shows no picker, and with `canUpload` Upload adds the file, which counts toward `maxFiles` (ATT-264).
+- A screen showing another record mounts a new component, by `key`: a selection belongs to one record.
 - Upload skips failed files: they go only by Retry.
 - No success toast for an upload. The file moves to the list, and `announcement` goes to an `aria-live` region.
 - A failed preview fetch toasts and closes the dialog.
@@ -53,8 +57,9 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - **Remove** works in every state but uploading.
 - **Cancel** shows on uploading and queued. A queued file goes back to waiting.
 - **Client refusals never enter the selection.** An inline `role="alert"` area in the picker lists each one. The next pick clears it. The check order is the server's: empty, size, extension.
-- **`multiple={false}`:** a new pick replaces every selected file that isn't uploading.
-- **If the rules fail to load, picking is off:** the trigger's button is disabled and a drop is ignored. `rulesFailed` and a `common.retry` button show in the picker, in a `role="alert"`. The list still works.
+- **`multiple={false}`:** a new pick replaces every selected file that isn't uploading. A refused pick keeps the selection as it was.
+- **If the rules fail to load, picking is off:** the trigger's button is disabled and a drop is ignored. `rulesFailed` and a `common.retry` button show in the picker, in a `role="alert"`. The list still works. A user whose only control that needs the rules is a row's Replace gets the same alert and Retry, with no trigger and no Upload. With no such control, nothing shows (ATT-216).
+- **A repeated result is announced again:** the `aria-live` region's text changes between two results, so a Retry failing with the same reason, or a same-named file uploaded twice, is heard again (ATT-243).
 - **Progress** is whole percents, 0 to 100.
 - **Thumbnails:** a selected image creates its object URL only when its row enters the view (`IntersectionObserver`; at once when there is none).
 - **`useAttachments` holds the window `dragover` and `drop` guard** while mounted: both are `preventDefault`ed.
@@ -82,7 +87,7 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 | Where | What | Accessible name or text |
 |---|---|---|
 | Picker | Button that opens the file choice | `pick`; with `multiple={false}`, `pickOne` |
-| Picker | Hint in the drop area; while dragging over it | `dropHint` or `dropHintOne`; `dropNow` |
+| Picker | Hint in the drop area; while dragging over it. Hidden on touch devices (no precise pointer, `pointer: coarse`), where dropping doesn't exist: the button stays (ATT-263) | `dropHint` or `dropHintOne`; `dropNow` |
 | Picker | The drop area | `data-testid="attachment-drop-area"` |
 | Picker | The hidden `input[type=file]`, with `accept` and `multiple` | `data-testid="attachment-input"` |
 | Picker | Refusals, in the `role="alert"` area, each on its own line | `refused`, `tooMany`, `onlyOne`, `folderRefused`; `reason` is `errors.<code>` |
@@ -108,8 +113,8 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 | Preview | Close and Download buttons | `common.close`, `download` |
 | Preview | Notes | `noPreview`, `cantShow`, `textCut` |
 
-- A long name wraps, with the full name in a tooltip. An icon button has a tooltip with its name.
-- **Focus:** a closed preview returns it to the button that opened it. After a delete it moves to the next row's first button; with no next row, to the list (`tabIndex={-1}`).
+- A long name wraps, with the full name in a tooltip. An icon button has a tooltip with its name. Row icon buttons are 36 px on a phone too: the only 44 px rule is the prescription tree.
+- **Focus:** a closed preview returns it to the button that opened it. After a delete it moves to the next row's first button; with no next row, to the list (`tabIndex={-1}`). After a row's Replace finishes, it moves to the new row's Replace button (ATT-261). After Remove or Cancel on a selected row, it moves to the next row's first button; with no next row, to the Choose files button (`pick`, or `pickOne` with `multiple={false}`) (ATT-262).
 
 ### Sizes and texts
 
@@ -130,7 +135,7 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 
 `ClinicHub.Web/e2e/harness/attachments/`. It only wires the contract's components, so it stays complete after T1. It has its own small providers: theme and RTL emotion cache as `AppProviders`, i18n, a QueryClient, `AppToaster`, and a `<main>` with an `<h1>` ("Attachments harness").
 
-- **Where:** `/__harness/attachments/` on the run's own API, and `/e2e/harness/attachments/index.html` on the main Vite, for the walkthrough.
+- **Where:** `/__harness/attachments/index.html` on the run's own API, and `/e2e/harness/attachments/index.html` on the main Vite, for the walkthrough. Always with `index.html`: the API's SPA fallback answers the folder URL first, with the app's own page.
 - **Build:** `npm run build:harness`, into `ClinicHub.Web/dist-harness/attachments`, base `/__harness/attachments/`. It's never in `ClinicHub.Api/wwwroot` (ATT-255): only the run's copy of the web root holds it.
 - **With `CLINICHUB_E2E_NO_BUILD=1`** global setup needs that build already there, as it does for the SPA. CI's build step makes it.
 
@@ -200,9 +205,11 @@ Three tracks, each on its own worktree and branch `attachments-components/<track
 
 | Track | Level | Cases | Count |
 |---|---|---|---|
-| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259 | 43 |
-| ui-tests | unit | ATT-214, 230, 247, 252, 256 | 5 |
+| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 261, 262, 264, 265, 268 | 49 |
+| ui-tests | unit | ATT-214, 230, 247, 252, 256, 266, 267 | 7 |
 | ui-tests | unit+ui | ATT-224 | 1 |
-| e2e-tests | e2e | ATT-210, 211, 219, 223, 226, 246, 248, 253, 254, 255 | 10 |
+| e2e-tests | e2e | ATT-210, 211, 219, 223, 226, 246, 248, 253, 254, 255, 263 | 11 |
 | e2e-tests | manual | ATT-258: a catalog row and a dress rehearsal line, no test | 1 |
-| | | **Total** | **60** |
+| | | **Total** | **69** |
+
+T4 added ATT-260 to ATT-268: the user's decisions on the list's state (260), focus (261, 262), the drop hint (263) and the adapter's calls (264), and four rules that had tests and no case (265 to 268). An e2e case's phone half is proved in `e2e/attachments/phone.spec.ts`.

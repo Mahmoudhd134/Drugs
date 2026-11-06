@@ -464,7 +464,7 @@ works by keyboard and on a phone, where dropping doesn't exist.
 
 **Real browser proof:** jsdom can't prove a dropped file, an image showing, a real download or real multipart, and no real page mounts the components.
 **Proposed:** a **harness page**, `ClinicHub.Web/e2e/harness/attachments/`, with its own small Vite config and providers, outside the production build:
-- `global-setup.ts` copies its build into the run's `wwwroot` copy, so the run's own API serves it at `/__harness/attachments`, same origin, with no
+- `global-setup.ts` copies its build into the run's `wwwroot` copy, so the run's own API serves it at `/__harness/attachments/index.html`, same origin, with no
   extra server. CI's and the no-build branch's build steps build it too. Two tsconfig entries cover it.
 - Two modes: an in-memory adapter, and the real `api` client with Playwright's `page.route`, which proves the multipart body and file bytes, the 401
   replay and the blob error.
