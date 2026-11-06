@@ -204,20 +204,27 @@ test.describe("The paper image @area:admin", () => {
                 await expect(designer.paperImage).toHaveCSS("display", "none");
             });
 
-            const countImages = async () => {
-                const bytes = await page.pdf({printBackground: true});
+            const countImages = async (printed = page) => {
+                const bytes = await printed.pdf({printBackground: true});
                 return (await pdfDrawing(bytes)).reduce((sum, drawing) => sum + drawing.images, 0);
             };
             const withPicture = await countImages();
             await designer.paperShow.click();
             await expect(designer.paperImage).toHaveCount(0);
             expect(withPicture, "the same as with no picture on the sheet").toBe(await countImages());
+
+            // The control, on a page of its own: the count isn't blind, so every "no image" of TPL-636, TPL-666 and TPL-719 means something
+            const control = await page.context().newPage();
+            await control.setContent(`<img src="data:image/png;base64,${paperPng().buffer.toString("base64")}" alt="">`);
+            await expect(control.locator("img")).toBeVisible();
+            expect(await countImages(control), "a real `img` in a PDF counts").toBeGreaterThanOrEqual(1);
+            await control.close();
         });
 
     test("at 100% opacity the grid and the box's marks still show above the picture @TPL-713",
         async ({page, data, lang}) => {
+            // No press on a box: a selected box's handles would cover its edge, and the marks are read below
             const {designer} = await openDesignerWithPaper(page, data, lang, layoutL(), paperFile());
-            await designer.box("m").click();
 
             await opacityTo(designer, 100);
             await expect(designer.paperOpacity).toHaveAttribute("aria-valuetext", "100%");

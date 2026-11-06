@@ -188,7 +188,7 @@ test.describe("Print template: designing @area:admin", () => {
             await designer.question.getByRole("button", {name: TEXTS[lang].cancel, exact: true}).click();
         });
 
-    test("in the Arabic UI, 12.5, 12,5 and «١٢٫٥» are each 12.5, never 125 or 0 @TPL-225",
+    test("in the Arabic UI, 12.5, 12,5, «١٢٫٥» and +12.5 are each 12.5, never 125 or 0 @TPL-225",
         async ({page, data, lang, isMobile}) => {
             test.skip(isMobile || lang !== "ar", "the Arabic UI on a computer");
             const clinic = await data.clinic();
@@ -199,7 +199,7 @@ test.describe("Print template: designing @area:admin", () => {
             await designerShown(designer);
             await designer.box("m").click();
 
-            for (const typed of ["12.5", "12,5", "١٢٫٥"]) {
+            for (const typed of ["12.5", "12,5", "١٢٫٥", "+12.5"]) {
                 await test.step(typed, async () => {
                     await typeInto(designer.field(pt.x), typed);
                     await expect.poll(() => inlineStyle(designer.box("m"), "left")).toBe("12.5mm");

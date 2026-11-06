@@ -23,6 +23,7 @@ import {
     isolate,
     meByContext,
     networkError,
+    paperImageHandlers,
     PLATFORM_CONTEXT,
     printTemplateHandlers,
     problem,
@@ -59,7 +60,7 @@ const sheet = () => screen.findByRole("region", {name: "Sheet preview"});
 /** The whole app at the tab, a saved template on the sheet, its manual input's X changed to 20. */
 const dirtyDesigner = async (refreshAnswers: Parameters<typeof refreshSequence> = [sessionOfSuperAdmin()]) => {
     const refresh = refreshSequence(...refreshAnswers);
-    server.use(refresh.handler, meByContext(), ...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: saved()}));
+    server.use(refresh.handler, meByContext(), ...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: saved()}), ...paperImageHandlers(clinic.id));
     const app = await startApp({route: tab});
     const box = await within(await sheet()).findByRole("button", {name: "الاسم"});
     await app.user.click(box);
@@ -241,7 +242,7 @@ describe("print template: leaving from the user menu, for real @area:admin", () 
     test("nothing unsaved: logging out asks nothing @TPL-248", async () => {
         const refresh = refreshSequence(sessionOfSuperAdmin());
         server.use(
-            refresh.handler, meByContext(), ...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: saved()}),
+            refresh.handler, meByContext(), ...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: saved()}), ...paperImageHandlers(clinic.id),
             http.post(api("/auth/logout"), () => new HttpResponse(null, {status: 204})),
         );
         const app = await startApp({route: tab});
@@ -288,7 +289,7 @@ describe("print template: «تعديل العيادة النموذجية», for 
 
 describe("the data router under the whole app @area:admin", () => {
     test("each page load reads its own URL, also a second one in the same document @TPL-250", async () => {
-        server.use(refreshSequence(sessionOfSuperAdmin()).handler, meByContext(), ...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: saved()}));
+        server.use(refreshSequence(sessionOfSuperAdmin()).handler, meByContext(), ...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: saved()}), ...paperImageHandlers(clinic.id));
         const first = await startApp({route: tab});
         await sheet();
         expect(first.path()).toBe(tab);

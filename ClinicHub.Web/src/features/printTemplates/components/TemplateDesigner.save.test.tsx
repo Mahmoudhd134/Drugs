@@ -356,6 +356,22 @@ describe("print template: a number field emptied or off the sheet @area:admin", 
         await expectNothingSent(recorded);
     });
 
+    test("«+1» is a sign, not a refusal: no message, the box at 1 mm, and Save sends 1 @TPL-224", async () => {
+        const {user} = await renderDesigner(layoutL());
+        const recorded = recordRequests();
+        await user.click(sheetItem("الاسم"));
+        await typeInField(user, settingsField(FIELD_LABEL.x), "+1");
+
+        expectNoFieldMessage(settingsField(FIELD_LABEL.x));
+        expect(boxOf("m").style.left).toBe("1mm");
+
+        await user.tab();
+        expect(settingsField(FIELD_LABEL.x)).toHaveValue("1");
+        await user.click(saveButton());
+        await expectToasts("Template saved");
+        expect((recorded.writes()[0].body as PrintLayout).items[1].xMm).toBe(1);
+    });
+
     test.each([
         ["negative", "-5", "-5mm"],
         ["off the sheet", "500", "500mm"],

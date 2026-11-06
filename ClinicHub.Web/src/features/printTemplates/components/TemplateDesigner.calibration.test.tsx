@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, test, vi} from "vitest";
-import {fireEvent, screen, waitFor, within} from "@testing-library/react";
+import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {http} from "msw";
 import {
@@ -12,6 +12,7 @@ import {
     problem,
     recordRequests,
     server,
+    setViewportWidth,
     toastTexts,
 } from "../../../test";
 import {renderAdmin} from "../../../test/pages/admin.tsx";
@@ -74,6 +75,7 @@ const MESSAGES = {
 
 const NUMBER_REQUIRED = "Enter a number.";
 const NAME_TAKEN = "Another item already uses this name.";
+const DESKTOP_ONLY = "Open this page on a computer.";
 
 const text = () => aTemplateItem("prescriptionText", {id: "t"});
 const manual = (fields = {}) => aTemplateItem("manualInput", {id: "m", ...fields});
@@ -107,6 +109,7 @@ describe("the correction on an old template @area:admin", () => {
         expect(sheet.outerHTML).not.toContain("NaN");
         expect(printing.itemOn(sheet, "m")?.style.left).toBe("58mm");
         expect(printing.itemOn(sheet, "m")?.style.top).toBe("46mm");
+        expect(printing.itemOn(sheet, "m")?.style.transform, "no transform at 0, 0").toBe("");
     });
 
     test("opened: Save is off, nothing to undo, and leaving asks nothing @TPL-612", async () => {
@@ -304,7 +307,10 @@ describe("the cut warning @area:admin", () => {
 
         await user.click(testPrintButton());
         await waitFor(() => expect(printing.print).toHaveBeenCalledTimes(1));
-        expect(printing.itemOn(printing.sheets()[0], "m")?.style.left).toBe("77mm");
+        const box = printing.itemOn(printing.sheets()[0], "m");
+        expect(box?.style.transform).toBe("translate(19mm, 0mm)");
+        expect(box?.style.left, "the designed place").toBe("58mm");
+        expect(box?.style.top, "the designed place").toBe("46mm");
     });
 });
 
@@ -334,15 +340,18 @@ describe("the correction's undo steps @area:admin", () => {
         expect(redoButton()).toBeDisabled();
     });
 
-    /** X changed with no blur: the field is still open. */
-    const openX = (value: string) => fireEvent.change(calibrationField("x"), {target: {value}});
+    /** X changed and the focus still there, with no blur: the field is still open. The next press blurs it, as in a browser. */
+    const openX = (value: string) => {
+        calibrationField("x").focus();
+        fireEvent.change(calibrationField("x"), {target: {value}});
+    };
 
     test("X open, Undo clicked: a calibration step undone, the selection stays @TPL-703", async () => {
         const {user} = await renderDesigner(layoutL());
         await user.click(sheetItem("التاريخ"));
         openX("3");
 
-        fireEvent.click(undoButton());
+        await user.click(undoButton());
 
         expect(calibrationField("x")).toHaveValue("0");
         expect(selectedIds()).toEqual(["f"]);
@@ -499,6 +508,30 @@ describe("a correction that can't be saved @area:admin", () => {
     });
 });
 
+describe("a refused Save and the window narrowed @area:admin", () => {
+    test("a refused Save, the window narrowed below 900 px and widened: nothing scrolls when the workspace mounts again @TPL-701", async () => {
+        const {user} = await renderDesigner(layoutL());
+        const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+        await user.click(sheetItem("الاسم"));
+        await typeInField(user, settingsField(FIELD_LABEL.name), "");
+        await user.tab();
+
+        await user.click(saveButton());
+        await waitFor(() => expect(scrolled, "the refusal scrolls to its message").toHaveBeenCalled());
+        expect(settingsField(FIELD_LABEL.name)).toHaveAttribute("aria-invalid", "true");
+
+        act(() => setViewportWidth(899));
+        expect(await screen.findByText(DESKTOP_ONLY)).toBeInTheDocument();
+        scrolled.mockClear();
+
+        act(() => setViewportWidth(1000));
+        await designerShown();
+        expect(settingsField(FIELD_LABEL.name), "the field's still marked").toHaveAttribute("aria-invalid", "true");
+        await settled();
+        expect(scrolled, "no press, no scroll").not.toHaveBeenCalled();
+    });
+});
+
 describe("a name shared by several items @area:admin", () => {
     const named = (id: string, name: string, yMm: number) => aTemplateItem("manualInput", {id, name, xMm: 10, yMm, wMm: 40, hMm: 8});
     const threeSharing = () => aPrintLayout({items: [text(), named("a", "الاسم", 10), named("b", "الاسم", 20), named("c", "الاسم", 30)]});
@@ -521,6 +554,22 @@ describe("a name shared by several items @area:admin", () => {
             await select(user, id);
             expectFieldMessage(nameField(), NAME_TAKEN);
         }
+    });
+
+    test("with another item selected, Save selects the first problem: the lower item of the two, though the server's rule names the later @TPL-683", async () => {
+        const {user} = await renderDesigner(twoSharing());
+        const recorded = recordRequests();
+        await select(user, "a");
+        await typeInField(user, settingsField(FIELD_LABEL.x), "11");
+        await user.tab();
+        await select(user, "b");
+        expect(selectedIds()).toEqual(["b"]);
+
+        await user.click(saveButton());
+
+        await expectNothingSent(recorded);
+        expect(selectedIds()).toEqual(["a"]);
+        expectFieldMessage(nameField(), NAME_TAKEN);
     });
 
     test.each(["a", "b"])("fixing %s clears both, and Save sends @TPL-683", async fixed => {
@@ -591,6 +640,7 @@ describe("a saved correction and other edits @area:admin", () => {
         const recorded = recordRequests();
 
         expect(boxOf("f").style.left).toBe("14mm");
+        expect(boxOf("f").style.transform, "designer mode never moves a box").toBe("");
         await user.click(sheetItem("الاسم"));
         await typeInField(user, settingsField(FIELD_LABEL.x), "20");
         await user.tab();

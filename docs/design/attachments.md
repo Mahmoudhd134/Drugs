@@ -308,8 +308,8 @@ template clinic's own context the template owns the file. On a plain platform ro
 
 **Test-only controllers**, one per context (clinic with `[HasPermission]`, `[AdminClinic]`, platform), added only in the integration test
 host through `AddApplicationPart`, with their test commands registered there, since MediatR scans only the Application assembly. They use
-the real pipeline: authorization, filter, model binding, service, provider, database, disk. A test proves the real host has no endpoint
-with `[AttachmentUpload]`.
+the real pipeline: authorization, filter, model binding, service, provider, database, disk. A test proves the real host's only endpoints
+with `[AttachmentUpload]` are `AdminPaperImageController.Upload` and `.Replace` (print templates step 4).
 
 **Limits of the test host:**
 - **TestServer enforces no body limit**, so a case proving the over-limit path needs a small real Kestrel host, new to this repo.
@@ -371,7 +371,7 @@ commits the **compiled contract**, per the workflow. **Implementation runs in su
 ## 12. Frontend components
 
 In `ClinicHub.Web/src/features/attachments/`. They hold no URLs and no permission keys: each feature passes an **adapter** over its own
-routes (A5, M1.5 D9), as the role, staff and print template components already do. Nothing mounts them yet.
+routes (A5, M1.5 D9), as the role, staff and print template components already do. Print templates step 4 is the first to mount them (the paper's picture).
 
 ```ts
 export type AttachmentsAdapter = DataScope & {

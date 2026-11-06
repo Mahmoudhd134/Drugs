@@ -467,6 +467,7 @@ jobs:
           # over the merged report, attachments lost, and `ran` would always equal `planned`.
           ran=$(jq '.stats.expected + .stats.unexpected + .stats.flaky + .stats.skipped' ../artifacts/e2e/results.json)
           # What the parts run (`parts` above): the smoke tests of every project, or the three main projects and the template edits
+          # A known gap, older than print templates step 4 and reported to the user: the project ar-desktop-shared-catalog runs in no CI part
           plan=(--project=ar-desktop --project=en-desktop --project=ar-phone --project=ar-desktop-template)
           [ "$TIER" = step ] && plan=(--grep @smoke)
           planned=$(npx playwright test --list --reporter=null "${plan[@]}" | tail -1 | grep -oE '[0-9]+' | head -1)

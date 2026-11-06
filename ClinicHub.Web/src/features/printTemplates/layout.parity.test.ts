@@ -15,7 +15,7 @@ const {rounding, cases} = JSON.parse(fixtureText) as { rounding: { value: number
 
 describe("the shared print layout cases @area:admin", () => {
     test("the file holds its rows", () => {
-        expect(cases.length).toBeGreaterThanOrEqual(96);
+        expect(cases.length).toBeGreaterThanOrEqual(121);
         expect(rounding.length).toBeGreaterThanOrEqual(10);
     });
 
