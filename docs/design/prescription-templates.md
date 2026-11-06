@@ -29,7 +29,7 @@ with no template sees no Print button and Copy works as before.
 |---|---|
 | D1 | **Browser print, on the front end.** No server PDF and no Chromium on the server. The server only stores the template |
 | D2 | The layout is **JSON in a `text` column** (like `TaperSteps`). `jsonb` has no real benefit here: nothing queries inside it, and the save validator covers validity. Keeps the M1.7 D4 rule (no PostgreSQL-only piece) |
-| D3 | The **letterhead guide image** lives in the **database**, in step 4, in its own table: PNG or JPEG, about 2 MB. No SVG. It never prints. Steps 1–3 use a blank sheet with a mm grid |
+| D3 | The **picture of the clinic's paper** is stored through [attachments](attachments.md) (module `clinicPaper`), in step 4, with no table of its own: PNG or JPEG, up to 10 MB, one per clinic. No SVG. It never prints. Steps 1–3 use a blank sheet with a mm grid. *(Amended by [step 4](prescription-templates.step4.md) A1, P2: this first said the database, in its own table, about 2 MB.)* |
 | D4 | **One template per clinic** for now. Moving to several later is one additive migration (drop the unique index, add a name and a default flag); the routes and screen would then change |
 | D5 | **Only the super admin edits templates**, from a tab on the clinic's admin page. No new clinic permission. **Future (out of scope):** a per-clinic feature flag and clinic-owned editing; the adapter pattern and clinic-free use cases keep the door open |
 | D6 | **A clinic without a template sees no Print button.** Nothing else changes for it. New clinics start with none: the template clinic is not copied |
@@ -141,8 +141,8 @@ hide a column no page shows.
 | Layout | text | The JSON below, written only from the validated DTO |
 | CreatedAt, UpdatedAt | timestamptz | |
 
-Migration `AddPrescriptionTemplates`: a new empty table, so no data step; tested up → down → up. Step 4 adds
-`PrescriptionTemplateGuides` (one migration of its own).
+Migration `AddPrescriptionTemplates`: a new empty table, so no data step; tested up → down → up. Step 4 adds no migration
+([step 4](prescription-templates.step4.md) § 4): the picture lives in `Attachments`, the printer's correction in the layout's JSON.
 
 ```json
 {
@@ -215,7 +215,7 @@ QR codes, form readings, versioning and server PDF, which aren't here.
 | 1 | **Template designer, no drag** | Table, admin API, validation, tab, side panel (click to add), sheet preview with the print font, config panel with number fields, desktop-only message, remove template | `AddPrescriptionTemplates` | 1 day |
 | 2 | **Printing** | Clinic read route, Print buttons, pop-up, function values, print rendering, continuation pages, page number, cleaning | none | 1 day |
 | 3 | **Drag** | Drag from the panel, move, resize, snap to 1 mm, keyboard nudging, undo | none | 1 day |
-| 4 | **Paper alignment** | Guide image (upload, table, display), X/Y calibration per clinic, test print | `AddPrescriptionTemplateGuides` | 1 day |
+| 4 | **Paper alignment** ([design](prescription-templates.step4.md)) | The paper's picture (through attachments), X/Y calibration per clinic, test print | none | 1 day |
 | — | **Later, if needed** | Internal data after M2.2 (with a "change source" action that keeps the position), JS expressions in a sandbox, several templates, shrink text to fit, feature flag and clinic ownership | | |
 
 Steps 1 and 2 give a working result: after step 2 a clinic can print, with positions typed in mm. Test cases are drafted for

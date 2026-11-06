@@ -1,8 +1,8 @@
 import {useState} from "react";
 import {MAX_CUSTOM_HEIGHT_MM, MAX_CUSTOM_WIDTH_MM, MIN_CUSTOM_HEIGHT_MM, MIN_CUSTOM_WIDTH_MM} from "./constants.ts";
 import {type Box, nudgeBox} from "./dragGeometry.ts";
-import {addItem, applyPageSize, pageOfSize, parseMmInput, removeItem, sameLayout, toTenths, updateItem} from "./layout.ts";
-import {canRedo, canUndo, EMPTY_HISTORY, endRun, type LayoutHistory, recordNudge, recordStep, redoStep, type TimeTravel, undoStep} from "./layoutHistory.ts";
+import {addItem, applyPageSize, normalizeLayout, pageOfSize, parseMmInput, removeItem, sameLayout, toTenths, updateItem} from "./layout.ts";
+import {canRedo, canUndo, EMPTY_HISTORY, endRun, type LayoutChange, type LayoutHistory, recordNudge, recordStep, redoStep, type TimeTravel, undoStep} from "./layoutHistory.ts";
 import type {AddableItem, PageSize, PrintLayout, TemplateItem} from "./types.ts";
 
 /** The number fields of an item, in the settings' order. */
@@ -11,7 +11,10 @@ export type BoxField = "xMm" | "yMm" | "wMm" | "hMm" | "fontSizePt";
 /** The sheet's measures, which commit at blur or Enter. */
 export type PageMeasure = "widthMm" | "heightMm";
 
-/** The designer's local state (contract § 3.6). Keys of `rawInputs` and `touched`: `<itemId>.<field>`, `page.widthMm`… */
+/** X or Y of the printer's correction. */
+export type CalibrationField = "xMm" | "yMm";
+
+/** The designer's local state (contract § 3.6). Keys of `rawInputs` and `touched`: `<itemId>.<field>`, `page.widthMm`, `calibration.xMm`… */
 export type Draft = {
     layout: PrintLayout;
     /** What the screen compares with: the template as loaded or as last sent; null: a new sheet, never saved */
@@ -29,15 +32,16 @@ export type Draft = {
     serverErrors: Record<string, string>;
     /** Lives and dies with the draft: removed with the template, gone when the page is left, untouched by a refetch (TPL-570) */
     history: LayoutHistory;
-    /** A field typed in and not committed yet: the layout before its first change (step 3 contract § 3.6) */
-    openField: { itemId: string; before: PrintLayout } | null;
+    /** A field typed in and not committed yet: the step it will be, and the layout before its first change (step 4 contract § 4.7) */
+    openField: { change: LayoutChange; before: PrintLayout } | null;
     /** Goes up when the page changed, so the screen re-fits; the zoom itself is the screen's, never the draft's */
     fitRequests: number;
 };
 
+/** Both seeded through `normalizeLayout`, so a template saved before the correction existed isn't dirty when it opens (TPL-612). */
 export const startDraft = (layout: PrintLayout, baseline: PrintLayout | null): Draft => ({
-    layout,
-    baseline,
+    layout: normalizeLayout(layout),
+    baseline: baseline && normalizeLayout(baseline),
     rawInputs: {},
     typedPage: {},
     selectedId: null,
@@ -75,15 +79,18 @@ const withoutPlaceOf = (rawInputs: Record<string, string>, itemId: string) =>
 const withFieldCommitted = (draft: Draft): Draft => draft.openField
     ? {
         ...draft,
-        history: recordStep(draft.history, draft.openField.before, draft.layout, {kind: "item", itemId: draft.openField.itemId}),
+        history: recordStep(draft.history, draft.openField.before, draft.layout, draft.openField.change),
         openField: null,
     }
     : draft;
 
-/** The first typed change of a field opens it; another item's open field is committed first. */
-const withFieldOpen = (draft: Draft, itemId: string): Draft => {
-    const current = draft.openField?.itemId === itemId ? draft : withFieldCommitted(draft);
-    return {...current, openField: current.openField ?? {itemId, before: current.layout}};
+const sameChange = (a: LayoutChange | undefined, b: LayoutChange) =>
+    a?.kind === b.kind && (a.kind !== "item" || b.kind !== "item" || a.itemId === b.itemId);
+
+/** The first typed change of a field opens it; another item's open field, or the correction's, is committed first. */
+const withFieldOpen = (draft: Draft, change: LayoutChange): Draft => {
+    const current = sameChange(draft.openField?.change, change) ? draft : withFieldCommitted(draft);
+    return {...current, openField: current.openField ?? {change, before: current.layout}};
 };
 
 /** The layout on another page, as one page step: re-fits only when something changed (TPL-579). */
@@ -190,7 +197,7 @@ export const useDesignerDraft = () => {
     });
 
     const changeItemNumber = (item: TemplateItem, field: BoxField, text: string) => edit(draftNow => {
-        const current = withFieldOpen(draftNow, item.id);
+        const current = withFieldOpen(draftNow, {kind: "item", itemId: item.id});
         const key = `${item.id}.${field}`;
         const value = parseMmInput(text);
         const touched = new Set(current.touched).add(key);
@@ -201,8 +208,24 @@ export const useDesignerDraft = () => {
             : {...current, touched, rawInputs: without(current.rawInputs, key), layout: updateItem(current.layout, item.id, {[field]: value})};
     });
 
+    /** X or Y of the correction, as an item's number: touched at once, so out of range shows at once; the selection stays (step 4 contract § 4.7). */
+    const changeCalibration = (field: CalibrationField, text: string) => edit(draftNow => {
+        const current = withFieldOpen(draftNow, {kind: "calibration"});
+        const key = `calibration.${field}`;
+        const value = parseMmInput(text);
+        const touched = new Set(current.touched).add(key);
+        return value === null
+            ? {...current, touched, rawInputs: {...current.rawInputs, [key]: text}}
+            : {
+                ...current,
+                touched,
+                rawInputs: without(current.rawInputs, key),
+                layout: {...current.layout, calibration: {...current.layout.calibration, [field]: value}},
+            };
+    });
+
     const changeItemText = (item: TemplateItem, field: "name" | "text", value: string) => edit(draftNow => {
-        const current = withFieldOpen(draftNow, item.id);
+        const current = withFieldOpen(draftNow, {kind: "item", itemId: item.id});
         return {
             ...current,
             touched: new Set(current.touched).add(`${item.id}.${field}`),
@@ -288,6 +311,7 @@ export const useDesignerDraft = () => {
             nudge,
             changeItemNumber,
             changeItemText,
+            changeCalibration,
             commitField,
             removeSelected,
             changePageSize,
