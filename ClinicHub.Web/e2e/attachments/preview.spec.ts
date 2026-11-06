@@ -1,7 +1,44 @@
-import {expect, test} from "../support/fixtures.ts";
-import {closePreview, expectImageShown, expectSameBytes, openHarness, pngFile, routeFilesApi, servedFile} from "../support/attachments.ts";
+import {expect, settled, test} from "../support/fixtures.ts";
+import {
+    closePreview, expectImageShown, expectSameBytes, LONG_ARABIC_SAMPLE, openHarness, pngFile, routeFilesApi, servedFile,
+} from "../support/attachments.ts";
 
 test.describe("Attachments: previewing @area:attachments", () => {
+    test("a double click on the preview's Close: the second click, landing on the page beneath, previews or downloads no file @ATT-281",
+        async ({page, lang}) => {
+            // What's beneath Close depends on the layout, so each sample is tried, and at least one must land on a row's button
+            await page.addInitScript(() => {
+                const click = HTMLAnchorElement.prototype.click;
+                const counted = window as unknown as { saves: number };
+                counted.saves = 0;
+                HTMLAnchorElement.prototype.click = function countedClick(this: HTMLAnchorElement) {
+                    if (this.download) counted.saves++;
+                    click.call(this);
+                };
+            });
+            const ui = await openHarness(page, lang);
+            const a = ui.a;
+            let landedOnButton = 0;
+            for (const name of ["scan.png", "report.pdf", "notes.txt", "results.xlsx", LONG_ARABIC_SAMPLE]) {
+                await ui.previewButton(name).click();
+                const box = await ui.previewDialog(name).getByRole("button", {name: a.close, exact: true}).boundingBox();
+                expect(box, "Close is on the screen").not.toBeNull();
+                const [x, y] = [box!.x + box!.width / 2, box!.y + box!.height / 2];
+
+                // As a real double click: the second press has a click count of 2, at the same place
+                await page.mouse.click(x, y);
+                await expect(page.getByRole("dialog"), "the first click closes the preview").toHaveCount(0);
+                if (await page.evaluate(([px, py]) => !!document.elementFromPoint(px, py)?.closest("li button"), [x, y])) landedOnButton++;
+                await page.mouse.down({clickCount: 2});
+                await page.mouse.up({clickCount: 2});
+                await settled(page);
+
+                await expect(page.getByRole("dialog"), `after ${name}: no other preview opened`).toHaveCount(0);
+                expect(await page.evaluate(() => (window as unknown as { saves: number }).saves), `after ${name}: nothing was saved`).toBe(0);
+            }
+            expect(landedOnButton, "the second click landed on a row's button at least once, or this proves nothing").toBeGreaterThan(0);
+        });
+
     test("picked, uploaded and listed: an image and a text file, when previewed, each really shows @ATT-226 @smoke",
         async ({page, lang}) => {
             const ui = await openHarness(page, lang, {seed: "none"});

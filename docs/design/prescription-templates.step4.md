@@ -56,7 +56,7 @@ the language. Editing works as an item's numbers do: applied on each change, one
 **The cut warning.** Shown under the fields while any box, moved by X and Y, leaves the sheet on any side (compared in whole tenths; exactly at the edge doesn't count). It's a warning only: Save and printing still work.
 Item rules don't change: the box itself must still fit the sheet without calibration.
 
-**What prints.** `TemplateSheet`'s print mode adds X and Y to each item's inline `left` and `top`. Nothing else changes: box sizes, pagination, the `@page` size and the prescription text's measuring stay the same, so the page count
+**What prints.** `TemplateSheet`'s print mode moves each item by X and Y with an inline `transform` (T4: through `left` and `top` the PDF's text lands on whole CSS px, missing 0.1 mm). Nothing else changes: box sizes, pagination, the `@page` size and the prescription text's measuring stay the same, so the page count
 doesn't depend on calibration. The sheet's `overflow: hidden` cuts what leaves the paper, so it can't make a new page. It applies to staff's prints too: the clinic read route already answers the layout, calibration included.
 
 **Test print.** A button beside Save, with the 100% hint as its tooltip (the hint is also in the calibration section's helper line). The press does what Save does before it sends: a measure still being typed commits first; any raw text
@@ -86,7 +86,7 @@ or rule error shows its messages, selects the first problem, and nothing prints.
 **No migration.** The picture lives in `Attachments` (part 1); calibration lives in the layout's JSON. D3's table and `AddPrescriptionTemplateGuides` are retired.
 
 ```jsonc
-{ "schemaVersion": 1, "page": { … }, "calibration": { "xMm": 2, "yMm": -1.5 }, "items": [ … ] }
+{ "schemaVersion": 1, "page": { … }, "items": [ … ], "calibration": { "xMm": 2, "yMm": -1.5 } }
 ```
 
 `schemaVersion` stays 1: the field is an addition. **Missing or `null` `calibration`** (every row saved so far) reads as 0, 0, filled in `PrescriptionLayoutRules.Deserialize`, so answers always hold it and old rows need no data step. `PrescriptionLayoutDto` gains `Calibration` as its last parameter, typed `(decimal? XMm, decimal? YMm)`; **`SavePrescriptionTemplateCommand`, `From` and the handler gain it too**, since they rebuild the DTO field by field and a defaulted parameter would silently drop it. `Normalize` rounds both numbers (`−0` becomes 0). A Save from a tab opened before this deploy sends no calibration and resets it to 0: last write wins, accepted with one super admin.
@@ -224,8 +224,8 @@ IDs continue from TPL-596. Levels: unit, api, ui, e2e, manual. **Source** is thi
 | TPL-665 | Given a failed read or an `img` `error` event, then the message and Retry show, the sheet works, printing is unaffected, and Retry shows it after recovery | P0 | ui | A14 |
 | TPL-666 | Given a real print with a picture, then the PDF has no image operations, and a staff member's page makes no `paper-image` request ever | P0 | e2e | A13 |
 | TPL-667 | Given clinic A's picture ID on clinic B's route, for read, delete and content, then 404 | P0 | api | A13 |
-| TPL-668 | Given a staff token, a clinic owner's token and no token, then 403, 403 and 401 on all five routes | P0 | api | A13 |
-| TPL-669 | Given a missing, deleted or template clinic, then 404 on all five routes; a suspended clinic is managed | P1 | api | A13 |
+| TPL-668 | Given a staff token, a clinic owner's token and no token, then 403, 403 and 401 on all six routes | P0 | api | A13 |
+| TPL-669 | Given a missing, deleted or template clinic, then 404 on all six routes; a suspended clinic is managed | P1 | api | A13 |
 | TPL-670 | Given a clinic with no picture, then the list is empty and the section shows the rules, with no "No files yet" line | P1 | ui | § 3 |
 | TPL-671 | Given a draft with no saved template, then upload works and the picture stays after the draft is abandoned | P1 | e2e | § 3 |
 | TPL-672 | Given the template deleted, then the picture's row stays; the empty state shows no picture section | P1 | api, ui | P1 |
@@ -263,7 +263,7 @@ IDs continue from TPL-596. Levels: unit, api, ui, e2e, manual. **Source** is thi
 | TPL-719 | Given § 1's whole journey, with staff printing, then every "Done when" holds | P0 | e2e | § 1 |
 | TPL-720 | Given a staff print at 375 px with calibration, then PDF items shift, with no horizontal scroll | P1 | e2e | § 8 |
 | TPL-721 | Given 20.04 typed: no error; 20.05: error; −0.04: exactly 0 and clean against baseline 0 | P1 | unit | A5 |
-| TPL-722 | Given three items sharing a name, then all are marked; fixing one keeps the other two; `validateLayout` still answers `items[2]` only | P1 | unit, ui | § 6 |
+| TPL-722 | Given three items sharing a name, then all are marked; fixing one keeps the other two; `validateLayout` still names only the later ones (rule 8e): `items[2]` of two, never the first | P1 | unit, ui | § 6 |
 | TPL-723 | Given calibration saved elsewhere, then staff's next print uses it with no reload | P1 | ui | § 3 |
 | TPL-724 | Given over 50 items and a bad calibration, then server and client give the same errors | P1 | unit | § 4 |
 | TPL-725 | Given a picture stored, then its row has Preview, Download and Remove, no Replace icon and no "Download all"; a new pick shows beside it and replaces it only when Upload is pressed | P1 | ui | P6, P7, P8 |

@@ -1,7 +1,7 @@
 import {act, screen, waitFor, within} from "@testing-library/react";
 import {AxiosError} from "axios";
 import {describe, expect, test} from "vitest";
-import {expectOwnDirection, expectToasts, isolate} from "../../../test";
+import {expectOwnDirection, expectToasts, isolate, toastTexts} from "../../../test";
 import {
     aFile, apiRefusal, aStoredFile, deferred, deleteConfirmed, expectStored, fakeAdapter, filesCanBePicked, named, openPreview, pastPendingWork,
     press, renderManager, replaceWith, storedRow, stubDownloads,
@@ -171,6 +171,74 @@ describe("the stored files @area:attachments", () => {
         expect(adapter.download.mock.calls.map(([id]) => id)).toEqual(stored.map(file => file.id));
     });
 
+    test("Download all is disabled while it runs, and on again after @ATT-272", async () => {
+        const browser = stubDownloads();
+        const first = deferred<Blob>();
+        const adapter = fakeAdapter({files: files()});
+        adapter.download.mockImplementationOnce(() => first.promise);
+        const {user} = await renderManager({adapter});
+        await expectStored("scan.png", "تقرير المريض.pdf");
+
+        await press(user, "Download all");
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Download all"})).toBeDisabled());
+        await act(async () => first.resolve(new Blob(["first"])));
+        await browser.saved(2);
+        await waitFor(() => expect(screen.getByRole("button", {name: "Download all"})).toBeEnabled());
+    });
+
+    test("a double click on a row's Download while it runs: one request, one save @ATT-272", async () => {
+        const browser = stubDownloads();
+        const answer = deferred<Blob>();
+        const adapter = fakeAdapter({files: files().slice(0, 1), download: () => answer.promise});
+        const {user} = await renderManager({adapter});
+        await expectStored("scan.png");
+
+        await user.dblClick(screen.getByRole("button", {name: named.download("scan.png")}));
+        await pastPendingWork();
+        expect(adapter.download).toHaveBeenCalledTimes(1);
+
+        await act(async () => answer.resolve(new Blob(["x"])));
+        await browser.saved(1);
+        await pastPendingWork();
+        expect(browser.saves).toHaveLength(1);
+    });
+
+    test("once a Download ended, the same file can be downloaded again @ATT-272", async () => {
+        const browser = stubDownloads();
+        const adapter = fakeAdapter({files: files().slice(0, 1)});
+        const {user} = await renderManager({adapter});
+
+        await press(user, named.download("scan.png"));
+        await browser.saved(1);
+        await press(user, named.download("scan.png"));
+
+        await browser.saved(2);
+        expect(adapter.download).toHaveBeenCalledTimes(2);
+    });
+
+    test("Download all with a row's Download running: that file isn't started again, the others are @ATT-272", async () => {
+        const browser = stubDownloads();
+        const first = deferred<Blob>();
+        const stored = files();
+        const adapter = fakeAdapter({files: stored});
+        adapter.download.mockImplementationOnce(() => first.promise);
+        const {user} = await renderManager({adapter});
+        await expectStored("scan.png", "تقرير المريض.pdf");
+
+        await press(user, named.download("scan.png"));
+        await waitFor(() => expect(adapter.download).toHaveBeenCalledTimes(1));
+        await press(user, "Download all");
+        await waitFor(() => expect(adapter.download.mock.calls.length).toBeGreaterThan(1));
+
+        await act(async () => first.resolve(new Blob(["first"])));
+        await browser.saved(2);
+        await pastPendingWork();
+
+        expect(adapter.download.mock.calls.map(([id]) => id)).toEqual(stored.map(file => file.id));
+        expect(browser.saves.map(save => save.name).sort()).toEqual(["scan.png", "تقرير المريض.pdf"].sort());
+    });
+
     test("a failed download is a toast through the error's message", async () => {
         const stored = aStoredFile({originalFileName: "scan.png"});
         const adapter = fakeAdapter({files: [stored]});
@@ -303,6 +371,61 @@ describe("a row deleted meanwhile @area:attachments", () => {
         await replaceWith(user, "stale.png", aFile("new.png", 10));
         await expectToasts("This item no longer exists.");
         await expectStored("other.png");
+    });
+
+    test("Download with the row gone: focus isn't left on the body, it moves to the list @ATT-274", async () => {
+        const {user} = await stale();
+
+        await press(user, named.download("stale.png"));
+
+        await expectStored("other.png");
+        await waitFor(() => expect(screen.getByRole("list", {name: "Stored files"})).toHaveFocus());
+    });
+
+    test("Preview with the row gone: focus isn't left on the body, it moves to the list @ATT-274", async () => {
+        const {user} = await stale();
+
+        await press(user, named.preview("stale.png"));
+
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        await expectStored("other.png");
+        await waitFor(() => expect(screen.getByRole("list", {name: "Stored files"})).toHaveFocus());
+    });
+
+    test("Download all with every row gone: the same message toasts once @ATT-279", async () => {
+        const stored = [
+            aStoredFile({originalFileName: "a.png", typeKey: "png"}),
+            aStoredFile({originalFileName: "b.png", typeKey: "png"}),
+            aStoredFile({originalFileName: "c.png", typeKey: "png"}),
+        ];
+        const adapter = fakeAdapter({files: stored});
+        const {user} = await renderManager({adapter});
+        await expectStored("a.png", "b.png", "c.png");
+        adapter.files.splice(0, 3);
+
+        await press(user, "Download all");
+
+        await expectStored();
+        await waitFor(() => expect(adapter.download).toHaveBeenCalledTimes(3));
+        await pastPendingWork();
+        // Read now: every toast leaves after a few seconds, so waiting for this could pass or fail on their going
+        expect(toastTexts()).toEqual(["This item no longer exists."]);
+    });
+
+    test("a different message toasts on its own @ATT-279", async () => {
+        const stored = [
+            aStoredFile({originalFileName: "a.png", typeKey: "png"}),
+            aStoredFile({originalFileName: "b.png", typeKey: "png"}),
+        ];
+        const adapter = fakeAdapter({files: stored});
+        adapter.download.mockRejectedValueOnce(apiRefusal(404, "notFound"));
+        adapter.download.mockRejectedValueOnce(apiRefusal(500, "unexpected"));
+        const {user} = await renderManager({adapter});
+        await expectStored("a.png", "b.png");
+
+        await press(user, "Download all");
+
+        await waitFor(() => expect(toastTexts().sort()).toEqual(["Something went wrong. Please try again.", "This item no longer exists."]));
     });
 
     test("in Arabic, in the business file's words @ATT-233", async () => {

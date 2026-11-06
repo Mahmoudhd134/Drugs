@@ -1,4 +1,4 @@
-import type {ReactNode} from "react";
+import type {MouseEvent, ReactNode} from "react";
 import {Box, IconButton, Tooltip} from "@mui/material";
 
 /**
@@ -7,7 +7,7 @@ import {Box, IconButton, Tooltip} from "@mui/material";
  */
 export const FileIconButton = ({label, onClick, disabled, color, action, children}: {
     label: string;
-    onClick: () => void;
+    onClick: (event: MouseEvent) => void;
     disabled?: boolean;
     color?: "error";
     /** `data-action`, for a row to find this button when the focus should come back to it */

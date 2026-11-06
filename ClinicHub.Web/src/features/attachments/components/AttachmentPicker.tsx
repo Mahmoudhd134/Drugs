@@ -1,19 +1,28 @@
-import {type ChangeEvent, type DragEvent, useEffect, useRef, useState} from "react";
+import {type ChangeEvent, type DragEvent, type MouseEvent, type RefObject, useEffect, useRef, useState} from "react";
 import {Alert, Box, Button, LinearProgress, List, ListItem, Stack, Typography} from "@mui/material";
 import CancelIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
+import FileIcon from "@mui/icons-material/InsertDriveFileOutlined";
 import PreviewIcon from "@mui/icons-material/VisibilityOutlined";
 import RetryIcon from "@mui/icons-material/Refresh";
 import UploadFileIcon from "@mui/icons-material/UploadFileOutlined";
 import {useTranslation} from "react-i18next";
-import {formatFileSize, previewKind} from "../functions.ts";
+import {displayName, formatFileSize, previewKind} from "../functions.ts";
 import type {AttachmentPickerProps, AttachmentTriggerProps, SelectedFile, SelectedFileActions, UseAttachments} from "../types.ts";
 import {FileIconButton, FileName} from "./FileRowParts.tsx";
+import {useFocusFallback, usePreviewOpener} from "./useFocusFallback.ts";
 
 const VISUALLY_HIDDEN = {
     position: "absolute", width: "1px", height: "1px", m: "-1px", p: 0, border: 0,
     overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap",
 } as const;
+
+const THUMBNAIL_PLACE = {width: 48, height: 48, flexShrink: 0, borderRadius: 1, overflow: "hidden", bgcolor: "action.hover"} as const;
+
+/** The second click of a double click does nothing: the next row moves under the pointer, or Remove takes Cancel's place. A key press has a `detail` of 0. */
+const firstClickOnly = (action: () => void) => (event: MouseEvent) => {
+    if (event.detail <= 1) action();
+};
 
 /** A selected image's thumbnail: its object URL is created only when its row enters the view, and revoked with the row. */
 const Thumbnail = ({file}: { file: File }) => {
@@ -44,7 +53,7 @@ const Thumbnail = ({file}: { file: File }) => {
     }, [file]);
 
     return (
-        <Box ref={box} sx={{width: 48, height: 48, flexShrink: 0, borderRadius: 1, overflow: "hidden", bgcolor: "action.hover"}}>
+        <Box ref={box} sx={THUMBNAIL_PLACE}>
             {url && <Box component="img" src={url} alt="" sx={{display: "block", width: "100%", height: "100%", objectFit: "cover"}}/>}
         </Box>
     );
@@ -52,24 +61,34 @@ const Thumbnail = ({file}: { file: File }) => {
 
 const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFileActions }) => {
     const {t} = useTranslation();
-    const name = item.file.name;
+    const name = displayName(item.file.name);
     return (
         <>
-            {previewKind({name}) === "image" && <Thumbnail file={item.file}/>}
+            {previewKind({name: item.file.name}) === "image" ? <Thumbnail file={item.file}/> : (
+                <Box sx={{...THUMBNAIL_PLACE, display: "flex", alignItems: "center", justifyContent: "center", color: "text.secondary"}}>
+                    <FileIcon/>
+                </Box>
+            )}
             <Box sx={{flex: "1 1 12rem", minWidth: 0}}>
                 <FileName name={name}/>
                 <Typography variant="body2" color="text.secondary">{formatFileSize(item.file.size)}</Typography>
-                {item.status === "failed" && <Typography variant="body2" color="error" sx={{overflowWrap: "anywhere"}}>{item.error}</Typography>}
-                {item.status === "uploading" && (
-                    <LinearProgress
-                        variant="determinate"
-                        value={item.percent}
-                        aria-label={t("attachments.uploadingFile", {name})}
-                        sx={{mt: 0.5}}
-                    />
+                {/* A line kept once it's sent: a Retry's row doesn't shrink and pull a page scrolled to its end */}
+                {item.status !== "waiting" && (
+                    <Box sx={{display: "flow-root", minHeight: "1.25rem"}}>
+                        {item.status === "failed" && <Typography variant="body2" color="error" sx={{overflowWrap: "anywhere"}}>{item.error}</Typography>}
+                        {item.status === "uploading" && (
+                            <LinearProgress
+                                variant="determinate"
+                                value={item.percent}
+                                aria-label={t("attachments.uploadingFile", {name})}
+                                sx={{mt: 0.5}}
+                            />
+                        )}
+                    </Box>
                 )}
             </Box>
-            <Stack direction="row" sx={{flexShrink: 0, marginInlineStart: "auto"}}>
+            {/* On a phone always on a line of their own: two buttons would fit beside the name and three wouldn't, so a row would change shape */}
+            <Stack direction="row" sx={{flexShrink: 0, flexBasis: {xs: "100%", sm: "auto"}, justifyContent: "flex-end", gap: 0.5, marginInlineStart: "auto"}}>
                 <FileIconButton label={t("attachments.previewFile", {name})} onClick={actions.preview}>
                     <PreviewIcon fontSize="small"/>
                 </FileIconButton>
@@ -79,12 +98,12 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
                     </FileIconButton>
                 )}
                 {(item.status === "uploading" || item.status === "queued") && (
-                    <FileIconButton label={t("attachments.cancelFile", {name})} onClick={actions.cancel}>
+                    <FileIconButton label={t("attachments.cancelFile", {name})} onClick={firstClickOnly(actions.cancel)}>
                         <CancelIcon fontSize="small"/>
                     </FileIconButton>
                 )}
                 {item.status !== "uploading" && (
-                    <FileIconButton label={t("attachments.removeFile", {name})} onClick={actions.remove}>
+                    <FileIconButton label={t("attachments.removeFile", {name})} onClick={firstClickOnly(actions.remove)}>
                         <DeleteIcon fontSize="small"/>
                     </FileIconButton>
                 )}
@@ -93,20 +112,29 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
     );
 };
 
-/** Remove and Cancel, when they do something, take the focus off their row first: `moveFocus`. */
-const actionsOf = (files: UseAttachments, item: SelectedFile, moveFocus: () => void): SelectedFileActions => ({
+/** Remove and Cancel, when they do something, place the focus first, as their row or button goes. */
+const actionsOf = (
+    files: UseAttachments,
+    item: SelectedFile,
+    focusAfterRemove: () => void,
+    focusAfterCancel: () => void,
+    previewOpener: RefObject<string | null>,
+): SelectedFileActions => ({
     remove: () => {
         if (item.status === "uploading") return;
-        moveFocus();
+        focusAfterRemove();
         files.removeSelected(item.key);
     },
     cancel: () => {
         if (item.status !== "uploading" && item.status !== "queued") return;
-        moveFocus();
+        focusAfterCancel();
         files.cancel(item.key);
     },
     retry: () => files.retry(item.key),
-    preview: () => files.openPreview(item),
+    preview: () => {
+        previewOpener.current = item.key;
+        files.openPreview(item);
+    },
 });
 
 /**
@@ -119,8 +147,12 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     const [dragging, setDragging] = useState(false);
     // Moving over a child element fires a leave on its parent: only the outermost leave ends the drag
     const dragDepth = useRef(0);
+    const root = useRef<HTMLDivElement>(null);
     const pickButton = useRef<HTMLButtonElement>(null);
     const rows = useRef(new Map<string, HTMLLIElement>());
+    // Upload disabling itself, Retry leaving, a focused row finishing. A custom trigger's focus is the feature's
+    useFocusFallback(root, pickButton);
+    const previewOpener = usePreviewOpener(!!files.preview, rows, pickButton);
 
     const replaces = canReplace && files.hasReplace;
     const replacesStored = replaces && !files.multiple && files.files.length > 0;
@@ -135,11 +167,11 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     // A row's Replace needs the rules too: with nothing else here, its user still gets their failure and Retry
     if (!canUpload && !replacesStored) return replaces && files.files.length > 0 ? rulesAlert : null;
 
+    const firstButtonOf = (item: SelectedFile | undefined) => (item ? rows.current.get(item.key)?.querySelector("button") : null);
     /** To the next row's first button, or with no next row to Choose files. A custom trigger's focus is the feature's. */
     const focusPast = (item: SelectedFile) => () => {
         const next = files.selected[files.selected.findIndex(row => row.key === item.key) + 1];
-        const nextButton = next && rows.current.get(next.key)?.querySelector("button");
-        (nextButton ?? pickButton.current)?.focus();
+        (firstButtonOf(next) ?? pickButton.current)?.focus({preventScroll: true});
     };
 
     const onPicked = (event: ChangeEvent<HTMLInputElement>) => {
@@ -176,7 +208,7 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     const hint = files.multiple ? t("attachments.dropHint") : t("attachments.dropHintOne");
 
     return (
-        <Stack sx={{gap: 1.5}}>
+        <Stack ref={root} sx={{gap: 1.5}}>
             <input
                 ref={input}
                 type="file"
@@ -227,7 +259,7 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
             {files.selected.length > 0 && (
                 <List aria-label={t("attachments.selectedLabel")} disablePadding>
                     {files.selected.map(item => {
-                        const actions = actionsOf(files, item, focusPast(item));
+                        const actions = actionsOf(files, item, focusPast(item), () => firstButtonOf(item)?.focus({preventScroll: true}), previewOpener);
                         return (
                             <ListItem
                                 key={item.key}

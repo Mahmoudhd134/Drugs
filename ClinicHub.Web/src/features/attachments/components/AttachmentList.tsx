@@ -9,9 +9,10 @@ import {useTranslation} from "react-i18next";
 import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useFormatDate} from "../../../hooks/useFormatDate.ts";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
-import {formatFileSize, typeLabel} from "../functions.ts";
+import {displayName, formatFileSize, typeLabel} from "../functions.ts";
 import type {Attachment, AttachmentItemActions, AttachmentListProps} from "../types.ts";
 import {FileIconButton, FileName} from "./FileRowParts.tsx";
+import {useFocusFallback, usePreviewOpener} from "./useFocusFallback.ts";
 
 const MetaText = ({children}: { children: string }) => (
     <Typography component="span" variant="body2" color="text.secondary">{children}</Typography>
@@ -27,7 +28,7 @@ const StoredRow = ({file, actions, replacePercent, replaceLocked}: {
 }) => {
     const {t} = useTranslation();
     const formatDate = useFormatDate();
-    const name = file.originalFileName;
+    const name = displayName(file.originalFileName);
     return (
         <>
             <Box sx={{flex: "1 1 12rem", minWidth: 0}}>
@@ -46,7 +47,7 @@ const StoredRow = ({file, actions, replacePercent, replaceLocked}: {
                     />
                 )}
             </Box>
-            <Stack direction="row" sx={{flexShrink: 0, marginInlineStart: "auto"}}>
+            <Stack direction="row" sx={{flexShrink: 0, gap: 0.5, marginInlineStart: "auto"}}>
                 <FileIconButton label={t("attachments.previewFile", {name})} onClick={actions.preview}>
                     <PreviewIcon fontSize="small"/>
                 </FileIconButton>
@@ -86,8 +87,9 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
     const replaces = canReplace && files.hasReplace;
     const deletes = canDelete && files.hasDelete;
 
+    const root = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLUListElement>(null);
-    const rows = useRef(new Map<string, HTMLLIElement>());
+    const rows =useRef(new Map<string, HTMLLIElement>());
     const focusAfterDelete = useRef<{ deletedId: string; nextId: string | null } | null>(null);
 
     // The row is gone once the list has reloaded. Only when the focus went with it: the user may have moved on meanwhile
@@ -97,12 +99,12 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
         focusAfterDelete.current = null;
         if (document.activeElement && document.activeElement !== document.body) return;
         const nextRow = pending.nextId === null ? undefined : rows.current.get(pending.nextId);
-        (nextRow?.querySelector("button") ?? list.current)?.focus();
+        (nextRow?.querySelector("button") ?? list.current)?.focus({preventScroll: true});
     }, [files.files]);
 
     const handleDelete = (file: Attachment) => onceDelete(async () => {
         const confirmed = await confirm({
-            title: t("attachments.deleteTitle", {name: file.originalFileName}),
+            title: t("attachments.deleteTitle", {name: displayName(file.originalFileName)}),
             message: t("attachments.deleteMessage"),
             destructive: true,
         });
@@ -123,9 +125,13 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
         const button = id === null ? null : rows.current.get(id)?.querySelector<HTMLButtonElement>('button[data-action="replace"]');
         if (!button || button.disabled) return;
         focusAfterReplace.current = null;
-        if (!document.activeElement || document.activeElement === document.body) button.focus();
+        if (!document.activeElement || document.activeElement === document.body) button.focus({preventScroll: true});
     };
     useEffect(moveFocusAfterReplace);
+
+    const previewOpener = usePreviewOpener(!!files.preview, rows, list);
+    // A stale row's Preview or Download. A running Replace places the focus itself when it ends
+    useFocusFallback(root, list, !!files.replacing);
 
     const onReplacePicked = (event: ChangeEvent<HTMLInputElement>) => {
         const newFile = event.target.files?.[0];
@@ -133,6 +139,8 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
         event.target.value = "";
         const target = replaceTarget.current;
         if (!newFile || !target) return;
+        // Already now: a Cancel's commit, which takes its button away, comes before the answer below
+        focusAfterReplace.current = target.id;
         void files.replace(target, newFile).then(replaced => {
             focusAfterReplace.current = replaced?.id ?? target.id;
             moveFocusAfterReplace();
@@ -141,7 +149,10 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
 
     const actionsOf = (file: Attachment): AttachmentItemActions => ({
         download: () => void files.download(file),
-        preview: () => files.openPreview(file),
+        preview: () => {
+            previewOpener.current = file.id;
+            files.openPreview(file);
+        },
         ...(replaces ? {
             replace: () => {
                 if (files.replacing || !files.canPick) return;
@@ -166,7 +177,7 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
     if (failedAlert && files.files.length === 0) return failedAlert;
 
     return (
-        <Stack sx={{gap: 1}}>
+        <Stack ref={root} sx={{gap: 1}}>
             {failedAlert}
             {replaces && (
                 <input

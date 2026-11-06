@@ -3,7 +3,7 @@ import {describe, expect, test, vi} from "vitest";
 import i18n from "../../i18n";
 import {aDataTransfer, aFile, stubObjectUrls} from "../../test/pages/attachments.tsx";
 import {
-    acceptOf, asPdf, checkFile, decodeText, downloadBlob, extensionOf, fileKey, formatFileSize, previewKind,
+    acceptOf, asPdf, checkFile, decodeText, displayName, downloadBlob, extensionOf, fileKey, formatFileSize, previewKind,
     readTextPreview, splitDropped, TEXT_PREVIEW_BYTES, typeLabel,
 } from "./functions.ts";
 import type {AttachmentRules} from "./types.ts";
@@ -11,6 +11,41 @@ import type {AttachmentRules} from "./types.ts";
 // Pure rules of the attachment components: design § 12; contract § 2; the stubs' comments in functions.ts.
 
 const RULES: AttachmentRules = {maxFileSizeBytes: 1000, extensions: [".png", ".jpg", ".pdf"]};
+
+describe("a name as it's displayed @area:attachments", () => {
+    test.each([
+        ["U+202A", "‪"], ["U+202B", "‫"], ["U+202C", "‬"], ["U+202D", "‭"], ["U+202E", "‮"],
+        ["U+2066", "⁦"], ["U+2067", "⁧"], ["U+2068", "⁨"], ["U+2069", "⁩"],
+        ["U+200E", "‎"], ["U+200F", "‏"], ["U+061C", "؜"],
+    ])("%s is removed, wherever it sits @ATT-273", (_code, control) => {
+        expect(displayName(`${control}a${control}b.png${control}`)).toBe("ab.png");
+        expect(displayName(control)).toBe("");
+    });
+
+    // The characters right beside the rule's: a wider range would eat them. U+200D joins Arabic and emoji letters
+    test.each([
+        ["U+061B", "؛"], ["U+061D", "؝"], ["U+200C", "‌"], ["U+200D", "‍"], ["U+2010", "‐"],
+        ["U+2029", " "], ["U+202F", " "], ["U+2065", "⁥"], ["U+206A", "⁪"],
+    ])("%s, just outside the rule, stays @ATT-273", (_code, neighbor) => {
+        expect(displayName(`a${neighbor}b.png`)).toBe(`a${neighbor}b.png`);
+    });
+
+    test("several controls together all go, the same one repeated too @ATT-273", () => {
+        expect(displayName("y‮exe.txt")).toBe("yexe.txt");
+        expect(displayName("a‮‮⁦‏؜‪b⁩.png")).toBe("ab.png");
+        expect(displayName("‪‫‬‭‮⁦⁧⁨⁩‎‏؜")).toBe("");
+    });
+
+    test.each([
+        ["Latin", "Report 2026 (final).v2.PDF"],
+        ["Arabic", "تقرير المريض.pdf"],
+        ["Arabic with its marks and joined Latin", "مُراجَعة_العين-اليمنى report.png"],
+        ["only a dot", "."],
+        ["an empty name", ""],
+    ])("%s stays exactly as it is @ATT-273", (_what, name) => {
+        expect(displayName(name)).toBe(name);
+    });
+});
 
 describe("what identifies a picked file @area:attachments", () => {
     const LAST_MODIFIED = 1_000;

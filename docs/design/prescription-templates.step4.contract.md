@@ -116,7 +116,7 @@ Save, then **Test print**, then Delete: `Button variant="outlined"`, named `test
 
 `SHOWN_FIELD` gains `calibration\.(xMm|yMm)`. `sharedNameErrors` joins the rules' errors in the designer's shown list and in `firstProblemItem`, never in the parity fixture.
 
-**A refused Save or Test print scrolls its message into view** (`block: "nearest"`, the first `aria-invalid="true"` field of the settings, once rendered; TPL-701).
+**A refused Save or Test print scrolls its message into view** (`block: "nearest"`, the whole field of the first `aria-invalid="true"` input of the settings, its `.MuiFormControl-root`, so the message below the input shows too; once rendered, after a press only, never when the workspace mounts; TPL-701).
 
 ### 4.3 The settings panel
 
@@ -135,7 +135,7 @@ Box component="section" aria-labelledby=<h3> (region, named calibration.title)
 ### 4.4 Printing
 
 - **`print.test`** (`SheetPrintContent.test`, `PrintRoot` passes it when `job.test`, with `job.test.values` for values): each box's **last** child is `div data-testid="test-print-frame"`, empty, `position: absolute; inset: 0; border: TEST_PRINT_FRAME_BORDER`. The sheet's last child is `TemplatePrintRulers`. Last, so `firstElementChild` stays the value.
-- **`print` adds X and Y** to each item's inline `left` and `top`, by whole tenths, in both real and test prints. Designer mode never does. The flow's layout goes through `normalizeLayout`, so a missing calibration can't make `NaNmm` (TPL-605).
+- **`print` moves each item by X and Y with an inline `transform: translate(<X>mm, <Y>mm)`**, none at 0, 0, in whole tenths, in both real and test prints; `left` and `top` stay the designed place (§ 10.23). Designer mode never does. The flow's layout goes through `normalizeLayout`, so a missing calibration can't make `NaNmm` (TPL-605).
 - **`TemplatePrintRulers`** (its comment holds the structure): `svg data-testid="test-print-rulers" aria-hidden`, `line data-testid="ruler-line-top|left"` that never move, `line data-ruler="top|left" data-mm="<n>"`, `text data-ruler="top|left" data-mm="<n>"` centered on its tick, past the tick's end.
 - **`usePrintJob()`** → `{start(job), element}`, plus `measureChunks(html, layout)` moved beside it. `usePrintPrescription` sits on it and its behaviour doesn't change. **`useTestPrint()`** → `{print(layout), element}`.
 - **Never the picture:** `.template-paper-image` is `display: none !important` under `@media print` in `printSheet.css` (Ctrl+P with no job, TPL-710), and `PrintedSheet` never renders it.
@@ -333,6 +333,9 @@ Coders run `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx eslint 
 21. **`tests-backend` owns the TS unit tests,** per design § 8's "unit and api test writer", and so `PURE_LOGIC` and the Stryker configs. It writes every catalog row; `tests-ui` only tags.
 
 22. **Calibration errors in rule order:** all of rule 9 (X null, then Y null), then all of rule 10 (X range, then Y range), as rules 4–5. So X out of range with Y null answers Y's `invalidRequest` first. Both sides and the fixture hold it.
+
+23. **The print shift is a `transform`, not `left` and `top` (T3, T4).** Text moved through `left` and `top` lands on whole CSS px in the PDF: −1.5 mm printed as −1.3229 mm and 2 mm as 2.1167 mm, missing A4's "exactly" and TPL-600's 0.1 mm, and a box whose top passed the sheet's bottom made a blank page. The rule stands; only the means changes, and layout, wrapping and pagination don't see a transform.
+24. **Test print and a box past the bottom:** A7's "one page always" holds with Y moving a box past the sheet's bottom (TPL-637's second half).
 
 ## 11. Wording
 

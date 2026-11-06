@@ -7,6 +7,14 @@ export const TEXT_PREVIEW_BYTES = 1_048_576;
 /** How long a download's object URL lives after the click: the browser has started reading it by then. */
 const DOWNLOAD_URL_LIFETIME_MS = 1_000;
 
+const BIDI_CONTROLS = /[‪-‮⁦-⁩‎‏؜]/g;
+
+/**
+ * A file's name as it's shown, also in messages: with no bidi control characters, because an override can show a false
+ * extension (`y<U+202E>exe.txt` reads `ytxt.exe`). What's sent, and a download's name, stay the original.
+ */
+export const displayName = (fileName: string): string => fileName.replace(BIDI_CONTROLS, "");
+
 /** What identifies a picked file: name, size and last modified. */
 export const fileKey = (file: File): string => `${file.name}/${file.size}/${file.lastModified}`;
 

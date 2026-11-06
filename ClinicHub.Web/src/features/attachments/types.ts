@@ -82,6 +82,7 @@ export type PreviewKind = "image" | "pdf" | "text" | "none";
 
 /** What the preview dialog shows; also what `renderPreview` receives. */
 export type AttachmentPreviewState = {
+    /** As it's shown: `displayName`, with no bidi control characters */
     name: string;
     sizeBytes: number;
     kind: PreviewKind;
@@ -123,7 +124,7 @@ export type UseAttachments = {
 
     // The selection
     selected: SelectedFile[];
-    /** The refusals of the last pick, which the next pick clears, and the selected files the list left no room for */
+    /** The refusals of the last pick, which the next pick, Upload or Remove clears, and the selected files the list left no room for */
     refusals: PickRefusal[];
     clearRefusals: () => void;
     /** Adds the allowed files (the same file twice counts once) and refuses the rest with `refusals`. No request */
@@ -210,6 +211,7 @@ export type AttachmentPickerProps = {
      */
     canReplace?: boolean;
     renderTrigger?: (props: AttachmentTriggerProps) => ReactNode;
+    /** `item.file.name` is the original: show it through `displayName` */
     renderSelectedItem?: (item: SelectedFile, actions: SelectedFileActions) => ReactNode;
 };
 
@@ -219,6 +221,7 @@ export type AttachmentListProps = {
     canReplace?: boolean;
     /** Default false. Needs `adapter.delete` too */
     canDelete?: boolean;
+    /** `file.originalFileName` is the original: show it through `displayName` */
     renderItem?: (file: Attachment, actions: AttachmentItemActions) => ReactNode;
     renderEmpty?: () => ReactNode;
 };

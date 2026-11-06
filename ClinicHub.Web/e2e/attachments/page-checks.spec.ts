@@ -1,7 +1,7 @@
 import type {Locator} from "@playwright/test";
 import {expect, test} from "../support/fixtures.ts";
 import {closePreview, expectImageShown, LONG_ARABIC_SAMPLE, openHarness, pngFile} from "../support/attachments.ts";
-import {dialog, expectNoCutOrOverlap, expectNoDialog, expectNotCut} from "../support/ux.ts";
+import {dialog, expectNoCutOrOverlap, expectNoDialog, expectNotCut, textRect} from "../support/ux.ts";
 
 /** Long and with no space to break on: only wrapping anywhere keeps it whole. */
 const LONG_UNBROKEN = "صورة_الأشعة_المقطعية_للعين_اليسرى_قبل_العملية_الجراحية_وبعدها_مع_تقرير_الطبيب_المعالج_وملاحظات_المتابعة_خلال_العام_الماضي.png";
@@ -33,6 +33,28 @@ const expectWrapped = async (name: Locator, what: string) => {
 };
 
 test.describe("Attachments: the page in Arabic, in English and on a phone @area:attachments", () => {
+    test("a preview with no viewer: the name starts at the UI's start with the note, whatever the name's own direction @ATT-276",
+        async ({page, lang, healthy}) => {
+            const ui = await openHarness(page, lang);
+            const a = ui.a;
+            const arabicName = "تقرير.xlsx";
+            await ui.input.setInputFiles({name: arabicName, mimeType: "application/octet-stream", buffer: Buffer.from("PK\u0003\u0004")});
+            await expect(ui.selectedName(arabicName), "selected").toBeVisible();
+
+            for (const name of ["results.xlsx", arabicName]) {
+                await page.getByRole("button", {name: a.previewFile(name), exact: true}).click();
+                const preview = ui.previewDialog(name);
+                const note = preview.getByText(a.noPreview, {exact: true});
+                await expect(note, "the note shows").toBeVisible();
+                const shown = await textRect(preview.getByText(name, {exact: true}), name);
+                const noted = await textRect(note, a.noPreview);
+                const [nameStart, noteStart] = lang === "ar" ? [shown.right, noted.right] : [shown.left, noted.left];
+                expect(Math.abs(nameStart - noteStart), `${name} starts where the note starts (${nameStart}, ${noteStart})`).toBeLessThanOrEqual(2);
+                await healthy();
+                await closePreview(page, ui, name);
+            }
+        });
+
     test("a long Arabic file name wraps whole, and the axe, cut-text and RTL checks pass in the list, the selection, a failed row, the previews and the confirmation @ATT-253",
         async ({page, lang, healthy}) => {
             const ui = await openHarness(page, lang);

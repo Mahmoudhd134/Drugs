@@ -343,6 +343,37 @@ describe("a preview's request @area:attachments", () => {
         expect(urls.live()).toEqual([]);
     });
 
+    /** A click on the dialog's backdrop, as a pointer does it: MUI closes on a click that also began there. */
+    const clickBackdrop = (detail: number) => {
+        const backdrop = document.querySelector(".MuiDialog-container")!;
+        fireEvent.mouseDown(backdrop, {detail});
+        fireEvent.mouseUp(backdrop, {detail});
+        fireEvent.click(backdrop, {detail});
+    };
+
+    test("the second click of the double click that opened it lands on the backdrop: the dialog stays @ATT-280", async () => {
+        stubObjectUrls();
+        const {user} = await renderManager({adapter: fakeAdapter({files: [storedOf("scan.png", "png")]})});
+        const dialog = await openPreview(user, "scan.png");
+        await within(dialog).findByRole("img");
+
+        clickBackdrop(2);
+        await pastPendingWork();
+
+        expect(screen.getByRole("dialog", {name: named.previewOf("scan.png")})).toBeInTheDocument();
+    });
+
+    test("a single click on the backdrop still closes it @ATT-280", async () => {
+        stubObjectUrls();
+        const {user} = await renderManager({adapter: fakeAdapter({files: [storedOf("scan.png", "png")]})});
+        const dialog = await openPreview(user, "scan.png");
+        await within(dialog).findByRole("img");
+
+        clickBackdrop(1);
+
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
     test("closed while loading, the answer arrives late: ignored, no toast, and no URL stays @ATT-240", async () => {
         const urls = stubObjectUrls();
         const answer = deferred<Blob>();

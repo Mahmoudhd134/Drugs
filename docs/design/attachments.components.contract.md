@@ -1,6 +1,6 @@
 # Attachments part 2: compiled contract and work split
 
-Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md) (§§ 8, 9, 12), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 2 = design § 12, cases ATT-200 to ATT-270 (71 cases).
+Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md) (§§ 8, 9, 12), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 2 = design § 12, cases ATT-200 to ATT-282 (83 cases).
 
 ## 1. What the contract commit holds
 
@@ -58,7 +58,8 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - **The Upload button** is disabled during a run, or with nothing to send.
 - **Remove** works in every state but uploading.
 - **Cancel** shows on uploading and queued. A queued file goes back to waiting.
-- **Client refusals never enter the selection**, but for a file already selected when the list fills `maxFiles` ("Replacing and counting"). An inline `role="alert"` area in the picker lists each one. The next pick clears it. The check order is the server's: empty, size, extension.
+- **The second click of a double click does nothing** on Remove and Cancel (`event.detail > 1`): the next row moves under the pointer, or Remove takes Cancel's place. A key press has a `detail` of 0, so it always acts (ATT-271).
+- **Client refusals never enter the selection**, but for a file already selected when the list fills `maxFiles` ("Replacing and counting"). An inline `role="alert"` area in the picker lists each one. The next pick, Upload or Remove clears it (ATT-275); an excess of `maxFiles` stays listed for as long as it's selected. The check order is the server's: empty, size, extension.
 - **`multiple={false}`:** a new pick replaces every selected file that isn't uploading. A refused pick keeps the selection as it was.
 - **If the rules fail to load, picking is off:** the trigger's button is disabled and a drop is ignored. `rulesFailed` and a `common.retry` button show in the picker, in a `role="alert"`. The list still works. A user whose only control that needs the rules is a row's Replace gets the same alert and Retry, with no trigger and no Upload. With no such control, nothing shows (ATT-216).
 - **A repeated result is announced again:** the announcement clears when Upload or Retry starts, not per file, so a Retry failing with the same reason, or a same-named file uploaded again by a later Upload, is heard again (ATT-243). Two same-named files with the same result within one run are heard once: accepted.
@@ -68,7 +69,8 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 
 ### Actions on a stored file
 
-- **A failure is a toast** through `getErrorMessage`. A 404 also reloads the list (`showsStaleData`, `refreshScope`) and says `errors.notFound`.
+- **A failure is a toast** through `getErrorMessage`. A 404 also reloads the list (`showsStaleData`, `refreshScope`) and says `errors.notFound`. The same message toasts once, however many rows fail with it, and a row Replace's refusal repeated doesn't stack; a different message gets its own (ATT-279).
+- **Download all is disabled while it runs, and a file already downloading isn't started again**, by a second click on its Download or by Download all (ATT-272).
 - **A failed reload:** when a reload of a list that already has rows fails, the rows stay and their actions still work, and `listFailed` with its `common.retry` button shows above them. Upload stays off in the modes of "While the list is loading or failed" until Retry succeeds. A first load that fails shows the alert alone (ATT-222, ATT-270).
 - **A cancel is silent.** It's detected by the controller's `signal.aborted`, whatever error the adapter throws. Then the list reloads.
 - **`getErrorMessage` on a cancel** (`isRequestCancelled`) answers `errors.generic`, never `errors.network`. The components don't show it: this is the safe answer for anyone who asks.
@@ -81,6 +83,9 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - With `navigator.pdfViewerEnabled` false when the preview opens, a PDF's preview state has kind `none`: no fetch, `noPreview`, the name, the size and Download (ATT-249).
 - An image that fails to decode shows the name, the size, `cantShow` and Download.
 - Download always shows, for selected files too.
+- **The second click of the double click that opened a preview doesn't close it:** it lands on the backdrop (`event.detail > 1`). A single click there still closes it. Delete's confirmation stays as it is: closing it is the safe side (ATT-280).
+- **A double click on the preview's Close doesn't reach what's beneath it:** the dialog closes on the first click, and the second, landing on the page, previews or downloads no file (ATT-281).
+- With no viewer, the name follows the UI's start, as the size and the note do, with `dir="auto"` on an inner span (ATT-276).
 - The dialog renders once per hook. `AttachmentManager` renders it; whoever composes the pieces alone renders `AttachmentPreview` once.
 
 ### Screen structure and names
@@ -96,7 +101,7 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 | Picker | Refusals, in the `role="alert"` area, each on its own line | `refused`, `tooMany`, `onlyOne`, `folderRefused`; `reason` is `errors.<code>` |
 | Picker | Rules failed, in a `role="alert"` | `rulesFailed`, with a `common.retry` button |
 | Picker | The selection, a list | `selectedLabel` |
-| Selected row | Name (`dir="auto"`), size; an image's thumbnail, `alt=""` | |
+| Selected row | Name (`dir="auto"`), size; an image's thumbnail, `alt=""`; for any other file, a file icon in the thumbnail's place (ATT-277) | |
 | Selected row | Icon buttons | `previewFile`, `removeFile`, `cancelFile`, `retryFile` |
 | Selected row | Progress bar, `role="progressbar"` with its percent | `uploadingFile` |
 | Selected row | A failed file's reason, shown as text | The translated reason |
@@ -116,8 +121,10 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 | Preview | Close and Download buttons | `common.close`, `download` |
 | Preview | Notes | `noPreview`, `cantShow`, `textCut` |
 
-- A long name wraps, with the full name in a tooltip. An icon button has a tooltip with its name. Row icon buttons are 36 px on a phone too: the only 44 px rule is the prescription tree.
-- **Focus:** a closed preview returns it to the button that opened it. After a delete it moves to the next row's first button; with no next row, to the list (`tabIndex={-1}`). After a row's Replace finishes, it moves to the new row's Replace button; after one is cancelled or fails, the old row stays and focus returns to that row's Replace button (ATT-261). After Remove or Cancel on a selected row, it moves to the next row's first button; with no next row, to the Choose files button (`pick`, or `pickOne` with `multiple={false}`) (ATT-262). With a custom `renderTrigger`, the feature owns that last focus.
+- A long name wraps, with the full name in a tooltip. An icon button has a tooltip with its name. Row icon buttons are 36 px on a phone too, with a small gap between them (ATT-278): the only 44 px rule is the prescription tree.
+- **A displayed name has its bidi control characters removed** (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C), in every place it's shown and in messages, because an override can show a false extension. The download name and what's sent stay the original. The isolates a message puts around the name stay (ATT-244, ATT-273).
+- **Focus:** a closed preview returns it to the button that opened it. After a delete it moves to the next row's first button; with no next row, to the list (`tabIndex={-1}`). After a row's Replace finishes, it moves to the new row's Replace button; after one is cancelled or fails, the old row stays and focus returns to that row's Replace button (ATT-261). After Remove on a selected row, it moves to the next row's first button; with no next row, to the Choose files button (`pick`, or `pickOne` with `multiple={false}`). After Cancel on a selected row, whose row stays, it moves to that row's first button (ATT-262; this narrows the user's U2 wording). If any other action leaves focus on the body, or on a button it disabled, then in the picker it moves to the Choose files button (Upload, Retry, a focused row finishing), and in the list to the list (a stale row's Preview or Download). A preview closed after the row that opened it has finished also moves focus to the Choose files button. Focus the user moved elsewhere stays (ATT-274). With a custom `renderTrigger`, the feature owns the focus that would go to Choose files. **Moving focus never scrolls the page:** Retry and Upload by pointer on a long list keep the scroll position (ATT-282).
+- **Accepted:** Enter pressed twice on Upload or Retry opens the file choice, since focus has moved to Choose files; a double click on a row's Delete opens and closes its confirmation, the safe side; a name made only of bidi controls shows empty; a custom slot's buttons are the feature's own, double clicks included; a focus moved by code opens its button's tooltip.
 
 ### Sizes and texts
 
@@ -208,11 +215,12 @@ Three tracks, each on its own worktree and branch `attachments-components/<track
 
 | Track | Level | Cases | Count |
 |---|---|---|---|
-| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 261, 262, 264, 265, 268, 269, 270 | 51 |
+| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 262, 264, 265, 268, 269, 270, 271, 272, 274, 275, 277, 279, 280 | 57 |
 | ui-tests | unit | ATT-214, 230, 247, 252, 256, 266, 267 | 7 |
-| ui-tests | unit+ui | ATT-224 | 1 |
-| e2e-tests | e2e | ATT-210, 211, 219, 223, 226, 246, 248, 253, 254, 255, 263 | 11 |
+| ui-tests | unit+ui | ATT-224, 273 | 2 |
+| ui-tests, e2e-tests | ui+e2e | ATT-261: a real browser moves focus differently, and component tests missed it | 1 |
+| e2e-tests | e2e | ATT-210, 211, 219, 223, 226, 246, 248, 253, 254, 255, 263, 276, 278, 281, 282 | 15 |
 | e2e-tests | manual | ATT-258: a catalog row and a dress rehearsal line, no test | 1 |
-| | | **Total** | **71** |
+| | | **Total** | **83** |
 
-T4 added ATT-260 to ATT-270: the user's decisions on the list's state (260), focus (261, 262), the drop hint (263), the adapter's calls (264) and Download all with one file (269), a failed reload (270), and four rules that had tests and no case (265 to 268). An e2e case's phone half is proved in `e2e/attachments/phone.spec.ts`.
+T4 added ATT-260 to ATT-270: the user's decisions on the list's state (260), focus (261, 262), the drop hint (263), the adapter's calls (264) and Download all with one file (269), a failed reload (270), and four rules that had tests and no case (265 to 268). T5's acceptance findings added ATT-271 to ATT-282, and corrected Cancel's focus in ATT-262 and ATT-244's names. An e2e case's phone half is proved in `e2e/attachments/phone.spec.ts`.

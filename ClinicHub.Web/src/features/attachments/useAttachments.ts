@@ -5,7 +5,7 @@ import {useTranslation} from "react-i18next";
 import {loadInScope, refreshScope, showsStaleData} from "../../api/dataScope.ts";
 import {getErrorMessage} from "../../api/errors.ts";
 import {useSingleFlight} from "../../hooks/useSingleFlight.ts";
-import {acceptOf, asPdf, checkFile, downloadBlob, fileKey, previewKind, readTextPreview, splitDropped} from "./functions.ts";
+import {acceptOf, asPdf, checkFile, displayName, downloadBlob, fileKey, previewKind, readTextPreview, splitDropped} from "./functions.ts";
 import type {
     Attachment,
     AttachmentPreviewState,
@@ -90,6 +90,9 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         return {signal: controller.signal, release: () => controllers.current.delete(id)};
     };
 
+    /** By its text, so the same message doesn't stack: several rows failing alike, a refusal repeated. */
+    const toastError = (message: string) => toast.error(message, {id: message});
+
     /** A failure on a stored file: a toast, a 404 also reloads the list; a cancel is silent and reloads; gone: nothing. */
     const reportFailure = (error: unknown, signal?: AbortSignal) => {
         if (!alive.current) return;
@@ -97,7 +100,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             refresh();
             return;
         }
-        toast.error(getErrorMessage(error));
+        toastError(getErrorMessage(error));
         if (showsStaleData(error)) refresh();
     };
 
@@ -120,9 +123,9 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         const messages: string[] = [];
         const refusal = (file: File) => {
             const code = checkFile(file, current);
-            return code && translate("attachments.refused", {name: file.name, reason: translate(`errors.${code}`)});
+            return code && translate("attachments.refused", {name: displayName(file.name), reason: translate(`errors.${code}`)});
         };
-        const tooMany = (file: File) => translate("attachments.tooMany", {name: file.name, count: most});
+        const tooMany = (file: File) => translate("attachments.tooMany", {name: displayName(file.name), count: most});
         const hasRoom = (count: number) => most === undefined || count < most;
         const newItem = (file: File): SelectedFile =>
             ({key: fileKey(file), file, status: "waiting", percent: 0, error: null});
@@ -148,9 +151,9 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
                 else if (!replacesStored && !hasRoom(stored.length + uploading.length)) messages.push(tooMany(first));
                 else items = [...uploading, newItem(first)];
             }
-            for (const file of others) messages.push(translate("attachments.onlyOne", {name: file.name}));
+            for (const file of others) messages.push(translate("attachments.onlyOne", {name: displayName(file.name)}));
         }
-        for (const name of folders) messages.push(translate("attachments.folderRefused", {name}));
+        for (const name of folders) messages.push(translate("attachments.folderRefused", {name: displayName(name)}));
 
         setRefusals(messages.map((message, index) => ({key: String(index), message})));
         changeSelection(() => items);
@@ -162,8 +165,11 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         addFiles(dropped, folders);
     };
 
-    const removeSelected = (key: string) =>
-        changeSelection(items => items.filter(item => item.key !== key || item.status === "uploading"));
+    const removeSelected = (key: string) => {
+        if (selection.current.find(item => item.key === key)?.status === "uploading") return;
+        setRefusals([]);
+        changeSelection(items => items.filter(item => item.key !== key));
+    };
 
     /** One file's request; it ends with the file gone, failed or cancelled. */
     const sendOne = async ({key, file}: SelectedFile) => {
@@ -180,7 +186,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             });
             if (!alive.current) return;
             changeSelection(items => items.filter(item => item.key !== key));
-            setAnnouncement(translate("attachments.uploadedFile", {name: file.name}));
+            setAnnouncement(translate("attachments.uploadedFile", {name: displayName(file.name)}));
             refresh();
         } catch (error) {
             if (!alive.current) return;
@@ -192,7 +198,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             }
             const reason = getErrorMessage(error);
             changeItem(key, {status: "failed", percent: 0, error: reason});
-            setAnnouncement(translate("attachments.failedFile", {name: file.name, reason}));
+            setAnnouncement(translate("attachments.failedFile", {name: displayName(file.name), reason}));
             if (showsStaleData(error)) refresh();
         } finally {
             release();
@@ -220,6 +226,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         await onceRun(async () => {
             // So a repeated result is heard again. Not per file: the next file starts in the same tick as the last result, which would never render
             setAnnouncement("");
+            setRefusals([]);
             changeSelection(items => items.map(item => (
                 item.status === "waiting" || item.status === "cancelled" ? {...item, status: "queued"} : item
             )));
@@ -240,8 +247,11 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         void onceRun(sendQueued);
     };
 
-    // Actions on a stored file
+    // Actions on a stored file. A file already downloading isn't started again
+    const downloading = useRef(new Set<string>());
     const download = async (file: Attachment) => {
+        if (downloading.current.has(file.id)) return;
+        downloading.current.add(file.id);
         const {signal, release} = control();
         try {
             await request(async () => {
@@ -252,6 +262,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             reportFailure(error, signal);
         } finally {
             release();
+            downloading.current.delete(file.id);
         }
     };
 
@@ -296,7 +307,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         if (replaceRunning.current || !currentRules || !current.replace) return null;
         const code = checkFile(newFile, currentRules);
         if (code) {
-            toast.error(translate("attachments.refused", {name: newFile.name, reason: translate(`errors.${code}`)}));
+            toastError(translate("attachments.refused", {name: displayName(newFile.name), reason: translate(`errors.${code}`)}));
             return null;
         }
         replaceRunning.current = true;
@@ -366,15 +377,15 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         if (previewSession.current?.key === key) return;
         closePreview();
 
-        const name = "file" in target ? target.file.name : target.originalFileName;
+        const originalName = "file" in target ? target.file.name : target.originalFileName;
         const sizeBytes = "file" in target ? target.file.size : target.sizeBytes;
-        const sourceKind = previewKind("file" in target ? {name} : {typeKey: target.typeKey});
+        const sourceKind = previewKind("file" in target ? {name: originalName} : {typeKey: target.typeKey});
         const kind = sourceKind === "pdf" && !navigator.pdfViewerEnabled ? "none" : sourceKind;
         const session: PreviewSession = {key, url: null, blob: "file" in target ? target.file : null};
         previewSession.current = session;
 
         setPreview({
-            name,
+            name: displayName(originalName),
             sizeBytes,
             kind,
             status: kind === "none" ? "ready" : "loading",
@@ -382,7 +393,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             text: null,
             textCut: false,
             download: () => {
-                if (session.blob) downloadBlob(session.blob, name);
+                if (session.blob) downloadBlob(session.blob, originalName);
                 else if (stored) void download(stored);
             },
             reportFailed: () => changePreview(session, {status: "failed"}),
@@ -446,7 +457,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         selected,
         refusals: [
             ...refusals,
-            ...excess.map(item => ({key: `excess:${item.key}`, message: t("attachments.tooMany", {name: item.file.name, count: maxFiles})})),
+            ...excess.map(item => ({key: `excess:${item.key}`, message: t("attachments.tooMany", {name: displayName(item.file.name), count: maxFiles})})),
         ],
         clearRefusals: () => setRefusals([]),
         pick,

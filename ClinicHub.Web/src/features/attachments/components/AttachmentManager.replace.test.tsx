@@ -195,6 +195,20 @@ describe("a row's Replace @area:attachments", () => {
         expect(screen.queryByRole("button", {name: named.retry("wrong.exe")})).not.toBeInTheDocument();
     });
 
+    test("the same refusal twice doesn't stack: one toast; a different file's gets its own @ATT-279", async () => {
+        const {user} = await renderManager({canReplace: true, adapter: fakeAdapter({files: files()})});
+        await expectStored("old.pdf", "other.pdf");
+
+        await replaceWith(user, "old.pdf", aFile("bad.exe", 10));
+        await findToast();
+        await replaceWith(user, "old.pdf", aFile("bad.exe", 10));
+        await pastPendingWork();
+        expect(toastTexts()).toEqual([`“${isolate("bad.exe")}”: ${REASON.typeNotAllowed}`]);
+
+        await replaceWith(user, "old.pdf", aFile("worse.exe", 10));
+        await waitFor(() => expect(toastTexts()).toHaveLength(2));
+    });
+
     test("one at a time: while it runs every row's Replace is disabled, and its own row's Delete @ATT-259", async () => {
         const {held} = await started();
 
