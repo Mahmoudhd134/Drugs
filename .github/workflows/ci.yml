@@ -462,12 +462,20 @@ jobs:
           npx playwright merge-reports --config playwright.config.ts ../all-blob
           jq -r '"## E2E: \(.stats.expected) passed, \(.stats.unexpected) failed, \(.stats.flaky) flaky, \(.stats.skipped) skipped"' \
             ../artifacts/e2e/results.json >> "$GITHUB_STEP_SUMMARY"
-          # Every planned test ran in some part (a lost shard or a bad split would pass with fewer tests)
-          grep=(); [ "$TIER" = step ] && grep=(--grep @smoke)
-          planned=$(npx playwright test --list "${grep[@]}" | tail -1 | grep -oE '[0-9]+' | head -1)
+          # Every planned test ran in some part (a lost shard or a bad split would pass with fewer tests). The list runs
+          # with no reporter of its own: under the config's html and json reporters `--list` writes every test as skipped
+          # over the merged report, attachments lost, and `ran` would always equal `planned`.
           ran=$(jq '.stats.expected + .stats.unexpected + .stats.flaky + .stats.skipped' ../artifacts/e2e/results.json)
+          # What the parts run (`parts` above): the smoke tests of every project, or the three main projects and the template edits
+          plan=(--project=ar-desktop --project=en-desktop --project=ar-phone --project=ar-desktop-template)
+          [ "$TIER" = step ] && plan=(--grep @smoke)
+          planned=$(npx playwright test --list --reporter=null "${plan[@]}" | tail -1 | grep -oE '[0-9]+' | head -1)
           echo "E2E tests planned: $planned, reported: $ran"
           if [ "$planned" != "$ran" ]; then echo "::error::E2E reported $ran tests, $planned were planned"; exit 1; fi
+          # The ready report's screenshots reach the merged report (full and release run the gallery specs; smoke doesn't)
+          if [ "$TIER" != step ] && ! compgen -G '../artifacts/e2e/report/data/*.png' > /dev/null; then
+            echo "::error::The merged e2e report holds no screenshots"; exit 1
+          fi
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:

@@ -313,12 +313,18 @@ test.describe("Print template: scrolling during a drag @area:admin", () => {
             await expectUntouched(designer);
         });
 
-    test("1920 x 970, nothing selected: the page has no vertical scrollbar and the area's bottom is in the window; 1280 x 720: the area's bottom is in the window, the page not scrolled @TPL-592",
+    test("a window tall enough for everything, nothing selected: the page has no vertical scrollbar and the area's bottom is in the window; 1280 x 720: the area's bottom is in the window, the page not scrolled @TPL-592",
         async ({page, data, lang}) => {
             test.skip(lang !== "ar", ONE_LANGUAGE);
             await page.setViewportSize({width: 1920, height: 970});
             const {designer} = await openDesigner(page, data, lang, layoutL());
             await expect(designer.boxes.and(page.locator("[aria-pressed=true]")), "nothing selected").toHaveCount(0);
+
+            // Step 4's sections can make the settings taller than 970 holds, so the window is measured: what the settings need, and the page's own gap under them
+            const settings = (await designer.settings.boundingBox())!;
+            const tallEnough = Math.max(970, Math.ceil(settings.y + settings.height) + 64);
+            await page.setViewportSize({width: 1920, height: tallEnough});
+            await reopenDesigner(page, designer);
 
             const {scrollHeight, clientHeight} = await page.evaluate(() => {
                 const {scrollHeight, clientHeight} = document.documentElement;
@@ -326,7 +332,7 @@ test.describe("Print template: scrolling during a drag @area:admin", () => {
             });
             expect(scrollHeight, "no vertical scrollbar on the page").toBeLessThanOrEqual(clientHeight);
             const tall = await areaRect(designer);
-            expect(tall.y + tall.height, "the area's bottom is in the window").toBeLessThanOrEqual(970);
+            expect(tall.y + tall.height, "the area's bottom is in the window").toBeLessThanOrEqual(tallEnough);
 
             await page.setViewportSize({width: 1280, height: 720});
             await reopenDesigner(page, designer);

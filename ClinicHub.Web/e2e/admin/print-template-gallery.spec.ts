@@ -21,7 +21,7 @@ import {animationsDone, open, setLanguage} from "../support/ux.ts";
  * report of the `e2e-report` artifact. Each shot's texts are asserted first, so a wrong screen fails instead of being pictured.
  */
 
-/** Every box inside the part of the sheet a 1280 x 800 window shows. */
+/** Every box inside the part of the sheet a 1280 x 1100 window shows. */
 const LAYOUT = {
     schemaVersion: 1 as const,
     page: A5,
@@ -40,6 +40,8 @@ test.describe("Print template: the screenshot gallery @area:admin", () => {
     test("the designer's screens in Arabic, in English and at 375 px, each with its texts on screen @TPL-056",
         async ({page, data, lang, isMobile}, testInfo) => {
             test.skip(isMobile || lang !== "ar", "one run: the test sets the language and the width itself");
+            // Tall enough for the selected item's fields below step 4's sections, with no scroll: the shot shows them with the sheet
+            await page.setViewportSize({width: 1280, height: 1100});
             const clinic = await data.clinic();
 
             const shot = async (name: string) => {

@@ -64,6 +64,9 @@ export const finishPrint = (page: Page) => page.evaluate(() => { window.dispatch
 
 export const printRoot = (page: Page) => page.locator(PRINT_ROOT);
 
+/** A sheet in the print root. */
+export const printSheet = (page: Page, index = 0) => page.locator(PRINT_SHEET).nth(index);
+
 /**
  * Runs `read` under print media, then back to the screen by ending the emulation: `media: "screen"` would stay in force and make
  * `page.pdf` print the screen's layout.
@@ -465,3 +468,20 @@ export const pdfDrawing = async (bytes: Buffer): Promise<PdfDrawing[]> => {
 
 /** The page as a PDF with background graphics off, as the browser's dialog does by default: only real borders and strokes print (TPL-639). It ends the print job, as `printedPdf` does. */
 export const pdfWithoutBackground = (page: Page) => page.pdf({preferCSSPageSize: true, printBackground: false});
+
+/** `pdfRun` as a place in mm from the page's corner: the run's start and its baseline. */
+export const runMm = (run: PdfText) => ({x: run.xPt / MM_PT, y: run.yPt / MM_PT});
+
+/** The run moved by exactly this many mm from where it was, within 0.1 mm (design TPL-600). */
+export const expectRunShift = (before: PdfText, after: PdfText, xMm: number, yMm: number, what: string) => {
+    const [from, to] = [runMm(before), runMm(after)];
+    expect(Math.abs(to.x - from.x - xMm), `${what}: moved ${to.x - from.x} mm right, expected ${xMm} mm`).toBeLessThanOrEqual(0.1);
+    expect(Math.abs(to.y - from.y - yMm), `${what}: moved ${to.y - from.y} mm down, expected ${yMm} mm`).toBeLessThanOrEqual(0.1);
+};
+
+/** A ruler's printed number on a test page (Latin digits come out as whole runs: contract § 8.4), told from the other ruler's same number by where it lies. */
+export const rulerNumber = (page: PdfPage, ruler: "top" | "left", number: string) => {
+    const runs = page.items.filter(item => item.text === number && (ruler === "top" ? item.yPt : item.xPt) < mmToPt(20));
+    expect(runs.length, `the ${ruler} ruler's ${number} once on the page`).toBe(1);
+    return runs[0];
+};
