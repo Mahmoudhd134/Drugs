@@ -21,7 +21,7 @@ type Props = {
 /** "None" in a select (MUI needs a string value). */
 const NONE = "";
 
-/** The chosen name wraps in the closed select, as in its list (`&&`: above MUI's own nowrap and ellipsis). */
+/** The chosen name wraps in the closed select, as in its list (`&&`: above MUI's own nowrap). */
 const wrappingValue = {"&& .MuiSelect-select": {whiteSpace: "normal", overflowWrap: "anywhere"}};
 
 /**
