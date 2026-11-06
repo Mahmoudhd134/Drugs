@@ -1,7 +1,8 @@
-import {act, waitFor} from "@testing-library/react";
+import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
+import userEvent, {type UserEvent} from "@testing-library/user-event";
 import {AxiosError, AxiosHeaders, CanceledError} from "axios";
 import {http, HttpResponse} from "msw";
-import {type Mock, onTestFinished, vi} from "vitest";
+import {expect, type Mock, onTestFinished, vi} from "vitest";
 import type {DataScope} from "../../api/dataScope.ts";
 import {AttachmentManager} from "../../features/attachments/components/AttachmentManager.tsx";
 import type {
@@ -12,6 +13,8 @@ import {startApp} from "../app.tsx";
 import {nextId} from "../data.ts";
 import {api, problem, problemBody} from "../msw.ts";
 import {renderWithProviders, type RenderWithProvidersOptions} from "../render.tsx";
+import {isolate} from "../text.ts";
+import {Leavable} from "./Leavable.tsx";
 
 /*
  * The attachment components (docs/design/attachments.components.contract.md) with a fake adapter or their routes:
@@ -237,12 +240,18 @@ export const aDataTransfer = ({files = [], folders = [], noEntries = false}: { f
     } as unknown as DataTransfer;
 };
 
+let objectUrlsStubbed = false;
+
 /**
  * jsdom has no `URL.createObjectURL`: this one hands out `blob:test/<n>`. Removed after the test (setup.ts's
  * `vi.unstubAllGlobals()`). A test that clicks a download waits for its URL in `revoked` before it ends: the revoke runs
  * shortly after the click, and with the stub gone it would throw.
  */
 export const stubObjectUrls = () => {
+    objectUrlsStubbed = true;
+    onTestFinished(() => {
+        objectUrlsStubbed = false;
+    });
     const created: Blob[] = [];
     const revoked: string[] = [];
     const live = new Set<string>();
@@ -351,4 +360,214 @@ export const testFilesHandlers = (files: Attachment[], rules: AttachmentRules = 
                 : problem(404, "notFound");
         }),
     ];
+};
+
+/*
+ * What the tests read and do on the screen (the contract's "Screen structure and names"), in English: a test in Arabic
+ * writes its texts out.
+ */
+
+const quoted = (verb: string) => (name: string) => `${verb} “${isolate(name)}”`;
+
+/** The accessible names that name their file. */
+export const named = {
+    preview: quoted("Preview"),
+    remove: quoted("Remove"),
+    cancel: quoted("Cancel uploading"),
+    retry: quoted("Retry uploading"),
+    uploading: quoted("Uploading"),
+    download: quoted("Download"),
+    replace: quoted("Replace"),
+    delete: quoted("Delete"),
+    previewOf: quoted("Preview of"),
+};
+
+/** `errors.<code>` of the three refusals, as the business file's table has them in English. */
+export const REASON = {
+    empty: "This file is empty.",
+    tooLarge: "This file is larger than allowed.",
+    typeNotAllowed: "This file type isn't allowed.",
+};
+
+/** A refused file's line (`attachments.refused`). */
+export const refusedLine = (name: string, reason: string) => `“${isolate(name)}”: ${reason}`;
+
+/** Waits for a line of the picker's refusals: its own element, inside a `role="alert"`. */
+export const findRefusal = async (line: string) => {
+    const element = await screen.findByText(line);
+    expect(element.closest('[role="alert"]')).not.toBeNull();
+    return element;
+};
+
+/** Clicks the button of that accessible name, waiting for it. */
+export const press = async (user: UserEvent, name: string) => user.click(await screen.findByRole("button", {name}));
+
+/** Waits until the rules have loaded: the picker's input has its `accept`. */
+export const filesCanBePicked = () =>
+    waitFor(() => expect(screen.getByTestId("attachment-input").getAttribute("accept")).toBeTruthy());
+
+/** A user that can pick any file: the test library's `applyAccept` would drop a file `accept` refuses, as a dialog's filter does (ATT-204). */
+const anyFileUser = () => userEvent.setup({delay: null, applyAccept: false});
+
+/** A selected image's thumbnail needs object URLs, which jsdom doesn't have: the stub, unless the test has its own. */
+const haveObjectUrls = () => {
+    if (!objectUrlsStubbed) stubObjectUrls();
+};
+
+/** Picks `files` with the picker's input, once the rules have loaded. */
+export const pickFiles = async (...files: File[]) => {
+    haveObjectUrls();
+    await filesCanBePicked();
+    await anyFileUser().upload(screen.getByTestId("attachment-input"), files);
+};
+
+/** Drops `dataTransfer` (`aDataTransfer`) on the picker's drop area. */
+export const dropFiles = (dataTransfer: DataTransfer) => {
+    haveObjectUrls();
+    return fireEvent.drop(screen.getByTestId("attachment-drop-area"), {dataTransfer});
+};
+
+const rowsIn = (list: HTMLElement | null) => (list ? within(list).queryAllByRole("listitem") : []);
+
+const rowOf = (rows: HTMLElement[], name: string) => {
+    const row = rows.find(candidate => within(candidate).queryAllByText(name).length > 0);
+    if (!row) throw new Error(`No row of "${name}" among ${rows.length}: ${rows.map(r => r.textContent).join(" | ")}`);
+    return row;
+};
+
+/** The rows of the selection (`selectedLabel`), none when it isn't shown. */
+export const selectedRows = (label = "Selected files") => rowsIn(screen.queryByRole("list", {name: label}));
+
+/** The rows of the stored files (`storedLabel`), none when they aren't shown. */
+export const storedRows = (label = "Stored files") => rowsIn(screen.queryByRole("list", {name: label}));
+
+export const selectedRow = (name: string, label?: string) => rowOf(selectedRows(label), name);
+export const storedRow = (name: string, label?: string) => rowOf(storedRows(label), name);
+
+const expectRows = (rows: () => HTMLElement[], names: string[]) => waitFor(() => {
+    expect(rows().map(row => row.textContent)).toHaveLength(names.length);
+    for (const name of names) rowOf(rows(), name);
+});
+
+/** Waits until the selection holds exactly these files, in any order (none: the selection is empty). */
+export const expectSelected = (...names: string[]) => expectRows(selectedRows, names);
+
+/** Waits until the stored list holds exactly these files, in any order (none: it shows no row). */
+export const expectStored = (...names: string[]) => expectRows(storedRows, names);
+
+/** Whether the file's Remove can be used now: `removeFile` shown and enabled. */
+export const canRemove = (name: string) => {
+    const button = screen.queryByRole<HTMLButtonElement>("button", {name: named.remove(name)});
+    return !!button && !button.disabled;
+};
+
+/**
+ * Picks `file` in the list's hidden input of a row's Replace, after a click on it: it's sent at once. With no picker on
+ * the page nothing shows that the rules have loaded, so what's pending runs first.
+ */
+export const pickReplacement = async (file: File) => {
+    await pastPendingWork();
+    await anyFileUser().upload(screen.getByTestId("attachment-replace-input"), file);
+};
+
+/** Clicks a row's Replace and picks `file`. */
+export const replaceWith = async (user: UserEvent, name: string, file: File) => {
+    await press(user, named.replace(name));
+    await pickReplacement(file);
+};
+
+/** Clicks the file's Preview and waits for the dialog of that name. */
+export const openPreview = async (user: UserEvent, name: string) => {
+    await press(user, named.preview(name));
+    return screen.findByRole("dialog", {name: named.previewOf(name)});
+};
+
+/** Clicks the open preview's Close and waits for it to leave, so the page behind it can be used again. */
+export const closePreview = async (user: UserEvent, dialog: HTMLElement) => {
+    await user.click(within(dialog).getByRole("button", {name: "Close"}));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+};
+
+/** Clicks the row's Delete and answers the confirmation with its Delete (`common.delete`). */
+export const deleteConfirmed = async (user: UserEvent, name: string) => {
+    await press(user, named.delete(name));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", {name: "Delete"}));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+};
+
+/** The texts of the manager's `aria-live` regions (the toaster has its own, left out). */
+export const announcements = () =>
+    Array.from(document.querySelectorAll('[aria-live="polite"]'))
+        .filter(region => !region.closest("[data-rht-toaster]"))
+        .map(region => region.textContent ?? "");
+
+/** Waits until an `aria-live` region of the manager says `text`. */
+export const expectAnnounced = (text: string) => waitFor(() => expect(announcements()).toContain(text));
+
+/** `navigator.pdfViewerEnabled` as the browser would answer it (jsdom has none), until the test ends. */
+export const setPdfViewer = (enabled: boolean) => {
+    Object.defineProperty(window.navigator, "pdfViewerEnabled", {configurable: true, get: () => enabled});
+    onTestFinished(() => void Reflect.deleteProperty(window.navigator, "pdfViewerEnabled"));
+};
+
+/**
+ * What the browser was told to save (`stubObjectUrls`, and each click on a download's link): `saves` has each file's
+ * name and URL, `blobOf(save)` its bytes. Call `saved(count)` before the test ends: it waits for that many saves and for
+ * their URLs to be revoked, which runs shortly after the click.
+ */
+export const stubDownloads = () => {
+    const urls = stubObjectUrls();
+    const saves: { name: string; url: string }[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function click(this: HTMLAnchorElement) {
+        saves.push({name: this.download, url: this.href});
+    });
+    return {
+        ...urls,
+        saves,
+        blobOf: (save: { url: string }) => urls.created[Number(save.url.split("/").pop()) - 1],
+        saved: (count: number) => waitFor(() => {
+            expect(saves.map(save => save.name)).toHaveLength(count);
+            expect(urls.revoked).toEqual(expect.arrayContaining(saves.map(save => save.url)));
+        }),
+    };
+};
+
+/** A promise the test settles itself. */
+export const deferred = <T, >() => {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((yes, no) => {
+        resolve = yes;
+        reject = no;
+    });
+    return {promise, resolve, reject};
+};
+
+/** Lets what is pending run, to check that something did not happen: nothing can be waited for then. */
+export const pastPendingWork = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+
+/** From now on an upload of `name` is refused with `error`, until `stop()`. Others go on as the adapter does them. */
+export const refuseUploadOf = (adapter: FakeAdapter, name: string, error: unknown) => {
+    const normal = adapter.upload.getMockImplementation()!;
+    let refusing = true;
+    adapter.upload.mockImplementation((file, options) =>
+        (refusing && file.name === name ? Promise.reject(error) : normal(file, options)));
+    return {stop: () => void (refusing = false)};
+};
+
+/**
+ * `renderManager` with a button that takes the manager off the page, as a clinic switch does: the rest of the app, the
+ * toaster too, stays. `leave()` clicks it.
+ */
+export const renderLeavableManager = async (
+    {adapter = fakeAdapter(), ...props}: Partial<Omit<AttachmentManagerProps, "adapter">> & { adapter?: FakeAdapter } = {},
+    options: RenderWithProvidersOptions = {},
+) => {
+    const rendered = await renderWithProviders(<Leavable><AttachmentManager adapter={adapter} {...props}/></Leavable>, options);
+    return {
+        ...rendered,
+        adapter,
+        leave: () => rendered.user.click(screen.getByRole("button", {name: "Leave the page"})),
+    };
 };
