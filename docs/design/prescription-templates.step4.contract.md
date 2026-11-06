@@ -332,6 +332,8 @@ Coders run `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx eslint 
 20. **Test ids over roles** for the warning, the rules line and the load failure: plain text and `Alert`s that a role can't tell from part 2's.
 21. **`tests-backend` owns the TS unit tests,** per design § 8's "unit and api test writer", and so `PURE_LOGIC` and the Stryker configs. It writes every catalog row; `tests-ui` only tags.
 
+22. **Calibration errors in rule order:** all of rule 9 (X null, then Y null), then all of rule 10 (X range, then Y range), as rules 4–5. So X out of range with Y null answers Y's `invalidRequest` first. Both sides and the fixture hold it.
+
 ## 11. Wording
 
 Design § 9 is verbatim. New labels: § 10.11, for the user's eye at the walkthrough. One to look at: § 9 says «شفافية» from 10% to 100%, and the slider's 100% is a solid picture (A11, TPL-713), where «شفافية 100%» can read as fully see-through. Kept as approved.
