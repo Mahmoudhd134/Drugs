@@ -28,11 +28,12 @@ export const testPrintValues = (layout: PrintLayout, now: Date): Readonly<Record
 };
 
 /**
- * The prescription text's sample for one sheet (design § 3, TPL-637): `TEST_PRINT_SAMPLE_LINES`, one paragraph each, through `cleanPrintHtml` and
- * `paginate` with `fits`, and only the first sheet's chunk. So a 20 mm box at 36 pt still prints one page.
+ * The prescription text's sample for one sheet (design § 3, TPL-637): `TEST_PRINT_SAMPLE_LINES`, one `<p dir="rtl">` each as a real prescription's lines, through `cleanPrintHtml` and
+ * `paginate` with `fits`, and only the first sheet's chunk. So a 20 mm box at 36 pt still prints one page, and it starts at the same side of the box as a real print, a line with no
+ * right-to-left letter flipping by that same rule (contract § 10.27, TPL-728).
  */
 export const testPrintChunk = (fits: (html: string) => boolean): string => {
-    const sample = TEST_PRINT_SAMPLE_LINES.map(line => `<p>${line}</p>`).join("");
+    const sample = TEST_PRINT_SAMPLE_LINES.map(line => `<p dir="rtl">${line}</p>`).join("");
     return paginate(cleanPrintHtml(sample), fits)[0];
 };
 

@@ -42,13 +42,14 @@ const firstProblemItem = (errors: LayoutError[], draft: Draft) => {
 };
 
 /**
- * The print template designer (contract § 3): the data and the draft live here, above the desktop-only switch, so narrowing
+ * The print template designer (contract § 3): the data and the draft live here, above the desktop-only switch (at least 900 px, or print media), so narrowing
  * the window keeps the edits (TPL-229). Mounted per clinic: `ClinicPage` keys its `PageBoundary` by the clinic (TPL-245).
  * Reusable (design D5): all its data comes through the adapter. `paperAdapter` (step 4 design § 5): no adapter, no picture section and no request for it (TPL-644).
  */
 export const TemplateDesigner = ({adapter, paperAdapter}: { adapter: PrintTemplateAdapter; paperAdapter?: AttachmentsAdapter }) => {
     const {t} = useTranslation();
-    const desktop = useMediaQuery(useTheme().breakpoints.up("md"), {noSsr: true});
+    // Also under print: printing lays the page out at paper width, and a print isn't an opening, so the workspace stays mounted (step 4 contract § 10.25, TPL-726)
+    const desktop = useMediaQuery(`${useTheme().breakpoints.up("md")}, print`, {noSsr: true});
     const template = usePrintTemplate(adapter);
     const save = useSavePrintTemplate(adapter);
     const remove = useDeletePrintTemplate(adapter);

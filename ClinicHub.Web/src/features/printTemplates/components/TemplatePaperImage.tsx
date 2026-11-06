@@ -94,7 +94,7 @@ export const TemplatePaperImage = ({files, failed, onRetry, shown, onShown, opac
 /**
  * Owns one `useAttachments({adapter, multiple: false, canReplace: true})`, `usePaperImageUrl(adapter, files[0] ?? null)` and the screen-only show and
  * opacity (`PAPER_OPACITY_DEFAULT`, shown): the hook sits here, not in `AttachmentManager`, because the sheet needs the stored file (step 4 design § 5). `TemplateWorkspace`
- * mounts it only with a paper adapter and only at >= 900 px, so narrowing unmounts it (an upload aborts) and widening is a new opening (TPL-677).
+ * mounts it only with a paper adapter and only at >= 900 px on screen, so narrowing unmounts it (an upload aborts) and widening is a new opening (TPL-677); a print isn't one (TPL-726).
  */
 export const PaperImageScope = ({adapter, children}: { adapter: AttachmentsAdapter; children: (view: PaperImageView) => ReactNode }) => {
     const files = useAttachments({adapter, multiple: false, canReplace: true});
