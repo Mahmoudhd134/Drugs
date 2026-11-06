@@ -680,6 +680,8 @@ const en = {
         },
         config: {
             label: "Settings",
+            itemSection: "Item",
+            sectionError: "Has an error",
             noSelection: "Select an item on the sheet to see its settings.",
             type: "Type",
             name: "Name",

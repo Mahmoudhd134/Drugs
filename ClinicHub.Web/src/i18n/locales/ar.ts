@@ -650,6 +650,8 @@ const ar: Translations = {
         },
         config: {
             label: "الإعدادات",
+            itemSection: "العنصر",
+            sectionError: "فيه خطأ",
             noSelection: "اختر عنصرًا على الورقة لتظهر إعداداته.",
             type: "النوع",
             name: "الاسم",

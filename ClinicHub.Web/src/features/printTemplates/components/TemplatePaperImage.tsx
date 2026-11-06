@@ -1,4 +1,4 @@
-import {type ReactNode, useId, useState} from "react";
+import {type ReactNode, useState} from "react";
 import {Alert, Box, Button, FormControlLabel, Slider, Switch, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {AttachmentList} from "../../attachments/components/AttachmentList.tsx";
@@ -15,7 +15,7 @@ import type {SheetPaper} from "./TemplateSheet.tsx";
 export type PaperImageView = {
     /** The newest row's picture while shown and loaded; else null: the blank sheet (A14) */
     sheetPaper: SheetPaper | null;
-    /** The settings' "Paper image" section, with part 2's preview dialog */
+    /** What the settings' "Paper image" section holds, with part 2's preview dialog */
     section: ReactNode;
 };
 
@@ -37,17 +37,15 @@ type SectionProps = {
 };
 
 /**
- * The "Paper image" section's markup (step 4 contract § 4.5): `AttachmentPicker` (`canUpload`, `canReplace`), the rules line, the load failure, `AttachmentList` (`canDelete`,
+ * The "Paper image" section's content (step 4 contract § 4.5; its title and region are the settings' accordion, § 4.3.1): `AttachmentPicker` (`canUpload`, `canReplace`), the rules line, the load failure, `AttachmentList` (`canDelete`,
  * `renderEmpty` answering null, no `canReplace`), the switch and the slider with a picture, and `AttachmentPreview`, once.
  */
 export const TemplatePaperImage = ({files, failed, onRetry, shown, onShown, opacity, onOpacity}: SectionProps) => {
     const {t} = useTranslation();
-    const titleId = useId();
     const {rules} = files;
 
     return (
-        <Box component="section" aria-labelledby={titleId} sx={{mt: 2.5, display: "flex", flexDirection: "column", gap: 1.5}}>
-            <Typography id={titleId} component="h3" variant="subtitle2" sx={{fontWeight: 700}}>{t("printTemplates.paper.title")}</Typography>
+        <Box sx={{display: "flex", flexDirection: "column", gap: 1.5}}>
             <AttachmentPicker files={files} canUpload canReplace/>
             {rules && (
                 <Typography data-testid="template-paper-rules" variant="caption" color="text.secondary" component="div">
