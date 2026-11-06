@@ -4,9 +4,9 @@ using ClinicHub.Application.Features.Attachments.Files;
 
 namespace ClinicHub.Application.Features.Prescriptions.Templates.PaperImages.Queries.OpenPaperImage;
 
-/// <summary><b>Stub (T1: backend).</b> Takes <c>IAttachmentService</c>: <c>OpenAsync(PaperImageOwner.Current, query.Id)</c>.</summary>
-internal sealed class OpenPaperImageQueryHandler : IQueryHandler<OpenPaperImageQuery, AttachmentContent>
+/// <summary>The picture's bytes; a picture that's gone answers 404.</summary>
+internal sealed class OpenPaperImageQueryHandler(IAttachmentService attachments) : IQueryHandler<OpenPaperImageQuery, AttachmentContent>
 {
     public Task<Result<AttachmentContent>> Handle(OpenPaperImageQuery query, CancellationToken cancellationToken) =>
-        throw new NotImplementedException("Step 4, T1");
+        attachments.OpenAsync(PaperImageOwner.Current, query.Id, cancellationToken);
 }

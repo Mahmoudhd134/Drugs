@@ -10,7 +10,7 @@ namespace ClinicHub.Application.Features.Prescriptions.Templates.Commands.SavePr
 /// The rules of a layout, in the order they are reported (contract § 1.4, mirrored by <c>validateLayout</c> in
 /// <c>features/printTemplates/layout.ts</c>; <c>tests/fixtures/print-layout-cases.json</c> holds the same list as data for
 /// both): schema version, page, item count, prescription text count, then each item in order (id, kind, function, name,
-/// text, X, Y, width, height, font). Every failure is returned.
+/// text, X, Y, width, height, font), then the calibration. Every failure is returned.
 /// </summary>
 internal sealed class SavePrescriptionTemplateCommandValidator : AbstractValidator<SavePrescriptionTemplateCommand>
 {
@@ -53,6 +53,17 @@ internal sealed class SavePrescriptionTemplateCommandValidator : AbstractValidat
                 .WithError(PrescriptionTemplateErrors.TextCount);
 
             RuleFor(x => x.Items).Custom(CheckItems);
+        });
+
+        // Rules 9 and 10, whatever the item count (step 4 design § 4). Normalize fills a missing calibration, so this only
+        // guards a command sent without From. A null number gets rule 9 only. Item rules don't look at calibration: a box must
+        // still fit the sheet without it, and one the correction moves off the sheet saves.
+        When(x => x.Calibration is not null, () =>
+        {
+            RuleFor(x => x.Calibration.XMm).Must(number => number.HasValue).WithError(CommonErrors.InvalidRequest);
+            RuleFor(x => x.Calibration.YMm).Must(number => number.HasValue).WithError(CommonErrors.InvalidRequest);
+            RuleFor(x => x.Calibration.XMm).Must(IsValidCalibration).WithError(PrescriptionTemplateErrors.CalibrationInvalid);
+            RuleFor(x => x.Calibration.YMm).Must(IsValidCalibration).WithError(PrescriptionTemplateErrors.CalibrationInvalid);
         });
     }
 
@@ -157,6 +168,9 @@ internal sealed class SavePrescriptionTemplateCommandValidator : AbstractValidat
 
         return rules;
     }
+
+    private static bool IsValidCalibration(decimal? number) =>
+        !number.HasValue || Math.Abs(number.Value) <= PrescriptionTemplateLimits.MaxCalibrationMm;
 
     private static bool IsKnownSize(string size) => PrescriptionTemplateCodes.PageSizes.Contains(size);
 
