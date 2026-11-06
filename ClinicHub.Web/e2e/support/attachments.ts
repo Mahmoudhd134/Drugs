@@ -27,7 +27,7 @@ export const pngFile = (name: string): PickedFile => ({name, mimeType: "image/pn
 /** The harness's sample with the long Arabic name (contract § 3). */
 export const LONG_ARABIC_SAMPLE = "تقرير الفحص الطبي الشامل للمريض بعد العملية الجراحية للعين اليمنى مع نتائج التحاليل والأشعة والمتابعة الدورية خلال ستة أشهر.png";
 
-type HarnessParams = Partial<Record<"mode" | "seed", string>>;
+type HarnessParams = Partial<Record<"mode" | "seed" | "lang", string>>;
 
 /** The harness page's names in the project's language. */
 export const harnessUi = (page: Page, lang: Lang) => {

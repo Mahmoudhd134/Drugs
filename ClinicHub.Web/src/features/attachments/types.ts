@@ -210,6 +210,11 @@ export type AttachmentPickerProps = {
      * replace that file. A row's Replace needs the rules too, so with nothing else to show, their failure shows here
      */
     canReplace?: boolean;
+    /**
+     * Default true: when the list failed and Upload is held, the picker shows `listFailed` and Retry. `AttachmentManager`
+     * passes false, because its list shows them; so does whoever composes both pieces
+     */
+    showListState?: boolean;
     renderTrigger?: (props: AttachmentTriggerProps) => ReactNode;
     /** `item.file.name` is the original: show it through `displayName` */
     renderSelectedItem?: (item: SelectedFile, actions: SelectedFileActions) => ReactNode;
@@ -234,6 +239,6 @@ export type AttachmentPreviewProps = {
 };
 
 export type AttachmentManagerProps = UseAttachmentsOptions
-    & Omit<AttachmentPickerProps, "files">
+    & Omit<AttachmentPickerProps, "files" | "showListState">
     & Omit<AttachmentListProps, "files">
     & Pick<AttachmentPreviewProps, "renderPreview">;

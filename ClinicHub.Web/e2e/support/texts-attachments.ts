@@ -31,7 +31,9 @@ const ar = {
     sizeB: (value: number) => `${value} بايت`,
     sizeKb: (value: string) => `${value} كيلوبايت`,
     typeNotAllowed: "نوع هذا الملف غير مسموح به.",
+    rulesFailed: "تعذّر تحميل ما يمكن رفعه.",
     // common.*
+    retry: "إعادة المحاولة",
     close: "إغلاق",
     cancel: "إلغاء",
     delete: "حذف",
@@ -63,7 +65,9 @@ const en: AttachmentTexts = {
     sizeB: value => `${value} B`,
     sizeKb: value => `${value} KB`,
     typeNotAllowed: "This file type isn't allowed.",
+    rulesFailed: "Couldn't load what can be uploaded.",
     // common.*
+    retry: "Retry",
     close: "Close",
     cancel: "Cancel",
     delete: "Delete",
