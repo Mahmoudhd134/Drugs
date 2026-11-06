@@ -70,7 +70,8 @@ test.describe("Long names wrap, never cut @area:ux", () => {
                     const confirm = namedDialog(page, ct.drugDeleteTitle);
                     await expect(confirm).toBeVisible();
                     await noHorizontalScroll(page, `${width} delete confirmation`);
-                    await expectNotCut(confirm.getByText(ct.drugDeleteMessage(own.name), {exact: true}), `${width} delete confirmation`);
+                    // Not exact: the same paragraph goes on with the protocols that use the drug, and none of it may be cut
+                    await expectNotCut(confirm.getByText(ct.drugDeleteMessage(own.name)), `${width} delete confirmation`);
                     await confirm.getByRole("button", {name: t.cancel}).click();
                     await expect(confirm).toHaveCount(0);
 

@@ -114,16 +114,19 @@ test.describe("A disabled shared drug in protocols and prescriptions @area:catal
 
             await expectProtocolToast(page, [rt.protocolAdded(protocol.name, 3)], "success");
             const warning = await expectWarningToast(page, lang, 1);
+
+            // Each toast closes on its own (a mouse over the toasts holds their timers, so neither leaves by itself first)
+            const added = toast(page, rt.protocolAdded(protocol.name, 3));
+            await added.hover();
+            await closeToast(warning, lang);
+            await expect(warning).toHaveCount(0);
+            await expect(added).toBeVisible();
+            await closeToast(added, lang);
+            await expect(added).toHaveCount(0);
+
             await expect(rx.lines).toHaveCount(3);
             await expectMarkTooltip(page, markIn(rx.linesOf(w.name), st.withdrawnChip), lang, "prescription line");
             for (const own of [a, b]) await expect(rx.linesOf(own.name).getByText(st.withdrawnChip, {exact: true})).toHaveCount(0);
-
-            // Each toast closes on its own
-            await closeToast(warning, lang);
-            await expect(warning).toHaveCount(0);
-            await expect(toast(page, rt.protocolAdded(protocol.name, 3))).toBeVisible();
-            await closeToast(toast(page, rt.protocolAdded(protocol.name, 3)), lang);
-            await expect(toast(page, rt.protocolAdded(protocol.name, 3))).toHaveCount(0);
 
             // Never in the copied text
             await markClipboard(page);

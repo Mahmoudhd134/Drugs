@@ -69,9 +69,10 @@ jobs:
           AREAS: ${{ inputs.areas }}
         run: |
           seed=$(( (RANDOM * 32768 + RANDOM) % 1000000 + 1 ))
-          # e2e: the smoke tests in one job (step), or the three main projects in 6 shards + the template edits alone
-          # (they depend on the others in playwright.config.ts, so Playwright would keep the whole chain in one shard)
-          parts='["1/6","2/6","3/6","4/6","5/6","6/6","template"]'
+          # e2e: the smoke tests in one job (step), or the three main projects in 6 shards + the template edits alone +
+          # the shared catalog edits alone (they depend on the others in playwright.config.ts, so Playwright would keep
+          # the whole chain in one shard)
+          parts='["1/6","2/6","3/6","4/6","5/6","6/6","template","shared-catalog"]'
           [ "$TIER" = step ] && parts='["smoke"]'
           # Backend mutation: the files named, else on release the critical files of tests/stryker-config.json
           if [ -n "$MUTATE" ]; then
@@ -281,6 +282,7 @@ jobs:
           case "$PART" in
             smoke) args=(--grep @smoke) ;;
             template) args=(--project=ar-desktop-template --no-deps) ;;
+            shared-catalog) args=(--project=ar-desktop-shared-catalog --no-deps) ;;
             *) args=(--project=ar-desktop --project=en-desktop --project=ar-phone "--shard=$PART") ;;
           esac
           npx playwright test "${args[@]}" --reporter=list,blob
@@ -463,8 +465,10 @@ jobs:
           jq -r '"## E2E: \(.stats.expected) passed, \(.stats.unexpected) failed, \(.stats.flaky) flaky, \(.stats.skipped) skipped"' \
             ../artifacts/e2e/results.json >> "$GITHUB_STEP_SUMMARY"
           # Every planned test ran in some part (a lost shard or a bad split would pass with fewer tests)
+          # --reporter=list: with the config's reporters, --list would overwrite the merged results.json and HTML report
+          # with a list of unrun tests, and this check would then compare the list with itself
           grep=(); [ "$TIER" = step ] && grep=(--grep @smoke)
-          planned=$(npx playwright test --list "${grep[@]}" | tail -1 | grep -oE '[0-9]+' | head -1)
+          planned=$(npx playwright test --list --reporter=list "${grep[@]}" | tail -1 | grep -oE '[0-9]+' | head -1)
           ran=$(jq '.stats.expected + .stats.unexpected + .stats.flaky + .stats.skipped' ../artifacts/e2e/results.json)
           echo "E2E tests planned: $planned, reported: $ran"
           if [ "$planned" != "$ran" ]; then echo "::error::E2E reported $ran tests, $planned were planned"; exit 1; fi
