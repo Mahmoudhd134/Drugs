@@ -139,6 +139,7 @@ describe("print template: Save @area:admin", () => {
                 schemaVersion: 1,
                 page: {size: "A5", widthMm: 148, heightMm: 210},
                 items: [{id: "i1", kind: "prescriptionText", xMm: 14, yMm: 80, wMm: 120, hMm: 90, fontSizePt: 11}],
+                calibration: {xMm: 0, yMm: 0},
             },
         })]);
     });

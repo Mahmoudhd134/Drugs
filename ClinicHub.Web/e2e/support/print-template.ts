@@ -68,6 +68,7 @@ const ar = {
     paperLoadFailed: "تعذر عرض صورة الورقة.",
     numberRequired: "أدخل رقمًا.",
     nameTaken: "هذا الاسم مستخدم في عنصر آخر.",
+    nameRequired: "الاسم مطلوب.",
 };
 
 export type PrintTemplateTexts = typeof ar;
@@ -128,6 +129,7 @@ const en: PrintTemplateTexts = {
     paperLoadFailed: "Couldn't show the paper image.",
     numberRequired: "Enter a number.",
     nameTaken: "Another item already uses this name.",
+    nameRequired: "Name is required.",
 };
 
 export const PT_TEXTS: Record<Lang, PrintTemplateTexts> = {ar, en};
@@ -738,3 +740,38 @@ export const rulersOn = (sheet: Locator): Promise<{ top: RulerRead; left: RulerR
     };
     return {top: read("top"), left: read("left")};
 }, MM);
+
+/**
+ * A clinic with this template (null: none) and this paper image, both through the API, the super admin on its print template tab, the picture on the sheet when there's a template. `stubPrint` comes before it, when the test prints.
+ */
+export const openDesignerWithPaper = async (page: Page, data: Data, lang: Lang, layout: Layout | null, file: { name: string; mimeType: string; buffer: Buffer }) => {
+    const clinic = await data.clinic();
+    if (layout) await putTemplate(data, clinic, layout);
+    const stored = await putPaper(data, clinic, file);
+    const designer = designerOf(page, lang);
+    await signInSuperAdmin(page, tabPath(clinic));
+    if (layout) {
+        await designerShown(designer);
+        await expect(designer.paperImage).toBeVisible();
+    }
+    return {clinic, designer, pt: designer.pt, stored};
+};
+
+/** Picks a file in the section and presses Upload, once Upload is on: it's off while the list loads, reloads or has failed (attachments contract § 2). */
+export const uploadPaper = async (designer: Designer, file: { name: string; mimeType: string; buffer: Buffer }) => {
+    await expect(designer.paperRules).toBeVisible();
+    await designer.paperInput.setInputFiles(file);
+    await expect(designer.paperUpload).toBeEnabled();
+    await designer.paperUpload.click();
+};
+
+/** The opacity slider by keys, up to this percent: the value is in `aria-valuetext`. */
+export const opacityTo = async (designer: Designer, percent: number) => {
+    await designer.paperOpacity.focus();
+    for (let presses = 0; presses < 10; presses++) {
+        const now = parseInt(await designer.paperOpacity.getAttribute("aria-valuetext") ?? "", 10);
+        if (now === percent) return;
+        await designer.paperOpacity.press(now < percent ? "ArrowUp" : "ArrowDown");
+    }
+    await expect(designer.paperOpacity).toHaveAttribute("aria-valuetext", `${percent}%`);
+};

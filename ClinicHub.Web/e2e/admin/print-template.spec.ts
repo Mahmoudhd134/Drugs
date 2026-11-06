@@ -422,7 +422,7 @@ test.describe("Print template: a computer only @area:admin", () => {
             await expectNoCutOrOverlap(page.locator("main"), "the designer at 900 px");
             const area = (await designer.area.boundingBox())!;
             const settings = (await designer.settings.boundingBox())!;
-            expect(settings.y, "the settings sit below the sheet's area").toBeGreaterThanOrEqual(area.y + area.height);
+            expect(settings.x + settings.width <= area.x + 1 || settings.x >= area.x + area.width - 1, "the settings sit beside the sheet's area, never below it").toBe(true);
         });
 
     test("375 px in both languages: the four clinic tabs are reachable, the message wraps, no horizontal scroll @TPL-246",
