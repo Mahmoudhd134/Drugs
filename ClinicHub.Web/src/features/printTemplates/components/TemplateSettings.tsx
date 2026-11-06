@@ -33,12 +33,12 @@ const itemKeys = (item: TemplateItem) => {
 };
 
 const ALIGN_BUTTONS: { align: ItemAlign; labelKey: string; icon: ReactNode }[] = [
-    {align: "right", labelKey: "printTemplates.config.alignRight", icon: <FormatAlignRightIcon fontSize="small"/>},
-    {align: "center", labelKey: "printTemplates.config.alignCenter", icon: <FormatAlignCenterIcon fontSize="small"/>},
     {align: "left", labelKey: "printTemplates.config.alignLeft", icon: <FormatAlignLeftIcon fontSize="small"/>},
+    {align: "center", labelKey: "printTemplates.config.alignCenter", icon: <FormatAlignCenterIcon fontSize="small"/>},
+    {align: "right", labelKey: "printTemplates.config.alignRight", icon: <FormatAlignRightIcon fontSize="small"/>},
 ];
 
-/** A short item's alignment. Right, center, left from the screen's left in both languages: an RTL page lays buttons out from the right, so there they go in reverse. */
+/** A short item's alignment. Each button sits on the side it aligns to, left, center, right from the screen's left in both languages: an RTL page lays buttons out from the right, so there they go in reverse. */
 const AlignField = ({value, onChange}: { value: ItemAlign; onChange: (align: ItemAlign) => void }) => {
     const {t} = useTranslation();
     const labelId = useId();
