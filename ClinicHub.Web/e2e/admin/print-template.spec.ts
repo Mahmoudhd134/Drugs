@@ -13,6 +13,7 @@ import {
     inlineStyle,
     layoutL,
     manualItem,
+    openSection,
     placeOf,
     PT_TEXTS,
     putTemplate,
@@ -163,10 +164,17 @@ test.describe("Print template: designing @area:admin", () => {
             await designer.box("i1").click();
             await check("the prescription text selected");
 
+            await openSection(designer, "page");
             await designer.paperSize.click();
             await page.getByRole("option", {name: pt.sizeCustom, exact: true}).click();
             await check("a custom size");
 
+            await openSection(designer, "calibration");
+            await check("the printer's correction");
+            await openSection(designer, "paper");
+            await check("the paper image's section");
+
+            await openSection(designer, "item");
             await designer.field(pt.x).fill("500");
             await expect(designer.settings.getByText(pt.outside, {exact: true})).toBeVisible();
             await check("a field's message");

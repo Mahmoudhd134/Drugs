@@ -9,6 +9,7 @@ import {
     layoutL,
     openDesigner,
     openDesignerWithPaper,
+    openSection,
     pressEntry,
     trueZoom,
     zoomTo,
@@ -76,6 +77,7 @@ test.describe("The designer's columns @area:admin", () => {
             expect(await page.evaluate(() => window.scrollY), "the column scrolls, not the page").toBe(0);
             expect(await designer.sideColumn.evaluate(column => column.scrollTop), "the column scrolled").toBeGreaterThan(0);
 
+            await openSection(designer, "calibration");
             await designer.calibrationX.scrollIntoViewIfNeeded();
             await expect(designer.calibrationX).toBeInViewport();
             await expect(designer.sheet).toBeInViewport();
@@ -92,9 +94,13 @@ test.describe("The designer's columns @area:admin", () => {
                 await test.step(`at ${width} px`, async () => {
                     await page.setViewportSize({width, height: 800});
                     await expect(designer.paperRow("paper.png")).toBeAttached();
-                    await expectNoCutOrOverlap(page.locator("main"), `the designer with a picture at ${width} px`);
-                    await noHorizontalScroll(page, `at ${width} px`);
-                    await healthy();
+                    // Only the open section is on screen, so each is opened in turn, the item's and the picture's being the ones this case is about
+                    for (const section of ["item", "paper"] as const) {
+                        await openSection(designer, section);
+                        await expectNoCutOrOverlap(page.locator("main"), `the designer with a picture at ${width} px, the section ${section} open`);
+                        await noHorizontalScroll(page, `at ${width} px, the section ${section} open`);
+                        await healthy();
+                    }
                 });
             }
         });

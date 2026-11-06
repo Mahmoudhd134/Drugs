@@ -16,6 +16,7 @@ import {
     opacityTo,
     openDesigner,
     openDesignerWithPaper,
+    openSection,
     outlineOnEdges,
     pressBox,
     PT_TEXTS,
@@ -191,6 +192,7 @@ test.describe("The paper image @area:admin", () => {
             await designer.create.click();
             await designerShown(designer);
             await expect(designer.paperImage).toBeVisible();
+            await openSection(designer, "paper");
             await expect(designer.paperRow("draft.png")).toBeVisible();
         });
 
@@ -208,6 +210,8 @@ test.describe("The paper image @area:admin", () => {
                 const bytes = await printed.pdf({printBackground: true});
                 return (await pdfDrawing(bytes)).reduce((sum, drawing) => sum + drawing.images, 0);
             };
+            // The switch's section open before the first count: what a section shows counts too, so only the picture differs between the two
+            await openSection(designer, "paper");
             const withPicture = await countImages();
             await designer.paperShow.click();
             await expect(designer.paperImage).toHaveCount(0);

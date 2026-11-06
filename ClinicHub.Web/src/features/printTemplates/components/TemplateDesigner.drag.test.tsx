@@ -13,6 +13,7 @@ import {
     handleIds,
     handleOf,
     measuresOf,
+    openSections,
     panelEntry,
     pressKey,
     pressShortcut,
@@ -21,6 +22,7 @@ import {
     releaseKey,
     renderDesigner,
     saveButton,
+    sectionButton,
     selectedIds,
     settingsField,
     sheetArea,
@@ -907,6 +909,35 @@ describe("print template drag: from the panel @area:admin", () => {
         expect(sheetBoxes()).toHaveLength(3);
         expect(undoButton()).toBeDisabled();
         expect(saveButton()).toBeDisabled();
+    });
+
+    test("dropped on the sheet with another section open: the item's section opens on the new item @TPL-730", async () => {
+        const {user} = await renderDesigner(layoutL());
+        await user.click(sectionButton("calibration"));
+        const entry = panelEntry("Manual input");
+
+        press(entry, IN_PANEL);
+        moveTo(entry, at(40, 150));
+        releaseAt(entry, at(40, 150));
+        mouseClick(entry);
+
+        expect(sheetBoxes()).toHaveLength(4);
+        expect(selectedIds()).toEqual([newBox().dataset.itemId]);
+        expect(openSections()).toEqual(["item"]);
+    });
+
+    test("released off the sheet with another section open: nothing added, and the open section stays @TPL-730", async () => {
+        const {user} = await renderDesigner(layoutL());
+        await user.click(sectionButton("calibration"));
+        const entry = panelEntry("Manual input");
+
+        press(entry, IN_PANEL);
+        moveTo(entry, {clientX: IN_PANEL.clientX + 30, clientY: IN_PANEL.clientY});
+        releaseAt(entry, {clientX: IN_PANEL.clientX + 30, clientY: IN_PANEL.clientY});
+        mouseClick(entry);
+
+        expect(sheetBoxes()).toHaveLength(3);
+        expect(openSections()).toEqual(["calibration"]);
     });
 
     test("undoing the drop with the focus on its box: the focus goes to the sheet's area @TPL-557", async () => {
