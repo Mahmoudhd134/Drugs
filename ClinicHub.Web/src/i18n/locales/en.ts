@@ -680,6 +680,8 @@ const en = {
         },
         config: {
             label: "Settings",
+            itemSection: "Item",
+            sectionError: "Has an error",
             noSelection: "Select an item on the sheet to see its settings.",
             type: "Type",
             name: "Name",
@@ -690,6 +692,10 @@ const en = {
             width: "Width (mm)",
             height: "Height (mm)",
             fontSize: "Font size (pt)",
+            align: "Alignment",
+            alignRight: "Right",
+            alignCenter: "Center",
+            alignLeft: "Left",
             remove: "Remove item",
         },
         toolbar: {

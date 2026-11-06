@@ -10,7 +10,7 @@ namespace ClinicHub.Application.Features.Prescriptions.Templates.Commands.SavePr
 /// The rules of a layout, in the order they are reported (contract § 1.4, mirrored by <c>validateLayout</c> in
 /// <c>features/printTemplates/layout.ts</c>; <c>tests/fixtures/print-layout-cases.json</c> holds the same list as data for
 /// both): schema version, page, item count, prescription text count, then each item in order (id, kind, function, name,
-/// text, X, Y, width, height, font), then the calibration. Every failure is returned.
+/// text, X, Y, width, height, font, alignment), then the calibration. Every failure is returned.
 /// </summary>
 internal sealed class SavePrescriptionTemplateCommandValidator : AbstractValidator<SavePrescriptionTemplateCommand>
 {
@@ -164,6 +164,10 @@ internal sealed class SavePrescriptionTemplateCommandValidator : AbstractValidat
                 .Must(font => !font.HasValue
                     || (font >= PrescriptionTemplateLimits.MinFontSizePt && font <= PrescriptionTemplateLimits.MaxFontSizePt))
                 .WithError(PrescriptionTemplateErrors.FontSizeInvalid);
+
+            rules.RuleFor(x => x.Align)
+                .Must(align => align is null || PrescriptionTemplateCodes.Aligns.Contains(align))
+                .WithError(PrescriptionTemplateErrors.LayoutInvalid);
         });
 
         return rules;

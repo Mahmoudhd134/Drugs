@@ -15,7 +15,10 @@ type Props = {
     swallowClick: (event: MouseEvent) => boolean;
 };
 
-/** The side panel (contract § 3.3): what can be placed on the sheet. The prescription text comes with every layout. */
+/**
+ * The side panel (contract § 3.3): what can be placed on the sheet. The prescription text comes with every layout. From 1200 px it scrolls inside itself, up to the area's
+ * height (set on the side column), as the settings do, so it never grows the page.
+ */
 export const TemplateSidePanel = ({canAdd, onAdd, onEntryPress, swallowClick}: Props) => {
     const {t} = useTranslation();
     const internalDataHintId = useId();
@@ -56,7 +59,18 @@ export const TemplateSidePanel = ({canAdd, onAdd, onEntryPress, swallowClick}: P
     );
 
     return (
-        <Paper component="section" variant="outlined" aria-label={t("printTemplates.panel.label")} sx={{p: 1.5, minWidth: 0}}>
+        <Paper
+            component="section"
+            variant="outlined"
+            aria-label={t("printTemplates.panel.label")}
+            sx={{
+                p: 1.5,
+                minWidth: 0,
+                maxHeight: {lg: "var(--template-area-height)"},
+                overflowX: {lg: "hidden"},
+                overflowY: {lg: "auto"},
+            }}
+        >
             <Typography component="h2" variant="subtitle1" sx={{fontWeight: 700, mb: 1}}>{t("printTemplates.panel.label")}</Typography>
             {!canAdd && <Alert severity="info" sx={{mb: 1}}>{t("errors.templateTooManyItems")}</Alert>}
             <Stack sx={{gap: 1}}>

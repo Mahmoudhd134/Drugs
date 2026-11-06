@@ -650,6 +650,8 @@ const ar: Translations = {
         },
         config: {
             label: "الإعدادات",
+            itemSection: "العنصر",
+            sectionError: "فيه خطأ",
             noSelection: "اختر عنصرًا على الورقة لتظهر إعداداته.",
             type: "النوع",
             name: "الاسم",
@@ -660,6 +662,10 @@ const ar: Translations = {
             width: "العرض (مم)",
             height: "الارتفاع (مم)",
             fontSize: "حجم الخط (نقطة)",
+            align: "المحاذاة",
+            alignRight: "يمين",
+            alignCenter: "وسط",
+            alignLeft: "يسار",
             remove: "حذف العنصر",
         },
         toolbar: {

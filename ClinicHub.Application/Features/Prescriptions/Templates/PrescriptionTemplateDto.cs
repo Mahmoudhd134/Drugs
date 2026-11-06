@@ -25,6 +25,8 @@ public record PrescriptionPageDto(string Size, decimal? WidthMm, decimal? Height
 
 /// <summary>
 /// One item. Fields of another kind are dropped by <c>PrescriptionLayoutRules.Normalize</c> and left out of the JSON.
+/// <c>Align</c> (<c>right</c>, <c>center</c>, <c>left</c>) is a manual input's, a function's or a static text's: missing or null reads as right,
+/// so a row saved before it needs no data step.
 /// </summary>
 public record PrescriptionItemDto(
     string Id,
@@ -36,4 +38,5 @@ public record PrescriptionItemDto(
     decimal? YMm,
     decimal? WMm,
     decimal? HMm,
-    decimal? FontSizePt);
+    decimal? FontSizePt,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string Align = null);

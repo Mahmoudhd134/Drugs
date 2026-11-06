@@ -3,7 +3,7 @@ import {MAX_CUSTOM_HEIGHT_MM, MAX_CUSTOM_WIDTH_MM, MIN_CUSTOM_HEIGHT_MM, MIN_CUS
 import {type Box, nudgeBox} from "./dragGeometry.ts";
 import {addItem, applyPageSize, normalizeLayout, pageOfSize, parseMmInput, removeItem, sameLayout, toTenths, updateItem} from "./layout.ts";
 import {canRedo, canUndo, EMPTY_HISTORY, endRun, type LayoutChange, type LayoutHistory, recordNudge, recordStep, redoStep, type TimeTravel, undoStep} from "./layoutHistory.ts";
-import type {AddableItem, PageSize, PrintLayout, TemplateItem} from "./types.ts";
+import type {AddableItem, ItemAlign, PageSize, PrintLayout, TemplateItem} from "./types.ts";
 
 /** The number fields of an item, in the settings' order. */
 export type BoxField = "xMm" | "yMm" | "wMm" | "hMm" | "fontSizePt";
@@ -233,6 +233,13 @@ export const useDesignerDraft = () => {
         };
     });
 
+    /** The item's alignment: one step each press, never a field left open. */
+    const changeItemAlign = (item: TemplateItem, align: ItemAlign) => edit(draftNow => {
+        const current = withFieldCommitted(draftNow);
+        const layout = updateItem(current.layout, item.id, {align});
+        return {...current, layout, history: recordStep(current.history, current.layout, layout, {kind: "item", itemId: item.id})};
+    });
+
     /** A field's commit: blur or Enter; static text, blur only (TPL-564). */
     const commitField = () => setDraft(current => current && withFieldCommitted(current));
 
@@ -311,6 +318,7 @@ export const useDesignerDraft = () => {
             nudge,
             changeItemNumber,
             changeItemText,
+            changeItemAlign,
             changeCalibration,
             commitField,
             removeSelected,

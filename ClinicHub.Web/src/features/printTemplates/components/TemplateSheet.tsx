@@ -4,7 +4,7 @@ import "../printFont.css";
 import "../printSheet.css";
 import {PRINT_FONT_FAMILY, PRINT_LINE_HEIGHT, TEST_PRINT_FRAME_BORDER} from "../constants.ts";
 import {isLeftToRightValue} from "../functions.ts";
-import {toTenths} from "../layout.ts";
+import {alignOf, toTenths} from "../layout.ts";
 import {printTextStyle} from "../printMeasure.ts";
 import type {PrintLayout, TemplateItem} from "../types.ts";
 import {TemplatePrintRulers} from "./TemplatePrintRulers.tsx";
@@ -140,9 +140,9 @@ const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintC
                     {item.kind === "prescriptionText" ? (
                         <div className="print-text" style={printTextStyle(item.fontSizePt)} dangerouslySetInnerHTML={{__html: print.textHtml}}/>
                     ) : !value ? null : item.kind === "function" && isLeftToRightValue(item.function) ? (
-                        <span dir="ltr" style={VALUE_STYLE}>{value}</span>
+                        <span dir="ltr" style={{...VALUE_STYLE, textAlign: alignOf(item)}}>{value}</span>
                     ) : (
-                        <span dir="auto" style={AUTO_VALUE_STYLE}>{value}</span>
+                        <span dir="auto" style={{...AUTO_VALUE_STYLE, textAlign: alignOf(item)}}>{value}</span>
                     )}
                     {/* Last, so `firstElementChild` stays the value */}
                     {print.test && <div data-testid="test-print-frame" style={TEST_FRAME_STYLE}/>}
@@ -233,7 +233,8 @@ export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRe
                         {/* Out of the button's flow: a button centers its content, this starts at the box's top */}
                         <span
                             dir="auto"
-                            style={{...AUTO_VALUE_STYLE, color: dimmed ? DIMMED_COLOR : undefined}}
+                            // The prescription text keeps its lines' own alignment
+                            style={{...AUTO_VALUE_STYLE, color: dimmed ? DIMMED_COLOR : undefined, ...(item.kind === "prescriptionText" ? undefined : {textAlign: alignOf(item)})}}
                         >
                             {text}
                         </span>

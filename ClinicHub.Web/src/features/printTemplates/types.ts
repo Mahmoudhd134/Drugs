@@ -23,10 +23,16 @@ export type ItemBox = {
     fontSizePt: number;
 };
 
+/** An item's horizontal alignment on the sheet, physical whatever the language. */
+export type ItemAlign = "right" | "center" | "left";
+
+/** A short item's alignment: missing or null reads as right, so a template saved before it needs no data step. */
+type AlignedValue = { align?: ItemAlign | null };
+
 export type PrescriptionTextItem = ItemBox & { kind: "prescriptionText" };
-export type ManualInputItem = ItemBox & { kind: "manualInput"; name: string };
-export type FunctionItem = ItemBox & { kind: "function"; function: TemplateFunction; name: string };
-export type StaticTextItem = ItemBox & { kind: "staticText"; text: string };
+export type ManualInputItem = ItemBox & AlignedValue & { kind: "manualInput"; name: string };
+export type FunctionItem = ItemBox & AlignedValue & { kind: "function"; function: TemplateFunction; name: string };
+export type StaticTextItem = ItemBox & AlignedValue & { kind: "staticText"; text: string };
 
 export type TemplateItem = PrescriptionTextItem | ManualInputItem | FunctionItem | StaticTextItem;
 

@@ -15,7 +15,7 @@ import {useLatest} from "../useLatest.ts";
 import {TemplateDragGhost} from "./TemplateDragGhost.tsx";
 import {TemplateOverlay} from "./TemplateOverlay.tsx";
 import {PaperImageScope, type PaperImageView} from "./TemplatePaperImage.tsx";
-import {TemplateSettings} from "./TemplateSettings.tsx";
+import {type SettingsSection, TemplateSettings} from "./TemplateSettings.tsx";
 import {TemplateSheet} from "./TemplateSheet.tsx";
 import {TemplateSidePanel} from "./TemplateSidePanel.tsx";
 import {TemplateToolbar} from "./TemplateToolbar.tsx";
@@ -61,6 +61,9 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
     const saveButton = useRef<HTMLButtonElement>(null);
     const [zoom, setZoom] = useState(100);
     const page = useLatest(draft.layout.page);
+    // Here, so each opening starts on the sheet's, as this workspace mounts anew; never saved (step 4 contract § 4.3.1)
+    const [openSection, setOpenSection] = useState<SettingsSection | null>("page");
+    const openNow = useLatest(openSection);
 
     const focusArea = () => area.current?.focus();
     const boxElement = (id: string) => sheet.current?.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
@@ -68,7 +71,8 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
 
     // A fixed height from the window, so Fit isn't measured against its own content. Set on the element, before the fit below
     // reads it, in the same layout pass. The window changing keeps the zoom. The side column takes the same height: it scrolls on its own from 900 to
-    // 1199 px, and from 1200 px it has no box of its own (`display: contents`), so the height means nothing there
+    // 1199 px, and from 1200 px it has no box of its own (`display: contents`), so the height means nothing there and the panel and the settings take it as
+    // their `max-height`, through a variable their breakpoint reads
     useLayoutEffect(() => {
         const element = area.current;
         if (!element) return;
@@ -76,7 +80,10 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
             const topInPage = element.getBoundingClientRect().top + window.scrollY;
             const height = `${Math.max(AREA_MIN_HEIGHT_PX, window.innerHeight - topInPage - AREA_BOTTOM_GAP_PX)}px`;
             element.style.height = height;
-            if (sideColumn.current) sideColumn.current.style.height = height;
+            if (sideColumn.current) {
+                sideColumn.current.style.height = height;
+                sideColumn.current.style.setProperty("--template-area-height", height);
+            }
         };
         measure();
         window.addEventListener("resize", measure);
@@ -91,14 +98,46 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
         if (button?.disabled && document.activeElement === button) focusArea();
     });
 
-    // A refused Save or Test print: its message comes into view, once rendered (TPL-701). Nothing else moves. The whole field, since the message is below the
-    // input. After a press only: `refusals` outlives this workspace, and widening the window mounts it anew with nothing pressed
+    /** The whole field of the first message, since the message is below the input. */
+    const firstMessageField = () => settings.current?.querySelector('[aria-invalid="true"]')?.closest(".MuiFormControl-root");
+    /** What waits for a section's opening: a closed section has no height to scroll to */
+    const afterOpening = useRef<(() => void) | null>(null);
+
+    // A refused Save or Test print: the first problem's section opens (the fields stay mounted, in the order sheet, correction, item), and its message comes into
+    // view, once rendered (TPL-701, TPL-732). Nothing else moves, and no message a field shows opens nothing. After a press only: `refusals` outlives this workspace,
+    // and widening the window mounts it anew with nothing pressed
     const answeredRefusals = useRef(refusals);
     useEffect(() => {
         if (refusals === answeredRefusals.current) return;
         answeredRefusals.current = refusals;
-        settings.current?.querySelector('[aria-invalid="true"]')?.closest(".MuiFormControl-root")?.scrollIntoView({block: "nearest"});
-    }, [refusals]);
+        const field = firstMessageField();
+        const section = field?.closest<HTMLElement>("[data-settings-section]")?.dataset.settingsSection as SettingsSection | undefined;
+        if (!field || !section) return;
+        if (section === openNow.current) {
+            field.scrollIntoView({block: "nearest"});
+        } else {
+            afterOpening.current = () => firstMessageField()?.scrollIntoView({block: "nearest"});
+            setOpenSection(section);
+        }
+    }, [refusals, openNow]);
+
+    const sectionOpened = () => {
+        afterOpening.current?.();
+        afterOpening.current = null;
+    };
+
+    /** A section pressed by hand: whatever waited is off. */
+    const pressSection = (section: SettingsSection | null) => {
+        afterOpening.current = null;
+        setOpenSection(section);
+    };
+
+    /** Selecting or adding opens the item's section and brings it into view in its scrolling column, only when this opened it (step 4 contract § 4.3.1). */
+    const openItemSection = () => {
+        if (openNow.current === "item") return;
+        afterOpening.current = () => settings.current?.querySelector('[data-settings-section="item"]')?.scrollIntoView({block: "nearest"});
+        setOpenSection("item");
+    };
 
     useEffect(() => {
         if (draft.revealId) sheet.current?.querySelector(`[data-item-id="${draft.revealId}"]`)?.scrollIntoView({block: "nearest", inline: "nearest"});
@@ -106,7 +145,20 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
 
     const dropNew = (addable: AddableItem, label: string, box: MmBox) => {
         const id = flushSync(() => ops.dropNew(addable, label, box));
-        if (id) boxElement(id)?.focus({preventScroll: true});
+        if (!id) return;
+        openItemSection();
+        boxElement(id)?.focus({preventScroll: true});
+    };
+
+    /** A box selected by a press, a click, Enter or Space: its section opens, also for the item already selected (step 4 contract § 4.3.1). */
+    const selectBox = (id: string) => {
+        ops.select(id);
+        openItemSection();
+    };
+
+    const addItem: DraftOps["add"] = (addable, defaultName) => {
+        ops.add(addable, defaultName);
+        openItemSection();
     };
 
     const drag = useDesignerDrag({
@@ -114,7 +166,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
         sheet,
         zoom,
         layout: draft.layout,
-        onSelect: ops.select,
+        onSelect: selectBox,
         onCommitBox: ops.commitBox,
         onDropNew: dropNew,
     });
@@ -226,12 +278,15 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                 >
                     <TemplateSidePanel
                         canAdd={canAddItem(draft.layout)}
-                        onAdd={ops.add}
+                        onAdd={addItem}
                         onEntryPress={drag.pressEntry}
                         swallowClick={drag.swallowClick}
                     />
                     <TemplateSettings
                         panelRef={settings}
+                        openSection={openSection}
+                        onOpenSection={pressSection}
+                        onSectionOpened={sectionOpened}
                         page={draft.layout.page}
                         item={shownSelected}
                         calibration={draft.layout.calibration}
@@ -246,6 +301,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                         onPageMeasure={ops.commitPageMeasure}
                         onItemNumber={ops.changeItemNumber}
                         onItemText={ops.changeItemText}
+                        onItemAlign={ops.changeItemAlign}
                         onItemCommit={ops.commitField}
                         onRemove={removeItem}
                     />
@@ -281,7 +337,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                                 layout={shownLayout}
                                 selectedId={draft.selectedId}
                                 onSelect={(id, event) => {
-                                    if (!drag.swallowClick(event)) ops.select(id);
+                                    if (!drag.swallowClick(event)) selectBox(id);
                                 }}
                                 onBoxPress={drag.pressBox}
                                 sheetRef={sheet}

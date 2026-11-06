@@ -22,7 +22,7 @@ internal static class PrescriptionLayoutRules
 
     /// <summary>
     /// What is validated and stored: every number rounded (<see cref="Round"/>); a name trimmed, kept only on a manual input
-    /// or a function; a text kept as typed, only on a static text; a function code only on a function. A null page, null
+    /// or a function; a text kept as typed, only on a static text; a function code only on a function; an alignment on those three kinds only. A null page, null
     /// items and null elements stay null (the validator refuses them). A missing or null calibration becomes 0, 0, and a null
     /// number in it stays null for the rules. A null <paramref name="layout"/> never reaches it: binding answers an empty or
     /// <c>null</c> body with <c>invalidRequest</c>.
@@ -81,5 +81,8 @@ internal static class PrescriptionLayoutRules
             WMm = Round(item.WMm),
             HMm = Round(item.HMm),
             FontSizePt = Round(item.FontSizePt),
+            Align = item.Kind is PrescriptionTemplateCodes.ManualInput or PrescriptionTemplateCodes.Function or PrescriptionTemplateCodes.StaticText
+                ? item.Align
+                : null,
         };
 }
