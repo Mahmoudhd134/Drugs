@@ -36,6 +36,7 @@ import {
     openDesigner,
     openDesignerWithPaper,
     opacityTo,
+    openSection,
     PT_TEXTS,
     putTemplate,
     rulersOn,
@@ -195,13 +196,20 @@ test.describe("Paper alignment: the whole journey @area:admin", () => {
             const {designer} = await openDesignerWithPaper(page, data, lang, layoutL(), paperPng());
 
             await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-            await expect(designer.calibration.getByRole("heading", {name: ar.calibrationTitle, exact: true})).toBeVisible();
+            // A section's title is its accordion's header now, outside what collapses (contract § 4.3.1)
+            await expect(designer.settings.getByRole("heading", {name: ar.calibrationTitle, exact: true})).toBeVisible();
+            await expect(designer.settings.getByRole("heading", {name: ar.paperTitle, exact: true})).toBeVisible();
+            await expect(designer.testPrint).toBeVisible();
+
+            await openSection(designer, "calibration");
             await expect(designer.calibrationX).toBeVisible();
             await expect(designer.calibrationY).toBeVisible();
             await expect(designer.calibration.getByText(ar.calibrationHelper, {exact: true})).toBeVisible();
             await expect(designer.calibration.getByText(ar.testPrintHint, {exact: true})).toBeVisible();
-            await expect(designer.testPrint).toBeVisible();
-            await expect(designer.paperSection.getByRole("heading", {name: ar.paperTitle, exact: true})).toBeVisible();
+            await pageChecks(page, "the correction's section");
+            await expectNoCutOrOverlap(main, "the correction's section");
+
+            await openSection(designer, "paper");
             await expect(designer.paperRules).toHaveText(ar.paperRules);
             await expect(designer.paperShow).toBeVisible();
             await expect(designer.paperOpacity).toBeVisible();
@@ -229,18 +237,22 @@ test.describe("Paper alignment: the whole journey @area:admin", () => {
             await expectNoCutOrOverlap(main, "the load failure");
         });
 
-    test("at 1280 x 800, Save refusing an item scrolls its message into view; X and Y stay reachable @TPL-701",
+    test("at 1280 x 800, Save refusing an item opens its section and scrolls its message into view; X and Y stay reachable @TPL-701",
         async ({page, data, lang}) => {
             const {designer, pt} = await openDesigner(page, data, lang, layoutL());
             await designer.box("m").click();
             await designer.field(pt.name).fill("");
+            await openSection(designer, "page");
             await page.evaluate(() => window.scrollTo(0, 0));
 
             await designer.save.click();
 
+            await expect(designer.section("item"), "the first problem's section opens").toHaveAttribute("aria-expanded", "true");
+            await expect(designer.section("page")).toHaveAttribute("aria-expanded", "false");
             await expect(designer.field(pt.name)).toHaveAttribute("aria-invalid", "true");
             await expect(designer.settings.getByText(pt.nameRequired, {exact: true})).toBeInViewport();
 
+            await openSection(designer, "calibration");
             await designer.calibrationX.scrollIntoViewIfNeeded();
             await expect(designer.calibrationX).toBeInViewport();
             await typeInto(designer.calibrationX, "1");
@@ -253,6 +265,7 @@ test.describe("Paper alignment: the whole journey @area:admin", () => {
             await page.evaluate(() => window.scrollTo(0, 0));
             await moveMouseOff(page);
             await designer.testPrint.click();
+            await expect(designer.section("item"), "the first problem's section opens").toHaveAttribute("aria-expanded", "true");
             await expect(designer.settings.getByText(pt.nameRequired, {exact: true})).toBeInViewport();
         });
 
@@ -271,6 +284,7 @@ test.describe("Paper alignment: the whole journey @area:admin", () => {
             await expect(designer.calibrationX).toHaveValue("0");
             await expect(designer.calibrationY).toHaveValue("0");
             await expect(designer.paperImage).toBeVisible();
+            await openSection(designer, "paper");
             await expect(designer.paperRow("paper.png")).toBeVisible();
 
             await saveLayout(page, designer);

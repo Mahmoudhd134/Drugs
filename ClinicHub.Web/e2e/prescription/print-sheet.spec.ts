@@ -47,9 +47,10 @@ test.describe("Printing: the sheet @area:prescription", () => {
         async ({page, lang, data, isMobile}) => {
             test.skip(isMobile, "at 375 px: TPL-346");
             test.slow();
-            const corner = staticItem({id: "corner", text: "ZcornerA", xMm: 0, yMm: 0, wMm: 30, hMm: 8});
+            // Left aligned, so a run's start is the box's own left edge (the default is right: step 4 contract § 10.29)
+            const corner = staticItem({id: "corner", text: "ZcornerA", xMm: 0, yMm: 0, wMm: 30, hMm: 8, align: "left"});
             const text = textItem({xMm: 14, yMm: 20, wMm: 30, hMm: 25});
-            const far = (w: number, h: number) => staticItem({id: "far", text: "ZfarB", xMm: w - 40, yMm: h - 12, wMm: 40, hMm: 8});
+            const far = (w: number, h: number) => staticItem({id: "far", text: "ZfarB", xMm: w - 40, yMm: h - 12, wMm: 40, hMm: 8, align: "left"});
             const pageOf = (widthMm: number, heightMm: number) => ({size: "custom", widthMm, heightMm});
             const {clinic, rx, rt} = await openPrescription(page, data, lang, layoutL({page: A4}), [{name: `Zdrug${unique()}`}]);
 
@@ -193,7 +194,7 @@ test.describe("Printing: the sheet @area:prescription", () => {
         async ({page, lang, data}) => {
             const u = unique();
             const [one, two, three] = [`Zone${u}`, `Ztwo${u}`, `Zthree${u}`];
-            const big = staticItem({id: "big", text: `${one}\n${two}\n${three}`, xMm: 14, yMm: 20, wMm: 100, hMm: 40, fontSizePt: 24});
+            const big = staticItem({id: "big", text: `${one}\n${two}\n${three}`, xMm: 14, yMm: 20, wMm: 100, hMm: 40, fontSizePt: 24, align: "left"});
             const small = staticItem({id: "small", text: `Zsmall${u}`, xMm: 14, yMm: 175, wMm: 60, hMm: 8, fontSizePt: 8});
             const {rx, rt} = await openPrescription(page, data, lang, layoutL({items: [textItem(), big, small]}), [{name: `Zname${u}`}]);
             await printButton(rx.panel, rt).click();
@@ -334,21 +335,29 @@ test.describe("Printing: the sheet @area:prescription", () => {
             await closeEditor(editor, rt);
         });
 
-    test("a static text of Dr. Ahmed, دكتور أحمد and Consultant on three lines: under print media each line starts from its own language's side, the English at the box's left and the Arabic ending at its right @TPL-350",
+    test("a static text of Dr. Ahmed, دكتور أحمد and Consultant on three lines: under print media each line reads in its own language's direction, and all follow the item's alignment, right unless set @TPL-350",
         async ({page, lang, data}) => {
             const lines = ["Dr. Ahmed", "دكتور أحمد", "Consultant"];
             const fixed = staticItem({text: lines.join("\n"), xMm: 14, yMm: 20, wMm: 100, hMm: 24, fontSizePt: 11});
-            const {rx, rt} = await openPrescription(page, data, lang, layoutL({items: [textItem(), fixed]}), [{name: `Zname${unique()}`}]);
+            const left = staticItem({id: "left", text: lines.join("\n"), xMm: 14, yMm: 50, wMm: 100, hMm: 24, fontSizePt: 11, align: "left"});
+            const {rx, rt} = await openPrescription(page, data, lang, layoutL({items: [textItem({yMm: 90}), fixed, left]}), [{name: `Zname${unique()}`}]);
             await printButton(rx.panel, rt).click();
             await expectPrintCalls(page, 1);
 
+            // Step 4 contract § 4.3.2, § 10.29: a physical `text-align` on the value, so the lines no longer start from their own language's side
             const edges = await itemLineEdges(sheetItem(page, 0, fixed.id));
             expect(edges.map(edge => edge.text)).toEqual(lines);
-            const [doctor, arabic, consultant] = edges;
-            for (const line of [doctor, consultant]) {
-                expect(Math.abs(line.leftMm), `«${line.text}» starts ${line.leftMm} mm from the box's left`).toBeLessThanOrEqual(0.1);
+            for (const line of edges) {
+                expect(Math.abs(line.rightMm - fixed.wMm), `by default, «${line.text}» ends at ${line.rightMm} mm of a ${fixed.wMm} mm box`).toBeLessThanOrEqual(0.1);
             }
-            expect(Math.abs(arabic.rightMm - fixed.wMm), `«${arabic.text}» ends at ${arabic.rightMm} mm of a ${fixed.wMm} mm box`).toBeLessThanOrEqual(0.1);
+            const edgesAtLeft = await itemLineEdges(sheetItem(page, 0, left.id));
+            expect(edgesAtLeft.map(edge => edge.text)).toEqual(lines);
+            for (const line of edgesAtLeft) {
+                expect(Math.abs(line.leftMm), `at left, «${line.text}» starts ${line.leftMm} mm from the box's left`).toBeLessThanOrEqual(0.1);
+            }
+            // Each line still reads in its own direction
+            const directions = await sheetItem(page, 0, fixed.id).locator("span").first().evaluate(element => getComputedStyle(element).unicodeBidi);
+            expect(directions, "each line takes its own direction").toBe("plaintext");
         });
 
     test("repeated spaces and a tab typed in the editor print as typed, measured on the sheet and in the PDF; spaces that force wraps keep every sheet's text inside its box @TPL-351",
@@ -438,8 +447,11 @@ test.describe("Printing: the sheet @area:prescription", () => {
             const {pages} = await printedPdf(page);
             expect(pages).toHaveLength(3);
             for (const [index, sheet] of pages.entries()) {
-                expectRunAt(pdfRun(sheet, "2026-11-05T14:30"), iso, baseline, `ISO on page ${index + 1}`);
-                expectRunAt(pdfRun(sheet, `${index + 1}/3`), number, baseline, `the number on page ${index + 1}`);
+                // Right by default, these too (step 4 contract § 10.29), reading left to right all the same
+                for (const [run, item, what] of [[pdfRun(sheet, "2026-11-05T14:30"), iso, "ISO"], [pdfRun(sheet, `${index + 1}/3`), number, "the number"]] as const) {
+                    expectRunOnFirstLine(run, item, baseline, `${what} on page ${index + 1}`);
+                    expectRunEndsAtRight(run, item, `${what} on page ${index + 1}`);
+                }
             }
         });
 
@@ -449,7 +461,7 @@ test.describe("Printing: the sheet @area:prescription", () => {
             await page.clock.setFixedTime(FROZEN());
             const u = unique();
             const name = `Zname${u}`;
-            const fixed = staticItem({text: `Zstatic${u}`});
+            const fixed = staticItem({text: `Zstatic${u}`, align: "left"});
             const date = functionItem("fullDate", {id: "date", xMm: 14, yMm: 20, wMm: 60, hMm: 8});
             const day = functionItem("dayOfWeek", {id: "day", xMm: 14, yMm: 30, wMm: 60, hMm: 8});
             const time = functionItem("time", {id: "time", xMm: 14, yMm: 40, wMm: 60, hMm: 8});
@@ -481,7 +493,7 @@ test.describe("Printing: the sheet @area:prescription", () => {
         async ({page, lang, data, isMobile, healthy}) => {
             test.skip(!isMobile, "the phone project");
             const u = unique();
-            const fixed = staticItem({text: `Zstatic${u}`});
+            const fixed = staticItem({text: `Zstatic${u}`, align: "left"});
             const number = functionItem("pageNumber", {id: "pg", xMm: 120, yMm: 190, wMm: 20, hMm: 8});
             const box = textItem();
             const name = `Zname${u}`;

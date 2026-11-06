@@ -65,8 +65,54 @@ export const settingsPanel = () => screen.getByRole("region", {name: label("prin
 export const panelEntry = (name: string) => within(sidePanel()).getByRole("button", {name});
 /** An item's box on the sheet: named by its name, its static text, or (prescription text, empty text) its kind's label. */
 export const sheetItem = (name: string) => within(sheetArea()).getByRole("button", {name});
-/** A text field of the settings panel, by its label (`printTemplates.config.*`, `printTemplates.page.width|height`). */
-export const settingsField = (name: string) => within(settingsPanel()).getByRole("textbox", {name});
+
+/*
+ * The settings' sections (step 4 contract § 4.3.1): at most one is open, and what's in a closed one is mounted but out of reach. A helper that reaches a field opens its section first,
+ * with no focus moved, as a person would before using it, so a test of anything else doesn't depend on which one is open. A test of the sections themselves reads `openSections`,
+ * `sectionButton` and `sectionMark`, which open nothing.
+ */
+const SECTION_TITLE = {
+    page: "printTemplates.page.title",
+    calibration: "printTemplates.calibration.title",
+    item: "printTemplates.config.itemSection",
+    paper: "printTemplates.paper.title",
+} as const;
+export type SettingsSectionName = keyof typeof SECTION_TITLE;
+
+/** A section's accordion, or null: no such section (no paper adapter), or no designer. By its attribute, since these helpers run often and a role query over the page is slow. */
+const sectionRoot = (section: SettingsSectionName) => document.querySelector<HTMLElement>(`[data-settings-section="${section}"]`);
+/** A section's header, whose name `sectionButton` proves. */
+const headerIn = (root: Element) => root.querySelector<HTMLElement>("[aria-expanded]")!;
+/** Clicks the header of a closed section. */
+const openRoot = (root: Element) => {
+    const header = headerIn(root);
+    if (header.getAttribute("aria-expanded") !== "true") fireEvent.click(header);
+};
+/** A section's header: a button named by its title, whether or not it's marked. */
+export const sectionButton = (section: SettingsSectionName) => within(settingsPanel()).getByRole("button", {name: label(SECTION_TITLE[section])});
+/** The open sections, in order. Opens nothing. */
+export const openSections = () => (Object.keys(SECTION_TITLE) as SettingsSectionName[]).filter(section => {
+    const root = sectionRoot(section);
+    return !!root && headerIn(root).getAttribute("aria-expanded") === "true";
+});
+/** The mark on a section's header, or null. Opens nothing. */
+export const sectionMark = (section: SettingsSectionName) => within(sectionButton(section)).queryByRole("img", {name: label("printTemplates.config.sectionError")});
+/** Opens the section unless it's open: never closes one. */
+export const openSection = (section: SettingsSectionName) => {
+    const root = sectionRoot(section);
+    if (!root) throw new Error(`No section ${section} in the settings`);
+    openRoot(root);
+    return root;
+};
+/** A field by its label, in a closed section too: no role query reaches that, and this opens nothing (`settingsField` is the one to use). */
+export const fieldAnywhere = (name: string) => within(settingsPanel()).queryByLabelText(name, {selector: "input, textarea"});
+
+/** A text field of the settings panel, by its label (`printTemplates.config.*`, `printTemplates.page.width|height`), its section opened first. */
+export const settingsField = (name: string) => {
+    const root = fieldAnywhere(name)?.closest<HTMLElement>("[data-settings-section]");
+    if (root) openRoot(root);
+    return within(root ?? settingsPanel()).getByRole("textbox", {name});
+};
 
 /** Replaces a field's text, as typing does. */
 export const typeInField = async (user: UserEvent, field: HTMLElement, value: string) => {
@@ -199,7 +245,7 @@ export const pressAndRelease = (element: HTMLElement, distance: number) => {
 
 export const saveButton = () => screen.getByRole("button", {name: label("common.save")});
 export const deleteButton = () => screen.getByRole("button", {name: label("common.delete")});
-export const paperSize = () => within(settingsPanel()).getByRole("combobox", {name: name => name.startsWith(label("printTemplates.page.size"))});
+export const paperSize = () => within(openSection("page")).getByRole("combobox", {name: name => name.startsWith(label("printTemplates.page.size"))});
 
 /** The field is red with `message` under it. */
 export const expectFieldMessage = (field: HTMLElement, message: string) => {
@@ -252,8 +298,8 @@ export const expectNothingSent = async (recorded: ReturnType<typeof recordReques
 /** The labels of the correction's fields in English, the tests' default language. */
 export const CALIBRATION_LABEL = {x: "X: + moves right (mm)", y: "Y: + moves down (mm)"} as const;
 
-/** The "Printer correction" section. */
-export const calibrationSection = () => within(settingsPanel()).getByRole("region", {name: label("printTemplates.calibration.title")});
+/** The "Printer correction" section, opened. */
+export const calibrationSection = () => within(openSection("calibration")).getByRole("region", {name: label("printTemplates.calibration.title")});
 /** X or Y of the correction (`printTemplates.calibration.x`, `.y`), in the current language. */
 export const calibrationField = (axis: "x" | "y") => within(calibrationSection()).getByRole("textbox", {name: label(`printTemplates.calibration.${axis}`)});
 /** The cut warning, or null (a warning, never an error). */
@@ -262,13 +308,25 @@ export const cutWarning = () => screen.queryByTestId("template-cut-warning");
 /** The Test print button, beside Save. */
 export const testPrintButton = () => screen.getByRole("button", {name: label("printTemplates.testPrint.button")});
 
-/** The "Paper image" section, or null with no paper adapter (TPL-644), and before `paperSectionShown`. */
-export const paperSection = () => screen.queryByRole("region", {name: label("printTemplates.paper.title")});
-/** Waits for the section and its rules: the picker works from then on. */
+/** The "Paper image" section, opened, or null with no paper adapter (TPL-644), and before `paperSectionShown`. */
+export const paperSection = () => {
+    const root = sectionRoot("paper");
+    if (!root) return null;
+    openRoot(root);
+    return within(root).queryByRole("region", {name: label("printTemplates.paper.title")});
+};
+/** Waits for the section, opened, and its rules: the picker works from then on. */
 export const paperSectionShown = async () => {
-    const section = await screen.findByRole("region", {name: label("printTemplates.paper.title")});
+    await waitFor(() => expect(paperSection()).toBeInTheDocument());
     await screen.findByTestId("template-paper-rules");
-    return section;
+    return paperSection()!;
+};
+/** What's in the "Paper image" section by role, the section opened; null with no paper adapter. */
+const inPaperSection = <T,>(find: (section: ReturnType<typeof within>) => T) => {
+    const root = sectionRoot("paper");
+    if (!root) return null;
+    openRoot(root);
+    return find(within(root));
 };
 /** The line naming the rules. */
 export const paperRulesLine = () => screen.queryByTestId("template-paper-rules");
@@ -277,11 +335,11 @@ export const paperImage = () => screen.queryByTestId("template-paper-image");
 /** The sheet's grid, now a child above the picture (design § 3). */
 export const sheetGrid = () => screen.getByTestId("template-sheet-grid");
 /** The show or hide switch, or null with no picture. */
-export const paperShowSwitch = () => screen.queryByRole("switch", {name: label("printTemplates.paper.show")});
+export const paperShowSwitch = () => inPaperSection(section => section.queryByRole("switch", {name: label("printTemplates.paper.show")}));
 /** The opacity slider, or null with no picture: its value in percent, `aria-valuetext` `50%`. */
-export const paperOpacitySlider = () => screen.queryByRole("slider", {name: label("printTemplates.paper.opacity")});
+export const paperOpacitySlider = () => inPaperSection(section => section.queryByRole("slider", {name: label("printTemplates.paper.opacity")}));
 /** The load failure's alert, or null; its Retry is `within(paperLoadFailed()!).getByRole("button", {name: label("common.retry")})`. */
-export const paperLoadFailed = () => screen.queryByTestId("template-paper-load-failed");
+export const paperLoadFailed = () => inPaperSection(section => section.queryByTestId("template-paper-load-failed"));
 /** Part 2's Upload, in the section. */
 export const paperUploadButton = () => within(paperSection()!).getByRole("button", {name: label("attachments.upload")});
 /** Part 2's stored row of this file, or null. */
@@ -295,7 +353,10 @@ export const paperRowButton = (name: string, action: "previewFile" | "downloadFi
     return row ? within(row).queryByRole("button", {name: i18n.t(`attachments.${action}`, {name})}) : null;
 };
 /** A file picked in part 2's input, past the browser's own `accept` filter, as a drop would be. */
-export const pickPaper = (file: File) => fireEvent.change(screen.getByTestId("attachment-input"), {target: {files: [file]}});
+export const pickPaper = (file: File) => {
+    openSection("paper");
+    return fireEvent.change(screen.getByTestId("attachment-input"), {target: {files: [file]}});
+};
 
 /** The picture's API path as `recordRequests` reports it. */
 export const paperPath = (clinicId: number) => `${templatePath(clinicId)}/paper-image`;
@@ -310,3 +371,14 @@ export const renderDesignerWithoutPaper = async (layout: PrintLayout, options: O
     await designerShown();
     return {...rendered, clinic};
 };
+
+/* Step 4 at the walkthrough (contract § 4.3.2): an item's alignment. */
+
+export type ItemAlignName = "left" | "center" | "right";
+const ALIGN_LABEL: Record<ItemAlignName, string> = {left: "printTemplates.config.alignLeft", center: "printTemplates.config.alignCenter", right: "printTemplates.config.alignRight"};
+/** The selected item's alignment group, its section opened. */
+export const alignGroup = () => within(openSection("item")).getByRole("group", {name: label("printTemplates.config.align")});
+/** The group's buttons, in the tree's order. */
+export const alignButtons = () => within(alignGroup()).getAllByRole("button");
+/** The button that aligns to this side, by its name in the current language. */
+export const alignButton = (align: ItemAlignName) => within(alignGroup()).getByRole("button", {name: label(ALIGN_LABEL[align])});
