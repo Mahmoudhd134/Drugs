@@ -59,9 +59,23 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         gcTime: 1_000,
     });
 
+    // The selection. The ref is what the queue reads between renders; the state only mirrors it
+    const [selected, setSelected] = useState<SelectedFile[]>([]);
+    const selection = useRef<SelectedFile[]>([]);
+
+    // Upload in this mode replaces the newest stored file
+    const replacesByUpload = !multiple && canReplace && !!adapter.replace;
+    // Until the list answers, no one knows which file that is or how many are stored. A reload counts: it's a new answer
+    const listUnknown = (replacesByUpload || maxFiles !== undefined) && (!listQuery.isSuccess || listQuery.isFetching);
+    // A list that answered after the pick can leave no room: the last picked are too many. A replacing pick takes the stored file's place
+    const excess = maxFiles === undefined || (replacesByUpload && files.length > 0)
+        ? []
+        : selected.slice(Math.max(0, maxFiles - files.length));
+    const uploadHeld = listUnknown || excess.length > 0;
+
     // What a queue that started on an earlier render reads now
-    const latest = useRef({adapter, multiple, maxFiles, canReplace, rules, files, t});
-    latest.current = {adapter, multiple, maxFiles, canReplace, rules, files, t};
+    const latest = useRef({adapter, multiple, maxFiles, canReplace, rules, files, uploadHeld, t});
+    latest.current = {adapter, multiple, maxFiles, canReplace, rules, files, uploadHeld, t};
 
     const alive = useRef(true);
     const controllers = useRef(new Map<string, AbortController>());
@@ -87,9 +101,6 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         if (showsStaleData(error)) refresh();
     };
 
-    // The selection. The ref is what the queue reads between renders; the state only mirrors it
-    const [selected, setSelected] = useState<SelectedFile[]>([]);
-    const selection = useRef<SelectedFile[]>([]);
     const changeSelection = (change: (items: SelectedFile[]) => SelectedFile[]) => {
         if (!alive.current) return;
         selection.current = change(selection.current);
@@ -205,7 +216,10 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
     // One run at a time: a second Upload (a double click) is ignored, and a Retry joins by being queued
     const onceRun = useSingleFlight();
     const upload = async () => {
+        if (latest.current.uploadHeld) return;
         await onceRun(async () => {
+            // So a repeated result is heard again. Not per file: the next file starts in the same tick as the last result, which would never render
+            setAnnouncement("");
             changeSelection(items => items.map(item => (
                 item.status === "waiting" || item.status === "cancelled" ? {...item, status: "queued"} : item
             )));
@@ -221,6 +235,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
 
     const retry = (key: string) => {
         if (selection.current.find(item => item.key === key)?.status !== "failed") return;
+        setAnnouncement("");
         changeItem(key, {status: "queued", error: null});
         void onceRun(sendQueued);
     };
@@ -276,13 +291,13 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
 
     const [replacing, setReplacing] = useState<UseAttachments["replacing"]>(null);
     const replaceRunning = useRef(false);
-    const replace = async (file: Attachment, newFile: File) => {
+    const replace = async (file: Attachment, newFile: File): Promise<Attachment | null> => {
         const {adapter: current, rules: currentRules, t: translate} = latest.current;
-        if (replaceRunning.current || !currentRules || !current.replace) return;
+        if (replaceRunning.current || !currentRules || !current.replace) return null;
         const code = checkFile(newFile, currentRules);
         if (code) {
             toast.error(translate("attachments.refused", {name: newFile.name, reason: translate(`errors.${code}`)}));
-            return;
+            return null;
         }
         replaceRunning.current = true;
         setReplacing({id: file.id, percent: 0});
@@ -294,14 +309,17 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             },
         };
         try {
+            let replaced: Attachment | null = null;
             await request(async () => {
-                await current.replace?.(file.id, newFile, options);
+                replaced = await current.replace?.(file.id, newFile, options) ?? null;
             });
-            if (!alive.current) return;
+            if (!alive.current) return null;
             toast.success(translate("attachments.replaced"));
             refresh();
+            return replaced;
         } catch (error) {
             reportFailure(error, signal);
+            return null;
         } finally {
             release();
             replaceRunning.current = false;
@@ -416,19 +434,26 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         accept: rules ? acceptOf(rules) : "",
         canPick: !!rules,
         multiple,
+        hasReplace: !!adapter.replace,
+        hasDelete: !!adapter.delete,
 
         files,
         isListLoading: listQuery.isPending,
-        listFailed: listQuery.isError && !listQuery.data,
+        // A reload that failed too: Upload may be waiting for this answer, so its Retry has to show
+        listFailed: listQuery.isError && !listQuery.isFetching,
         retryList: () => void listQuery.refetch(),
 
         selected,
-        refusals,
+        refusals: [
+            ...refusals,
+            ...excess.map(item => ({key: `excess:${item.key}`, message: t("attachments.tooMany", {name: item.file.name, count: maxFiles})})),
+        ],
         clearRefusals: () => setRefusals([]),
         pick,
         drop,
         removeSelected,
         upload,
+        canSend: !uploadHeld && selected.some(item => item.status === "waiting" || item.status === "cancelled"),
         cancel,
         retry,
         isUploading,

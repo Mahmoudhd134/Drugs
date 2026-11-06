@@ -67,7 +67,10 @@ export type SelectedFile = {
     error: string | null;
 };
 
-/** A file refused on the client, or a folder or a count refused: it never enters the selection. */
+/**
+ * A file refused on the client, or a folder or a count refused: it never enters the selection. The one exception is a
+ * file already selected when the list fills `maxFiles`: it stays selected, and its line leaves with it.
+ */
 export type PickRefusal = {
     /** Unique within the list */
     key: string;
@@ -107,6 +110,9 @@ export type UseAttachments = {
     /** Rules are loaded, so files can be picked */
     canPick: boolean;
     multiple: boolean;
+    /** The adapter has this call: a control needs it as well as the permission */
+    hasReplace: boolean;
+    hasDelete: boolean;
 
     // The stored files
     files: Attachment[];
@@ -116,7 +122,7 @@ export type UseAttachments = {
 
     // The selection
     selected: SelectedFile[];
-    /** The refusals of the last pick; the next pick clears them */
+    /** The refusals of the last pick, which the next pick clears, and the selected files the list left no room for */
     refusals: PickRefusal[];
     clearRefusals: () => void;
     /** Adds the allowed files (the same file twice counts once) and refuses the rest with `refusals`. No request */
@@ -125,8 +131,13 @@ export type UseAttachments = {
     drop: (data: DataTransfer) => void;
     /** Not while uploading: Cancel that one first */
     removeSelected: (key: string) => void;
-    /** Sends every waiting and cancelled file, one request at a time. Files picked meanwhile wait for the next Upload */
+    /**
+     * Sends every waiting and cancelled file, one request at a time. Files picked meanwhile wait for the next Upload.
+     * Sends nothing while the count of stored files matters and the list hasn't answered, or with too many selected
+     */
     upload: () => Promise<void>;
+    /** `upload` has something to send now */
+    canSend: boolean;
     /** Aborts an uploading file (it becomes cancelled; the run goes on) or takes a queued one back to waiting */
     cancel: (key: string) => void;
     /** A failed file again: joins the current run, or starts one. Never ignored */
@@ -143,8 +154,8 @@ export type UseAttachments = {
     isDownloadingAll: boolean;
     /** Without a confirmation: `actions.delete` of `renderItem`, and the list's button, add it */
     delete: (file: Attachment) => Promise<void>;
-    /** Checks the rules, then sends it at once through `adapter.replace`. A refusal keeps the old file */
-    replace: (file: Attachment, newFile: File) => Promise<void>;
+    /** Checks the rules, then sends it at once through `adapter.replace`. Answers the new file; a refusal keeps the old one and answers null */
+    replace: (file: Attachment, newFile: File) => Promise<Attachment | null>;
     /** The row replace running now: one at a time */
     replacing: { id: string; percent: number } | null;
     /** Aborts the row replace running now: the old file stays, no error shows and the list reloads */
@@ -177,7 +188,7 @@ export type SelectedFileActions = {
     preview: () => void;
 };
 
-/** `renderItem`'s actions. `replace` and `delete` exist only with `canReplace` and `canDelete`, `cancelReplace` only while this row's replace runs. */
+/** `renderItem`'s actions. `replace` and `delete` exist only with `canReplace` and `canDelete` and the adapter's call, `cancelReplace` only while this row's replace runs. */
 export type AttachmentItemActions = {
     download: () => void;
     preview: () => void;
@@ -192,7 +203,10 @@ export type AttachmentPickerProps = {
     files: UseAttachments;
     /** Default false: no trigger and no Upload */
     canUpload?: boolean;
-    /** Default false. With `multiple` false and a stored file, it also shows the trigger and Upload: they replace that file */
+    /**
+     * Default false. With `multiple` false, a stored file and `adapter.replace`, it also shows the trigger and Upload: they
+     * replace that file. A row's Replace needs the rules too, so with nothing else to show, their failure shows here
+     */
     canReplace?: boolean;
     renderTrigger?: (props: AttachmentTriggerProps) => ReactNode;
     renderSelectedItem?: (item: SelectedFile, actions: SelectedFileActions) => ReactNode;
@@ -200,9 +214,9 @@ export type AttachmentPickerProps = {
 
 export type AttachmentListProps = {
     files: UseAttachments;
-    /** Default false */
+    /** Default false. Needs `adapter.replace` too */
     canReplace?: boolean;
-    /** Default false */
+    /** Default false. Needs `adapter.delete` too */
     canDelete?: boolean;
     renderItem?: (file: Attachment, actions: AttachmentItemActions) => ReactNode;
     renderEmpty?: () => ReactNode;

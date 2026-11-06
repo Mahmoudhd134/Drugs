@@ -93,16 +93,25 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
     );
 };
 
-const actionsOf = (files: UseAttachments, item: SelectedFile): SelectedFileActions => ({
-    remove: () => files.removeSelected(item.key),
-    cancel: () => files.cancel(item.key),
+/** Remove and Cancel, when they do something, take the focus off their row first: `moveFocus`. */
+const actionsOf = (files: UseAttachments, item: SelectedFile, moveFocus: () => void): SelectedFileActions => ({
+    remove: () => {
+        if (item.status === "uploading") return;
+        moveFocus();
+        files.removeSelected(item.key);
+    },
+    cancel: () => {
+        if (item.status !== "uploading" && item.status !== "queued") return;
+        moveFocus();
+        files.cancel(item.key);
+    },
     retry: () => files.retry(item.key),
     preview: () => files.openPreview(item),
 });
 
 /**
  * Select with a button or by dropping files, see and change the selection, then Upload with progress per file. With
- * `multiple` false, `canReplace` and a stored file, Upload replaces that file.
+ * `multiple` false, `canReplace`, the adapter's call and a stored file, Upload replaces that file.
  */
 export const AttachmentPicker = ({files, canUpload = false, canReplace = false, renderTrigger, renderSelectedItem}: AttachmentPickerProps) => {
     const {t} = useTranslation();
@@ -110,9 +119,28 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     const [dragging, setDragging] = useState(false);
     // Moving over a child element fires a leave on its parent: only the outermost leave ends the drag
     const dragDepth = useRef(0);
+    const pickButton = useRef<HTMLButtonElement>(null);
+    const rows = useRef(new Map<string, HTMLLIElement>());
 
-    const replacesStored = canReplace && !files.multiple && files.files.length > 0;
-    if (!canUpload && !replacesStored) return null;
+    const replaces = canReplace && files.hasReplace;
+    const replacesStored = replaces && !files.multiple && files.files.length > 0;
+    const rulesAlert = files.rulesFailed && (
+        <Alert
+            severity="error"
+            action={<Button color="inherit" size="small" onClick={files.retryRules}>{t("common.retry")}</Button>}
+        >
+            {t("attachments.rulesFailed")}
+        </Alert>
+    );
+    // A row's Replace needs the rules too: with nothing else here, its user still gets their failure and Retry
+    if (!canUpload && !replacesStored) return replaces && files.files.length > 0 ? rulesAlert : null;
+
+    /** To the next row's first button, or with no next row to Choose files. A custom trigger's focus is the feature's. */
+    const focusPast = (item: SelectedFile) => () => {
+        const next = files.selected[files.selected.findIndex(row => row.key === item.key) + 1];
+        const nextButton = next && rows.current.get(next.key)?.querySelector("button");
+        (nextButton ?? pickButton.current)?.focus();
+    };
 
     const onPicked = (event: ChangeEvent<HTMLInputElement>) => {
         const picked = [...(event.target.files ?? [])];
@@ -146,7 +174,6 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     };
 
     const hint = files.multiple ? t("attachments.dropHint") : t("attachments.dropHintOne");
-    const canSend = files.selected.some(item => item.status === "waiting" || item.status === "cancelled");
 
     return (
         <Stack sx={{gap: 1.5}}>
@@ -178,23 +205,17 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
                         bgcolor: trigger.isDragActive ? "action.hover" : "transparent",
                     }}
                 >
-                    <Button variant="outlined" startIcon={<UploadFileIcon/>} onClick={trigger.open} disabled={trigger.disabled}>
+                    <Button ref={pickButton} variant="outlined" startIcon={<UploadFileIcon/>} onClick={trigger.open} disabled={trigger.disabled}>
                         {files.multiple ? t("attachments.pick") : t("attachments.pickOne")}
                     </Button>
-                    <Typography variant="body2" color="text.secondary">
+                    {/* A touch device has no dropping: only the button */}
+                    <Typography variant="body2" color="text.secondary" sx={{"@media (pointer: coarse)": {display: "none"}}}>
                         {trigger.isDragActive ? t("attachments.dropNow") : hint}
                     </Typography>
                 </Box>
             )}
 
-            {files.rulesFailed && (
-                <Alert
-                    severity="error"
-                    action={<Button color="inherit" size="small" onClick={files.retryRules}>{t("common.retry")}</Button>}
-                >
-                    {t("attachments.rulesFailed")}
-                </Alert>
-            )}
+            {rulesAlert}
             {files.refusals.length > 0 && (
                 <Alert severity="error">
                     {files.refusals.map(refusal => (
@@ -205,18 +226,28 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
 
             {files.selected.length > 0 && (
                 <List aria-label={t("attachments.selectedLabel")} disablePadding>
-                    {files.selected.map(item => (
-                        <ListItem key={item.key} divider disableGutters sx={{flexWrap: "wrap", gap: 1}}>
-                            {renderSelectedItem
-                                ? renderSelectedItem(item, actionsOf(files, item))
-                                : <SelectedRow item={item} actions={actionsOf(files, item)}/>}
-                        </ListItem>
-                    ))}
+                    {files.selected.map(item => {
+                        const actions = actionsOf(files, item, focusPast(item));
+                        return (
+                            <ListItem
+                                key={item.key}
+                                ref={(element: HTMLLIElement | null) => {
+                                    if (element) rows.current.set(item.key, element);
+                                    else rows.current.delete(item.key);
+                                }}
+                                divider
+                                disableGutters
+                                sx={{flexWrap: "wrap", gap: 1}}
+                            >
+                                {renderSelectedItem ? renderSelectedItem(item, actions) : <SelectedRow item={item} actions={actions}/>}
+                            </ListItem>
+                        );
+                    })}
                 </List>
             )}
 
             <Box>
-                <Button variant="contained" onClick={() => void files.upload()} disabled={files.isUploading || !canSend}>
+                <Button variant="contained" onClick={() => void files.upload()} disabled={files.isUploading || !files.canSend}>
                     {t("attachments.upload")}
                 </Button>
             </Box>

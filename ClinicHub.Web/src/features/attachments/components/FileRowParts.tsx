@@ -5,16 +5,18 @@ import {Box, IconButton, Tooltip} from "@mui/material";
  * An icon button with a tooltip and its name. The span keeps the tooltip on a disabled button, and keeps the button
  * mounted when it becomes disabled.
  */
-export const FileIconButton = ({label, onClick, disabled, color, children}: {
+export const FileIconButton = ({label, onClick, disabled, color, action, children}: {
     label: string;
     onClick: () => void;
     disabled?: boolean;
     color?: "error";
+    /** `data-action`, for a row to find this button when the focus should come back to it */
+    action?: string;
     children: ReactNode;
 }) => (
     <Tooltip title={label} describeChild>
         <span>
-            <IconButton aria-label={label} onClick={onClick} disabled={disabled} color={color}>{children}</IconButton>
+            <IconButton aria-label={label} onClick={onClick} disabled={disabled} color={color} data-action={action}>{children}</IconButton>
         </span>
     </Tooltip>
 );

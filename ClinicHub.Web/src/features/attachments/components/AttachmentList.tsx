@@ -54,7 +54,7 @@ const StoredRow = ({file, actions, replacePercent, replaceLocked}: {
                     <DownloadIcon fontSize="small"/>
                 </FileIconButton>
                 {actions.replace && (
-                    <FileIconButton label={t("attachments.replaceFile", {name})} onClick={actions.replace} disabled={replaceLocked}>
+                    <FileIconButton label={t("attachments.replaceFile", {name})} onClick={actions.replace} disabled={replaceLocked} action="replace">
                         <ReplaceIcon fontSize="small"/>
                     </FileIconButton>
                 )}
@@ -83,6 +83,8 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
     const {t} = useTranslation();
     const {confirm, dialog: confirmDialog} = useConfirm();
     const onceDelete = useSingleFlight();
+    const replaces = canReplace && files.hasReplace;
+    const deletes = canDelete && files.hasDelete;
 
     const list = useRef<HTMLUListElement>(null);
     const rows = useRef(new Map<string, HTMLLIElement>());
@@ -112,18 +114,35 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
 
     const replaceInput = useRef<HTMLInputElement>(null);
     const replaceTarget = useRef<Attachment | null>(null);
+    // The row whose Replace button takes the focus once it's there and on again: the new row, once the list has reloaded
+    const focusAfterReplace = useRef<string | null>(null);
+
+    // Only when the focus went with the old row or the Cancel, as for a delete
+    const moveFocusAfterReplace = () => {
+        const id = focusAfterReplace.current;
+        const button = id === null ? null : rows.current.get(id)?.querySelector<HTMLButtonElement>('button[data-action="replace"]');
+        if (!button || button.disabled) return;
+        focusAfterReplace.current = null;
+        if (!document.activeElement || document.activeElement === document.body) button.focus();
+    };
+    useEffect(moveFocusAfterReplace);
 
     const onReplacePicked = (event: ChangeEvent<HTMLInputElement>) => {
         const newFile = event.target.files?.[0];
         // So the same file can be picked again
         event.target.value = "";
-        if (newFile && replaceTarget.current) void files.replace(replaceTarget.current, newFile);
+        const target = replaceTarget.current;
+        if (!newFile || !target) return;
+        void files.replace(target, newFile).then(replaced => {
+            focusAfterReplace.current = replaced?.id ?? target.id;
+            moveFocusAfterReplace();
+        });
     };
 
     const actionsOf = (file: Attachment): AttachmentItemActions => ({
         download: () => void files.download(file),
         preview: () => files.openPreview(file),
-        ...(canReplace ? {
+        ...(replaces ? {
             replace: () => {
                 if (files.replacing || !files.canPick) return;
                 replaceTarget.current = file;
@@ -131,7 +150,7 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
             },
         } : {}),
         ...(files.replacing?.id === file.id ? {cancelReplace: files.cancelReplace} : {}),
-        ...(canDelete ? {delete: () => void handleDelete(file)} : {}),
+        ...(deletes ? {delete: () => void handleDelete(file)} : {}),
     });
 
     if (files.isListLoading) return <LinearProgress aria-label={t("common.loading")}/>;
@@ -148,7 +167,7 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
 
     return (
         <Stack sx={{gap: 1}}>
-            {canReplace && (
+            {replaces && (
                 <input
                     ref={replaceInput}
                     type="file"

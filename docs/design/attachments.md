@@ -1,6 +1,6 @@
 # Attachments: design
 
-Status: **approved** (user, T0, 2026-11-06). Part 1 (the backend) is built ([tech](../features/attachments/tech.md)); part 2 (§ 12) isn't.
+Status: **approved** (user, T0, 2026-11-06). Part 1 (the backend) and part 2 (§ 12, the components) are built ([tech](../features/attachments/tech.md)); no feature mounts the components yet.
 Companion files: [business (Arabic)](../features/attachments/business.md) and [test cases](attachments.test-cases.md). When all is built, this
 moves into `docs/features/attachments/`, the overviews and the [test catalog](../testing/test-catalog.md).
 
