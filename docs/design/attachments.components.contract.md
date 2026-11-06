@@ -213,9 +213,10 @@ Three tracks, each on its own worktree and branch `attachments-components/<track
 
 | Track | Level | Cases | Count |
 |---|---|---|---|
-| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 261, 262, 264, 265, 268, 269, 270, 271, 272, 273, 274, 275, 277, 279, 280 | 59 |
+| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 262, 264, 265, 268, 269, 270, 271, 272, 274, 275, 277, 279, 280 | 57 |
 | ui-tests | unit | ATT-214, 230, 247, 252, 256, 266, 267 | 7 |
-| ui-tests | unit+ui | ATT-224 | 1 |
+| ui-tests | unit+ui | ATT-224, 273 | 2 |
+| ui-tests, e2e-tests | ui+e2e | ATT-261: a real browser moves focus differently, and component tests missed it | 1 |
 | e2e-tests | e2e | ATT-210, 211, 219, 223, 226, 246, 248, 253, 254, 255, 263, 276, 278 | 13 |
 | e2e-tests | manual | ATT-258: a catalog row and a dress rehearsal line, no test | 1 |
 | | | **Total** | **81** |

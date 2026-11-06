@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 83 | 102 | 27 | 212 | 66 | 82 | 60 | 13 | 2 |
-| **All** | **567** | **963** | **504** | **2034** | **350** | **788** | **560** | **454** | **16** |
+| [ATT](#att--attachments) | 83 | 102 | 27 | 212 | 67 | 82 | 60 | 14 | 2 |
+| **All** | **567** | **963** | **504** | **2034** | **351** | **788** | **560** | **455** | **16** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2909,14 +2909,14 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-233 | Given a row deleted meanwhile, when acted on, then 404 reloads the list and says the item is gone | P1 | ui | § 12 |
 | ATT-259 | Given a row's Replace running, then its row shows its progress and Cancel; when cancelled, then the request is aborted, the old file stays, no error shows and the list reloads; when it fails, then a toast shows with no Retry | P1 | ui | § 12 |
 | ATT-234 | Given `canUpload` and `canDelete` left out, then those controls aren't shown | P0 | ui | § 12 |
-| ATT-261 | Given a row's Replace finishing, then focus moves to the new row's Replace button; given one cancelled or failing, then the old row stays and focus returns to its Replace button | P1 | ui | Contract § 2 |
+| ATT-261 | Given a row's Replace finishing, then focus moves to the new row's Replace button; given one cancelled or failing, then the old row stays and focus returns to its Replace button | P1 | ui+e2e | Contract § 2 |
 | ATT-264 | Given `canDelete` with no `adapter.delete`, or `canReplace` with no `adapter.replace`, then that control and its `renderItem` action aren't there; given `multiple={false}` with no `adapter.replace`, then `canReplace` alone shows no picker, and with `canUpload` Upload adds the file, which counts toward `maxFiles` | P1 | ui | Contract § 2 |
 | ATT-265 | Given a preview whose fetch fails, then a toast shows and the dialog closes | P1 | ui | Contract § 2 |
 | ATT-268 | Given Download all, then each file is requested in turn, the next only after the last answered | P1 | ui | A12 |
 | ATT-269 | Given `multiple={false}`, whatever is stored, then the list shows no Download all and each row's Download stays; given several files allowed, then it shows | P1 | ui | § 12 |
 | ATT-270 | Given a list with rows whose reload fails, then the rows stay and their actions work, the translated error and Retry show above them, Upload stays off with `multiple={false}` + `canReplace` or `maxFiles` (not otherwise) until Retry succeeds, and Retry brings the list back | P1 | ui | Contract § 2 |
 | ATT-272 | Given Download all running, then its button is disabled; given a file already downloading, when its Download is clicked again or Download all reaches it, then it isn't started again and is saved once | P1 | ui | Contract § 2 |
-| ATT-273 | Given a name with bidi control characters (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C), then every place it's shown, messages and accessible names included, shows it without them; the download name and what's sent stay the original | P0 | ui | Contract § 2 |
+| ATT-273 | Given a name with bidi control characters (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C), then every place it's shown, messages and accessible names included, shows it without them; the download name and what's sent stay the original | P0 | unit+ui | Contract § 2 |
 | ATT-276 | Given a preview with no viewer, then the name starts at the UI's start with the note, in Arabic and English, whatever the name's own direction | P2 | e2e | Contract § 2 |
 | ATT-279 | Given several rows failing with the same message, then it toasts once; a different message toasts on its own | P2 | ui | Contract § 2 |
 | ATT-280 | Given the second click of the double click that opened a preview landing on the backdrop, then the dialog stays; a single click there closes it | P2 | ui | Contract § 2 |

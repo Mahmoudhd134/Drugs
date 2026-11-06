@@ -54,6 +54,8 @@ export const harnessUi = (page: Page, lang: Lang) => {
         previewButton: (name: string) => stored.getByRole("button", {name: a.previewFile(name), exact: true}),
         downloadButton: (name: string) => stored.getByRole("button", {name: a.downloadFile(name), exact: true}),
         deleteButton: (name: string) => stored.getByRole("button", {name: a.deleteFile(name), exact: true}),
+        replaceButton: (name: string) => stored.getByRole("button", {name: a.replaceFile(name), exact: true}),
+        cancelButton: (name: string) => stored.getByRole("button", {name: a.cancelFile(name), exact: true}),
         /** The preview dialog of this file */
         previewDialog: (name: string) => page.getByRole("dialog", {name: a.previewOf(name), exact: true}),
     };
