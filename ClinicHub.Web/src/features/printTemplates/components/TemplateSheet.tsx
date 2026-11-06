@@ -121,12 +121,14 @@ const VALUE_STYLE: CSSProperties = {
 /** A value that follows its language: each line of a static text takes its own direction and start (F5). */
 const AUTO_VALUE_STYLE: CSSProperties = {...VALUE_STYLE, unicodeBidi: "plaintext"};
 
-/** A box moved by the printer's correction, by whole tenths (step 4 design A4): printing only, the designer's numbers stay. */
-const correctedBox = (item: TemplateItem, {xMm, yMm}: PrintLayout["calibration"]): TemplateItem => ({
-    ...item,
-    xMm: (toTenths(item.xMm) + toTenths(xMm)) / 10,
-    yMm: (toTenths(item.yMm) + toTenths(yMm)) / 10,
-});
+/**
+ * The printer's correction on a box, in whole tenths (step 4 design A4, contract § 10.23), printing only: `left` and `top` stay the designed place. A transform, since text moved through
+ * `left` and `top` lands on whole CSS px in the PDF, and a box whose top passes the sheet's bottom makes a blank page. Layout, wrapping and pagination never see a transform. None at 0, 0.
+ */
+const correctionStyle = ({xMm, yMm}: PrintLayout["calibration"]): CSSProperties => {
+    const [x, y] = [toTenths(xMm), toTenths(yMm)];
+    return x === 0 && y === 0 ? {} : {transform: `translate(${x / 10}mm, ${y / 10}mm)`};
+};
 
 /** A printed sheet (contract § 3.4): plain boxes holding values, set as text but for the cleaned prescription text. A name never prints, and neither does the picture. */
 const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintContent }) => (
@@ -134,7 +136,7 @@ const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintC
         {layout.items.map(item => {
             const value = print.values[item.id];
             return (
-                <div key={item.id} data-item-id={item.id} style={boxStyle(correctedBox(item, layout.calibration))}>
+                <div key={item.id} data-item-id={item.id} style={{...boxStyle(item), ...correctionStyle(layout.calibration)}}>
                     {item.kind === "prescriptionText" ? (
                         <div className="print-text" style={printTextStyle(item.fontSizePt)} dangerouslySetInnerHTML={{__html: print.textHtml}}/>
                     ) : !value ? null : item.kind === "function" && isLeftToRightValue(item.function) ? (
