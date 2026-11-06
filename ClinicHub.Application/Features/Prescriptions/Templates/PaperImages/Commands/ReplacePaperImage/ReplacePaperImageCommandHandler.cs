@@ -4,9 +4,9 @@ using ClinicHub.Application.Features.Attachments.Files;
 
 namespace ClinicHub.Application.Features.Prescriptions.Templates.PaperImages.Commands.ReplacePaperImage;
 
-/// <summary><b>Stub (T1: backend).</b> Takes <c>IAttachmentService</c>: <c>ReplaceAsync(PaperImageOwner.Current, command.Id, command.File)</c>.</summary>
-internal sealed class ReplacePaperImageCommandHandler : ICommandHandler<ReplacePaperImageCommand, AttachmentDto>
+/// <summary>Replaces that picture; a picture that's gone answers 404.</summary>
+internal sealed class ReplacePaperImageCommandHandler(IAttachmentService attachments) : ICommandHandler<ReplacePaperImageCommand, AttachmentDto>
 {
     public Task<Result<AttachmentDto>> Handle(ReplacePaperImageCommand command, CancellationToken cancellationToken) =>
-        throw new NotImplementedException("Step 4, T1");
+        attachments.ReplaceAsync(PaperImageOwner.Current, command.Id, command.File, cancellationToken);
 }

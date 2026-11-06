@@ -196,7 +196,7 @@ and fails as `.docx`.
   "AllowedTypes": "png,jpeg,webp,gif,bmp,avif,tiff,heic,pdf,docx,xlsx,pptx,doc,xls,ppt,txt,csv",
   "Physical": { "RootPath": "" },
   "Modules": {
-    "clinicPaper": { "MaxFileSizeMb": 2, "AllowedTypes": "png,jpeg" }
+    "clinicPaper": { "MaxFileSizeMb": 10, "AllowedTypes": "png,jpeg" }
   }
 }
 ```
@@ -217,8 +217,8 @@ and fails as `.docx`.
 - **`RootPath` empty:** in Development it means `Environment.GetFolderPath(LocalApplicationData)` + `ClinicHub/attachments`; anywhere
   else it stops the app. `ClinicHubFactory` sets a default per factory, because cases such as AUTH-005 test startup failures and must
   still fail for their own reason; e2e sets one too.
-- `clinicPaper`'s 2 MB is D3's approved number; step 4 can change it in config. Disk removes the database reason for it, and a
-  phone photo or a 300 dpi scan can exceed it, so the user may want more at step 4.
+- `clinicPaper`'s 10 MB is [print templates step 4's P2](prescription-templates.step4.md#2-decisions-user-2026-11-06), up from D3's 2 MB, which
+  was set for the database. On disk that reason is gone, and a phone photo is often 3–8 MB.
 
 **Oversized requests:** `[AttachmentUpload(module)]`, a shared resource filter in the Api, runs before model binding (as
 `[AdminClinic]` does). Left alone, a read past the limit becomes a model error and answers `invalidRequest`, so the filter owns the form
