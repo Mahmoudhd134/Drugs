@@ -766,21 +766,67 @@ describe("Upload before the list has answered @area:attachments", () => {
         await nothingSent(adapter);
     });
 
-    test.each(STATES)("the list %s, the file picked meanwhile fills maxFiles once it answers: the limit still holds, nothing goes over it @ATT-260", async (_state, list) => {
+    test.each(STATES)("the list %s, then it fills maxFiles over what's selected: Upload stays off, tooMany shows for the excess and nothing is sent; removing the excess turns Upload back on @ATT-260", async (_state, list) => {
         const {adapter, ready, answer} = list(stored().slice(0, 1));
-        await renderManager({canUpload: true, maxFiles: 1, adapter});
+        const {user} = await renderManager({canUpload: true, maxFiles: 2, adapter});
+        await ready();
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+
+        await answer();
+        await expectStored("newest.pdf");
+
+        await findRefusal(`“${isolate("b.png")}” wasn't added. Most files allowed: 2.`);
+        expect(screen.queryByText(`“${isolate("a.png")}” wasn't added. Most files allowed: 2.`)).not.toBeInTheDocument();
+        await expectSelected("a.png", "b.png");
+        expect(upload()).toBeDisabled();
+        await nothingSent(adapter);
+        expect(adapter.files).toHaveLength(1);
+
+        await press(user, named.remove("b.png"));
+
+        await expectSelected("a.png");
+        await waitFor(() => expect(upload()).toBeEnabled());
+        await user.click(upload());
+
+        await expectStored("a.png", "newest.pdf");
+        expect(adapter.upload.mock.calls.map(([file]) => file.name)).toEqual(["a.png"]);
+    });
+
+    test("the list loading, multiple={false} with maxFiles 1 and it answers full: the same, the one file is the excess @ATT-260", async () => {
+        const {adapter, ready, answer} = whileLoading(stored().slice(0, 1));
+        await renderManager({canUpload: true, multiple: false, maxFiles: 1, adapter});
         await ready();
         await pickFiles(aFile("new.png", 1));
         await expectSelected("new.png");
 
         await answer();
         await expectStored("newest.pdf");
-        await pastPendingWork();
-        // Whether the file is refused now or Upload stays off is the code's: a click on a disabled button does nothing
-        fireEvent.click(upload());
 
+        await findRefusal(`“${isolate("new.png")}” wasn't added. Most files allowed: 1.`);
+        await expectSelected("new.png");
+        expect(upload()).toBeDisabled();
         await nothingSent(adapter);
-        expect(adapter.files).toHaveLength(1);
+    });
+
+    test("the list loading, a replacing pick with maxFiles 1 and it answers full: not an excess, since it takes the stored file's place @ATT-260", async () => {
+        const files = stored().slice(0, 1);
+        const {adapter, ready, answer} = whileLoading(files);
+        const {user} = await renderManager({canUpload: true, multiple: false, canReplace: true, maxFiles: 1, adapter});
+        await ready();
+        await pickFiles(aFile("new.png", 1));
+        await expectSelected("new.png");
+        expect(upload()).toBeDisabled();
+
+        await answer();
+        await expectStored("newest.pdf");
+        await waitFor(() => expect(upload()).toBeEnabled());
+        expect(screen.queryByText(/wasn't added/)).not.toBeInTheDocument();
+        await user.click(upload());
+
+        await expectStored("new.png");
+        expect(adapter.replace.mock.calls.map(([id]) => id)).toEqual([files[0].id]);
+        expect(adapter.upload).not.toHaveBeenCalled();
     });
 
     const FREE_OF_THE_LIST = [

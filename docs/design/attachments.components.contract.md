@@ -36,6 +36,7 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - **Cancelling a row's Replace** (`cancelReplace`, `actions.cancelReplace`) aborts the request and keeps the old file. It shows no error and reloads the list, like an upload's cancel.
 - **One row's Replace runs at a time** (`replacing`). While it runs, every row's Replace is disabled, and its own row's Delete.
 - **While the list is loading or failed, Upload is disabled** in single-replace mode (`multiple={false}` + `canReplace`) and with `maxFiles`, because until the list answers, no one knows which file Upload would replace or how many are stored. A reload counts as loading: after a send, the next Upload waits for the list's new answer. Files can still be picked. The hook's `upload` sends nothing then, for a feature with its own markup. Multi-file uploads with no `maxFiles` aren't affected: the list's failure doesn't stop them. Neither is `multiple={false}` with neither `canReplace` nor `maxFiles` (ATT-260).
+- **A file picked while the list is loading, when the list then fills `maxFiles`:** Upload stays off while stored + selected exceeds `maxFiles`, the `tooMany` message shows for the excess, the last picked, and nothing is sent. The excess stays selected until it's removed, and removing it turns Upload back on (ATT-260). A replacing pick still takes the stored file's place, so it isn't an excess.
 - **Upload-replace racing the same file's row Replace or Delete** isn't locked: one user would need two clicks in the same moment, and it ends in a 404 at worst. Accepted.
 
 ### Defaults
@@ -56,7 +57,7 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - **The Upload button** is disabled during a run, or with nothing to send.
 - **Remove** works in every state but uploading.
 - **Cancel** shows on uploading and queued. A queued file goes back to waiting.
-- **Client refusals never enter the selection.** An inline `role="alert"` area in the picker lists each one. The next pick clears it. The check order is the server's: empty, size, extension.
+- **Client refusals never enter the selection**, but for a file already selected when the list fills `maxFiles` ("Replacing and counting"). An inline `role="alert"` area in the picker lists each one. The next pick clears it. The check order is the server's: empty, size, extension.
 - **`multiple={false}`:** a new pick replaces every selected file that isn't uploading. A refused pick keeps the selection as it was.
 - **If the rules fail to load, picking is off:** the trigger's button is disabled and a drop is ignored. `rulesFailed` and a `common.retry` button show in the picker, in a `role="alert"`. The list still works. A user whose only control that needs the rules is a row's Replace gets the same alert and Retry, with no trigger and no Upload. With no such control, nothing shows (ATT-216).
 - **A repeated result is announced again:** the `aria-live` region's text changes between two results, so a Retry failing with the same reason, or a same-named file uploaded twice, is heard again (ATT-243).
@@ -114,7 +115,7 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 | Preview | Notes | `noPreview`, `cantShow`, `textCut` |
 
 - A long name wraps, with the full name in a tooltip. An icon button has a tooltip with its name. Row icon buttons are 36 px on a phone too: the only 44 px rule is the prescription tree.
-- **Focus:** a closed preview returns it to the button that opened it. After a delete it moves to the next row's first button; with no next row, to the list (`tabIndex={-1}`). After a row's Replace finishes, it moves to the new row's Replace button (ATT-261). After Remove or Cancel on a selected row, it moves to the next row's first button; with no next row, to the Choose files button (`pick`, or `pickOne` with `multiple={false}`) (ATT-262).
+- **Focus:** a closed preview returns it to the button that opened it. After a delete it moves to the next row's first button; with no next row, to the list (`tabIndex={-1}`). After a row's Replace finishes, it moves to the new row's Replace button; after one is cancelled or fails, the old row stays and focus returns to that row's Replace button (ATT-261). After Remove or Cancel on a selected row, it moves to the next row's first button; with no next row, to the Choose files button (`pick`, or `pickOne` with `multiple={false}`) (ATT-262). With a custom `renderTrigger`, the feature owns that last focus.
 
 ### Sizes and texts
 

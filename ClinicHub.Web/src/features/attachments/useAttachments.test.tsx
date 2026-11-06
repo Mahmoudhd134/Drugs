@@ -6,7 +6,7 @@ import {
     aDataTransfer, aFile, ALL_RULES, apiRefusal, aStoredFile, deferred, fakeAdapter, type FakeAdapter, pastPendingWork, REASON, refusedLine,
     setPdfViewer, stubDownloads, stubObjectUrls,
 } from "../../test/pages/attachments.tsx";
-import type {UseAttachments, UseAttachmentsOptions} from "./types.ts";
+import type {Attachment, UseAttachments, UseAttachmentsOptions} from "./types.ts";
 import {useAttachments} from "./useAttachments.ts";
 
 // Level 3 of customizing (design § 12): the hook alone with the feature's own markup, every action with no component.
@@ -65,6 +65,23 @@ describe("useAttachments alone, Upload before the list has answered @area:attach
 
         expect(adapter.upload).not.toHaveBeenCalled();
         expect(adapter.replace).not.toHaveBeenCalled();
+        expect(stateOf("new.png")?.status).toBe("waiting");
+    });
+
+    test("the list answers and fills maxFiles over what's selected: upload sends nothing, and the file keeps waiting @ATT-260", async () => {
+        const held = deferred<Attachment[]>();
+        const file = stored("a.png");
+        const adapter = fakeAdapter({files: [file], list: () => held.promise});
+        await renderWithProviders(<OwnPage adapter={adapter} maxFiles={1}/>);
+        await waitFor(() => expect(hook.canPick).toBe(true));
+        await run(() => hook.pick([aFile("new.png", 1)]));
+
+        await run(() => held.resolve([file]));
+        await waitFor(() => expect(storedNames()).toEqual(["a.png"]));
+        await run(() => hook.upload());
+        await pastPendingWork();
+
+        expect(adapter.upload).not.toHaveBeenCalled();
         expect(stateOf("new.png")?.status).toBe("waiting");
     });
 

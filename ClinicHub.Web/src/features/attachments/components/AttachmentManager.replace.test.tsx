@@ -143,6 +143,41 @@ describe("a row's Replace @area:attachments", () => {
         await waitFor(() => expect(screen.getByRole("button", {name: named.replace("new.png")})).toHaveFocus());
     });
 
+    test("cancelled: the old row stays and focus returns to its Replace button @ATT-261", async () => {
+        const {user} = await started();
+
+        await press(user, named.cancel("old.pdf"));
+
+        await expectStored("old.pdf", "other.pdf");
+        await waitFor(() => expect(screen.getByRole("button", {name: named.replace("old.pdf")})).toHaveFocus());
+    });
+
+    test("failed: the old row stays and focus returns to its Replace button @ATT-261", async () => {
+        const {held} = await started();
+        focusFallsAway();
+
+        await held.fail(apiRefusal(400, "attachmentTypeNotAllowed"));
+
+        expect(await findToast()).toContain(REASON.typeNotAllowed);
+        await expectStored("old.pdf", "other.pdf");
+        await waitFor(() => expect(screen.getByRole("button", {name: named.replace("old.pdf")})).toHaveFocus());
+    });
+
+    test("failed on a row that isn't the first: that row's Replace, not the first row's @ATT-261", async () => {
+        const adapter = fakeAdapter({files: files()});
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canReplace: true, adapter});
+        await expectStored("old.pdf", "other.pdf");
+        await replaceWith(user, "other.pdf", aFile("new.png", 10));
+        const held = await gate.held("new.png");
+        focusFallsAway();
+
+        await held.fail(apiRefusal(400, "attachmentTypeNotAllowed"));
+
+        await expectStored("old.pdf", "other.pdf");
+        await waitFor(() => expect(screen.getByRole("button", {name: named.replace("other.pdf")})).toHaveFocus());
+    });
+
     test("a refused pick is a toast with no Retry: nothing is sent and the old file stays @ATT-259", async () => {
         const adapter = fakeAdapter({files: files(), rules: {maxFileSizeBytes: 100, extensions: [".png"]}});
         const {user} = await renderManager({canReplace: true, adapter});
