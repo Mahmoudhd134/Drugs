@@ -12,7 +12,7 @@ Bugs found by tests: [known bugs](known-bugs.md). Before the client's test: [dre
 | `e2e` | Playwright (Chromium) | `ClinicHub.Web/e2e/<area>/` | same |
 | `manual` | by hand | the [dress rehearsal](dress-rehearsal.md) | none |
 
-Areas (the `Area` trait, the `@area:` tag): `auth`, `access`, `isolation`, `errors`, `admin`, `catalog` (backend and
+Areas (the `Area` trait, the `@area:` tag): `auth`, `access`, `isolation`, `errors`, `admin`, `catalog`, `attachments` (backend and
 frontend); `prescription`, `i18n`, `ux` (frontend only); `infra` (the integration harness's self-tests).
 
 ## When to run what
@@ -155,6 +155,7 @@ Gates only go up; lowering one needs the user's OK ([design D5](../design/m1.6-t
   | `Application\|Domain/…/Platform/`, `Database/Configurations/Platform/`, `Settings/PlatformSettings` | `admin`, `auth` (a clinic's state and the super admins decide who logs in) |
   | `Api\|Infrastructure/…/Platform/` | `admin` |
   | `…/Catalog/`, `Api/Features/Drugs`, `Protocols`, `Database/Configurations/Catalog/` | `catalog` |
+  | `…/Attachments/` (Api, Application, Infrastructure, Domain), `Database/Configurations/Attachments/`, `Settings/Attachment*` | `attachments` |
   | `Infrastructure/Database/` (other), `Application/Common/Abstractions/`, `Domain/Common/` | `isolation` |
   | `Application/Common/(Results\|Behaviors\|Validation\|Messaging)/`, `Api/(Errors\|Controllers)/` | `errors` |
   | `Application/Common/(Paging\|Search)/` | `catalog`, `admin` |
@@ -409,7 +410,7 @@ shared drugs), as production will (design M1.7 D12).
 
 ```csharp
 [Collection(AuthCollection.Name)]            // the parallel group: its database and app
-[Trait("Area", "auth")]                      // every class: its area (auth, access, isolation, errors, admin, catalog)
+[Trait("Area", "auth")]                      // every class: its area (auth, access, isolation, errors, admin, catalog, attachments)
 public class OtpRequestTests(AppFixture app) : IntegrationTest(app)
 {
     [Fact]
@@ -483,6 +484,15 @@ Builders call the app's own use cases through MediatR in a DI scope acting in th
 transaction, provisioning, post-commit cache invalidation, as in production), not HTTP: they create no session, OTP
 code or extra staff row, so the data is exactly what the test asked for. To test a use case's own answer (a validation
 code, a 409), call the API.
+
+### Attachments: test routes and a real server
+
+Production has no attachment route (the first feature to use the module brings its own), so `tests/ClinicHub.IntegrationTests/Attachments/TestHost/` adds some to a test app only, on the real pipeline (authorization, filter, model binding, service, provider, database, disk). A class takes `AttachmentsAppFixture app` and extends `AttachmentTest`.
+
+- `AttachmentsAppFixture`: the app with the test-only controllers (clinic, `[AdminClinic]`, platform inside and outside `UseSharedCatalog()`), their commands and the failure seams, all through the factory's `services` parameter. `CreateVariant` stays the plain app (it proves production has no such route, ATT-012); `CreateHostVariant` has the routes.
+- **Failure seams** (`AttachmentSeams`, off by default, reset before each test): a failing disk write, a save that fails, commits and then throws, or is cancelled, and a failing lookup. They also record what they saw, so a test proves the file was on disk before the cleanup removed it.
+- **The disk:** `ClinicHubFactory` gives every app a temp folder of its own (`AttachmentRoot`, removed when it's disposed) unless the caller's settings set `Attachments:Physical:RootPath`. Respawn doesn't reset it, so "nothing written" compares a folder before and after (`AttachmentDisk`), and "still on disk" reads the root plus the row's `StorageKey`.
+- **A real server** (`RealKestrelHost`, opt-in, ATT-082 and ATT-095): TestServer enforces no body limit. A variant boots as usual and a real Kestrel on `127.0.0.1`, port 0, serves its same pipeline. `SendChunkedAsync` sends a chunked body on a raw socket, because `HttpClient` can't reliably read an answer that arrives while it's still sending.
 
 ### Time and tokens
 

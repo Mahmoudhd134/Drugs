@@ -128,6 +128,9 @@ const ar: Translations = {
         templateStaticTextRequired: "اكتب النص.",
         templateStaticTextTooLong: "النص أطول من 1000 حرف.",
         templateTooManyItems: "لا يمكن إضافة أكثر من 50 عنصرًا.",
+        attachmentTypeNotAllowed: "نوع هذا الملف غير مسموح به.",
+        attachmentTooLarge: "حجم هذا الملف أكبر من المسموح به.",
+        attachmentEmpty: "هذا الملف فارغ.",
     },
     auth: {
         loginTitle: "تسجيل الدخول",

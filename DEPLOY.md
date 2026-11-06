@@ -72,6 +72,30 @@ produces a ready-to-copy folder: **`D:\ClinicHub\publish`**.
 **Database:** PostgreSQL. Set the connection string on the server, e.g. an environment variable
 `ConnectionStrings__DefaultConnection` (in `web.config` under `<environmentVariables>`).
 
+**Attached files — the app won't start without this:** files live on the server's disk, in a folder of their own. Set
+`Attachments__Physical__RootPath` (in `web.config` under `<environmentVariables>`, like the database) to an absolute folder **outside the site**, e.g. `C:\ClinicHubFiles` (one inside the site folder stops the app,
+so files can never be served as static files or overwritten by an update). Create the folder and give the app pool **Modify** on it; the app stops at startup if it can't write there:
+
+```powershell
+New-Item -ItemType Directory -Force "C:\ClinicHubFiles"
+icacls "C:\ClinicHubFiles" /grant "IIS AppPool\ClinicHubPool:(OI)(CI)M" /T
+```
+
+Deleted and replaced files stay on disk and there is no purge job, so this folder only grows. Back it up separately from the database.
+
+**File size limit:** `Attachments:MaxFileSizeMb` (20 by default) and the per-module limits are in `appsettings.json`. IIS has its own limit of 30,000,000 bytes: a bigger
+body gets IIS's HTML 404.13 before the app sees it, whatever the app's limit. For any limit above about 28 MB, raise it in `web.config` too:
+
+```xml
+<system.webServer>
+  <security>
+    <requestFiltering>
+      <requestLimits maxAllowedContentLength="104857600" />
+    </requestFiltering>
+  </security>
+</system.webServer>
+```
+
 **MediatR license:** the key is committed in `appsettings.json` (`MediatR:LicenseKey`; free community license for
 companies under $5M yearly revenue, from luckypennysoftware.com). It **expires 2027-10-14**: renew it yearly. An
 environment variable `MediatR__LicenseKey` overrides it; outside Development the app won't start if the key is empty.
@@ -96,7 +120,7 @@ are seeded only in Development).
 
 1. Run `.\deploy.ps1` again on your dev machine.
 2. In IIS Manager, **Stop** the `ClinicHub` site (releases the running `.exe`).
-3. Copy the new `publish` contents over the server folder (data lives in PostgreSQL, not the folder).
+3. Copy the new `publish` contents over the server folder (data lives in PostgreSQL and attached files in `Attachments__Physical__RootPath`, neither in this folder). **Keep the server's `web.config`** (leave the new one out of the copy) or re-apply its changes to the new one: `publish` holds a fresh default, so overwriting it silently loses the environment variables, and with them the database and the attachments folder (the app stops with 500.30), and the raised IIS limit (uploads get 404.13 again). The same goes for any setting edited in the server's `appsettings.json`.
 4. **Start** the site.
 
 ---
@@ -108,5 +132,6 @@ are seeded only in Development).
 - **HTTP 500.30 (app won't start)** — set `stdoutLogEnabled="true"` in `web.config`,
   create a `logs` folder in the site, restart, and read `logs\stdout*.log`.
 - **Database errors** — check the PostgreSQL connection string and that the server can reach it.
+- **An upload gets an HTML 404.13 page** — the body is over IIS's limit: see "File size limit" above.
 - **Reach it from other PCs** — allow the port through Windows Firewall
   (`New-NetFirewallRule -DisplayName "ClinicHub" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow`).

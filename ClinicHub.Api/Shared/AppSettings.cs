@@ -1,11 +1,12 @@
 using System.Text;
 using ClinicHub.Application.Common.Settings;
+using ClinicHub.Application.Features.Attachments.Files;
 
 namespace ClinicHub.Api.Shared;
 
 /// <summary>
 /// The whole configuration, bound and validated at startup. Its sections are Application settings
-/// (<see cref="AuthSettings"/>, <see cref="OtpSettings"/>, <see cref="PlatformSettings"/>), registered on their own.
+/// (<see cref="AuthSettings"/>, <see cref="OtpSettings"/>, <see cref="PlatformSettings"/>, <see cref="AttachmentSettings"/>), registered on their own.
 /// </summary>
 public class AppSettings
 {
@@ -13,10 +14,13 @@ public class AppSettings
     public AuthSettings Auth { get; set; } = new();
     public OtpSettings Otp { get; set; } = new();
     public PlatformSettings Platform { get; set; } = new();
+    public AttachmentSettings Attachments { get; set; } = new();
     public MediatRSettings MediatR { get; set; } = new();
 
     /// <summary>Stops the app at startup on missing secrets, an unusable OTP mode or (outside Development) no MediatR license.</summary>
-    public void Validate(bool isDevelopment)
+    /// <param name="contentRoot">The host's content root (the attachments folder must be outside it).</param>
+    /// <param name="webRoot">The host's web root (likewise); null when there is no <c>wwwroot</c>.</param>
+    public void Validate(bool isDevelopment, string contentRoot, string webRoot)
     {
         const int minKeyBytes = 32;
         if (Encoding.UTF8.GetByteCount(Auth.Jwt.SigningKey ?? "") < minKeyBytes)
@@ -45,6 +49,7 @@ public class AppSettings
         if (!isDevelopment && string.IsNullOrWhiteSpace(MediatR.LicenseKey))
             throw new InvalidOperationException(
                 "MediatR:LicenseKey is missing (set env var MediatR__LicenseKey; free community license at luckypennysoftware.com).");
+        Attachments.Validate(isDevelopment, contentRoot, webRoot);
     }
 }
 

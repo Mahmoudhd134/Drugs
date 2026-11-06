@@ -1,6 +1,7 @@
 using ClinicHub.Api.Errors;
 using ClinicHub.Application.Common.Results;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace ClinicHub.Api;
 
@@ -12,8 +13,14 @@ public static class DependencyInjection
         // Location headers and other generated links as /api/v1/drugs/5, not /api/v1/Drugs/5
         services.AddRouting(options => options.LowercaseUrls = true);
 
+        // The framework logs a file result's download name at Information, and an attachment's name can hold a patient's name
+        services.AddLogging(logging => logging.AddFilter(typeof(FileStreamResultExecutor).FullName, LogLevel.Warning));
+
         services.AddControllers()
             .ConfigureApiBehaviorOptions(options =>
+            {
+                // [ApiController] would answer 415 to a file action before [AttachmentUpload], which answers invalidRequest instead
+                options.SuppressConsumesConstraintForFormFileParameters = true;
                 // Malformed JSON or wrong types, before any use case runs: 400 invalidRequest, one error per
                 // problem. The parser's message (it names CLR types) only in Development
                 options.InvalidModelStateResponseFactory = context =>
@@ -32,7 +39,8 @@ public static class DependencyInjection
                         .ToList();
                     return ApiProblemFactory.ToActionResult(ApiProblemFactory.Create(context.HttpContext,
                         errors.Count > 0 ? errors : [CommonErrors.InvalidRequest]));
-                });
+                };
+            });
 
         // Safety net: any other ProblemDetails (MVC's Problem(), Unauthorized()…) gets the same shape
         services.AddProblemDetails(options =>

@@ -12,4 +12,11 @@ public static class FieldLimits
     public const int CategoryNameMaxLength = 100;
     /// <summary>A drug's active ingredients, one line (design M1.7 D3).</summary>
     public const int ActiveIngredientsMaxLength = 1000;
+    /// <summary>An attachment's module (docs/design/attachments.md § 4).</summary>
+    public const int AttachmentModuleMaxLength = 50;
+    /// <summary>An attachment's owner key as text.</summary>
+    public const int AttachmentRefIdMaxLength = 64;
+    public const int AttachmentFileNameMaxLength = 256;
+    public const int AttachmentTypeKeyMaxLength = 20;
+    public const int AttachmentStorageKeyMaxLength = 200;
 }

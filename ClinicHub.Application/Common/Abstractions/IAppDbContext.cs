@@ -1,4 +1,5 @@
 using ClinicHub.Domain.Access;
+using ClinicHub.Domain.Attachments;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
 using ClinicHub.Domain.Identity;
@@ -32,6 +33,8 @@ public interface IAppDbContext
     DbSet<SubCategory> SubCategories { get; }
     /// <summary>One per clinic at most (design prescription-templates D4).</summary>
     DbSet<PrescriptionTemplate> PrescriptionTemplates { get; }
+    /// <summary>A clinic's or a platform file's metadata: only <c>IAttachmentService</c> touches it (docs/design/attachments.md).</summary>
+    DbSet<Attachment> Attachments { get; }
 
     /// <summary>
     /// Marks the row as changed so its UpdatedAt moves (e.g. a protocol whose items changed); the

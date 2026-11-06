@@ -1,5 +1,6 @@
 using System.Globalization;
 using ClinicHub.Application.Common.Results;
+using ClinicHub.Application.Features.Attachments.Files;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicHub.Api.Errors;
@@ -25,6 +26,29 @@ public static class ResultHttpExtensions
         result.IsSuccess ? new NoContentResult() : result.ToProblem();
 
     public static ActionResult ToProblem(this Result result) => new ProblemResult(result.Errors);
+
+    /// <summary>
+    /// A feature's download (docs/design/attachments.md § 7): the file streamed, not loaded, with its checked <c>Content-Type</c>, always
+    /// <c>Content-Disposition: attachment</c> (<c>filename*</c> for non-ASCII names), <c>X-Content-Type-Options: nosniff</c> and
+    /// <c>Cache-Control: private, no-store</c>. A failure is the usual ProblemDetails, without those headers.
+    /// </summary>
+    public static ActionResult ToFile(this Result<AttachmentContent> result) =>
+        result.IsSuccess ? new AttachmentFileResult(result.Data) : result.ToProblem();
+
+    /// <summary>Adds its two headers when executed, when the <see cref="HttpContext"/> is known; the framework streams the file and disposes it.</summary>
+    private sealed class AttachmentFileResult : FileStreamResult
+    {
+        public AttachmentFileResult(AttachmentContent content) : base(content.Content, content.ContentType) =>
+            FileDownloadName = content.OriginalFileName;
+
+        public override Task ExecuteResultAsync(ActionContext context)
+        {
+            var headers = context.HttpContext.Response.Headers;
+            headers.XContentTypeOptions = "nosniff";
+            headers.CacheControl = "private, no-store";
+            return base.ExecuteResultAsync(context);
+        }
+    }
 
     /// <summary>
     /// Builds the problem when executed, when the <see cref="HttpContext"/> is known. A

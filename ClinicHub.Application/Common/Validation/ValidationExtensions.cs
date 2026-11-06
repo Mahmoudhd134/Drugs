@@ -29,7 +29,7 @@ public static class ValidationExtensions
         int maxLength = FieldLimits.NameMaxLength) =>
         rule
             .Must(name => !IsBlank(name)).WithError(CommonErrors.NameRequired)
-            .Must(name => IsBlank(name) || !name.Trim().Any(c => IsLineOrControl(c) || IsBidiControl(c)))
+            .Must(name => IsBlank(name) || !HasInvalidNameCharacter(name.Trim()))
             .WithError(CommonErrors.NameInvalid)
             .Must(name => name is null || name.Trim().Length <= maxLength).WithError(CommonErrors.NameTooLong);
 
@@ -61,6 +61,10 @@ public static class ValidationExtensions
 
     internal static bool IsBlank(string name) =>
         name is null || name.All(c => char.IsWhiteSpace(c) || char.GetUnicodeCategory(c) == UnicodeCategory.Format);
+
+    /// <summary>The characters <see cref="ValidName{T}"/> refuses in a name once trimmed; an attachment's file name follows the same rule.</summary>
+    internal static bool HasInvalidNameCharacter(string name) =>
+        name.Any(c => IsLineOrControl(c) || IsBidiControl(c));
 
     private static bool IsLineOrControl(char c) =>
         char.IsControl(c) || char.GetUnicodeCategory(c) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
