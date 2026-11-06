@@ -77,9 +77,9 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 87 | 263 | 77 | 427 | 85 | 40 | 170 | 168 | 6 |
+| [TPL](#tpl--prescription-print-templates) | 87 | 265 | 78 | 430 | 86 | 40 | 171 | 169 | 6 |
 | [ATT](#att--attachments) | 83 | 104 | 27 | 214 | 67 | 82 | 60 | 16 | 2 |
-| **All** | **605** | **1015** | **508** | **2128** | **362** | **803** | **602** | **489** | **18** |
+| **All** | **605** | **1017** | **509** | **2131** | **363** | **803** | **603** | **490** | **18** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2712,7 +2712,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-661 | Given a press where the picture shows, then the sheet's press rules hold: an item below it still takes the press, the picture can't be dragged | P0 | e2e | § 3 |
 | TPL-662 | Given the page size changed, or a picture of other proportions, then it stretches to fill the sheet exactly | P1 | e2e | A10 |
 | TPL-664 | Given zoom at 25%, 100%, 200%, then the picture matches the sheet exactly | P1 | e2e | A10 |
-| TPL-665 | Given a failed read or an `img` `error` event, then the message and Retry show, the sheet works, printing is unaffected, and Retry shows it after recovery | P0 | ui | A14 |
+| TPL-665 | Given a failed read or an `img` `error` event, then the message and Retry show (with the toast of TPL-727), the sheet works, printing is unaffected, and Retry shows it after recovery | P0 | ui | A14 |
 | TPL-666 | Given a real print with a picture, then the PDF has no image operations, and a staff member's page makes no `paper-image` request ever | P0 | e2e | A13 |
 | TPL-667 | Given clinic A's picture ID on clinic B's route, for read, delete and content, then 404 | P0 | api | A13 |
 | TPL-668 | Given a staff token, a clinic owner's token and no token, then 403, 403 and 401 on all six routes | P0 | api | A13 |
@@ -2768,6 +2768,9 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-723 | Given calibration saved elsewhere, then staff's next print uses it with no reload | P1 | ui | § 3 |
 | TPL-724 | Given over 50 items and a bad calibration, then server and client give the same errors | P1 | unit | § 4 |
 | TPL-725 | Given a picture stored, then its row has Preview, Download and Remove, no Replace icon and no "Download all"; a new pick shows beside it and replaces it only when Upload is pressed | P1 | ui | P6, P7, P8 |
+| TPL-726 | Given the picture's opacity at 100% and hidden, a zoom of 75% and a picked file not uploaded, when a Test print's PDF is made, then the switch, opacity, zoom and picked file are as they were, and the picture isn't fetched again | P1 | e2e | [contract](../design/prescription-templates.step4.contract.md) § 10.25 |
+| TPL-727 | Given the picture's read fails or its `img` gives an `error` event, then `printTemplates.paper.loadFailed` toasts once per failure, beside the inline message and Retry, which stay (TPL-665); a Retry that fails again toasts again; a load that succeeds doesn't toast | P1 | ui | [contract](../design/prescription-templates.step4.contract.md) § 10.26 |
+| TPL-728 | Given `testPrintChunk`, then its Arabic lines have `dir="rtl"` and a line with no right-to-left letter comes out `dir="ltr"` with `text-align:right`, as `cleanPrintHtml` gives a real line | P2 | unit | [contract](../design/prescription-templates.step4.contract.md) § 10.27 |
 
 ## ATT — Attachments
 

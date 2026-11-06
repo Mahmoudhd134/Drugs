@@ -1,5 +1,5 @@
 import type {Locator, Page} from "@playwright/test";
-import {expect, signInSuperAdmin, test} from "../support/fixtures.ts";
+import {expect, settled, signInSuperAdmin, test} from "../support/fixtures.ts";
 import {unique} from "../support/phones.ts";
 import {
     expectPageSize,
@@ -39,12 +39,15 @@ import {
     manualItem,
     ONE_LANGUAGE,
     openDesigner,
+    opacityTo,
     openDesignerWithPaper,
+    paperApiPath,
     putTemplate,
     rulersOn,
     staticItem,
     tabPath,
     textItem,
+    trueZoom,
     typeInto,
     zoomTo,
 } from "../support/print-template.ts";
@@ -60,6 +63,26 @@ const pressedOnce = async (page: Page, designer: Designer, calls = 1) => {
 };
 
 const frames = (scope: Locator) => scope.getByTestId("test-print-frame");
+
+declare global {
+    interface Window {
+        __widthChanges: boolean[];
+    }
+}
+
+/** From here on, each change of the query that keeps the designer on screen: a print lays the page out at paper width, below 900 px, and back. */
+const watchWindowWidth = (page: Page) => page.evaluate(() => {
+    window.__widthChanges = [];
+    window.matchMedia("(min-width: 900px)").addEventListener("change", change => window.__widthChanges.push(change.matches));
+});
+
+/** The print did lay the page out below 900 px and it's back, the app's queries told in the same step: what a state lost there would have lost by now. Without this, a check after the PDF could pass before the page came back, or with no narrow layout at all. */
+const widthBackAfterPrint = async (page: Page) => {
+    await expect.poll(() => page.evaluate(() => window.__widthChanges), {message: "the window's width as the queries saw it, during the print"}).toEqual([false, true]);
+    await page.evaluate(() => new Promise(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+};
 
 test.describe("Test print @area:admin", () => {
     test.skip(({isMobile}) => isMobile, COMPUTER_ONLY);
@@ -313,6 +336,48 @@ test.describe("Test print @area:admin", () => {
                 expect(Math.abs(run.x - realRuns[index].x), `«${run.text}»: x`).toBeLessThanOrEqual(0.1);
                 expect(Math.abs(run.y - realRuns[index].y), `«${run.text}»: y`).toBeLessThanOrEqual(0.1);
             }
+        });
+
+    test("a print is not an opening: after the PDF the switch, the opacity, the zoom and a picked file are as they were, and the picture isn't fetched again @TPL-726",
+        async ({page, data, lang}) => {
+            await stubPrint(page);
+            const reads: string[] = [];
+            page.on("request", request => {
+                if (request.method() === "GET") reads.push(new URL(request.url()).pathname);
+            });
+            const {clinic, designer, stored} = await openDesignerWithPaper(page, data, lang, layoutL(), paperPng());
+            const readsOfPicture = () => reads.filter(path => path === `${paperApiPath(clinic)}/${stored.id}`).length;
+            const readsBefore = readsOfPicture();
+            expect(readsBefore, "the opening read the picture: the count isn't blind").toBeGreaterThanOrEqual(1);
+
+            await opacityTo(designer, 100);
+            await designer.paperShow.click();
+            await expect(designer.paperImage).toHaveCount(0);
+            await zoomTo(designer, 75);
+            await designer.paperInput.setInputFiles(paperPng("picked.png"));
+            await expect(designer.paperPicked("picked.png")).toBeVisible();
+
+            await pressedOnce(page, designer);
+            await watchWindowWidth(page);
+            const pdf = await printedPdf(page);
+            expect(pdf.pages, "one page").toHaveLength(1);
+            await widthBackAfterPrint(page);
+
+            await expect(designer.paperShow, "the switch").not.toBeChecked();
+            await expect(designer.paperImage, "the picture stays hidden").toHaveCount(0);
+            await expect(designer.paperOpacity, "the opacity").toHaveAttribute("aria-valuetext", "100%");
+            await expect(designer.zoomPercent, "the zoom").toHaveText("75%");
+            expect(await trueZoom(designer), "the zoom in force").toBe(75);
+            await expect(designer.paperPicked("picked.png"), "the picked file").toBeVisible();
+            await expect(designer.paperUpload, "it can still be uploaded").toBeEnabled();
+
+            // Shown again: the same picture, at what was set
+            await designer.paperShow.click();
+            await expect(designer.paperImage).toBeVisible();
+            await expect(designer.paperImage).toHaveCSS("opacity", "1");
+            await expect.poll(() => designer.paperImage.evaluate(image => (image as HTMLImageElement).naturalWidth), {message: "still decoded"}).toBe(148);
+            await settled(page);
+            expect(readsOfPicture(), "the picture isn't fetched again").toBe(readsBefore);
         });
 
     for (const shift of [-6, -20]) {

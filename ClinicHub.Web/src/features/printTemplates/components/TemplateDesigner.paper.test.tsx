@@ -2,6 +2,7 @@ import {describe, expect, test, vi} from "vitest";
 import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import type {UserEvent} from "@testing-library/user-event";
 import {delay, http, HttpResponse} from "msw";
+import toast from "react-hot-toast";
 import {api as client} from "../../../api/client.ts";
 import {
     aClinicDetails,
@@ -461,7 +462,7 @@ describe("a picture that won't load @area:admin", () => {
         await waitFor(() => expect(paperLoadFailed()).toHaveTextContent("Couldn't show the paper image."));
         expect(paperImage()).toBeNull();
         expect(urls.revoked).toContain(firstUrl);
-        expect(toastTexts()).toEqual([]);
+        await expectToasts("Couldn't show the paper image.");
         await user.click(sheetItem("الاسم"));
         expect(selectedIds()).toEqual(["m"]);
 
@@ -471,6 +472,112 @@ describe("a picture that won't load @area:admin", () => {
         expect(again).not.toBe(firstUrl);
         expect(paperLoadFailed()).toBeNull();
         expect(fileReads(recorded.requests, clinic.id, stored.id)).toHaveLength(2);
+    });
+
+    describe("the toast, since the section can sit below the window", () => {
+        const FAILED = {en: "Couldn't show the paper image.", ar: "تعذر عرض صورة الورقة."};
+
+        /** The designer of a clinic whose picture's read fails, its failure on screen; the toasts it gives counted from `clearToasts`. */
+        const openFailing = async (lang: "en" | "ar" = "en") => {
+            const urls = stubObjectUrls();
+            const clinic = aClinicDetails();
+            const stored = aPaperImage();
+            const read = readThatFails(clinic.id, stored.id);
+            const recorded = recordRequests();
+            const {user} = await renderDesigner(layoutL(), {lang, clinic, paperImages: [stored], handlers: [read.handler]});
+            await waitFor(() => expect(paperLoadFailed()).toHaveTextContent(FAILED[lang]));
+            return {user, urls, read, reads: () => fileReads(recorded.requests, clinic.id, stored.id).length};
+        };
+
+        const clearToasts = async () => {
+            act(() => toast.remove());
+            await expectToasts();
+        };
+
+        test.each(["en", "ar"] as const)("in %s, a failed read toasts the message once; the inline message and Retry stay @TPL-727", async lang => {
+            const {user, reads} = await openFailing(lang);
+
+            await expectToasts(FAILED[lang]);
+
+            expect(paperLoadFailed()).toHaveTextContent(FAILED[lang]);
+            expect(retryButton()).toBeInTheDocument();
+            expect(reads()).toBe(1);
+            // Working on the sheet is no new failure
+            await user.click(sheetItem("الاسم"));
+            expect(selectedIds()).toEqual(["m"]);
+            expect(toastTexts()).toEqual([FAILED[lang]]);
+        });
+
+        test("each Retry that fails again toasts again, once; the message and Retry stay @TPL-727", async () => {
+            const {user, reads} = await openFailing();
+            await expectToasts(FAILED.en);
+
+            for (const attempt of [2, 3]) {
+                await clearToasts();
+                await user.click(retryButton());
+
+                await waitFor(() => expect(reads()).toBe(attempt));
+                await expectToasts(FAILED.en);
+                await waitFor(() => expect(paperLoadFailed()).toHaveTextContent(FAILED.en));
+                expect(retryButton()).toBeInTheDocument();
+            }
+        });
+
+        test("a Retry that succeeds doesn't toast, and the message leaves @TPL-727", async () => {
+            const {user, read} = await openFailing();
+            await expectToasts(FAILED.en);
+            await clearToasts();
+
+            read.state.broken = false;
+            await user.click(retryButton());
+
+            await pictureShown();
+            expect(paperLoadFailed()).toBeNull();
+            expect(toastTexts()).toEqual([]);
+        });
+
+        test.each(["en", "ar"] as const)("in %s, an `error` event on the picture toasts the message once; the inline message and Retry stay @TPL-727", async lang => {
+            const {user} = await openWithPicture([aPaperImage()], {lang});
+
+            fireEvent.error(paperImage()!);
+
+            await expectToasts(FAILED[lang]);
+            expect(paperLoadFailed()).toHaveTextContent(FAILED[lang]);
+            expect(retryButton()).toBeInTheDocument();
+            // Working on the sheet is no new failure
+            await user.click(sheetItem("الاسم"));
+            expect(selectedIds()).toEqual(["m"]);
+            expect(toastTexts()).toEqual([FAILED[lang]]);
+        });
+
+        test("a Retry whose picture gives an `error` event again toasts again, once; a Retry whose picture loads doesn't @TPL-727", async () => {
+            const {user} = await openWithPicture();
+            fireEvent.error(paperImage()!);
+            await expectToasts(FAILED.en);
+
+            await clearToasts();
+            await user.click(retryButton());
+            await pictureShown();
+            expect(toastTexts(), "the read succeeded: no toast yet").toEqual([]);
+            fireEvent.error(paperImage()!);
+            await expectToasts(FAILED.en);
+            await waitFor(() => expect(paperLoadFailed()).toHaveTextContent(FAILED.en));
+            expect(retryButton()).toBeInTheDocument();
+
+            await clearToasts();
+            await user.click(retryButton());
+            await pictureShown();
+            expect(paperLoadFailed()).toBeNull();
+            expect(toastTexts()).toEqual([]);
+        });
+
+        test("a load that succeeds doesn't toast @TPL-727", async () => {
+            const {user} = await openWithPicture();
+
+            expect(toastTexts()).toEqual([]);
+            await user.click(sheetItem("الاسم"));
+            expect(toastTexts()).toEqual([]);
+        });
     });
 });
 
@@ -544,6 +651,32 @@ describe("leaving a picture behind @area:admin", () => {
         const url = await pictureShown();
         expect(url).not.toBe(firstUrl);
         expect(await urls.created[Number(url.split("/").pop()) - 1].text()).toBe("content of b.png");
+    });
+
+    test("a read cut short by leaving for clinic B is no failure: no toast @TPL-727", async () => {
+        stubObjectUrls();
+        const a = aClinicDetails({name: "Clinic A"});
+        const stored = aPaperImage({originalFileName: "a.png"});
+        const b = clinicB();
+        const {router} = await renderDesigner(layoutL(), {
+            clinic: a,
+            paperImages: [stored],
+            handlers: [http.get(`${paperUrl(a.id)}/${stored.id}`, async () => {
+                await delay("infinite");
+                return new HttpResponse(null, {status: 500});
+            })],
+        });
+        await paperSectionShown();
+        await waitFor(() => expect(paperRow("a.png")).not.toBeNull());
+        server.use(...adminClinicsHandlers([a, b.clinic]), ...b.handlers);
+
+        await act(() => router!.navigate(tabPath(b.clinic.id)));
+        await paperSectionShown();
+        await waitFor(() => expect(paperRow("b.png")).not.toBeNull());
+        b.release();
+        await pictureShown();
+
+        expect(toastTexts()).toEqual([]);
     });
 
     test("an upload in flight when switching to clinic B aborts, and nothing of it shows under B @TPL-674", async () => {

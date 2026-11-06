@@ -238,6 +238,8 @@ export const designerOf = (page: Page, lang: Lang) => {
         paperUpload: settings.getByRole("region", {name: pt.paperTitle, exact: true}).getByRole("button", {name: ATTACHMENT_TEXTS[lang].upload, exact: true}),
         paperStored: settings.getByRole("list", {name: ATTACHMENT_TEXTS[lang].storedLabel, exact: true}),
         paperRow: (name: string) => settings.getByRole("list", {name: ATTACHMENT_TEXTS[lang].storedLabel, exact: true}).getByRole("listitem").filter({hasText: name}),
+        /** A file picked and not uploaded */
+        paperPicked: (name: string) => settings.getByRole("list", {name: ATTACHMENT_TEXTS[lang].selectedLabel, exact: true}).getByRole("listitem").filter({hasText: name}),
         paperImage: page.getByTestId("template-paper-image"),
         paperLoadFailed: page.getByTestId("template-paper-load-failed"),
         paperShow: settings.getByRole("switch", {name: pt.paperShow, exact: true}),

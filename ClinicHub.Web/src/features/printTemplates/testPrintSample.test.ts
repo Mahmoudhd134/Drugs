@@ -1,5 +1,6 @@
 import {describe, expect, test, vi} from "vitest";
 import {TEMPLATE_FUNCTIONS, TEST_PRINT_SAMPLE_LINES} from "./constants.ts";
+import {cleanPrintHtml} from "./printHtml.ts";
 import {rulerTicks, testPrintChunk, testPrintValues} from "./testPrintSample.ts";
 import type {FunctionItem, ManualInputItem, PrescriptionTextItem, PrintLayout, StaticTextItem, TemplateFunction, TemplateItem} from "./types.ts";
 
@@ -102,6 +103,41 @@ describe("testPrintChunk: the fixed lines, first sheet only @area:admin", () => 
         const chunk = testPrintChunk(() => false);
         expect(chunk).not.toBe("");
         expect(TEST_PRINT_SAMPLE_LINES[0].startsWith(paragraphs(chunk)[0] ?? "\0")).toBe(true);
+    });
+
+    describe("each line starts where a real prescription's line starts", () => {
+        const RIGHT_TO_LEFT_LETTER = /[؀-ۿ]/;
+        const blocks = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("p"));
+        const directionOfLine = (line: string) => (RIGHT_TO_LEFT_LETTER.test(line) ? "rtl" : "ltr");
+        const isLatin = (block: HTMLElement) => !RIGHT_TO_LEFT_LETTER.test(block.textContent ?? "");
+
+        test("every Arabic line has dir=rtl, every line with no right-to-left letter dir=ltr @TPL-728", () => {
+            const sheet = blocks(testPrintChunk(() => true));
+            expect(sheet.map(block => block.getAttribute("dir"))).toEqual(TEST_PRINT_SAMPLE_LINES.map(directionOfLine));
+            expect(sheet.some(isLatin), "a line of each").toBe(true);
+            expect(sheet.every(isLatin), "a line of each").toBe(false);
+        });
+
+        test("a line with no right-to-left letter stays at the right, as cleanPrintHtml gives a real line @TPL-728", () => {
+            const latin = blocks(testPrintChunk(() => true)).filter(isLatin);
+            expect(latin.length).toBeGreaterThan(0);
+            for (const block of latin) expect(block.getAttribute("style"), block.textContent ?? "").toContain("text-align:right");
+
+            const [real] = blocks(cleanPrintHtml(`<p dir="rtl">${TEST_PRINT_SAMPLE_LINES[0]}</p>`));
+            expect(latin[0].getAttribute("dir"), "the same direction as a real line").toBe(real.getAttribute("dir"));
+            expect(latin[0].getAttribute("style"), "the same side as a real line").toContain(real.getAttribute("style"));
+        });
+
+        test.each([[1], [2], [3], [5]])("a box that holds %i line(s): the first sheet's lines keep their sides @TPL-728", limit => {
+            const sheet = blocks(testPrintChunk(html => (html.match(/<\/p>/g) ?? []).length <= limit));
+            expect(sheet.map(block => block.getAttribute("dir"))).toEqual(TEST_PRINT_SAMPLE_LINES.slice(0, limit).map(directionOfLine));
+        });
+
+        test("a box too small for one word: what it gets keeps its side too @TPL-728", () => {
+            const [first] = blocks(testPrintChunk(() => false));
+            expect(first.getAttribute("dir")).toBe(directionOfLine(TEST_PRINT_SAMPLE_LINES[0]));
+            expect(first.getAttribute("style")).toContain("text-align:right");
+        });
     });
 });
 
