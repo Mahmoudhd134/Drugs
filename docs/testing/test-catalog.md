@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 123: the [summary](#summary) has the count now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 123 and part 2 added 60: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 60 | 56 | 15 | 131 | 58 | 82 | 0 | 0 | 1 |
-| **All** | **544** | **917** | **492** | **1953** | **342** | **788** | **500** | **441** | **15** |
+| [ATT](#att--attachments) | 81 | 89 | 21 | 191 | 64 | 82 | 44 | 10 | 2 |
+| **All** | **565** | **950** | **498** | **2013** | **348** | **788** | **544** | **451** | **16** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2654,7 +2654,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 
 ## ATT — Attachments
 
-A generic module that stores files for any feature ([design](../design/attachments.md), [business](../features/attachments/business.md); the design's part 1, the backend, and part 2's cases join when the components are built). In the Source column, `§ n` and `An` are sections and decisions of the design, and «…» quotes the business file. There's no real route: `api` cases run on the test-only controllers ([testing README](README.md#attachments-test-routes-and-a-real-server)).
+A generic module that stores files for any feature ([design](../design/attachments.md), [business](../features/attachments/business.md); the design's part 1, the backend, and part 2, the components). In the Source column, `§ n` and `An` are sections and decisions of the design, and «…» quotes the business file. There's no real route: `api` cases run on the test-only controllers ([testing README](README.md#attachments-test-routes-and-a-real-server)). No real page mounts the components either: `ui` cases run them on a fake adapter or, in the whole app, on `/test-files` routes answered by MSW (`src/test/pages/attachments.tsx`), and `e2e` cases on the harness page (design § 12).
 
 Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 MB); G = any other module string, with no entry (global list, 20 MB); owner O = (M, "1"). "Nothing written" means a clinic's own folder is unchanged: Respawn doesn't reset the disk.
 
@@ -2838,3 +2838,78 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-182 | Deleting a user with attachments is restricted by the FK, as designed | P2 | api | § 4 |
 | ATT-183 | Given an upload named `تقرير المريض.pdf`, then `OriginalFileName` keeps that name while the file on disk is named by the row's GUID, with no extension | P0 | api | A14 |
 | ATT-184 | Given a module with an override and one without, when `GetRules` is called, then each answers its own limit and extensions | P1 | unit | § 3 |
+
+### Components: selecting and uploading
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| ATT-200 | Given rules, when the picker opens, then its `accept` holds exactly the rules' extensions | P1 | ui | § 12 |
+| ATT-201 | Given several files picked, when shown, then each shows its name and size, and a selected image shows a local preview with no request | P0 | ui | § 12 |
+| ATT-202 | Given selected files, when one is removed and another added, then the selection holds exactly those | P0 | ui | § 12 |
+| ATT-203 | Given the same file picked twice, then it's listed once | P2 | ui | § 12 |
+| ATT-204 | Given a wrong type or a file over the limit, when picked (`applyAccept: false`, since the test library otherwise drops it), then an instant translated message shows and no request is sent | P0 | ui | § 12 |
+| ATT-205 | Given a file the client accepts and the server refuses, then the server's translated reason shows on that file | P0 | ui | § 12 |
+| ATT-206 | Given three files with the second failing, when uploaded, then the first and third succeed, the second stays with its reason and Retry, and Retry can succeed | P0 | ui | § 12 |
+| ATT-207 | Given an upload running, when cancelled, then the request is aborted and the file stays selected | P1 | ui | § 12 |
+| ATT-208 | Given a double click on Upload, then one upload runs per file | P1 | ui | § 12 |
+| ATT-209 | Given `multiple={false}`, when a second file is picked, then it replaces the first; given `maxFiles`, then more are refused with a message | P1 | ui | § 12 |
+| ATT-210 | Given an expired token during an upload, on the real client with `page.route`, then the refresh replays it: the replayed body's boundary matches its own header, and the file's name and bytes are the same | P1 | e2e | § 12 |
+| ATT-211 | Given files dropped on the drop area (a simulated `DataTransfer`), then they're selected as if picked | P1 | e2e | § 12 |
+| ATT-212 | Given keyboard only, then the pick control is a real button and a file can be picked and uploaded | P1 | ui | § 12 |
+| ATT-213 | Given a zero-byte pick, then the "empty" message shows and no request is sent | P1 | ui | Messages |
+| ATT-214 | Given `IMG.JPG`, or a size exactly at the limit, then accepted; limit + 1 refused | P1 | unit | § 12 |
+| ATT-215 | Given a queue running, when unmounted (a clinic switch), then the current upload aborts, no next request is sent, and no toast shows | P0 | ui | § 12 |
+| ATT-216 | Given rules failing to load, then an error and Retry show, picking is off and the list still works | P1 | ui | § 12 |
+| ATT-217 | Given a file removed, when picked again, then it's listed again | P1 | ui | § 12 |
+| ATT-218 | Given a folder dropped, then a refusal shows and no request is sent | P2 | ui | § 12 |
+| ATT-219 | Given a drop outside the area, then the app stays open | P1 | e2e | § 12 |
+| ATT-235 | Given a cancel, then no error shows and the list reloads | P1 | ui | § 12 |
+| ATT-236 | Given a run in progress, when files are added, then they wait for it; Retry isn't silently ignored | P1 | ui | § 12 |
+| ATT-237 | Given 500 files selected, then their previews load lazily and no request is sent | P2 | ui | § 12 |
+| ATT-238 | Given an upload finishing after a list refresh, then the file ends in the list once, not in the selection | P1 | ui | § 12 |
+| ATT-244 | Given a selected name with a bidi override, then it's isolated and doesn't reorder its row | P2 | ui | § 12 |
+| ATT-245 | Given `multiple={false}`, `canReplace` and a stored file, when a new file is picked, then it's only selected; when Upload is pressed, then `replace` is called on the newest stored file; a refusal keeps the old file | P0 | ui | § 12 |
+
+### Components: list, download, preview, delete
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| ATT-220 | Given stored files, then each row shows the original name, type, size and date, and opening the list fetches no file | P0 | ui | § 12 |
+| ATT-221 | Given no files, then the empty state shows | P1 | ui | § 12 |
+| ATT-222 | Given a list that fails to load, then a translated error and Retry show | P1 | ui | § 12 |
+| ATT-223 | Given Download, then the browser saves the bytes under the original name, Arabic names too | P0 | e2e | § 12 |
+| ATT-224 | Given a download answering `application/problem+json` as a blob, on the real client, then `toApiError` sees its code and the translated message shows; a parse failure keeps the original error | P0 | unit+ui | § 12 |
+| ATT-225 | Given a download answering 403 `noAccess`, on the real client, then the clinic-lost flow runs | P0 | ui | § 12 |
+| ATT-226 | Given an image and a text file, when previewed, then each really shows | P0 | e2e | § 12 |
+| ATT-239 | Given an empty-body 401 on a blob download, then refresh and replay return the blob | P1 | ui | § 12 |
+| ATT-240 | Given a double Preview, or a close while loading, then one request, the late answer is ignored, no toast, and the URL is revoked | P1 | ui | § 12 |
+| ATT-241 | Given an image failing to decode, then name, size and Download show | P1 | ui | § 12 |
+| ATT-242 | Given a preview closed, then focus returns to its button; after a delete, to the next row or the list | P1 | ui | § 12 |
+| ATT-243 | Every icon button and progress bar is named with its file; finishing and failing are announced | P1 | ui | § 12 |
+| ATT-246 | Given several files and Download all, then each is saved | P1 | e2e | A12 |
+| ATT-247 | Given a UTF-16 mark, or a 1 MB cut inside an Arabic character, then the text reads correctly | P1 | unit | § 12 |
+| ATT-248 | Given the viewer flag on and a PDF preview, then the iframe has a `title`, no `sandbox`, a hard-coded `application/pdf` type and `%PDF-` bytes | P0 | e2e | § 12 |
+| ATT-249 | Given the viewer flag off, then a PDF preview shows name, size and Download | P0 | ui | § 12 |
+| ATT-257 | Given a 403 on a download that isn't clinic-lost, then a toast shows and `/me` reloads | P1 | ui | § 12 |
+| ATT-258 | Given a PDF actually opening in the browser's viewer on a real desktop and phone | P2 | manual | § 12 |
+| ATT-227 | Given TIFF, HEIC and Office files, when previewed, then name, size and Download show, with no viewer | P1 | ui | § 12 |
+| ATT-228 | Given a text file holding `<script>` or HTML, when previewed, then it shows as literal text and nothing runs | P0 | ui | § 12 |
+| ATT-229 | Given a file name holding HTML, when shown anywhere, then it shows as literal text | P0 | ui | § 12 |
+| ATT-230 | Given a text file over 1 MB, when previewed, then the first 1 MB shows with a note; Windows-1256 Arabic reads correctly | P2 | unit | § 12 |
+| ATT-231 | Given a preview opened and closed, or the component unmounted, then every object URL is revoked | P1 | ui | § 12 |
+| ATT-232 | Given Delete confirmed, then it leaves the list; Cancel changes nothing, and a double click sends one request | P0 | ui | § 12 |
+| ATT-233 | Given a row deleted meanwhile, when acted on, then 404 reloads the list and says the item is gone | P1 | ui | § 12 |
+| ATT-259 | Given a row's Replace running, then its row shows its progress and Cancel; when cancelled, then the request is aborted, the old file stays, no error shows and the list reloads; when it fails, then a toast shows with no Retry | P1 | ui | § 12 |
+| ATT-234 | Given `canUpload` and `canDelete` left out, then those controls aren't shown | P0 | ui | § 12 |
+
+### Components: customizing and layout
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| ATT-250 | Given each of `renderTrigger`, `renderItem`, `renderSelectedItem`, `renderEmpty`, `renderPreview`, then it replaces its part and the actions it receives work | P0 | ui | A13 |
+| ATT-251 | Given `useAttachments` alone with custom markup, then every action works with no component | P0 | ui | A13 |
+| ATT-252 | Given the source of the feature's components, then none uses `dangerouslySetInnerHTML` | P1 | unit | § 12 |
+| ATT-253 | Given the harness page in Arabic, English and at phone width, then axe, cut-text and RTL checks pass with a long Arabic file name | P0 | e2e | § 12 |
+| ATT-254 | Given a phone width, then a file can be picked, uploaded, previewed and deleted; a PDF the browser can't show offers Download | P1 | e2e | § 12 |
+| ATT-255 | Given the production build (`ClinicHub.Api/wwwroot`, read from disk: the run's copy holds the harness), then the harness page isn't in it | P1 | e2e | § 12 |
+| ATT-256 | Every `attachments.*` key exists in `en.ts` and `ar.ts` | P1 | unit | § 12 |
