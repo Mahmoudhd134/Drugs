@@ -15,10 +15,10 @@ public class TemplateStorageTests(AppFixture app) : IntegrationTest(app)
 {
     /// <summary>Every kind, not in id order, so "the same order" means something.</summary>
     private static PrescriptionLayoutDto EveryKind() => Layout(A5,
-        Static("يُصرف مرة واحدة\nسطر ثان", "z9", fontSizePt: 10),
-        Manual("الاسم", "m1"),
+        Static("يُصرف مرة واحدة\nسطر ثان", "z9", fontSizePt: 10) with { Align = "center" },
+        Manual("الاسم", "m1") with { Align = "left" },
         Text("a1"),
-        Function("time", "الوقت", "f2", xMm: 100, yMm: 10),
+        Function("time", "الوقت", "f2", xMm: 100, yMm: 10) with { Align = "right" },
         FullDate("التاريخ", "f1"));
 
     [Fact]
@@ -353,13 +353,13 @@ public class TemplateStorageTests(AppFixture app) : IntegrationTest(app)
               "page": { "size": "A5", "widthMm": 148, "heightMm": 210, "script": "page" },
               "items": [
                 { "id": "t1", "kind": "prescriptionText", "xMm": 14, "yMm": 80, "wMm": 120, "hMm": 90, "fontSizePt": 11,
-                  "script": "x", "text": "another kind's", "name": "another kind's", "function": "time" },
+                  "script": "x", "text": "another kind's", "name": "another kind's", "function": "time", "align": "center" },
                 { "id": "s1", "kind": "staticText", "text": "نص", "xMm": 14, "yMm": 175, "wMm": 60, "hMm": 8, "fontSizePt": 11,
-                  "script": "x", "name": "another kind's", "function": "time" },
+                  "script": "x", "name": "another kind's", "function": "time", "align": "center" },
                 { "id": "m1", "kind": "manualInput", "name": "الاسم", "xMm": 58, "yMm": 46, "wMm": 72, "hMm": 8, "fontSizePt": 11,
-                  "script": "x", "text": "another kind's", "function": "time" },
+                  "script": "x", "text": "another kind's", "function": "time", "align": "left" },
                 { "id": "f1", "kind": "function", "function": "time", "name": "الوقت", "xMm": 14, "yMm": 46, "wMm": 30, "hMm": 8, "fontSizePt": 11,
-                  "script": "x", "text": "another kind's" }
+                  "script": "x", "text": "another kind's", "align": "right" }
               ]
             }
             """;
@@ -378,9 +378,9 @@ public class TemplateStorageTests(AppFixture app) : IntegrationTest(app)
             layout["calibration"].AsObject().Select(p => p.Key).ShouldBe(["xMm", "yMm"], ignoreOrder: true);
             var items = layout["items"].AsArray();
             items[0].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", .. box], ignoreOrder: true);
-            items[1].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "text", .. box], ignoreOrder: true);
-            items[2].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "name", .. box], ignoreOrder: true);
-            items[3].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "function", "name", .. box], ignoreOrder: true);
+            items[1].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "text", "align", .. box], ignoreOrder: true);
+            items[2].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "name", "align", .. box], ignoreOrder: true);
+            items[3].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "function", "name", "align", .. box], ignoreOrder: true);
         }
     }
 

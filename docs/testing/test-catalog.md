@@ -77,9 +77,9 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 87 | 265 | 78 | 430 | 86 | 40 | 171 | 169 | 6 |
+| [TPL](#tpl--prescription-print-templates) | 92 | 272 | 80 | 444 | 87 | 41 | 180 | 172 | 6 |
 | [ATT](#att--attachments) | 83 | 105 | 28 | 216 | 67 | 82 | 62 | 17 | 2 |
-| **All** | **605** | **1018** | **510** | **2133** | **363** | **803** | **605** | **491** | **18** |
+| **All** | **610** | **1025** | **512** | **2147** | **364** | **804** | **614** | **494** | **18** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2293,7 +2293,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-040 | Given a clinic page, when the super admin opens it, then the tab «قالب الطباعة» is listed after Staff and opens at its own URL | P1 | ui | § 6 |
 | TPL-041 | Given no template, when the tab opens, then the empty state with «إنشاء قالب»; pressing it shows an A5 sheet holding only the prescription text, calibration 0, 0, not saved yet | P0 | ui | § 6 |
 | TPL-042 | Given the panel, then it lists manual input, the six functions and static text, and internal data and JS expression dimmed, not addable, with an explanation | P0 | ui | D8, § 3 |
-| TPL-043 | Given the panel, when an item is clicked, then it appears on the sheet, selected, with its config, and its type shown as information, not as a control | P0 | ui | D8 |
+| TPL-043 | Given the panel, when an item is clicked, then it appears on the sheet, selected, with its config in the item's section, open (TPL-730), and its type shown as information, not as a control | P0 | ui | D8 |
 | TPL-044 | Given a selected item, when its X, Y, width, height or font size is typed, then the sheet updates at once (the true scale: TPL-228) | P0 | ui | § 3 |
 | TPL-045 | Given the prescription text selected, then the config has no name and no remove action | P1 | ui | D7 |
 | TPL-046 | Given a manual input selected, when it's removed, then it leaves the sheet and the selection clears | P1 | ui | § 3 |
@@ -2303,7 +2303,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-050 | Given unsaved changes, when closing or reloading the page, then the browser's prompt shows; after a save it doesn't. Exits inside the app: TPL-232, TPL-247, TPL-248 | P1 | ui | D16 |
 | TPL-051 | Given a saved template, when the page reloads, then the sheet shows it as saved, in order | P0 | e2e | § 5 |
 | TPL-052 | Given a saved template, when «حذف» is confirmed, then the empty state shows; Cancel keeps it; a destructive dialog starts on Cancel | P1 | ui | «القواعد» |
-| TPL-053 | Given a width below 900 px (899), then the tab shows «افتح هذه الصفحة من جهاز كمبيوتر.» and no designer; at 900 the designer | P1 | ui+e2e | D12 |
+| TPL-053 | Given a width below 900 px (899), then the tab shows «افتح هذه الصفحة من جهاز كمبيوتر.» and no designer; at 900 the designer, the panel and settings sharing a column beside the sheet (TPL-714), the sheet's section open (TPL-736) | P1 | ui+e2e | D12, [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
 | TPL-054 | Given Arabic and English UI at 100% zoom, then the X and Y mean the same physical place in both; the panel and config flip with the language and the sheet does not | P1 | e2e | § 3 |
 | TPL-055 | Given names and static text in Arabic and in English, then each shows in its own direction on the sheet and in the config | P2 | ui | § 3 |
 | TPL-056 | Given the designer in Arabic, English, and at desktop width, then axe and the cut-text check pass | P1 | e2e | test rules |
@@ -2317,7 +2317,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-200 | Given a database at the migration before it, when `AddPrescriptionTemplates` runs up, down and up, then the table exists with `Layout` of type `text` and a unique `ClinicId`, and no other table's rows change | P1 | api | D2, § 5 |
 | TPL-201 | Given a saved template, when it's saved again after the clock advances, then the same row `Id` and `CreatedAt`, and `UpdatedAt` moves | P2 | api | § 5 |
 | TPL-202 | Given A has a valid template, when an invalid layout is PUT (any `template*` code), then 400 and GET still answers the earlier layout unchanged | P1 | api | § 5 |
-| TPL-203 | Given an item carrying an extra property (`"script": "x"`) or another kind's field (`text` on a prescription text, `name` on a static text), when saved, then GET answers without them: only the DTO's fields are stored | P1 | api | § 5 |
+| TPL-203 | Given an item carrying an extra property (`"script": "x"`) or another kind's field (`text` or `align` on a prescription text, `name` on a static text), when saved, then GET answers without them: only the DTO's fields are stored | P1 | api | § 5 |
 | TPL-204 | Given a wrong type (`fontSizePt: "big"`, `xMm: "a"`, `items: "x"`), when saved, then 400 `invalidRequest` naming the field, and a stored template is unchanged. An unknown `kind` stays `templateLayoutInvalid` (TPL-021), so `kind` can't be a binding error | P2 | api | ERR-011, § 5 |
 | TPL-205 | Given a malformed body, when sent for a missing clinic, then 404 `notFound`; when sent with a clinic-context token, then 403 `forbidden` | P2 | api | platform-admin tech (`AdminClinicFilter`), ACC-033 |
 | TPL-206 | Given A has a template, when A is suspended and activated, then the template is unchanged; while suspended, the super admin's GET answers 200 and DELETE 204 | P2 | api | § 5 |
@@ -2334,7 +2334,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-217 | Given a custom 50 × 50 mm page, when each kind is added, then its box is inside the sheet (the prescription text's height at least 20 mm) | P2 | ui | § 3 |
 | TPL-218 | Given two «التاريخ الكامل», or two manual inputs, added in a row, then the second starts with a distinct name («التاريخ الكامل 2») | P1 | ui | § 3 |
 | TPL-219 | Given two items on the sheet, when the other one is clicked, then it becomes selected and the config shows its X, Y, width, height, font size and name or text; a changed name or static text shows on the sheet at once | P0 | ui | business file |
-| TPL-220 | Given each kind selected, then the config holds: text: geometry + font; manual input and function: name + geometry + font; static: text + geometry + font, no name. Enter in the static text field adds a line and doesn't save | P1 | ui | § 3, D9 |
+| TPL-220 | Given each kind selected, then the config holds: text: geometry + font, no alignment (TPL-742); manual input and function: name + geometry + font + alignment; static: text + geometry + font + alignment, no name. Enter in the static text field adds a line and doesn't save | P1 | ui | § 3, D9 |
 | TPL-221 | Given a custom width being typed through a valid value on its way (`50`, then `500`), when the typing ends at 500, then no item has been moved | P1 | ui | business file |
 | TPL-222 | Given an item wider or taller than the new page (a 180 mm text box on A4, going to A5), when the size changes, then the item ends fully inside, its size reduced only as far as needed and never below the minimums, and the layout saves | P1 | unit+ui | business file |
 | TPL-223 | Given A4 and an item at X 140, width 20, when A5 is chosen, then X is 128 and its width stays; items already inside don't move; going back to A4 doesn't restore the old X | P1 | unit | business file |
@@ -2356,7 +2356,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-235 | Given the clinic deleted meanwhile, when Save answers 404, then a message and the page's "Clinic not found" state | P1 | ui | § 5, `api/dataScope.ts` |
 | TPL-236 | Given a 400 from the server on a rule the screen passed (old SPA, new rule), then its message shows, the edits stay and Save works again | P2 | ui | § 5 |
 | TPL-237 | Given 50 items, when another is added, then there is no 51st and a message or a disabled panel says why | P2 | ui | § 3 |
-| TPL-238 | Given an invalid item that isn't selected, when Save is pressed, then that item gets selected and its field shows the message, since the config shows one item only | P1 | ui | TPL-048 |
+| TPL-238 | Given an invalid item that isn't selected, when Save is pressed, then that item gets selected, the item's section opens (TPL-732) and its field shows the message, since the config shows one item only | P1 | ui | TPL-048 |
 | TPL-239 | Given a 60-character unbroken name and a 1,000-character static text in a small box, then the config wraps the static text; the name stays one line, scrolling inside its field; the sheet shows them past the box, unclipped, and the page has no horizontal scroll | P1 | e2e | § 4.5, § 6 |
 | TPL-240 | Given the panel, when an item is double-clicked, then one item is added, as on the prescription page (`event.detail > 1`) | P1 | ui | double clicks, RX-012 |
 | TPL-241 | Given «إنشاء قالب» double-clicked, then one new sheet; given the delete confirm double-clicked, then one DELETE and no error toast | P2 | ui | UX-028 |
@@ -2743,7 +2743,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | TPL-700 | Given `+2` or `−2` (U+2212), then read as numbers | P0 | unit+ui | § 3 |
-| TPL-701 | Given 1280 × 800, when Save refuses an item, then its message is in view; X and Y are reachable; narrowing below 900 px and widening afterwards scrolls nothing | P1 | ui+e2e | § 3 |
+| TPL-701 | Given 1280 × 800, when Save refuses an item, then the item's section is open and its message is in view; the correction's X and Y are reachable by opening their section; narrowing below 900 px and widening afterwards scrolls nothing | P1 | ui+e2e | § 3, [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
 | TPL-702 | Given A selected, when X is typed over several keys, then one step; undo and redo keep A, no re-fit | P1 | unit+ui | § 5 |
 | TPL-703 | Given X open, when a box is dragged, an item field typed, or Undo clicked, then a `calibration` step, not `item`; `abc` is cleared by undo | P1 | ui | § 3, P5 |
 | TPL-704 | Given both languages, then the helper line, range, cut warning and load failure read exactly as § 9 | P1 | ui | § 9 |
@@ -2771,6 +2771,25 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-726 | Given the picture's opacity at 100% and hidden, a zoom of 75% and a picked file not uploaded, when a Test print's PDF is made, then the switch, opacity, zoom and picked file are as they were, and the picture isn't fetched again | P1 | e2e | [contract](../design/prescription-templates.step4.contract.md) § 10.25 |
 | TPL-727 | Given the picture's read fails or its `img` gives an `error` event, then `printTemplates.paper.loadFailed` toasts once per failure, beside the inline message and Retry, which stay (TPL-665); a Retry that fails again toasts again; a load that succeeds doesn't toast | P1 | ui | [contract](../design/prescription-templates.step4.contract.md) § 10.26 |
 | TPL-728 | Given `testPrintChunk`, then its Arabic lines have `dir="rtl"` and a line with no right-to-left letter comes out `dir="ltr"` with `text-align:right`, as `cleanPrintHtml` gives a real line | P2 | unit | [contract](../design/prescription-templates.step4.contract.md) § 10.27 |
+
+### Step 4: the settings' sections and an item's alignment
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-729 | Given the settings, then the sheet's section is open at first and at most one is open; pressing the open one closes it, leaving all closed | P1 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-730 | Given another section open, when a box is pressed, clicked, or entered, or an item is added, also when it was already selected, then the item's section opens; undo, redo, typing and a nudge leave the open section as it is | P0 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-731 | Given a picked file, a running upload or typed text, when its section closes, then they stay | P1 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-732 | Given a problem in a closed section, when Save or Test print refuses, then the first problem's section opens and its message is in view; another closed section with an error shows the mark, and fixing it clears the mark | P0 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-733 | Given the correction's section closed and a box pushed off by it, then the cut warning shows | P0 | ui | A6, [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-734 | Given 1280 × 800 and an item selected, in both languages, then all section headers and the sheet are in view with no page scroll; the settings scroll inside themselves; the sheet stays in view while the opacity slider moves | P1 | e2e | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-735 | Given the paired number fields at 1000 and 1280 px, in both languages, then no cut text and no axe failure | P1 | e2e | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-736 | Given another section open, when reopened or widened from below 900 px, then the sheet's section is open | P2 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.1 |
+| TPL-737 | Given a short item, then right is on by default; a press on center or left applies at once on the sheet, is one undo step, turns Save on, and saved and reloaded it stays; an old template's items read right and it isn't dirty | P0 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.2, § 10.29 |
+| TPL-738 | Given `align` on each kind, then a short item keeps it and the prescription text drops it; another value, `Center` included, answers `templateLayoutInvalid` on `items[i].align`; server and client agree through the fixture | P1 | unit | [contract](../design/prescription-templates.step4.contract.md) § 4.3.2 |
+| TPL-739 | Given a PUT with `align`, then it's stored and answered; missing or null saves and reads as right; a bad value or a wrong type is refused by the route | P1 | api | [contract](../design/prescription-templates.step4.contract.md) § 4.3.2 |
+| TPL-740 | Given a static text, a manual input and an ISO value, each at right, center and left, then in the real print's PDF and Test print's, in Arabic and English, its run ends at the box's right edge, centers on it, or starts at its left, within 0.5 mm, the box itself unmoved | P0 | e2e | [contract](../design/prescription-templates.step4.contract.md) § 4.3.2 |
+| TPL-741 | Given both languages, then the buttons read left, center, right from the screen's left, each named, with a tooltip, and reachable by keyboard | P2 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.2 |
+| TPL-742 | Given the prescription text selected, then no alignment control shows | P1 | ui | [contract](../design/prescription-templates.step4.contract.md) § 4.3.2 |
 
 ## ATT — Attachments
 

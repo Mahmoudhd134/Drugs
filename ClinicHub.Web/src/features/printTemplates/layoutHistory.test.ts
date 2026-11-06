@@ -460,6 +460,30 @@ describe("print template undo: unsaved changes follow the layout @area:admin", (
     });
 });
 
+describe("print template undo: an item's alignment @area:admin", () => {
+    const aligned = (align: "right" | "center" | "left" | null) => updateItem(LAYOUT, "a", {align});
+
+    test("a press is one step, undone back to what it was @TPL-737", () => {
+        const history = recordStep(EMPTY_HISTORY, LAYOUT, aligned("center"), change);
+        expect(history.past).toHaveLength(1);
+        expect(undone(history).layout).toEqual(LAYOUT);
+        expect(redone(undone(history).history).layout).toEqual(aligned("center"));
+    });
+
+    test("right on an item holding none is no change: it's right already @TPL-737", () => {
+        expect(recordStep(EMPTY_HISTORY, LAYOUT, aligned("right"), change)).toBe(EMPTY_HISTORY);
+    });
+
+    test.each<[string, PrintLayout, boolean]>([
+        ["center on an old template", aligned("center"), true],
+        ["left on an old template", aligned("left"), true],
+        ["right on an old template", aligned("right"), false],
+        ["null on an old template", aligned(null), false],
+    ])("%s, for unsaved changes @TPL-737", (_name, layout, dirty) => {
+        expect(isDirty(layout, LAYOUT, {})).toBe(dirty);
+    });
+});
+
 describe("print template undo: the printer correction @area:admin", () => {
     const step: LayoutChange = {kind: "calibration"};
 

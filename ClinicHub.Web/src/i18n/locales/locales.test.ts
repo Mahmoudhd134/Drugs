@@ -141,6 +141,20 @@ describe("print template step 4 texts @area:admin", () => {
     });
 });
 
+describe("print template settings sections and alignment texts @area:admin", () => {
+    test.each([
+        ["printTemplates.config.itemSection", "Item", "العنصر"],
+        ["printTemplates.config.sectionError", "Has an error", "فيه خطأ"],
+        ["printTemplates.config.align", "Alignment", "المحاذاة"],
+        ["printTemplates.config.alignRight", "Right", "يمين"],
+        ["printTemplates.config.alignCenter", "Center", "وسط"],
+        ["printTemplates.config.alignLeft", "Left", "يسار"],
+    ])("%s is in both files, with the contract's text @I18N-011", (key, english, arabic) => {
+        expect(enTexts[key]).toBe(english);
+        expect(arTexts[key]).toBe(arabic);
+    });
+});
+
 describe("attachment error texts @area:attachments", () => {
     test.each([
         ["attachmentTypeNotAllowed", "This file type isn't allowed.", "نوع هذا الملف غير مسموح به."],

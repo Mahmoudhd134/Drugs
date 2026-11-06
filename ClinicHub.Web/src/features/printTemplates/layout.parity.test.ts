@@ -15,7 +15,7 @@ const {rounding, cases} = JSON.parse(fixtureText) as { rounding: { value: number
 
 describe("the shared print layout cases @area:admin", () => {
     test("the file holds its rows", () => {
-        expect(cases.length).toBeGreaterThanOrEqual(121);
+        expect(cases.length).toBeGreaterThanOrEqual(142);
         expect(rounding.length).toBeGreaterThanOrEqual(10);
     });
 
@@ -41,6 +41,20 @@ describe("the shared print layout cases @area:admin", () => {
     test.each(rowsOf("TPL-724"))("%s: over 50 items, the same errors @TPL-724", (_name, row) => {
         expect(row.layout.items.length).toBeGreaterThan(50);
         expect(validateLayout(row.layout)).toEqual(row.errors);
+    });
+
+    test.each(rowsOf("TPL-738"))("%s: server and client agree on the alignment @TPL-738", (_name, row) => {
+        expect(validateLayout(row.layout)).toEqual(row.errors);
+    });
+
+    test("every short kind holds each alignment and refuses Center, on the shared rows @TPL-738", () => {
+        const aligns = (row: LayoutCase) => (row.layout.items as {kind: string; align?: unknown}[]).flatMap(item => ("align" in item ? [[item.kind, item.align]] : []));
+        const rows = cases.filter(row => row.ids.includes("TPL-738"));
+        for (const kind of ["manualInput", "function", "staticText"]) {
+            for (const align of ["right", "center", "left", null])
+                expect(rows.some(row => row.valid && aligns(row).some(pair => pair[0] === kind && pair[1] === align)), `${kind} ${align}`).toBe(true);
+            expect(rows.some(row => !row.valid && row.errors.some(error => error.field === "items[1].align") && aligns(row).some(pair => pair[0] === kind && pair[1] === "Center")), `${kind} Center`).toBe(true);
+        }
     });
 
     test("the rows that hold a null and a range say the null first @TPL-610", () => {
