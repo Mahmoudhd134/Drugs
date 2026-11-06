@@ -50,6 +50,24 @@ api.interceptors.request.use(config => {
 const CLINIC_LOST_CODES = new Set(["noAccess", "clinicSuspended"]);
 
 /**
+ * With `responseType: "blob"` (a file download), an error's body arrives as a Blob, and `toApiError` is synchronous and
+ * would see no code. Registered before the refresh interceptor, so a 403 `noAccess` on a download still follows the
+ * clinic-lost flow. A 401 may have an empty body, which isn't JSON: it stays as it is. If parsing fails, the original
+ * error goes on.
+ */
+api.interceptors.response.use(undefined, async (error: unknown) => {
+    const response = axios.isAxiosError(error) ? error.response : undefined;
+    if (response?.data instanceof Blob && response.data.type.includes("json")) {
+        try {
+            response.data = JSON.parse(await response.data.text());
+        } catch {
+            // The original error, with its Blob
+        }
+    }
+    throw error;
+});
+
+/**
  * 401 = missing or expired access token. A 403 `noAccess`/`clinicSuspended` in a clinic = the clinic may be lost
  * (design D7), or the token is out of date (e.g. re-added under a new staff record). Either way: refresh once (one
  * shared call, which also re-checks the context) and replay. If the session is gone the store becomes anonymous and
