@@ -439,7 +439,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
 
         files,
         isListLoading: listQuery.isPending,
-        // A reload that failed too: Upload may be waiting for this answer, so its Retry has to show
+        // A reload that failed too, with the old rows kept: Upload may be waiting for this answer, so its Retry has to show
         listFailed: listQuery.isError && !listQuery.isFetching,
         retryList: () => void listQuery.refetch(),
 

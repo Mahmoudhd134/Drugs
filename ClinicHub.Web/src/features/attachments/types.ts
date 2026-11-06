@@ -117,6 +117,7 @@ export type UseAttachments = {
     // The stored files
     files: Attachment[];
     isListLoading: boolean;
+    /** The last load failed. After a failed reload `files` still holds the rows it had */
     listFailed: boolean;
     retryList: () => void;
 

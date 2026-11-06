@@ -154,19 +154,20 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
     });
 
     if (files.isListLoading) return <LinearProgress aria-label={t("common.loading")}/>;
-    if (files.listFailed) {
-        return (
-            <Alert
-                severity="error"
-                action={<Button color="inherit" size="small" onClick={files.retryList}>{t("common.retry")}</Button>}
-            >
-                {t("attachments.listFailed")}
-            </Alert>
-        );
-    }
+    const failedAlert = files.listFailed && (
+        <Alert
+            severity="error"
+            action={<Button color="inherit" size="small" onClick={files.retryList}>{t("common.retry")}</Button>}
+        >
+            {t("attachments.listFailed")}
+        </Alert>
+    );
+    // With no rows to keep, there's nothing else to show: "no files" would be a guess
+    if (failedAlert && files.files.length === 0) return failedAlert;
 
     return (
         <Stack sx={{gap: 1}}>
+            {failedAlert}
             {replaces && (
                 <input
                     ref={replaceInput}
@@ -177,7 +178,7 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
                     onChange={onReplacePicked}
                 />
             )}
-            {files.files.length > 0 && (
+            {files.multiple && files.files.length > 0 && (
                 <Stack direction="row" sx={{justifyContent: "flex-end"}}>
                     <Button
                         size="small"
