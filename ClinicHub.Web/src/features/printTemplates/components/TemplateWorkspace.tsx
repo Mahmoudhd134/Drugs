@@ -91,9 +91,13 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
         if (button?.disabled && document.activeElement === button) focusArea();
     });
 
-    // A refused Save or Test print: its message comes into view, once rendered (TPL-701). Nothing else moves
+    // A refused Save or Test print: its message comes into view, once rendered (TPL-701). Nothing else moves. The whole field, since the message is below the
+    // input. After a press only: `refusals` outlives this workspace, and widening the window mounts it anew with nothing pressed
+    const answeredRefusals = useRef(refusals);
     useEffect(() => {
-        if (refusals > 0) settings.current?.querySelector('[aria-invalid="true"]')?.scrollIntoView({block: "nearest"});
+        if (refusals === answeredRefusals.current) return;
+        answeredRefusals.current = refusals;
+        settings.current?.querySelector('[aria-invalid="true"]')?.closest(".MuiFormControl-root")?.scrollIntoView({block: "nearest"});
     }, [refusals]);
 
     useEffect(() => {
@@ -213,7 +217,8 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                         flexDirection: "column",
                         gap: 2,
                         minWidth: 0,
-                        overflowY: "auto",
+                        // From 900 to 1199 px only: from 1200 px it has no box of its own to scroll
+                        overflowY: {md: "auto", lg: "visible"},
                         // From 1200 px these two are the grid's children, on either side of the area
                         "& > :first-of-type": {order: {lg: 1}},
                         "& > :last-of-type": {order: {lg: 3}},
