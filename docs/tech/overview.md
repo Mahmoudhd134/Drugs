@@ -589,7 +589,7 @@ Swagger UI is available in Development at `/swagger`.
 | `/select-clinic` | `SelectClinicPage` (logged in) |
 | `/admin` | `ClinicsPage` (platform context: search, status filter, paging, kept in the URL query) |
 | `/admin/clinics/new` | `CreateClinicPage` (clinic name + owner phone and name) |
-| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer with drag, handles, guides, keyboard, undo and zoom, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
+| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer with drag, handles, guides, keyboard, undo and zoom, collapsible settings sections and each short item's horizontal alignment, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
 | `/admin/*` | redirects to `/admin` |
 | `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
