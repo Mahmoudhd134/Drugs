@@ -63,6 +63,8 @@ export const TemplateSidePanel = ({canAdd, onAdd, onEntryPress, swallowClick}: P
             component="section"
             variant="outlined"
             aria-label={t("printTemplates.panel.label")}
+            // It scrolls from 1200 px, and at 50 items every entry is disabled: the keyboard must still reach it
+            tabIndex={0}
             sx={{
                 p: 1.5,
                 minWidth: 0,
