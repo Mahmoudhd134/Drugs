@@ -90,9 +90,10 @@ All at once; none stops the others (so one run reports every failure).
 | E2E (smoke) | `step`: the `@smoke` tests of every project in one job | 4 min |
 | E2E (1/6 … 6/6) | `full`/`release`: the three main Playwright projects (`ar-desktop`, `en-desktop`, `ar-phone`) in 6 shards, each with its own API and database | 5 min each |
 | E2E (template) | `full`/`release`: `ar-desktop-template` alone (`--no-deps`): its `dependencies` in `playwright.config.ts` would keep the whole suite in one shard | 1.5 min |
+| E2E (shared-catalog) | `full`/`release`: `ar-desktop-shared-catalog` alone (`--no-deps`), for the same reason | 3 min |
 | Mutation (`<file>`) | `release`, so every pull request into `main` (the 6 critical files), or `-Mutate`: Stryker.NET on one file per job, 85% gate (`tests/tools/mutation/mutation-score.ps1`) | minutes per file |
 | Mutation (frontend pure logic) | `release` (every pull request into `main`): StrykerJS (`npm run test:mutation`), 85% overall | |
-| Gates | merges the e2e reports (fails if fewer tests reported than planned), traceability (`step`: the report; `full`/`release`: the self-test and the gate); fails when any job failed (or, on `release`, a mutation job was skipped). **The one required check** | 1 min |
+| Gates | merges the e2e reports (fails if the tests reported differ from the `--list` of the tier, so a lost shard or a project no job runs fails it), traceability (`step`: the report; `full`/`release`: the self-test and the gate); fails when any job failed (or, on `release`, a mutation job was skipped). **The one required check** | 1 min |
 
 - The run's summary page shows the tier, the seed, the counts, the coverage gates, the e2e totals, the mutation scores
   and the traceability table; the artifacts (14 days): `backend`, `frontend` (results and coverage), `e2e-report` (the
@@ -102,7 +103,7 @@ All at once; none stops the others (so one run reports every failure).
   `mirror.gcr.io` (`CLINICHUB_POSTGRES_IMAGE`; locally `postgres:17`), Chromium without Playwright's extra fonts (the
   app's fonts come from Google Fonts), 3 Playwright workers per job.
 - `step` on CI runs **every** integration test (they take ≈ 30 s there), not the areas `test.ps1` picks from the diff.
-- The free plan runs 20 jobs at once: a `full` run takes 11, so runs of several sessions at the same moment queue a
+- The free plan runs 20 jobs at once: a `full` run takes 12, so runs of several sessions at the same moment queue a
   few minutes; `step` (4 jobs) is the one to use while working.
 - A push to the branch of an open pull request (drafts too) also starts that pull request's run (`full`; into `main`:
   `release`): on such a branch, `./ci.ps1` with the same tier would run it twice, so wait for the pull request's run instead (`gh pr checks --watch`);
