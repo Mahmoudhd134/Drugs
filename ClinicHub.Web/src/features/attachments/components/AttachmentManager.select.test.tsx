@@ -374,6 +374,43 @@ describe("rules that fail to load @area:attachments", () => {
         await pickFiles(aFile("a.png", 1));
         await expectSelected("a.png");
     });
+
+    test("a user with only a row's Replace: the error and Retry show with no trigger, and Retry turns Replace on @ATT-216", async () => {
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: "stored.pdf"})]});
+        adapter.rules.mockRejectedValue(apiRefusal(500, "unexpected"));
+        const {user} = await renderManager({canReplace: true, adapter});
+
+        const message = await screen.findByText("Couldn't load what can be uploaded.");
+        const alert = message.closest<HTMLElement>('[role="alert"]');
+        expect(alert).not.toBeNull();
+        expect(screen.getByRole("button", {name: named.replace("stored.pdf")})).toBeDisabled();
+        expect(screen.queryByRole("button", {name: "Choose files"})).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", {name: "Upload"})).not.toBeInTheDocument();
+        expect(screen.queryByTestId("attachment-drop-area")).not.toBeInTheDocument();
+
+        adapter.rules.mockResolvedValue(ALL_RULES);
+        await user.click(within(alert!).getByRole("button", {name: "Retry"}));
+
+        await waitFor(() => expect(screen.getByRole("button", {name: named.replace("stored.pdf")})).toBeEnabled());
+        expect(screen.queryByText("Couldn't load what can be uploaded.")).not.toBeInTheDocument();
+    });
+
+    test.each([
+        ["nothing allowed", {}, {}],
+        ["only Delete", {canDelete: true}, {}],
+        ["canReplace with no replace call", {canReplace: true}, {replace: undefined}],
+    ])("%s: nothing needs the rules, so their failure shows nothing @ATT-216", async (_what, props, overrides) => {
+        const adapter = fakeAdapter({...overrides, files: [aStoredFile({originalFileName: "stored.pdf"})]});
+        adapter.rules.mockRejectedValue(apiRefusal(500, "unexpected"));
+        await renderManager({...props, adapter});
+
+        await expectStored("stored.pdf");
+        await waitFor(() => expect(adapter.rules).toHaveBeenCalled());
+        await pastPendingWork();
+
+        expect(screen.queryByText("Couldn't load what can be uploaded.")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", {name: "Retry"})).not.toBeInTheDocument();
+    });
 });
 
 describe("a drop @area:attachments", () => {

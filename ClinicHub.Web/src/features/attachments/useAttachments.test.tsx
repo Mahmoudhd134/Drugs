@@ -50,6 +50,37 @@ const begin = (action: () => unknown) => act(() => {
     void action();
 });
 
+describe("useAttachments alone, Upload before the list has answered @area:attachments", () => {
+    test.each([
+        ["one file replaced by Upload", {multiple: false, canReplace: true}],
+        ["maxFiles", {maxFiles: 3}],
+    ])("the list failed, %s: upload sends nothing, and the file keeps waiting @ATT-260", async (_what, options) => {
+        const adapter = fakeAdapter({files: [stored("a.png")], list: () => Promise.reject(apiRefusal(500, "unexpected"))});
+        await start(adapter, options);
+        await waitFor(() => expect(hook.listFailed).toBe(true));
+        await run(() => hook.pick([aFile("new.png", 1)]));
+
+        await run(() => hook.upload());
+        await pastPendingWork();
+
+        expect(adapter.upload).not.toHaveBeenCalled();
+        expect(adapter.replace).not.toHaveBeenCalled();
+        expect(stateOf("new.png")?.status).toBe("waiting");
+    });
+
+    test("the list failed, several files with no maxFiles: upload sends @ATT-260", async () => {
+        const adapter = fakeAdapter({list: () => Promise.reject(apiRefusal(500, "unexpected"))});
+        await start(adapter);
+        await waitFor(() => expect(hook.listFailed).toBe(true));
+        await run(() => hook.pick([aFile("new.png", 1)]));
+
+        await run(() => hook.upload());
+
+        expect(adapter.upload).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(selectedNames()).toEqual([]));
+    });
+});
+
 describe("useAttachments alone, the rules and the list @area:attachments", () => {
     test("it gives the rules, the accept, the stored files and its options, and renders nothing of its own @ATT-251", async () => {
         const adapter = fakeAdapter({files: [stored("a.png")]});

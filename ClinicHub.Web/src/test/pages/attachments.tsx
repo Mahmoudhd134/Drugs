@@ -505,6 +505,28 @@ export const announcements = () =>
 /** Waits until an `aria-live` region of the manager says `text`. */
 export const expectAnnounced = (text: string) => waitFor(() => expect(announcements()).toContain(text));
 
+/**
+ * Every text the manager's `aria-live` region takes from now on, in order: a screen reader only speaks when it changes.
+ * How it changes between two results is the code's business; that it does isn't.
+ */
+export const watchAnnouncements = () => {
+    const region = Array.from(document.querySelectorAll('[aria-live="polite"]')).find(element => !element.closest("[data-rht-toaster]"));
+    if (!region) throw new Error("The manager has no aria-live region");
+    const texts: string[] = [];
+    const observer = new MutationObserver(() => texts.push(region.textContent ?? ""));
+    observer.observe(region, {childList: true, characterData: true, subtree: true});
+    onTestFinished(() => observer.disconnect());
+    return texts;
+};
+
+/**
+ * Where the focus is after a pick in a browser: not on the hidden input, which jsdom's click on it focuses, and not on
+ * the button, disabled while the file goes. So the row's unmounting isn't what takes it.
+ */
+export const focusFallsAway = () => act(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+});
+
 /** `navigator.pdfViewerEnabled` as the browser would answer it (jsdom has none), until the test ends. */
 export const setPdfViewer = (enabled: boolean) => {
     Object.defineProperty(window.navigator, "pdfViewerEnabled", {configurable: true, get: () => enabled});

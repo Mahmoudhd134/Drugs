@@ -2,8 +2,8 @@ import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import {describe, expect, test} from "vitest";
 import {isolate, toastTexts} from "../../../test";
 import {
-    aFile, apiRefusal, aStoredFile, canRemove, deferred, expectAnnounced, expectSelected, expectStored, fakeAdapter, findRefusal,
-    named, pastPendingWork, pickFiles, press, REASON, refuseUploadOf, renderLeavableManager, renderManager, selectedRow, storedRow,
+    aFile, apiRefusal, aStoredFile, canRemove, deferred, expectAnnounced, expectSelected, expectStored, fakeAdapter, type FakeAdapter,
+    findRefusal, named, pastPendingWork, pickFiles, press, REASON, refuseUploadOf, renderLeavableManager, renderManager, selectedRow, storedRow,
     storedRows,
 } from "../../../test/pages/attachments.tsx";
 import type {Attachment} from "../types.ts";
@@ -634,5 +634,327 @@ describe("one stored file, replaced by Upload @area:attachments", () => {
         expect(held.signal?.aborted).toBe(true);
         await expectSelected("new.png");
         await expectStored("newest.pdf", "older.pdf");
+    });
+
+    test("multiple={false} with canUpload and canReplace but no replace call: Upload adds the file, it isn't a replace @ATT-264", async () => {
+        const adapter = fakeAdapter({files: stored(), replace: undefined});
+        const {user} = await renderManager({canUpload: true, multiple: false, canReplace: true, adapter});
+        await expectStored("newest.pdf", "older.pdf");
+        await pickFiles(aFile("new.png", 1));
+        await expectSelected("new.png");
+
+        await user.click(upload());
+
+        await expectStored("new.png", "newest.pdf", "older.pdf");
+        expect(adapter.upload).toHaveBeenCalledTimes(1);
+    });
+
+    test("with no replace call a stored file counts: maxFiles 1 is full @ATT-264", async () => {
+        const [only] = stored();
+        await renderManager({canUpload: true, multiple: false, canReplace: true, maxFiles: 1, adapter: fakeAdapter({files: [only], replace: undefined})});
+        await expectStored("newest.pdf");
+
+        await pickFiles(aFile("new.png", 1));
+
+        await findRefusal(`“${isolate("new.png")}” wasn't added. Most files allowed: 1.`);
+        await expectSelected();
+    });
+});
+
+describe("Upload before the list has answered @area:attachments", () => {
+    const stored = () => [
+        aStoredFile({originalFileName: "newest.pdf", createdAt: "2026-11-06T12:00:00Z"}),
+        aStoredFile({originalFileName: "older.pdf", createdAt: "2026-11-01T12:00:00Z"}),
+    ];
+    const LIST_FAILED = "Couldn't load the files.";
+
+    /** The list held until `answer()`. */
+    const whileLoading = (files: Attachment[], overrides: Parameters<typeof fakeAdapter>[0] = {}) => {
+        const held = deferred<Attachment[]>();
+        const adapter = fakeAdapter({...overrides, files, list: () => held.promise});
+        return {
+            adapter,
+            ready: () => Promise.resolve(),
+            answer: () => act(async () => held.resolve([...adapter.files])),
+        };
+    };
+
+    /** The list refused until `answer()`, which presses its Retry. */
+    const whileFailed = (files: Attachment[], overrides: Parameters<typeof fakeAdapter>[0] = {}) => {
+        const adapter = fakeAdapter({...overrides, files, list: () => Promise.reject(apiRefusal(500, "unexpected"))});
+        return {
+            adapter,
+            ready: () => screen.findByText(LIST_FAILED).then(() => undefined),
+            answer: async () => {
+                adapter.list.mockImplementation(async () => [...adapter.files]);
+                await act(async () => fireEvent.click(screen.getByRole("button", {name: "Retry"})));
+            },
+        };
+    };
+
+    const STATES = [["loading", whileLoading], ["failed", whileFailed]] as const;
+
+    const nothingSent = async (adapter: FakeAdapter) => {
+        await pastPendingWork();
+        expect(adapter.upload).not.toHaveBeenCalled();
+        expect(adapter.replace).not.toHaveBeenCalled();
+    };
+
+    test.each(STATES)("the list %s, one file replaced by Upload: the pick is selected and Upload is off; once the list answers, it replaces the newest, with no second file @ATT-260", async (_state, list) => {
+        const files = stored();
+        const {adapter, ready, answer} = list(files);
+        const {user} = await renderManager({canUpload: true, multiple: false, canReplace: true, adapter});
+        await ready();
+
+        await pickFiles(aFile("new.png", 1));
+
+        await expectSelected("new.png");
+        expect(upload()).toBeDisabled();
+        await nothingSent(adapter);
+
+        await answer();
+        await expectStored("newest.pdf", "older.pdf");
+        await waitFor(() => expect(upload()).toBeEnabled());
+        await user.click(upload());
+
+        await expectStored("new.png", "older.pdf");
+        expect(adapter.replace.mock.calls.map(([id]) => id)).toEqual([files[0].id]);
+        expect(adapter.upload).not.toHaveBeenCalled();
+    });
+
+    test.each(STATES)("the list %s, with maxFiles: the pick is selected and Upload is off; once the list answers with room left, it sends @ATT-260", async (_state, list) => {
+        const {adapter, ready, answer} = list(stored());
+        const {user} = await renderManager({canUpload: true, maxFiles: 3, adapter});
+        await ready();
+
+        await pickFiles(aFile("new.png", 1));
+
+        await expectSelected("new.png");
+        expect(upload()).toBeDisabled();
+        await nothingSent(adapter);
+
+        await answer();
+        await expectStored("newest.pdf", "older.pdf");
+        await waitFor(() => expect(upload()).toBeEnabled());
+        await user.click(upload());
+
+        await expectStored("new.png", "newest.pdf", "older.pdf");
+        expect(adapter.upload).toHaveBeenCalledTimes(1);
+    });
+
+    test.each(STATES)("the list %s, multiple={false} with maxFiles and no canReplace: Upload is off too @ATT-260", async (_state, list) => {
+        const {adapter, ready} = list([]);
+        await renderManager({canUpload: true, multiple: false, maxFiles: 1, adapter});
+        await ready();
+
+        await pickFiles(aFile("new.png", 1));
+
+        await expectSelected("new.png");
+        expect(upload()).toBeDisabled();
+        await nothingSent(adapter);
+    });
+
+    test.each(STATES)("the list %s, the file picked meanwhile fills maxFiles once it answers: the limit still holds, nothing goes over it @ATT-260", async (_state, list) => {
+        const {adapter, ready, answer} = list(stored().slice(0, 1));
+        await renderManager({canUpload: true, maxFiles: 1, adapter});
+        await ready();
+        await pickFiles(aFile("new.png", 1));
+        await expectSelected("new.png");
+
+        await answer();
+        await expectStored("newest.pdf");
+        await pastPendingWork();
+        // Whether the file is refused now or Upload stays off is the code's: a click on a disabled button does nothing
+        fireEvent.click(upload());
+
+        await nothingSent(adapter);
+        expect(adapter.files).toHaveLength(1);
+    });
+
+    const FREE_OF_THE_LIST = [
+        ["several files with no maxFiles", {canUpload: true}, {}],
+        ["several files, canReplace and no maxFiles", {canUpload: true, canReplace: true}, {}],
+        ["one file with neither canReplace nor maxFiles", {canUpload: true, multiple: false}, {}],
+        ["one file, canReplace with no replace call", {canUpload: true, multiple: false, canReplace: true}, {replace: undefined}],
+    ] as const;
+
+    test.each(STATES.flatMap(([state, list]) => FREE_OF_THE_LIST.map(([what, props, overrides]) => [what, state, list, props, overrides] as const)))(
+        "%s, the list %s: its state doesn't stop Upload @ATT-260", async (_what, _state, list, props, overrides) => {
+            const {adapter, ready} = list(stored(), overrides);
+            const {user} = await renderManager({...props, adapter});
+            await ready();
+            await pickFiles(aFile("new.png", 1));
+            await expectSelected("new.png");
+
+            expect(upload()).toBeEnabled();
+            await user.click(upload());
+
+            await expectSelected();
+            expect(adapter.upload).toHaveBeenCalledTimes(1);
+        });
+
+    test("a reload counts: a file picked while another uploads waits for the list's new answer, then replaces the one just stored @ATT-260", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, multiple: false, canReplace: true, adapter});
+        await screen.findByText("No files yet.");
+        await pickFiles(aFile("first.png", 1));
+        await expectSelected("first.png");
+        await user.click(upload());
+        const first = await gate.held("first.png");
+        await pickFiles(aFile("second.png", 1));
+        await expectSelected("first.png", "second.png");
+
+        const reload = deferred<Attachment[]>();
+        const loads = adapter.list.mock.calls.length;
+        adapter.list.mockImplementationOnce(() => reload.promise);
+        await first.finish();
+        await waitFor(() => expect(adapter.list.mock.calls.length).toBeGreaterThan(loads));
+        await expectSelected("second.png");
+        await pastPendingWork();
+
+        expect(upload()).toBeDisabled();
+
+        const [justStored] = adapter.files;
+        await act(async () => reload.resolve([...adapter.files]));
+        await waitFor(() => expect(upload()).toBeEnabled());
+        await user.click(upload());
+        await (await gate.held("second.png")).finish();
+
+        await expectStored("second.png");
+        expect(adapter.upload).toHaveBeenCalledTimes(1);
+        expect(adapter.replace.mock.calls.map(([id]) => id)).toEqual([justStored.id]);
+    });
+});
+
+describe("focus after Remove or Cancel on a selected row @area:attachments", () => {
+    const firstButtonOf = (name: string) => within(selectedRow(name)).getAllByRole("button")[0];
+    const pick = () => screen.getByRole("button", {name: "Choose files"});
+
+    test("Remove: to the next row's first button @ATT-262", async () => {
+        const {user} = await renderManager({canUpload: true});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1), aFile("c.png", 1));
+        await expectSelected("a.png", "b.png", "c.png");
+
+        await press(user, named.remove("a.png"));
+
+        await expectSelected("b.png", "c.png");
+        await waitFor(() => expect(firstButtonOf("b.png")).toHaveFocus());
+    });
+
+    test("Remove in the middle: the row after it, not the one before @ATT-262", async () => {
+        const {user} = await renderManager({canUpload: true});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1), aFile("c.png", 1));
+        await expectSelected("a.png", "b.png", "c.png");
+
+        await press(user, named.remove("b.png"));
+
+        await expectSelected("a.png", "c.png");
+        await waitFor(() => expect(firstButtonOf("c.png")).toHaveFocus());
+    });
+
+    test("Remove on the last row: no next row, so to the Choose files button @ATT-262", async () => {
+        const {user} = await renderManager({canUpload: true});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+
+        await press(user, named.remove("b.png"));
+
+        await expectSelected("a.png");
+        await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test("Remove on the only row: to the Choose files button @ATT-262", async () => {
+        const {user} = await renderManager({canUpload: true});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+
+        await press(user, named.remove("a.png"));
+
+        await expectSelected();
+        await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test("with multiple={false}, the button says one file @ATT-262", async () => {
+        const {user} = await renderManager({canUpload: true, multiple: false});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+
+        await press(user, named.remove("a.png"));
+
+        await expectSelected();
+        await waitFor(() => expect(screen.getByRole("button", {name: "Choose a file"})).toHaveFocus());
+    });
+
+    test("in Arabic @ATT-262", async () => {
+        const {user} = await renderManager({canUpload: true}, {lang: "ar"});
+        await pickFiles(aFile("a.png", 1));
+        await screen.findByRole("list", {name: "الملفات المختارة"});
+
+        await press(user, `إزالة «${isolate("a.png")}»`);
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "اختيار ملفات"})).toHaveFocus());
+    });
+
+    test("Cancel on the uploading row: to the next row's first button; the row stays, cancelled @ATT-262", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+        await user.click(upload());
+        await gate.held("a.png");
+
+        await press(user, named.cancel("a.png"));
+
+        await gate.held("b.png");
+        await expectSelected("a.png", "b.png");
+        await waitFor(() => expect(firstButtonOf("b.png")).toHaveFocus());
+    });
+
+    test("Cancel on the only row: to the Choose files button; the row stays @ATT-262", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        await gate.held("a.png");
+
+        await press(user, named.cancel("a.png"));
+
+        await waitFor(() => expect(canRemove("a.png")).toBe(true));
+        await expectSelected("a.png");
+        await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test("Cancel on a queued row: to the next row's first button @ATT-262", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1), aFile("c.png", 1));
+        await expectSelected("a.png", "b.png", "c.png");
+        await user.click(upload());
+        await gate.held("a.png");
+
+        await press(user, named.cancel("b.png"));
+
+        await waitFor(() => expect(canRemove("b.png")).toBe(true));
+        await waitFor(() => expect(firstButtonOf("c.png")).toHaveFocus());
+    });
+
+    test("Cancel on a queued last row: to the Choose files button @ATT-262", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+        await user.click(upload());
+        await gate.held("a.png");
+
+        await press(user, named.cancel("b.png"));
+
+        await waitFor(() => expect(canRemove("b.png")).toBe(true));
+        await waitFor(() => expect(pick()).toHaveFocus());
     });
 });

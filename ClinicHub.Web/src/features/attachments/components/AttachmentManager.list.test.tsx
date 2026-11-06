@@ -6,6 +6,7 @@ import {
     aFile, apiRefusal, aStoredFile, deferred, deleteConfirmed, expectStored, fakeAdapter, filesCanBePicked, named, openPreview, pastPendingWork,
     press, renderManager, replaceWith, storedRow, stubDownloads,
 } from "../../../test/pages/attachments.tsx";
+import type {Attachment, AttachmentItemActions} from "../types.ts";
 
 // The stored files: design § 12; contract § 2 "Actions on a stored file", "Screen structure and names"; business.md
 // «تعرض الميزة ملفات السجل المرتبطة به».
@@ -354,5 +355,49 @@ describe("what the feature allows @area:attachments", () => {
     test("a preview can still be opened with nothing allowed @ATT-234", async () => {
         const {user} = await renderManager({adapter: stored()});
         await expect(openPreview(user, "scan.png")).resolves.toBeInTheDocument();
+    });
+
+    const scan = () => [aStoredFile({originalFileName: "scan.png"})];
+
+    test("canDelete with no delete call: no Delete button @ATT-264", async () => {
+        await renderManager({canDelete: true, adapter: fakeAdapter({files: scan(), delete: undefined})});
+        await expectStored("scan.png");
+
+        expect(screen.queryByRole("button", {name: named.delete("scan.png")})).not.toBeInTheDocument();
+        expect(screen.getByRole("button", {name: named.download("scan.png")})).toBeInTheDocument();
+    });
+
+    test("canReplace with no replace call: no Replace button and no input for it @ATT-264", async () => {
+        await renderManager({canReplace: true, adapter: fakeAdapter({files: scan(), replace: undefined})});
+        await expectStored("scan.png");
+
+        expect(screen.queryByRole("button", {name: named.replace("scan.png")})).not.toBeInTheDocument();
+        expect(screen.queryByTestId("attachment-replace-input")).not.toBeInTheDocument();
+    });
+
+    test("renderItem gets no delete and no replace with no such call, whatever the permissions @ATT-264", async () => {
+        const seen: AttachmentItemActions[] = [];
+        const renderItem = (file: Attachment, actions: AttachmentItemActions) => {
+            seen.push(actions);
+            return <span>{file.originalFileName}</span>;
+        };
+        await renderManager({canReplace: true, canDelete: true, renderItem, adapter: fakeAdapter({files: scan(), replace: undefined, delete: undefined})});
+        await expectStored("scan.png");
+
+        expect(seen.length).toBeGreaterThan(0);
+        expect(seen.filter(actions => actions.replace || actions.delete)).toEqual([]);
+    });
+
+    test("multiple={false} and canReplace alone with no replace call: Upload wouldn't be a replace, so no picker shows @ATT-264", async () => {
+        const adapter = fakeAdapter({files: scan(), replace: undefined});
+        await renderManager({canReplace: true, multiple: false, adapter});
+        await expectStored("scan.png");
+        await waitFor(() => expect(adapter.rules).toHaveBeenCalled());
+        await pastPendingWork();
+
+        expect(screen.queryByRole("button", {name: "Choose a file"})).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", {name: "Upload"})).not.toBeInTheDocument();
+        expect(screen.queryByTestId("attachment-input")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("attachment-drop-area")).not.toBeInTheDocument();
     });
 });

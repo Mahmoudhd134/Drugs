@@ -2,7 +2,7 @@ import {screen, waitFor, within} from "@testing-library/react";
 import {describe, expect, test} from "vitest";
 import {expectToasts, findToast, isolate, toastTexts} from "../../../test";
 import {
-    aFile, apiRefusal, aStoredFile, expectStored, fakeAdapter, named, pastPendingWork, pickReplacement, press, REASON,
+    aFile, apiRefusal, aStoredFile, expectStored, fakeAdapter, focusFallsAway, named, pastPendingWork, pickReplacement, press, REASON,
     renderLeavableManager, renderManager, replaceWith, storedRow,
 } from "../../../test/pages/attachments.tsx";
 
@@ -116,6 +116,31 @@ describe("a row's Replace @area:attachments", () => {
 
         await expectToasts("File replaced");
         await expectStored("new.png", "other.pdf");
+    });
+
+    test("finished: focus moves to the new row's Replace button @ATT-261", async () => {
+        const {held} = await started();
+        focusFallsAway();
+
+        await held.finish();
+
+        await expectStored("new.png", "other.pdf");
+        await waitFor(() => expect(screen.getByRole("button", {name: named.replace("new.png")})).toHaveFocus());
+    });
+
+    test("finished on a row that isn't the first: the new row's Replace all the same, not the next row's @ATT-261", async () => {
+        const adapter = fakeAdapter({files: [...files(), aStoredFile({originalFileName: "last.pdf"})]});
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canReplace: true, adapter});
+        await expectStored("old.pdf", "other.pdf", "last.pdf");
+        await replaceWith(user, "other.pdf", aFile("new.png", 10));
+        const held = await gate.held("new.png");
+        focusFallsAway();
+
+        await held.finish();
+
+        await expectStored("old.pdf", "new.png", "last.pdf");
+        await waitFor(() => expect(screen.getByRole("button", {name: named.replace("new.png")})).toHaveFocus());
     });
 
     test("a refused pick is a toast with no Retry: nothing is sent and the old file stays @ATT-259", async () => {

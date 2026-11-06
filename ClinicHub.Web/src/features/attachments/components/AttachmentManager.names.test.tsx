@@ -2,8 +2,9 @@ import {screen, waitFor, within} from "@testing-library/react";
 import {describe, expect, test} from "vitest";
 import {expectToasts, findToast, hoverTooltip, isolate, leaveTooltip} from "../../../test";
 import {
-    aFile, announcements, apiRefusal, aStoredFile, expectAnnounced, expectSelected, expectStored, fakeAdapter, findRefusal, named,
-    openPreview, pickFiles, press, REASON, refusedLine, refuseUploadOf, renderManager, replaceWith, selectedRow, storedRow,
+    aFile, announcements, apiRefusal, aStoredFile, deleteConfirmed, expectAnnounced, expectSelected, expectStored, fakeAdapter, findRefusal, named,
+    openPreview, pastPendingWork, pickFiles, press, REASON, refusedLine, refuseUploadOf, renderManager, replaceWith, selectedRow, storedRow,
+    watchAnnouncements,
 } from "../../../test/pages/attachments.tsx";
 
 // A file name is user data (design § 12), and every control says which file it acts on (design § 12 "Text and layout",
@@ -204,5 +205,59 @@ describe("what's announced @area:attachments", () => {
 
         await waitFor(() => expect(screen.queryByRole("button", {name: named.cancel("a.png")})).not.toBeInTheDocument());
         expect(announcements().join()).not.toContain("wasn't uploaded");
+    });
+
+    /** The sentence came again, and the region's text changed between the two: only then does a screen reader speak. */
+    const announcedAgain = async (texts: string[], sentence: string) => {
+        await waitFor(() => expect(texts[texts.length - 1]).toBe(sentence));
+        expect(texts.length).toBeGreaterThanOrEqual(2);
+        expect(texts[texts.length - 2]).not.toBe(sentence);
+    };
+
+    test("a Retry failing with the same reason is announced again @ATT-243", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        const sentence = `“${isolate("a.png")}” wasn't uploaded: ${REASON.typeNotAllowed}`;
+
+        await press(user, "Upload");
+        await (await gate.held("a.png")).fail(apiRefusal(400, "attachmentTypeNotAllowed"));
+        await expectAnnounced(sentence);
+        const texts = watchAnnouncements();
+
+        await press(user, named.retry("a.png"));
+        const again = await gate.held("a.png");
+        await pastPendingWork();
+        await again.fail(apiRefusal(400, "attachmentTypeNotAllowed"));
+
+        await announcedAgain(texts, sentence);
+    });
+
+    test("a same-named file uploaded twice is announced again @ATT-243", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, canDelete: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        const sentence = `“${isolate("a.png")}” was uploaded.`;
+
+        await press(user, "Upload");
+        await (await gate.held("a.png")).finish();
+        await expectAnnounced(sentence);
+        await expectStored("a.png");
+        await deleteConfirmed(user, "a.png");
+        await expectStored();
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        const texts = watchAnnouncements();
+
+        await press(user, "Upload");
+        const again = await gate.held("a.png");
+        await pastPendingWork();
+        await again.finish();
+
+        await announcedAgain(texts, sentence);
     });
 });

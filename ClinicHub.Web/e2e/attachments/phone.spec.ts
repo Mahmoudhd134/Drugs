@@ -53,4 +53,15 @@ test.describe("Attachments: by touch on a phone @area:attachments", () => {
             await expect(preview.getByText(a.sizeB(bytes.length)), "with the file's size").toBeVisible();
             await healthy();
         });
+
+    test("the drop hint is hidden on a touch device, where dropping doesn't exist, and the button stays; on a desktop it shows @ATT-263",
+        async ({page, lang, isMobile, healthy}) => {
+            const ui = await openHarness(page, lang);
+            const touch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+            expect(touch, "the phone project is the one with no precise pointer").toBe(isMobile);
+
+            await expect(ui.pickButton, "the button stays everywhere").toBeVisible();
+            await expect(ui.dropArea.getByText(ui.a.dropHint, {exact: true}), "the hint shows only where a file can be dropped").toBeVisible({visible: !isMobile});
+            await healthy();
+        });
 });
