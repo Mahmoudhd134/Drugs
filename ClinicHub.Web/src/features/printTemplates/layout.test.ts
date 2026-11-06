@@ -1,6 +1,8 @@
 import {describe, expect, test} from "vitest";
+import {DEFAULT_ITEM_ALIGN, ITEM_ALIGNS} from "./constants.ts";
 import {
     addItem,
+    alignOf,
     applyPageSize,
     calibrationCutsItems,
     canAddItem,
@@ -49,6 +51,9 @@ const manyItems = (count: number): TemplateItem[] => [
 ];
 
 const repeat = (length: number) => "ن".repeat(length);
+
+/** The alignment an item holds as it stands: missing is undefined, null stays null. */
+const alignHeld = (item: TemplateItem) => (item as {align?: unknown}).align;
 
 describe("roundTenth: one decimal, midpoint away from zero @area:admin", () => {
     test.each([
@@ -204,6 +209,65 @@ describe("normalizeLayout: what is validated, compared and sent @area:admin", ()
         const layout = layoutOf(text(), manual({name: " الاسم ", xMm: 12.34}));
         normalizeLayout(layout);
         expect(layout.items[1]).toEqual(manual({name: " الاسم ", xMm: 12.34}));
+    });
+
+    describe("the alignment", () => {
+        test.each(["right", "center", "left"] as const)("a short item keeps %s @TPL-738", align => {
+            const items = normalizeLayout(layoutOf(text(), manual({align}), fn({align}), stat({align}))).items;
+            expect(items.map(alignHeld)).toEqual([undefined, align, align, align]);
+        });
+
+        test("a short item keeps a null one, and another value as it came, for the rules to refuse @TPL-738", () => {
+            const nulls = normalizeLayout(layoutOf(manual({align: null}), fn({align: null}), stat({align: null}))).items;
+            expect(nulls.map(alignHeld)).toEqual([null, null, null]);
+            const others = normalizeLayout(raw(layoutOf(manual({align: " Center " as never}), fn({align: "Left" as never}), stat({align: "" as never})))).items;
+            expect(others.map(alignHeld)).toEqual([" Center ", "Left", ""]);
+        });
+
+        test("an item with none gains none @TPL-738", () => {
+            for (const item of normalizeLayout(layoutOf(text(), manual(), fn(), stat())).items) expect(item).not.toHaveProperty("align");
+        });
+
+        test.each(["center", "Center", null])("the prescription text and an unknown kind drop %s @TPL-738", align => {
+            const [prescription, unknown] = normalizeLayout(raw(layoutOf(
+                {...text(), align} as TemplateItem,
+                {...manual(), kind: "qrCode", align} as unknown as TemplateItem))).items;
+            expect(prescription).not.toHaveProperty("align");
+            expect(unknown).not.toHaveProperty("align");
+            expect(prescription).toEqual(text());
+        });
+
+        test("the rest of an aligned item is normalized as ever, and the layout given isn't changed @TPL-738", () => {
+            const dropped = {...text(), align: "center"} as TemplateItem;
+            const given = layoutOf(dropped, manual({name: " الاسم ", xMm: 12.34, align: "left"}));
+            expect(normalizeLayout(given).items[1]).toEqual(manual({name: "الاسم", xMm: 12.3, align: "left"}));
+            expect(given.items[1]).toEqual(manual({name: " الاسم ", xMm: 12.34, align: "left"}));
+            expect(given.items[0]).toHaveProperty("align", "center");
+        });
+    });
+});
+
+describe("alignOf: how a value lines up @area:admin", () => {
+    test.each(["right", "center", "left"] as const)("an item holding %s lines up so @TPL-737", align => {
+        expect(alignOf(manual({align}))).toBe(align);
+        expect(alignOf(fn({align}))).toBe(align);
+        expect(alignOf(stat({align}))).toBe(align);
+    });
+
+    test("an item holding none, or null, reads as right @TPL-737", () => {
+        expect(alignOf(manual())).toBe("right");
+        expect(alignOf(manual({align: null}))).toBe("right");
+        expect(alignOf(fn({align: null}))).toBe("right");
+        expect(alignOf(stat())).toBe("right");
+    });
+
+    test("the prescription text reads as right: it holds no alignment @TPL-742", () => {
+        expect(alignOf(text())).toBe("right");
+    });
+
+    test("the default is right, and the three values are the contract's @TPL-738", () => {
+        expect(DEFAULT_ITEM_ALIGN).toBe("right");
+        expect([...ITEM_ALIGNS].sort()).toEqual(["center", "left", "right"]);
     });
 });
 
@@ -690,6 +754,63 @@ describe("validateLayout: rule by rule, in the server's order @area:admin", () =
     });
 });
 
+describe("validateLayout: an item's alignment, after its font @area:admin", () => {
+    const LAYOUT_INVALID = "templateLayoutInvalid";
+    const alignError = (index: number) => ({field: `items[${index}].align`, code: LAYOUT_INVALID});
+    /** A short item of this kind holding this value, whatever it is. */
+    const shortItem = (kind: "manual" | "fn" | "stat", align: unknown): TemplateItem =>
+        ({...{manual, fn, stat}[kind](), align}) as TemplateItem;
+    const SHORT_KINDS = ["manual", "fn", "stat"] as const;
+
+    describe.each(SHORT_KINDS)("on a %s", kind => {
+        test.each(["right", "center", "left", null, undefined])("%s passes @TPL-738", align => {
+            expect(validateLayout(layoutOf(text(), shortItem(kind, align)))).toEqual([]);
+        });
+
+        test.each(["Center", "CENTER", "Right", "RIGHT", "Left", "LEFT", "justify", "start", "end", "middle", "", " ", " right", "right ", "right,left", "0"])(
+            "%j answers templateLayoutInvalid on items[i].align @TPL-738", align => {
+                expect(validateLayout(layoutOf(text(), shortItem(kind, align)))).toEqual([alignError(1)]);
+            });
+    });
+
+    test.each(["center", "Center", "justify", ""])("the prescription text holding %j passes: it's dropped first @TPL-738", align => {
+        expect(validateLayout(layoutOf({...text(), align} as TemplateItem))).toEqual([]);
+    });
+
+    test("an unknown kind holding a bad one answers only its kind @TPL-738", () => {
+        const unknown = {...manual(), kind: "qrCode", align: "Center"} as unknown as TemplateItem;
+        expect(validateLayout(raw(layoutOf(text(), unknown)))).toEqual([{field: "items[1].kind", code: LAYOUT_INVALID}]);
+    });
+
+    test("the font first, then the alignment @TPL-738", () => {
+        expect(validateLayout(layoutOf(text(), {...shortItem("manual", "Center"), fontSizePt: 37}))).toEqual([
+            {field: "items[1].fontSizePt", code: "templateFontSizeInvalid"},
+            alignError(1),
+        ]);
+    });
+
+    test("each at its own index, before the next item's errors @TPL-738", () => {
+        expect(validateLayout(layoutOf(text(), shortItem("manual", "Center"), shortItem("fn", "right"), {...stat({text: ""}), align: "justify"} as unknown as TemplateItem))).toEqual([
+            alignError(1),
+            {field: "items[3].text", code: "templateStaticTextRequired"},
+            alignError(3),
+        ]);
+    });
+
+    test("before the correction's errors @TPL-738", () => {
+        expect(validateLayout({...layoutOf(text(), shortItem("manual", "Center")), calibration: {xMm: 20.1, yMm: 0}})).toEqual([
+            alignError(1),
+            {field: "calibration.xMm", code: "templateCalibrationInvalid"},
+        ]);
+    });
+
+    test("over 50 items, only the count @TPL-738", () => {
+        const items = manyItems(51);
+        items[1] = {...items[1], align: "Center"} as unknown as TemplateItem;
+        expect(validateLayout(layoutOf(...items))).toEqual([{field: "items", code: "templateTooManyItems"}]);
+    });
+});
+
 describe("itemIndexOfField @area:admin", () => {
     test.each([
         ["items[2].name", 2],
@@ -713,6 +834,12 @@ describe("newLayout @area:admin", () => {
             items: [{id: "i1", kind: "prescriptionText", xMm: 14, yMm: 80, wMm: 120, hMm: 90, fontSizePt: 11}],
             calibration: {xMm: 0, yMm: 0},
         });
+    });
+
+    test("the prescription text holds no alignment, and the schema version stays 1 @TPL-041 @TPL-738", () => {
+        const layout = newLayout();
+        expect(Object.keys(layout.items[0]).sort()).toEqual(["fontSizePt", "hMm", "id", "kind", "wMm", "xMm", "yMm"]);
+        expect(layout.schemaVersion).toBe(1);
     });
 
     test("passes the rules as it is @TPL-216", () => {
@@ -1024,6 +1151,9 @@ describe("sameLayout @area:admin", () => {
         ["a function", layoutOf(text(), manual(), fn({function: "time"}), stat())],
         ["a static text", layoutOf(text(), manual(), fn(), stat({text: "x"}))],
         ["a static text's spaces", layoutOf(text(), manual(), fn(), stat({text: "يُصرف مرة واحدة "}))],
+        ["a manual input's alignment", layoutOf(text(), manual({align: "center"}), fn(), stat())],
+        ["a function's alignment", layoutOf(text(), manual(), fn({align: "left"}), stat())],
+        ["a static text's alignment", layoutOf(text(), manual(), fn(), stat({align: "center"}))],
         ["the order", layoutOf(manual(), text(), fn(), stat())],
         ["a missing item", layoutOf(text(), manual(), fn())],
         ["the page's size", onPage({...A5, size: "custom"}, text(), manual(), fn(), stat())],
@@ -1032,6 +1162,60 @@ describe("sameLayout @area:admin", () => {
     ])("another %s isn't the same @TPL-233", (_name, other) => {
         expect(sameLayout(layout(), other)).toBe(false);
         expect(sameLayout(other, layout())).toBe(false);
+    });
+
+    describe("the alignment", () => {
+        const aligned = (align: "right" | "center" | "left" | null) => layoutOf(text(), manual({align}), fn({align}), stat({align}));
+
+        test("missing, null and right are one: an old template opens clean, and back to right is clean again @TPL-737", () => {
+            for (const [left, right] of [[layout(), aligned(null)], [layout(), aligned("right")], [aligned(null), aligned("right")]]) {
+                expect(sameLayout(left, right)).toBe(true);
+                expect(sameLayout(right, left)).toBe(true);
+            }
+        });
+
+        test.each(["center", "left"] as const)("%s isn't missing, null or right @TPL-737", align => {
+            for (const other of [layout(), aligned(null), aligned("right")]) {
+                expect(sameLayout(aligned(align), other)).toBe(false);
+                expect(sameLayout(other, aligned(align))).toBe(false);
+            }
+        });
+
+        test("center isn't left, and the same one is the same @TPL-737", () => {
+            expect(sameLayout(aligned("center"), aligned("left"))).toBe(false);
+            expect(sameLayout(aligned("center"), aligned("center"))).toBe(true);
+            expect(sameLayout(aligned("left"), aligned("left"))).toBe(true);
+        });
+
+        test("one item's alignment is enough, wherever it sits @TPL-737", () => {
+            expect(sameLayout(layoutOf(manual({id: "a", name: "a"}), manual({id: "b", name: "b", align: "left"})), layoutOf(manual({id: "a", name: "a"}), manual({id: "b", name: "b"})))).toBe(false);
+            expect(sameLayout(layoutOf(manual({id: "a", name: "a", align: "left"}), manual({id: "b", name: "b"})), layoutOf(manual({id: "a", name: "a"}), manual({id: "b", name: "b"})))).toBe(false);
+        });
+
+        test("a prescription text holding one is the same as one holding none: it's dropped @TPL-738", () => {
+            expect(sameLayout(layoutOf({...text(), align: "center"} as TemplateItem), layoutOf(text()))).toBe(true);
+        });
+    });
+});
+
+describe("addItem and updateItem: the alignment @area:admin", () => {
+    test.each<[string, AddableItem]>([
+        ["a manual input", {kind: "manualInput"}],
+        ["a function", {kind: "function", function: "time"}],
+        ["a static text", {kind: "staticText"}],
+    ])("%s just added reads as right, and its alignment breaks no rule @TPL-737", (_name, addable) => {
+        const added = addItem(newLayout(), addable, "Label");
+        expect(added).not.toBeNull();
+        expect(alignOf(added!.item)).toBe("right");
+        expect(validateLayout(added!.layout).filter(error => error.field.endsWith(".align"))).toEqual([]);
+    });
+
+    test("updateItem sets it on that item alone and keeps the rest @TPL-737", () => {
+        const before = layoutOf(text(), manual(), fn());
+        const after = updateItem(before, "m", {align: "center"});
+        expect(after.items).toEqual([text(), manual({align: "center"}), fn()]);
+        expect(alignOf(after.items[1])).toBe("center");
+        expect(before.items[1]).toEqual(manual());
     });
 });
 
