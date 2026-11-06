@@ -337,6 +337,10 @@ Coders run `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx eslint 
 23. **The print shift is a `transform`, not `left` and `top` (T3, T4).** Text moved through `left` and `top` lands on whole CSS px in the PDF: −1.5 mm printed as −1.3229 mm and 2 mm as 2.1167 mm, missing A4's "exactly" and TPL-600's 0.1 mm, and a box whose top passed the sheet's bottom made a blank page. The rule stands; only the means changes, and layout, wrapping and pagination don't see a transform.
 24. **Test print and a box past the bottom:** A7's "one page always" holds with Y moving a box past the sheet's bottom (TPL-637's second half).
 
+25. **A print is not an opening (T5, TPL-726).** The designer's desktop switch also holds under print media (`(min-width: 900px), print`), so laying the page out at paper width doesn't unmount the workspace: picture settings, zoom and a picked file stay. Below 900 px on screen, nothing changes. So Ctrl+P with no job prints the designer's page, the picture hidden.
+26. **A picture that fails to load also toasts (T5, TPL-727):** `printTemplates.paper.loadFailed` once per failure, since the section with its message and Retry can sit below the window while the blank sheet shows. The inline message and Retry stay. No new text.
+27. **Test print's sample goes through `cleanPrintHtml` with `dir="rtl"` on its lines, as a real prescription's lines (T5, TPL-728),** so it starts at the same side of the box as a real print, Latin lines at their own side by the same rule.
+
 ## 11. Wording
 
 Design § 9 is verbatim. New labels: § 10.11, for the user's eye at the walkthrough. One to look at: § 9 says «شفافية» from 10% to 100%, and the slider's 100% is a solid picture (A11, TPL-713), where «شفافية 100%» can read as fully see-through. Kept as approved.
