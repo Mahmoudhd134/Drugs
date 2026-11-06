@@ -37,7 +37,7 @@ public class TemplatePageAndCountRulesTests
     [Trait("Case", "TPL-023")]
     public void A_missing_page_is_invalidRequest_naming_it_and_no_item_is_checked_against_a_page()
     {
-        ShouldFail(new(1, null, [PrescriptionText(xMm: 500, yMm: 500)]), ("page", "invalidRequest"));
+        ShouldFail(new(1, null, [PrescriptionText(xMm: 500, yMm: 500)], null), ("page", "invalidRequest"));
     }
 
     [Theory]
@@ -243,7 +243,7 @@ public class TemplatePageAndCountRulesTests
     public void No_items_empty_or_missing_is_templateTextCount()
     {
         ShouldFail(OnA5(), ("items", "templateTextCount"));
-        ShouldFail(new(1, A5, null), ("items", "templateTextCount"));
+        ShouldFail(new(1, A5, null, null), ("items", "templateTextCount"));
     }
 
     [Fact]

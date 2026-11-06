@@ -89,6 +89,17 @@ export class ApiSession {
         return response;
     }
 
+    /** A multipart upload of one part named `file`, by name, type and bytes (step 4 contract § 8.4), with the same refresh as `send`. */
+    async upload(method: "POST" | "PUT", url: string, file: { name: string; mimeType: string; buffer: Buffer }): Promise<APIResponse> {
+        const go = () => this.http.fetch(url, {method, multipart: {file}, headers: this.headers()});
+        let response = await go();
+        if (response.status() === 401) {
+            await this.refresh();
+            response = await go();
+        }
+        return response;
+    }
+
     /** Sends and returns the JSON answer, failing on any non-2xx (the setup must work). */
     async ok<T = unknown>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data?: unknown): Promise<T> {
         const response = await this.send(method, url, data);

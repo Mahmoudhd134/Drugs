@@ -7,10 +7,11 @@ import type {Protocol} from "../features/protocols/types.ts";
 import type {Category, Drug, DrugTreeCategory, DrugTreeData, ProtocolDrug} from "../features/drugs/types.ts";
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory} from "../features/admin/categories/types.ts";
+import type {Attachment, AttachmentRules} from "../features/attachments/types.ts";
 import type {PrintLayout, PrintTemplate} from "../features/printTemplates/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
-import {aCategory, aMe, asDrug, PERMISSION_CATALOG} from "./data.ts";
+import {aCategory, aMe, aPaperImage, asDrug, NO_CALIBRATION, PAPER_RULES, PERMISSION_CATALOG} from "./data.ts";
 import {server} from "./server.ts";
 
 /*
@@ -263,13 +264,59 @@ export const printTemplateHandlers = (clinicId: number,
     return [
         http.get(url, () => (current ? json(current) : new HttpResponse(null, {status: 204}))),
         http.put(url, async ({request}) => {
-            const saved: PrintTemplate = {layout: await request.json() as PrintLayout, updatedAt: "2026-11-05T10:00:00Z"};
+            const body = await request.json() as PrintLayout;
+            // As the server answers (step 4 design § 4): a Save that sends no calibration saves 0, 0
+            const saved: PrintTemplate = {layout: {...body, calibration: body.calibration ?? NO_CALIBRATION}, updatedAt: "2026-11-05T10:00:00Z"};
             if (stateful) current = saved;
             return json(saved);
         }),
         http.delete(url, () => {
             if (stateful) current = null;
             return new HttpResponse(null, {status: 204});
+        }),
+    ];
+};
+
+/**
+ * The six routes of a clinic's paper image (step 4 contract § 8.2), kept in `files` (changed in place, newest first, as the API answers). POST replaces what's there, as the server's handler does; PUT replaces
+ * that id, or answers 404 `notFound`; DELETE answers 204, or 404; `GET /{id}` answers a body whose text is `content of <name>`, with the row's `contentType`. Errors are per test, in a later `server.use`, which wins.
+ *
+ * jsdom can't carry a `File` through a multipart body (attachments contract § 2): an upload only checks that a part named `file` came (none: 400 `attachmentEmpty`) and stores `stored()`: `aPaperImage()` unless a test gives its own,
+ * so a row's name is the test's, never the picked file's. The real name and bytes are e2e's.
+ */
+export const paperImageHandlers = (clinicId: number, files: Attachment[] = [],
+                                   {rules = PAPER_RULES, stored = () => aPaperImage()}: { rules?: AttachmentRules; stored?: () => Attachment } = {}) => {
+    const url = api(`/admin/clinics/${clinicId}/prescription-template/paper-image`);
+    const indexOf = (id: unknown) => files.findIndex(file => file.id === id);
+    const upload = async (request: Request, place: (saved: Attachment) => void) => {
+        if (!(await request.text()).includes('name="file"')) return problem(400, "attachmentEmpty");
+        const saved = stored();
+        place(saved);
+        return json(saved);
+    };
+    return [
+        // Before `:id`, which would match it too
+        http.get(`${url}/rules`, () => json(rules)),
+        http.get(url, () => json(files)),
+        http.post(url, ({request}) => upload(request, saved => files.splice(0, 1, saved))),
+        http.put(`${url}/:id`, ({request, params}) => {
+            const index = indexOf(params.id);
+            return index < 0 ? problem(404, "notFound") : upload(request, saved => {
+                files.splice(index, 1);
+                files.unshift(saved);
+            });
+        }),
+        http.delete(`${url}/:id`, ({params}) => {
+            const index = indexOf(params.id);
+            if (index < 0) return problem(404, "notFound");
+            files.splice(index, 1);
+            return new HttpResponse(null, {status: 204});
+        }),
+        http.get(`${url}/:id`, ({params}) => {
+            const file = files[indexOf(params.id)];
+            return file
+                ? new HttpResponse(`content of ${file.originalFileName}`, {headers: {"Content-Type": file.contentType}})
+                : problem(404, "notFound");
         }),
     ];
 };

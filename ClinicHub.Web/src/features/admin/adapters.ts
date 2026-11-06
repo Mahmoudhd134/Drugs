@@ -1,5 +1,7 @@
 import {api} from "../../api/client.ts";
 import type {PagedResult} from "../../api/types.ts";
+import {attachmentRequests} from "../attachments/attachmentRequests.ts";
+import type {AttachmentRules, AttachmentsAdapter} from "../attachments/types.ts";
 import {readTemplate} from "../printTemplates/api.ts";
 import type {PrintTemplate, PrintTemplateAdapter} from "../printTemplates/types.ts";
 import type {Role, RolesAdapter} from "../roles/types.ts";
@@ -66,5 +68,19 @@ export const adminStaffApi = (clinicId: number): StaffAdapter => {
         delete: async (id) => {
             await api.delete(`${base}/${id}`);
         },
+    };
+};
+
+/**
+ * The picture of one clinic's paper (step 4 design § 4, § 5): part 2's requests on its routes, plus `rules`. Under the clinic's details, as the template; a 404 loading it reloads the clinic.
+ * Part 2's hook uses no `useClinic()`, so it works in this platform context.
+ */
+export const adminPaperImageApi = (clinicId: number): AttachmentsAdapter => {
+    const base = `/admin/clinics/${clinicId}/prescription-template/paper-image`;
+    return {
+        ...attachmentRequests(base),
+        scope: [...adminClinicKeys.detail(clinicId), "paperImage"] as const,
+        container: adminClinicKeys.detail(clinicId),
+        rules: async () => (await api.get<AttachmentRules>(`${base}/rules`)).data,
     };
 };

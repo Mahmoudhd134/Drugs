@@ -26,6 +26,7 @@ const manual = (id: string, fields: Partial<ManualInputItem> = {}): ManualInputI
 
 const LAYOUT: PrintLayout = {
     schemaVersion: 1,
+    calibration: {xMm: 0, yMm: 0},
     page: {size: "A4", widthMm: 210, heightMm: 297},
     items: [
         {id: "t", kind: "prescriptionText", xMm: 14, yMm: 80, wMm: 120, hMm: 90, fontSizePt: 11},
@@ -37,6 +38,8 @@ const LAYOUT: PrintLayout = {
 /** The layout with `a` at this X. */
 const at = (xMm: number): PrintLayout => updateItem(LAYOUT, "a", {xMm});
 const ids = (layout: PrintLayout) => layout.items.map(item => item.id);
+/** The layout with this printer correction. */
+const calibrated = (xMm: number, yMm: number): PrintLayout => ({...LAYOUT, calibration: {xMm, yMm}});
 
 const change: LayoutChange = {kind: "item", itemId: "a"};
 /** The layouts at X = 1, 2, … n, each one step after the one before, from X = 0. */
@@ -68,6 +71,7 @@ describe("print template undo: one step each @area:admin", () => {
         ["a resize", LAYOUT, updateItem(LAYOUT, "a", {xMm: 11, wMm: 41.3}), {kind: "item", itemId: "a"}, false],
         ["a committed field", LAYOUT, updateItem(LAYOUT, "a", {name: "جديد"}), {kind: "item", itemId: "a"}, false],
         ["a page-size change with the items it moved", {...LAYOUT, items: [...LAYOUT.items, manual("c", {xMm: 180, wMm: 25})]}, onA5, {kind: "page"}, true],
+        ["a calibration change", LAYOUT, calibrated(2, -1.5), {kind: "calibration"}, false],
     ])("%s: undone and redone, the layout is exactly as before, one step each @TPL-450", (_name, before, after, step, refit) => {
         const history = recordStep(EMPTY_HISTORY, before, after, step);
         expect(history.past).toEqual([{before, after, change: step}]);
@@ -381,6 +385,8 @@ describe("print template undo: the selection after undo and redo @area:admin", (
         ["a remove, nothing selected", {kind: "remove", itemId: "a"}, LAYOUT, removeItem(LAYOUT, "a"), null, "a", null],
         ["a change to a, with b selected", {kind: "item", itemId: "a"}, LAYOUT, at(50), "b", "a", "a"],
         ["a change to a, nothing selected", {kind: "item", itemId: "a"}, LAYOUT, at(50), null, "a", "a"],
+        ["a calibration change, with b selected", {kind: "calibration"}, LAYOUT, calibrated(2, 0), "b", "b", "b"],
+        ["a calibration change, nothing selected", {kind: "calibration"}, LAYOUT, calibrated(2, 0), null, null, null],
     ])("%s: undo selects, redo selects, as the table says @TPL-577", (_name, step, before, after, selected, afterUndo, afterRedo) => {
         const history = recordStep(EMPTY_HISTORY, before, after, step);
         const back = undone(history, selected);
@@ -451,5 +457,88 @@ describe("print template undo: unsaved changes follow the layout @area:admin", (
         const inside = updateItem(LAYOUT, "a", {xMm: 170});
         const history = recordStep(EMPTY_HISTORY, off, inside, change);
         expect(undone(history).layout.items[1].xMm).toBe(240);
+    });
+});
+
+describe("print template undo: an item's alignment @area:admin", () => {
+    const aligned = (align: "right" | "center" | "left" | null) => updateItem(LAYOUT, "a", {align});
+
+    test("a press is one step, undone back to what it was @TPL-737", () => {
+        const history = recordStep(EMPTY_HISTORY, LAYOUT, aligned("center"), change);
+        expect(history.past).toHaveLength(1);
+        expect(undone(history).layout).toEqual(LAYOUT);
+        expect(redone(undone(history).history).layout).toEqual(aligned("center"));
+    });
+
+    test("right on an item holding none is no change: it's right already @TPL-737", () => {
+        expect(recordStep(EMPTY_HISTORY, LAYOUT, aligned("right"), change)).toBe(EMPTY_HISTORY);
+    });
+
+    test.each<[string, PrintLayout, boolean]>([
+        ["center on an old template", aligned("center"), true],
+        ["left on an old template", aligned("left"), true],
+        ["right on an old template", aligned("right"), false],
+        ["null on an old template", aligned(null), false],
+    ])("%s, for unsaved changes @TPL-737", (_name, layout, dirty) => {
+        expect(isDirty(layout, LAYOUT, {})).toBe(dirty);
+    });
+});
+
+describe("print template undo: the printer correction @area:admin", () => {
+    const step: LayoutChange = {kind: "calibration"};
+
+    test("a committed change is one step; undo and redo keep the selected item, and nothing re-fits @TPL-702", () => {
+        const history = recordStep(EMPTY_HISTORY, LAYOUT, calibrated(2, 0), step);
+        expect(history.past).toEqual([{before: LAYOUT, after: calibrated(2, 0), change: step}]);
+
+        const back = undone(history, "a");
+        expect(back.layout).toEqual(LAYOUT);
+        expect(back.selectedId).toBe("a");
+        expect(back.refit).toBe(false);
+
+        const forth = redone(back.history, "a");
+        expect(forth.layout).toEqual(calibrated(2, 0));
+        expect(forth.selectedId).toBe("a");
+        expect(forth.refit).toBe(false);
+    });
+
+    test("the selection is what it is at that moment, whichever item the step began with @TPL-702", () => {
+        const history = recordStep(EMPTY_HISTORY, LAYOUT, calibrated(2, 0), step);
+        const back = undone(history, "b");
+        expect(back.selectedId).toBe("b");
+        expect(redone(back.history, "a").selectedId).toBe("a");
+        expect(undone(history, null).selectedId).toBeNull();
+    });
+
+    test("back to the same number is no step, and keeps redo @TPL-702", () => {
+        const history = undone(recordStep(EMPTY_HISTORY, calibrated(1, 0), calibrated(2, 0), step)).history;
+        const same = recordStep(history, calibrated(1, 0), calibrated(1, 0), step);
+        expect(same).toEqual(history);
+        expect(canRedo(same)).toBe(true);
+    });
+
+    test("a number that rounds to the same one is no step @TPL-702", () => {
+        expect(recordStep(EMPTY_HISTORY, calibrated(2.3, 0), calibrated(2.34, 0), step)).toEqual(EMPTY_HISTORY);
+        expect(recordStep(EMPTY_HISTORY, calibrated(0, 0), calibrated(-0.04, 0), step)).toEqual(EMPTY_HISTORY);
+    });
+
+    test("it ends a run of nudges, and a new one is a new step @TPL-702", () => {
+        const nudged = recordNudge(EMPTY_HISTORY, LAYOUT, at(13), "a", 1_000);
+        const history = recordStep(nudged, at(13), {...at(13), calibration: {xMm: 2, yMm: 0}}, step);
+        expect(history.run).toBeNull();
+        expect(history.past).toHaveLength(2);
+    });
+
+    test.each<[string, number, number, boolean]>([
+        ["the same as the saved one", 0, 0, false],
+        ["another X", 2, 0, true],
+        ["another Y", 0, 2, true],
+        ["a number rounding to the saved one", -0.04, 0, false],
+    ])("unsaved changes: %s @TPL-613 @TPL-721", (_name, xMm, yMm, dirty) => {
+        expect(isDirty(calibrated(xMm, yMm), LAYOUT, {})).toBe(dirty);
+    });
+
+    test("raw text in a correction field is unsaved, on the saved layout @TPL-613", () => {
+        expect(isDirty(LAYOUT, LAYOUT, {"calibration.xMm": "abc"})).toBe(true);
     });
 });

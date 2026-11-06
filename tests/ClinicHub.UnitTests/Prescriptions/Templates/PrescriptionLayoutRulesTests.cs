@@ -34,7 +34,7 @@ public class PrescriptionLayoutRulesTests
         var normalized = PrescriptionLayoutRules.Normalize(new(1, new("custom", 210.14m, 100.05m),
         [
             new("t1", "prescriptionText", null, null, null, 12.34m, 12.35m, 50.14m, 30.15m, 11.04m),
-        ]));
+        ], null));
 
         normalized.Page.ShouldBe(new PrescriptionPageDto("custom", 210.1m, 100.1m));
         var item = normalized.Items.ShouldHaveSingleItem();
@@ -53,7 +53,7 @@ public class PrescriptionLayoutRulesTests
             Manual(id: "z") with { Kind = "qrCode" },
             StaticItem(id: "a"),
             PrescriptionText(id: "m"),
-        ]));
+        ], null));
 
         normalized.SchemaVersion.ShouldBe(7);
         normalized.Page.Size.ShouldBe("B5");
@@ -106,7 +106,7 @@ public class PrescriptionLayoutRulesTests
     [Fact]
     public void Normalize_keeps_a_null_page_null_items_and_null_elements_and_null_fields()
     {
-        PrescriptionLayoutRules.Normalize(new(1, null, null)).ShouldSatisfyAllConditions(
+        PrescriptionLayoutRules.Normalize(new(1, null, null, null)).ShouldSatisfyAllConditions(
             l => l.Page.ShouldBeNull(),
             l => l.Items.ShouldBeNull());
         PrescriptionLayoutRules.Normalize(OnA5([null])).Items.ShouldBe([null]);
@@ -115,14 +115,14 @@ public class PrescriptionLayoutRulesTests
         item.ShouldBe(new PrescriptionItemDto(null, null, null, null, null, null, null, null, null, null));
         PrescriptionLayoutRules.Normalize(OnA5(Manual(null))).Items[0].Name.ShouldBeNull();
         PrescriptionLayoutRules.Normalize(OnA5(StaticItem(null))).Items[0].Text.ShouldBeNull();
-        PrescriptionLayoutRules.Normalize(new(1, new("A5", null, null), [])).Page.ShouldBe(new PrescriptionPageDto("A5", null, null));
+        PrescriptionLayoutRules.Normalize(new(1, new("A5", null, null), [], null)).Page.ShouldBe(new PrescriptionPageDto("A5", null, null));
     }
 
     [Fact]
     [Trait("Case", "TPL-209")]
     public void From_sends_the_normalized_layout()
     {
-        var command = SavePrescriptionTemplateCommand.From(new(1, new("custom", 100.04m, 100.05m), [Manual("  م ", xMm: 12.34m)]));
+        var command = SavePrescriptionTemplateCommand.From(new(1, new("custom", 100.04m, 100.05m), [Manual("  م ", xMm: 12.34m)], null));
 
         command.SchemaVersion.ShouldBe(1);
         command.Page.ShouldBe(new PrescriptionPageDto("custom", 100m, 100.1m));
@@ -201,26 +201,65 @@ public class PrescriptionLayoutRulesTests
                 { "id": "m1", "kind": "manualInput", "name": "م", "xMm": 58, "yMm": 46, "wMm": 72, "hMm": 8, "fontSizePt": 11 },
                 { "id": "f1", "kind": "function", "function": "time", "name": "د", "xMm": 14, "yMm": 46, "wMm": 30, "hMm": 8, "fontSizePt": 11 },
                 { "id": "s1", "kind": "staticText", "text": "ث", "xMm": 14, "yMm": 175, "wMm": 60, "hMm": 8, "fontSizePt": 11 }
-              ]
+              ],
+              "calibration": { "xMm": 0, "yMm": 0 }
             }
             """)).ShouldBeTrue(json.ToJsonString());
     }
 
     [Fact]
     [Trait("Case", "TPL-002")]
+    [Trait("Case", "TPL-738")]
+    public void Serialize_writes_an_alignment_after_the_font_and_leaves_out_a_null_one()
+    {
+        var json = JsonNode.Parse(PrescriptionLayoutRules.Serialize(OnA5(
+            PrescriptionText("t1"),
+            Manual("م", "m1") with { Align = "center" },
+            FunctionItem("time", "د", "f1") with { Align = "left" },
+            StaticItem("ث", "s1") with { Align = "right" },
+            Manual("ن", "m2")))).AsObject();
+
+        var items = json["items"].AsArray();
+        items[0].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "xMm", "yMm", "wMm", "hMm", "fontSizePt"]);
+        items[1].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "name", "xMm", "yMm", "wMm", "hMm", "fontSizePt", "align"]);
+        items[2].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "function", "name", "xMm", "yMm", "wMm", "hMm", "fontSizePt", "align"]);
+        items[3].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "text", "xMm", "yMm", "wMm", "hMm", "fontSizePt", "align"]);
+        items[4].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "name", "xMm", "yMm", "wMm", "hMm", "fontSizePt"]);
+        ((string)items[1]["align"]).ShouldBe("center");
+        ((string)items[2]["align"]).ShouldBe("left");
+        ((string)items[3]["align"]).ShouldBe("right");
+        ((int)json["schemaVersion"]).ShouldBe(1);
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-002")]
+    public void Serialize_writes_the_keys_in_the_records_order_calibration_last()
+    {
+        var json = JsonNode.Parse(PrescriptionLayoutRules.Serialize(WithCalibration(OnA5(PrescriptionText()), 2, -1.5m))).AsObject();
+
+        json.Select(p => p.Key).ShouldBe(["schemaVersion", "page", "items", "calibration"]);
+        json["calibration"].AsObject().Select(p => p.Key).ShouldBe(["xMm", "yMm"]);
+        ((decimal)json["calibration"]["xMm"]).ShouldBe(2m);
+        ((decimal)json["calibration"]["yMm"]).ShouldBe(-1.5m);
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-002")]
     public void Deserialize_reads_what_Serialize_wrote_order_and_text_included()
     {
-        var layout = Layout(Custom(210.1m, 300),
+        var layout = WithCalibration(Layout(Custom(210.1m, 300),
             StaticItem("سطر\r\nسطر\t«آخر» \"x\"", "z", xMm: 1.5m),
             PrescriptionText("a", yMm: 0.1m),
-            FunctionItem("pageNumber", "رقم", "m"),
-            Manual("الاسم", "b", fontSizePt: 36));
+            FunctionItem("pageNumber", "رقم", "m") with { Align = "left" },
+            Manual("الاسم", "b", fontSizePt: 36) with { Align = "center" },
+            Manual("السن", "c")), 2, -1.5m);
 
         var read = PrescriptionLayoutRules.Deserialize(PrescriptionLayoutRules.Serialize(layout));
 
         read.SchemaVersion.ShouldBe(1);
         read.Page.ShouldBe(layout.Page);
         read.Items.ShouldBe(layout.Items);
+        read.Calibration.ShouldBe(new PrescriptionCalibrationDto(2, -1.5m));
     }
 
     [Fact]
@@ -234,5 +273,17 @@ public class PrescriptionLayoutRulesTests
 
         read.Page.ShouldBe(new PrescriptionPageDto("A4", 210, 297));
         read.Items.ShouldBe([new PrescriptionItemDto("t1", "prescriptionText", null, null, null, 1.5m, 2.5m, 30, 40, 12)]);
+    }
+
+    [Theory]
+    [InlineData("""{ "id": "m1", "kind": "manualInput", "name": "م", "xMm": 1, "yMm": 2, "wMm": 30, "hMm": 8, "fontSizePt": 12, "align": "center" }""", "center")]
+    [InlineData("""{ "id": "m1", "kind": "manualInput", "name": "م", "xMm": 1, "yMm": 2, "wMm": 30, "hMm": 8, "fontSizePt": 12, "align": null }""", null)]
+    [InlineData("""{ "id": "m1", "kind": "manualInput", "name": "م", "xMm": 1, "yMm": 2, "wMm": 30, "hMm": 8, "fontSizePt": 12 }""", null)]
+    [Trait("Case", "TPL-738")]
+    public void Deserialize_reads_a_stored_alignment_and_a_row_saved_before_it_holds_none(string item, string align)
+    {
+        var read = PrescriptionLayoutRules.Deserialize($$"""{ "schemaVersion": 1, "page": { "size": "A5", "widthMm": 148, "heightMm": 210 }, "items": [ {{item}} ] }""");
+
+        read.Items.ShouldHaveSingleItem().Align.ShouldBe(align);
     }
 }

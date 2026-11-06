@@ -12,6 +12,7 @@ import {
     choose,
     expectToasts,
     PLATFORM_CONTEXT,
+    paperImageHandlers,
     printTemplateHandlers,
     recordRequests,
     server,
@@ -524,7 +525,7 @@ describe("print template: another clinic by history @area:admin", () => {
         const clinicA = aClinicDetails({name: "Clinic A"});
         const templateB = aPrintTemplate({layout: aPrintLayout({items: [aTemplateItem("prescriptionText", {id: "tB"}), aTemplateItem("manualInput", {id: "mB", name: "من ب"})]})});
         const {user, router, location} = await renderDesigner(templateB.layout, {clinic: clinicB});
-        server.use(...adminClinicsHandlers([clinicA, clinicB]), ...printTemplateHandlers(clinicA.id, {template: aPrintTemplate({layout: layoutL()})}));
+        server.use(...adminClinicsHandlers([clinicA, clinicB]), ...printTemplateHandlers(clinicA.id, {template: aPrintTemplate({layout: layoutL()})}), ...paperImageHandlers(clinicA.id));
 
         await act(() => router!.navigate(tabPath(clinicA.id)));
         await screen.findByRole("heading", {name: "Clinic A"});

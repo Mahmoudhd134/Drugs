@@ -35,6 +35,11 @@ public partial class PrintLayoutFixtureTests
     [Trait("Case", "TPL-212")]
     [Trait("Case", "TPL-213")]
     [Trait("Case", "TPL-214")]
+    [Trait("Case", "TPL-607")]
+    [Trait("Case", "TPL-610")]
+    [Trait("Case", "TPL-705")]
+    [Trait("Case", "TPL-724")]
+    [Trait("Case", "TPL-738")]
     public void The_validator_answers_every_row_exactly_its_errors_in_order(string name)
     {
         var row = PrintLayoutFixture.Find(name);
@@ -69,7 +74,7 @@ public partial class PrintLayoutFixtureTests
     {
         var rows = PrintLayoutFixture.Cases;
 
-        rows.Count.ShouldBeGreaterThanOrEqualTo(96);
+        rows.Count.ShouldBeGreaterThanOrEqualTo(142);
         rows.Select(r => r.Name).ShouldBeUnique();
         foreach (var row in rows)
         {
@@ -87,10 +92,53 @@ public partial class PrintLayoutFixtureTests
         [
             "TPL-020", "TPL-021", "TPL-022", "TPL-023", "TPL-024", "TPL-025", "TPL-026", "TPL-027", "TPL-028", "TPL-029", "TPL-030",
             "TPL-031", "TPL-032", "TPL-208", "TPL-209", "TPL-210", "TPL-211", "TPL-212", "TPL-213", "TPL-214",
+            "TPL-607", "TPL-610", "TPL-705", "TPL-724", "TPL-738",
         ];
 
         var covered = PrintLayoutFixture.Cases.SelectMany(r => r.Ids).ToHashSet();
         expected.Where(id => !covered.Contains(id)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-724")]
+    public void The_rows_of_the_over_50_case_hold_more_than_50_items_and_a_calibration()
+    {
+        var rows = PrintLayoutFixture.Cases.Where(r => r.Ids.Contains("TPL-724")).ToList();
+
+        rows.ShouldNotBeEmpty();
+        foreach (var row in rows)
+        {
+            var layout = PrintLayoutFixture.ToLayout(row);
+            layout.Items.Count.ShouldBeGreaterThan(50, row.Name);
+            layout.Calibration.ShouldNotBeNull(row.Name);
+        }
+    }
+
+    [Theory]
+    [Trait("Case", "TPL-738")]
+    [InlineData("manualInput")]
+    [InlineData("function")]
+    [InlineData("staticText")]
+    public void The_rows_of_the_alignment_case_hold_each_value_on_each_short_kind_and_refuse_Center(string kind)
+    {
+        var rows = PrintLayoutFixture.Cases.Where(r => r.Ids.Contains("TPL-738")).ToList();
+        bool Holds(PrintLayoutCase row, string align) =>
+            PrintLayoutFixture.ToLayout(row).Items.Any(i => i is not null && i.Kind == kind && i.Align == align);
+
+        foreach (var align in new[] { "right", "center", "left", null })
+            rows.Any(r => r.Valid && Holds(r, align)).ShouldBeTrue($"{kind} with {align ?? "null"}");
+        rows.Any(r => !r.Valid && Holds(r, "Center") && r.Errors.Contains(new PrintLayoutError("items[1].align", "templateLayoutInvalid"))).ShouldBeTrue($"{kind} with Center");
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-610")]
+    public void The_null_comes_before_the_range_in_the_rows_that_hold_both()
+    {
+        // The session's ruling on the contract: all of rule 9, then all of rule 10, as rules 4 and 5 work
+        PrintLayoutFixture.Find("calibration X out of range and Y null: the null first").Errors
+            .ShouldBe([new("calibration.yMm", "invalidRequest"), new("calibration.xMm", "templateCalibrationInvalid")]);
+        PrintLayoutFixture.Find("calibration X null and Y out of range: the null first").Errors
+            .ShouldBe([new("calibration.xMm", "invalidRequest"), new("calibration.yMm", "templateCalibrationInvalid")]);
     }
 
     [Theory]

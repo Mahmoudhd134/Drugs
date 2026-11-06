@@ -817,6 +817,7 @@ describe("print template drag: the keyboard @area:admin", () => {
 
         const layout: PrintLayout = {
             schemaVersion: 1,
+            calibration: {xMm: 0, yMm: 0},
             page: {size: "A5", ...A5},
             items: [{id: "m", kind: "manualInput", name: "الاسم", ...boxOf(12.3, 20.3, 40, 8), fontSizePt: 11}],
         };
@@ -841,7 +842,7 @@ describe("print template drag: the keyboard @area:admin", () => {
         const nudged = nudgeBox(box, 1, 0, A5);
         expect(nudged).toEqual(box);
 
-        const before: PrintLayout = {schemaVersion: 1, page: {size: "A5", ...A5}, items: [{id: "m", kind: "manualInput", name: "الاسم", ...box, fontSizePt: 11}]};
+        const before: PrintLayout = {schemaVersion: 1, calibration: {xMm: 0, yMm: 0}, page: {size: "A5", ...A5}, items: [{id: "m", kind: "manualInput", name: "الاسم", ...box, fontSizePt: 11}]};
         const after = updateItem(before, "m", {xMm: nudged.xMm, yMm: nudged.yMm});
         const history = recordNudge(EMPTY_HISTORY, before, after, "m", 0);
         expect(canUndo(history)).toBe(false);

@@ -1,10 +1,11 @@
 import {type SetStateAction, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {flushSync} from "react-dom";
-import {Box, Button, Stack} from "@mui/material";
+import {Box, Button, Stack, Tooltip} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {AREA_BOTTOM_GAP_PX, AREA_MIN_HEIGHT_PX, AREA_PADDING_PX, CSS_PX_PER_MM} from "../constants.ts";
 import {type Box as MmBox, fitZoom, handlesFor, zoomIn, zoomOut} from "../dragGeometry.ts";
-import {canAddItem, updateItem} from "../layout.ts";
+import {calibrationCutsItems, canAddItem, updateItem} from "../layout.ts";
+import type {AttachmentsAdapter} from "../../attachments/types.ts";
 import type {TimeTravel} from "../layoutHistory.ts";
 import type {AddableItem, TemplatePage} from "../types.ts";
 import type {Draft, DraftOps} from "../useDesignerDraft.ts";
@@ -13,7 +14,8 @@ import {useDesignerKeys} from "../useDesignerKeys.ts";
 import {useLatest} from "../useLatest.ts";
 import {TemplateDragGhost} from "./TemplateDragGhost.tsx";
 import {TemplateOverlay} from "./TemplateOverlay.tsx";
-import {TemplateSettings} from "./TemplateSettings.tsx";
+import {PaperImageScope, type PaperImageView} from "./TemplatePaperImage.tsx";
+import {type SettingsSection, TemplateSettings} from "./TemplateSettings.tsx";
 import {TemplateSheet} from "./TemplateSheet.tsx";
 import {TemplateSidePanel} from "./TemplateSidePanel.tsx";
 import {TemplateToolbar} from "./TemplateToolbar.tsx";
@@ -26,9 +28,14 @@ type Props = {
     dirty: boolean;
     saving: boolean;
     onSave: () => void;
+    onTestPrint: () => void;
     onDelete: () => void;
     /** The message a field shows, by its key */
     messageOf: (key: string) => string | undefined;
+    /** The picture's routes; none: no section and no request (TPL-644) */
+    paperAdapter?: AttachmentsAdapter;
+    /** Goes up with each refused Save or Test print */
+    refusals: number;
 };
 
 /** The zoom that shows the whole sheet in the area now (step 3 contract § 3.8). */
@@ -40,31 +47,43 @@ const fitOf = (area: HTMLElement | null, page: TemplatePage) => {
 };
 
 /**
- * What shows at ≥ 900 px with a draft: the panel, the sheet with its zoom and drags, the settings. Mounted only then, so the
+ * What shows at ≥ 900 px with a draft, and stays through a print: the panel, the sheet with its zoom and drags, the settings. Mounted only then, so the
  * keys listen only then (§ 3.5), a drag ends with it (TPL-514), and the zoom starts at Fit however the sheet first appears
  * (load, «إنشاء قالب», widening from below 900 px: TPL-588).
  */
-export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, onSave, onDelete, messageOf}: Props) => {
+export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, onSave, onTestPrint, onDelete, messageOf, paperAdapter, refusals}: Props) => {
     const {t} = useTranslation();
     const root = useRef<HTMLDivElement>(null);
     const area = useRef<HTMLDivElement>(null);
+    const sideColumn = useRef<HTMLDivElement>(null);
+    const settings = useRef<HTMLElement>(null);
     const sheet = useRef<HTMLDivElement>(null);
     const saveButton = useRef<HTMLButtonElement>(null);
     const [zoom, setZoom] = useState(100);
     const page = useLatest(draft.layout.page);
+    // Here, so each opening starts on the sheet's, as this workspace mounts anew; never saved (step 4 contract § 4.3.1)
+    const [openSection, setOpenSection] = useState<SettingsSection | null>("page");
+    const openNow = useLatest(openSection);
 
     const focusArea = () => area.current?.focus();
     const boxElement = (id: string) => sheet.current?.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
     const showBox = (id: string) => boxElement(id)?.scrollIntoView({block: "nearest", inline: "nearest"});
 
     // A fixed height from the window, so Fit isn't measured against its own content. Set on the element, before the fit below
-    // reads it, in the same layout pass. The window changing keeps the zoom
+    // reads it, in the same layout pass. The window changing keeps the zoom. The side column takes the same height: it scrolls on its own from 900 to
+    // 1199 px, and from 1200 px it has no box of its own (`display: contents`), so the height means nothing there and the panel and the settings take it as
+    // their `max-height`, through a variable their breakpoint reads
     useLayoutEffect(() => {
         const element = area.current;
         if (!element) return;
         const measure = () => {
             const topInPage = element.getBoundingClientRect().top + window.scrollY;
-            element.style.height = `${Math.max(AREA_MIN_HEIGHT_PX, window.innerHeight - topInPage - AREA_BOTTOM_GAP_PX)}px`;
+            const height = `${Math.max(AREA_MIN_HEIGHT_PX, window.innerHeight - topInPage - AREA_BOTTOM_GAP_PX)}px`;
+            element.style.height = height;
+            if (sideColumn.current) {
+                sideColumn.current.style.height = height;
+                sideColumn.current.style.setProperty("--template-area-height", height);
+            }
         };
         measure();
         window.addEventListener("resize", measure);
@@ -79,13 +98,67 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
         if (button?.disabled && document.activeElement === button) focusArea();
     });
 
+    /** The whole field of the first message, since the message is below the input. */
+    const firstMessageField = () => settings.current?.querySelector('[aria-invalid="true"]')?.closest(".MuiFormControl-root");
+    /** What waits for a section's opening: a closed section has no height to scroll to */
+    const afterOpening = useRef<(() => void) | null>(null);
+
+    // A refused Save or Test print: the first problem's section opens (the fields stay mounted, in the order sheet, correction, item), and its message comes into
+    // view, once rendered (TPL-701, TPL-732). Nothing else moves, and no message a field shows opens nothing. After a press only: `refusals` outlives this workspace,
+    // and widening the window mounts it anew with nothing pressed
+    const answeredRefusals = useRef(refusals);
+    useEffect(() => {
+        if (refusals === answeredRefusals.current) return;
+        answeredRefusals.current = refusals;
+        const field = firstMessageField();
+        const section = field?.closest<HTMLElement>("[data-settings-section]")?.dataset.settingsSection as SettingsSection | undefined;
+        if (!field || !section) return;
+        if (section === openNow.current) {
+            field.scrollIntoView({block: "nearest"});
+        } else {
+            afterOpening.current = () => firstMessageField()?.scrollIntoView({block: "nearest"});
+            setOpenSection(section);
+        }
+    }, [refusals, openNow]);
+
+    const sectionOpened = () => {
+        afterOpening.current?.();
+        afterOpening.current = null;
+    };
+
+    /** A section pressed by hand: whatever waited is off. */
+    const pressSection = (section: SettingsSection | null) => {
+        afterOpening.current = null;
+        setOpenSection(section);
+    };
+
+    /** Selecting or adding opens the item's section and brings it into view in its scrolling column, only when this opened it (step 4 contract § 4.3.1). */
+    const openItemSection = () => {
+        if (openNow.current === "item") return;
+        afterOpening.current = () => settings.current?.querySelector('[data-settings-section="item"]')?.scrollIntoView({block: "nearest"});
+        setOpenSection("item");
+    };
+
     useEffect(() => {
         if (draft.revealId) sheet.current?.querySelector(`[data-item-id="${draft.revealId}"]`)?.scrollIntoView({block: "nearest", inline: "nearest"});
     }, [draft.revealId]);
 
     const dropNew = (addable: AddableItem, label: string, box: MmBox) => {
         const id = flushSync(() => ops.dropNew(addable, label, box));
-        if (id) boxElement(id)?.focus({preventScroll: true});
+        if (!id) return;
+        openItemSection();
+        boxElement(id)?.focus({preventScroll: true});
+    };
+
+    /** A box selected by a press, a click, Enter or Space: its section opens, also for the item already selected (step 4 contract § 4.3.1). */
+    const selectBox = (id: string) => {
+        ops.select(id);
+        openItemSection();
+    };
+
+    const addItem: DraftOps["add"] = (addable, defaultName) => {
+        ops.add(addable, defaultName);
+        openItemSection();
     };
 
     const drag = useDesignerDrag({
@@ -93,7 +166,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
         sheet,
         zoom,
         layout: draft.layout,
-        onSelect: ops.select,
+        onSelect: selectBox,
         onCommitBox: ops.commitBox,
         onDropNew: dropNew,
     });
@@ -147,7 +220,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
 
     const handles = view?.kind === "item" ? view.handles : selected ? handlesFor(selected, zoom) : [];
 
-    return (
+    const screen = ({sheetPaper, section}: PaperImageView) => (
         <Stack ref={root} data-testid="template-designer" sx={{gap: 2}}>
             <Stack direction="row" sx={{justifyContent: "space-between", alignItems: "center", gap: 1, flexWrap: "wrap"}}>
                 <TemplateToolbar
@@ -165,6 +238,17 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                     <Button ref={saveButton} variant="contained" disabled={!dirty || saving} onClick={onSave}>
                         {t("common.save")}
                     </Button>
+                    <Tooltip describeChild title={t("printTemplates.testPrint.hint")}>
+                        <Button
+                            variant="outlined"
+                            // A double click prints once; a keyboard click's `detail` is 0 (TPL-634, TPL-708)
+                            onClick={(event) => {
+                                if (event.detail <= 1) onTestPrint();
+                            }}
+                        >
+                            {t("printTemplates.testPrint.button")}
+                        </Button>
+                    </Tooltip>
                     {draft.baseline !== null && (
                         <Button color="error" variant="outlined" onClick={onDelete}>{t("common.delete")}</Button>
                     )}
@@ -174,14 +258,54 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                 display: "grid",
                 gap: 2,
                 alignItems: "start",
-                gridTemplateColumns: {md: "200px minmax(0, 1fr)", lg: "200px minmax(0, 1fr) 280px"},
+                gridTemplateColumns: {md: "260px minmax(0, 1fr)", lg: "200px minmax(0, 1fr) 280px"},
             }}>
-                <TemplateSidePanel
-                    canAdd={canAddItem(draft.layout)}
-                    onAdd={ops.add}
-                    onEntryPress={drag.pressEntry}
-                    swallowClick={drag.swallowClick}
-                />
+                {/* One element tree at both widths, so the panel and the settings stay mounted across the breakpoint (step 4 contract § 4.6) */}
+                <Box
+                    ref={sideColumn}
+                    data-testid="template-side-column"
+                    sx={{
+                        display: {md: "flex", lg: "contents"},
+                        flexDirection: "column",
+                        gap: 2,
+                        minWidth: 0,
+                        // From 900 to 1199 px only: from 1200 px it has no box of its own to scroll
+                        overflowY: {md: "auto", lg: "visible"},
+                        // From 1200 px these two are the grid's children, on either side of the area
+                        "& > :first-of-type": {order: {lg: 1}},
+                        "& > :last-of-type": {order: {lg: 3}},
+                    }}
+                >
+                    <TemplateSidePanel
+                        canAdd={canAddItem(draft.layout)}
+                        onAdd={addItem}
+                        onEntryPress={drag.pressEntry}
+                        swallowClick={drag.swallowClick}
+                    />
+                    <TemplateSettings
+                        panelRef={settings}
+                        openSection={openSection}
+                        onOpenSection={pressSection}
+                        onSectionOpened={sectionOpened}
+                        page={draft.layout.page}
+                        item={shownSelected}
+                        calibration={draft.layout.calibration}
+                        cutsItems={calibrationCutsItems(shownLayout)}
+                        onCalibration={ops.changeCalibration}
+                        paperSection={section}
+                        rawInputs={draft.rawInputs}
+                        typedPage={draft.typedPage}
+                        messageOf={messageOf}
+                        onPageSize={ops.changePageSize}
+                        onPageMeasureType={ops.typePageMeasure}
+                        onPageMeasure={ops.commitPageMeasure}
+                        onItemNumber={ops.changeItemNumber}
+                        onItemText={ops.changeItemText}
+                        onItemAlign={ops.changeItemAlign}
+                        onItemCommit={ops.commitField}
+                        onRemove={removeItem}
+                    />
+                </Box>
                 <Box
                     ref={area}
                     role="region"
@@ -189,6 +313,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                     tabIndex={0}
                     dir="ltr"
                     sx={{
+                        order: {lg: 2},
                         overflow: "auto",
                         minWidth: 0,
                         padding: `${AREA_PADDING_PX}px`,
@@ -212,12 +337,13 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                                 layout={shownLayout}
                                 selectedId={draft.selectedId}
                                 onSelect={(id, event) => {
-                                    if (!drag.swallowClick(event)) ops.select(id);
+                                    if (!drag.swallowClick(event)) selectBox(id);
                                 }}
                                 onBoxPress={drag.pressBox}
                                 sheetRef={sheet}
                                 sampleText={t("printTemplates.sheet.sampleText")}
                                 zoom={zoom}
+                                paper={sheetPaper}
                             />
                         </div>
                         <TemplateOverlay
@@ -231,22 +357,12 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                         />
                     </Box>
                 </Box>
-                <TemplateSettings
-                    page={draft.layout.page}
-                    item={shownSelected}
-                    rawInputs={draft.rawInputs}
-                    typedPage={draft.typedPage}
-                    messageOf={messageOf}
-                    onPageSize={ops.changePageSize}
-                    onPageMeasureType={ops.typePageMeasure}
-                    onPageMeasure={ops.commitPageMeasure}
-                    onItemNumber={ops.changeItemNumber}
-                    onItemText={ops.changeItemText}
-                    onItemCommit={ops.commitField}
-                    onRemove={removeItem}
-                />
             </Box>
             {view?.kind === "entry" && <TemplateDragGhost label={view.label} point={view.point} widthPx={view.widthPx} heightPx={view.heightPx} zoom={zoom}/>}
         </Stack>
     );
+
+    return paperAdapter
+        ? <PaperImageScope adapter={paperAdapter}>{screen}</PaperImageScope>
+        : screen({sheetPaper: null, section: null});
 };

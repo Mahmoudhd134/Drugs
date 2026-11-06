@@ -1,4 +1,4 @@
-import type {PageSize, TemplateFunction, TemplateItemKind} from "./types.ts";
+import type {ItemAlign, PageSize, TemplateFunction, TemplateItemKind} from "./types.ts";
 
 /** The limits of a template, mirroring the server's `PrescriptionTemplateLimits` (design § 3). */
 export const SCHEMA_VERSION = 1;
@@ -21,6 +21,9 @@ export const MAX_CUSTOM_WIDTH_MM = 420;
 export const MIN_CUSTOM_HEIGHT_MM = 50;
 export const MAX_CUSTOM_HEIGHT_MM = 600;
 
+/** The printer's correction, X and Y, from minus this to this, in steps of 0.1 (step 4 design A5). */
+export const MAX_CALIBRATION_MM = 20;
+
 /** A5 (the default) and A4 in mm. */
 export const PAGE_SIZES: Record<Exclude<PageSize, "custom">, { widthMm: number; heightMm: number }> = {
     A5: {widthMm: 148, heightMm: 210},
@@ -32,6 +35,10 @@ export const PAGE_SIZE_OPTIONS: PageSize[] = ["A5", "A4", "custom"];
 export const TEMPLATE_FUNCTIONS: TemplateFunction[] = ["fullDate", "time", "dayOfWeek", "dayOfMonth", "isoDateTime", "pageNumber"];
 
 export const TEMPLATE_KINDS: TemplateItemKind[] = ["prescriptionText", "manualInput", "function", "staticText"];
+
+/** An item's alignments, mirroring the server's `PrescriptionTemplateCodes.Aligns`, and what an item holding none reads as. */
+export const ITEM_ALIGNS: ItemAlign[] = ["right", "center", "left"];
+export const DEFAULT_ITEM_ALIGN: ItemAlign = "right";
 
 /**
  * A new item's size and, for the prescription text, its place (contract § 3.5). Every size fits the smallest custom
@@ -93,3 +100,37 @@ export const AREA_PADDING_PX = 16;
 export const AREA_BOTTOM_GAP_PX = 24;
 /** The area never gets shorter than this, on a window too low for the page's header. */
 export const AREA_MIN_HEIGHT_PX = 240;
+
+/**
+ * Test print's rulers (step 4 design § 3, P4), in mm: a line this far in from the top edge and from the left, across the whole sheet. A tick
+ * every `RULER_TICK_EVERY_MM`, longer every `RULER_LONG_TICK_EVERY_MM`, a Latin number every `RULER_LABEL_EVERY_MM`. Ticks grow from the line
+ * away from the edge.
+ */
+export const RULER_INSET_MM = 6;
+export const RULER_TICK_EVERY_MM = 1;
+export const RULER_LONG_TICK_EVERY_MM = 5;
+export const RULER_LABEL_EVERY_MM = 10;
+export const RULER_TICK_LENGTH_MM = 1.5;
+export const RULER_LONG_TICK_LENGTH_MM = 3;
+export const RULER_STROKE_MM = 0.2;
+export const RULER_LABEL_SIZE_MM = 2.5;
+/** Test print's frame around each box: a real border, on an empty child, so the box's text doesn't move (step 4 design § 3). */
+export const TEST_PRINT_FRAME_BORDER = "0.2mm solid #000";
+/** What a page number prints on the test page (P3), whatever its one sheet. */
+export const TEST_PRINT_PAGE = 2;
+export const TEST_PRINT_PAGES = 3;
+/** The prescription text's fixed sample on the test page (P3): both directions, real-looking widths, the same in both UI languages. */
+export const TEST_PRINT_SAMPLE_LINES = [
+    "Augmentin 1 g tablets",
+    "قرص كل 12 ساعة لمدة 5 أيام",
+    "Panadol 500 mg tablets",
+    "قرص عند اللزوم، بحد أقصى 4 أقراص في اليوم",
+    "Vigamox 0.5% eye drops",
+    "نقطة في العين اليمنى 4 مرات يوميًا",
+] as const;
+
+/** The paper image's opacity in percent (step 4 design A11, § 3): screen only, never saved, back to the default each opening. */
+export const PAPER_OPACITY_DEFAULT = 50;
+export const PAPER_OPACITY_MIN = 10;
+export const PAPER_OPACITY_MAX = 100;
+export const PAPER_OPACITY_STEP = 10;

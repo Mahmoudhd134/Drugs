@@ -13,6 +13,7 @@ import {
     inlineStyle,
     layoutL,
     manualItem,
+    openSection,
     placeOf,
     PT_TEXTS,
     putTemplate,
@@ -163,10 +164,17 @@ test.describe("Print template: designing @area:admin", () => {
             await designer.box("i1").click();
             await check("the prescription text selected");
 
+            await openSection(designer, "page");
             await designer.paperSize.click();
             await page.getByRole("option", {name: pt.sizeCustom, exact: true}).click();
             await check("a custom size");
 
+            await openSection(designer, "calibration");
+            await check("the printer's correction");
+            await openSection(designer, "paper");
+            await check("the paper image's section");
+
+            await openSection(designer, "item");
             await designer.field(pt.x).fill("500");
             await expect(designer.settings.getByText(pt.outside, {exact: true})).toBeVisible();
             await check("a field's message");
@@ -188,7 +196,7 @@ test.describe("Print template: designing @area:admin", () => {
             await designer.question.getByRole("button", {name: TEXTS[lang].cancel, exact: true}).click();
         });
 
-    test("in the Arabic UI, 12.5, 12,5 and «١٢٫٥» are each 12.5, never 125 or 0 @TPL-225",
+    test("in the Arabic UI, 12.5, 12,5, «١٢٫٥» and +12.5 are each 12.5, never 125 or 0 @TPL-225",
         async ({page, data, lang, isMobile}) => {
             test.skip(isMobile || lang !== "ar", "the Arabic UI on a computer");
             const clinic = await data.clinic();
@@ -199,7 +207,7 @@ test.describe("Print template: designing @area:admin", () => {
             await designerShown(designer);
             await designer.box("m").click();
 
-            for (const typed of ["12.5", "12,5", "١٢٫٥"]) {
+            for (const typed of ["12.5", "12,5", "١٢٫٥", "+12.5"]) {
                 await test.step(typed, async () => {
                     await typeInto(designer.field(pt.x), typed);
                     await expect.poll(() => inlineStyle(designer.box("m"), "left")).toBe("12.5mm");
@@ -422,7 +430,7 @@ test.describe("Print template: a computer only @area:admin", () => {
             await expectNoCutOrOverlap(page.locator("main"), "the designer at 900 px");
             const area = (await designer.area.boundingBox())!;
             const settings = (await designer.settings.boundingBox())!;
-            expect(settings.y, "the settings sit below the sheet's area").toBeGreaterThanOrEqual(area.y + area.height);
+            expect(settings.x + settings.width <= area.x + 1 || settings.x >= area.x + area.width - 1, "the settings sit beside the sheet's area, never below it").toBe(true);
         });
 
     test("375 px in both languages: the four clinic tabs are reachable, the message wraps, no horizontal scroll @TPL-246",

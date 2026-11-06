@@ -36,9 +36,9 @@ do to a drug, without any code change ([clinic scoping](../clinic-scoping/tech.m
 No route of its own. A feature's route, for example:
 
 ```csharp
-[HttpPut, AttachmentUpload(AttachmentModules.ClinicPaper)]
-public async Task<ActionResult> Upload(IFormFile file, CancellationToken ct) =>
-    (await sender.Send(new UploadPaperImageCommand(file.ToAttachmentUpload()), ct)).ToOk();
+[HttpPost, AttachmentUpload(AttachmentModules.ClinicPaper)]
+public async Task<ActionResult<AttachmentDto>> Upload(IFormFile file, CancellationToken cancellationToken) =>
+    (await sender.Send(new UploadPaperImageCommand(file.ToAttachmentUpload()), cancellationToken)).ToOk();
 ```
 
 | Answer | When |
@@ -139,7 +139,7 @@ reset before it reads the answer; the browser's check ([Frontend](#frontend)) co
 Any other value stops the app at startup, and the message names it. Env var: `Attachments__Physical__RootPath` ([DEPLOY.md](../../../DEPLOY.md)).
 
 ## Frontend
-In `ClinicHub.Web/src/features/attachments/`, with no barrel file (a feature imports each piece by its path). Nothing mounts it yet: the first feature to use it brings the route and the screen. It holds no URL and no permission key: a feature passes an **adapter** over its own routes, and `canUpload`, `canReplace`, `canDelete` from its own permissions, all false by default.
+In `ClinicHub.Web/src/features/attachments/`, with no barrel file (a feature imports each piece by its path). Print templates step 4 is the first to mount it (the paper's picture). It holds no URL and no permission key: a feature passes an **adapter** over its own routes, and `canUpload`, `canReplace`, `canDelete` from its own permissions, all false by default.
 
 | Piece | Does |
 |---|---|

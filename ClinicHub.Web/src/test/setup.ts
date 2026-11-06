@@ -4,7 +4,7 @@ import {cleanup, configure, fireEvent} from "@testing-library/react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import {restoreClipboard} from "./clipboard.ts";
-import {takeForbiddenQueries} from "./render.tsx";
+import {resetEmotionCaches, takeForbiddenQueries} from "./render.tsx";
 import {server} from "./server.ts";
 import {resetStorage} from "./storage.ts";
 import {installMatchMedia, setViewportWidth} from "./viewport.ts";
@@ -100,6 +100,7 @@ afterEach(async () => {
     // the next test's toasts time out as they should
     document.querySelectorAll("[data-rht-toaster]").forEach(toaster => fireEvent.pointerLeave(toaster));
     cleanup();
+    resetEmotionCaches();
     vi.useRealTimers();
     await settleRequests();
     // react-hot-toast keeps its toasts in a module store: never let one leak into the next test

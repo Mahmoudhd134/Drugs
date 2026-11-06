@@ -14,6 +14,7 @@ import {
     renderDesigner,
     renderNewSheet,
     saveButton,
+    sectionButton,
     selectedIds,
     settingsField,
     settingsPanel,
@@ -35,10 +36,9 @@ const layoutL = () => aPrintLayout({
 const namesOf = (scope: HTMLElement, role: string) =>
     within(scope).getAllByRole(role).map(element => element.getAttribute("aria-label") ?? element.textContent ?? "");
 
-/** The labels of the text fields of the settings panel, in order, after the sheet's two. */
-const itemFieldLabels = () => within(settingsPanel()).getAllByRole("textbox")
-    .map(field => settingsPanel().querySelector(`label[for="${field.id}"]`)?.textContent?.replace(/\s*\*$/, "") ?? "")
-    .slice(2);
+/** The labels of the text fields of the item's section, in order. */
+const itemFieldLabels = () => within(sectionButton("item").closest<HTMLElement>("[data-settings-section]")!).getAllByRole("textbox")
+    .map(field => settingsPanel().querySelector(`label[for="${field.id}"]`)?.textContent?.replace(/\s*\*$/, "") ?? "");
 
 const ADDABLE: [entry: string, typeShown: string][] = [
     ["Manual input", "Manual input"],
@@ -105,7 +105,7 @@ describe("print template: the side panel @area:admin", () => {
         expect(settings.queryByRole("textbox", {name: "Type"})).not.toBeInTheDocument();
         expect(settings.queryByRole("combobox", {name: "Type"})).not.toBeInTheDocument();
         // The paper size is the only select
-        expect(settings.getAllByRole("combobox")).toHaveLength(1);
+        expect(settings.getAllByRole("combobox", {hidden: true})).toHaveLength(1);
         expect(settingsField(FIELD_LABEL.x)).toHaveValue(box.style.left.replace("mm", ""));
         // The focus stays on the entry: the next item is one key away
         expect(panelEntry(entry)).toHaveFocus();

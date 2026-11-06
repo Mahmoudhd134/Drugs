@@ -144,8 +144,8 @@ test.describe("Platform admin in Arabic and on a phone @area:admin", () => {
                 await test.step(what, async () => {
                     await healthy();
                     // Role names are clinic data (Doctor, Assistant stay as stored): the rest is Arabic. The designer's own
-                    // Latin stays too: X, Y, A5, A4, ISO, JavaScript (contract § 4.5)
-                    const designersLatin = what.startsWith("print template") ? /\b(X|Y|A5|A4|ISO|JavaScript)\b/g : /$^/g;
+                    // Latin stays too: X, Y, A5, A4, ISO, JavaScript (contract § 4.5), and the picture's PNG and JPEG (step 4 contract § 4.1)
+                    const designersLatin = what.startsWith("print template") ? /\b(X|Y|A5|A4|ISO|JavaScript|PNG|JPEG)\b/g : /$^/g;
                     const text = (await page.evaluate(() => document.body.innerText)).replace(designersLatin, "");
                     const latin = text.replace(/\b(Doctor|Assistant)\b/g, "").match(/[A-Za-z]+/g) ?? [];
                     expect(latin, `${what}: English UI strings`).toEqual([]);

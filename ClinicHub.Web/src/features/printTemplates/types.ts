@@ -23,16 +23,29 @@ export type ItemBox = {
     fontSizePt: number;
 };
 
+/** An item's horizontal alignment on the sheet, physical whatever the language. */
+export type ItemAlign = "right" | "center" | "left";
+
+/** A short item's alignment: missing or null reads as right, so a template saved before it needs no data step. */
+type AlignedValue = { align?: ItemAlign | null };
+
 export type PrescriptionTextItem = ItemBox & { kind: "prescriptionText" };
-export type ManualInputItem = ItemBox & { kind: "manualInput"; name: string };
-export type FunctionItem = ItemBox & { kind: "function"; function: TemplateFunction; name: string };
-export type StaticTextItem = ItemBox & { kind: "staticText"; text: string };
+export type ManualInputItem = ItemBox & AlignedValue & { kind: "manualInput"; name: string };
+export type FunctionItem = ItemBox & AlignedValue & { kind: "function"; function: TemplateFunction; name: string };
+export type StaticTextItem = ItemBox & AlignedValue & { kind: "staticText"; text: string };
 
 export type TemplateItem = PrescriptionTextItem | ManualInputItem | FunctionItem | StaticTextItem;
 
 export type TemplateItemKind = TemplateItem["kind"];
 
-export type PrintLayout = { schemaVersion: 1; page: TemplatePage; items: TemplateItem[] };
+/**
+ * The printer's correction in mm (step 4 design A3, A4): +X moves right and +Y moves down on the paper, whatever the language. It moves
+ * every box on a real print and a test print only; the designer's numbers stay. An API answer always holds it; `normalizeLayout` fills 0, 0
+ * for what doesn't (a stale cache, a parity row).
+ */
+export type TemplateCalibration = { xMm: number; yMm: number };
+
+export type PrintLayout = { schemaVersion: 1; page: TemplatePage; items: TemplateItem[]; calibration: TemplateCalibration };
 
 /** `GET`/`PUT …/prescription-template`. */
 export type PrintTemplate = { layout: PrintLayout; updatedAt: string };

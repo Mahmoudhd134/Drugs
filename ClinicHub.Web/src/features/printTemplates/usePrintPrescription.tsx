@@ -1,18 +1,16 @@
-import {type ReactNode, useEffect, useLayoutEffect, useRef, useState} from "react";
+import {type ReactNode, useEffect, useRef, useState} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {getErrorMessage, toApiError} from "../../api/errors.ts";
 import {useSingleFlight} from "../../hooks/useSingleFlight.ts";
 import {useClinic} from "../auth/useAuth.ts";
-import {htmlForPaste} from "../prescription/prescriptionText.ts";
 import {readTemplateAtPrint, useClinicPrintTemplate} from "./clinicTemplate.ts";
 import {PrintDialog} from "./components/PrintDialog.tsx";
-import {type PrintJob, PrintRoot} from "./components/PrintRoot.tsx";
-import {paginate} from "./pagination.ts";
-import {cleanPrintHtml} from "./printHtml.ts";
-import {createTextMeasurer, loadPrintFont} from "./printMeasure.ts";
-import type {ManualInputItem, PrescriptionTextItem, PrintLayout} from "./types.ts";
+import {normalizeLayout} from "./layout.ts";
+import {loadPrintFont} from "./printMeasure.ts";
+import type {ManualInputItem, PrintLayout} from "./types.ts";
+import {measureChunks, usePrintJob} from "./usePrintJob.tsx";
 
 export type PrescriptionPrinter = {
     /** The clinic has a template: Print shows. False while loading, with none, and after a failed read when the page opened */
@@ -26,22 +24,6 @@ export type PrescriptionPrinter = {
 type ManualValues = Record<string, string>;
 
 const isManualInput = (item: PrintLayout["items"][number]): item is ManualInputItem => item.kind === "manualInput";
-const isPrescriptionText = (item: PrintLayout["items"][number]): item is PrescriptionTextItem => item.kind === "prescriptionText";
-
-/** One HTML string per sheet, measured in the print font. The hidden box is gone before `window.print`, also on an exception. */
-const measureChunks = (html: string, layout: PrintLayout) => {
-    const clean = cleanPrintHtml(htmlForPaste(html));
-    // Every saved template holds one (the save rules); without it, nothing to measure against
-    const textItem = layout.items.find(isPrescriptionText);
-    if (!textItem) return paginate(clean, () => true);
-    const measurer = createTextMeasurer(textItem);
-    try {
-        return paginate(clean, measurer.fits);
-    } finally {
-        measurer.dispose();
-    }
-};
-
 /** The prescription page's printing (contract § 3.2). */
 export const usePrintPrescription = (): PrescriptionPrinter => {
     const {t} = useTranslation();
@@ -50,7 +32,7 @@ export const usePrintPrescription = (): PrescriptionPrinter => {
     const template = useClinicPrintTemplate(clinicId);
     const once = useSingleFlight();
     const [asking, setAsking] = useState<ManualInputItem[] | null>(null);
-    const [job, setJob] = useState<PrintJob | null>(null);
+    const printJob = usePrintJob();
     /** The waiting flow's resolver: answers once, so a second confirm does nothing (TPL-116) */
     const answer = useRef<((values: ManualValues | null) => void) | null>(null);
     /** The page is gone: a flow still running stops at its next step (TPL-341) */
@@ -73,16 +55,6 @@ export const usePrintPrescription = (): PrescriptionPrinter => {
         };
     }, []);
 
-    // In one effect: `afterprint` fires inside `window.print` on a desktop browser, so the listener is there before it. It's the only thing that
-    // clears a job but the next print and the page's unmount, since `window.print` may return at once on a phone (TPL-322)
-    useLayoutEffect(() => {
-        if (!job) return;
-        const finish = () => setJob(null);
-        window.addEventListener("afterprint", finish);
-        window.print();
-        return () => window.removeEventListener("afterprint", finish);
-    }, [job]);
-
     const askValues = (items: ManualInputItem[]) => new Promise<ManualValues | null>(resolve => {
         answer.current = resolve;
         setAsking(items);
@@ -102,7 +74,8 @@ export const usePrintPrescription = (): PrescriptionPrinter => {
             toast.error(t("printTemplates.print.gone"));
             return;
         }
-        const {layout} = current;
+        // A copy cached before step 4 has no calibration: it prints at 0, 0, never at `NaNmm` (TPL-605)
+        const layout = normalizeLayout(current.layout);
 
         const manualInputs = layout.items.filter(isManualInput);
         let manualValues: ManualValues = {};
@@ -116,7 +89,7 @@ export const usePrintPrescription = (): PrescriptionPrinter => {
 
         await loadPrintFont();
         if (gone.current) return;
-        setJob({layout, chunks: measureChunks(html, layout), manualValues, now});
+        printJob.start({layout, chunks: measureChunks(html, layout), manualValues, now});
     };
 
     return {
@@ -127,7 +100,7 @@ export const usePrintPrescription = (): PrescriptionPrinter => {
         element: (
             <>
                 <PrintDialog items={asking} onConfirm={settle} onCancel={() => settle(null)}/>
-                {job && <PrintRoot job={job}/>}
+                {printJob.element}
             </>
         ),
     };

@@ -86,7 +86,9 @@ All at once; none stops the others (so one run reports every failure).
 |---|---|---|
 | Start | picks the tier's jobs, the random seed | 5 s |
 | Backend | Release build, unit + integration tests (compose PostgreSQL in the job); with coverage and its gates on `full`/`release` | 2 min |
-| Frontend | `tsc -b`, `eslint src`, the e2e specs' `tsc` and eslint, Vitest (`npm run test:coverage` and its gates on `full`/`release`) | 4 min |
+| Frontend | `tsc -b`, `eslint src`, the e2e specs' `tsc` and eslint | 2 min |
+| Vitest (1/3, 2/3, 3/3) | The tests in parallel parts, by file (`--shard`), with coverage on `full`/`release` | 10 to 20 min each |
+| Vitest report | `full`/`release`: merges the parts (`--merge-reports`) and runs the coverage gates on all the tests, which a part alone can't (`vite.config.ts` turns its thresholds off under `--shard`) | 1 min |
 | E2E (smoke) | `step`: the `@smoke` tests of every project in one job | 4 min |
 | E2E (1/6 … 6/6) | `full`/`release`: the three main Playwright projects (`ar-desktop`, `en-desktop`, `ar-phone`) in 6 shards, each with its own API and database | 5 min each |
 | E2E (template) | `full`/`release`: `ar-desktop-template` alone (`--no-deps`): its `dependencies` in `playwright.config.ts` would keep the whole suite in one shard | 1.5 min |
@@ -488,9 +490,9 @@ code, a 409), call the API.
 
 ### Attachments: test routes and a real server
 
-Production has no attachment route (the first feature to use the module brings its own), so `tests/ClinicHub.IntegrationTests/Attachments/TestHost/` adds some to a test app only, on the real pipeline (authorization, filter, model binding, service, provider, database, disk). A class takes `AttachmentsAppFixture app` and extends `AttachmentTest`.
+Production's only attachment routes are the ones a feature brought (print templates step 4's paper image), so `tests/ClinicHub.IntegrationTests/Attachments/TestHost/` adds the module's own to a test app only, on the real pipeline (authorization, filter, model binding, service, provider, database, disk). A class takes `AttachmentsAppFixture app` and extends `AttachmentTest`.
 
-- `AttachmentsAppFixture`: the app with the test-only controllers (clinic, `[AdminClinic]`, platform inside and outside `UseSharedCatalog()`), their commands and the failure seams, all through the factory's `services` parameter. `CreateVariant` stays the plain app (it proves production has no such route, ATT-012); `CreateHostVariant` has the routes.
+- `AttachmentsAppFixture`: the app with the test-only controllers (clinic, `[AdminClinic]`, platform inside and outside `UseSharedCatalog()`), their commands and the failure seams, all through the factory's `services` parameter. `CreateVariant` stays the plain app (it proves production's only endpoints with `[AttachmentUpload]` are `AdminPaperImageController.Upload` and `.Replace`, ATT-012); `CreateHostVariant` has the routes.
 - **Failure seams** (`AttachmentSeams`, off by default, reset before each test): a failing disk write, a save that fails, commits and then throws, or is cancelled, and a failing lookup. They also record what they saw, so a test proves the file was on disk before the cleanup removed it.
 - **The disk:** `ClinicHubFactory` gives every app a temp folder of its own (`AttachmentRoot`, removed when it's disposed) unless the caller's settings set `Attachments:Physical:RootPath`. Respawn doesn't reset it, so "nothing written" compares a folder before and after (`AttachmentDisk`), and "still on disk" reads the root plus the row's `StorageKey`.
 - **A real server** (`RealKestrelHost`, opt-in, ATT-082 and ATT-095): TestServer enforces no body limit. A variant boots as usual and a real Kestrel on `127.0.0.1`, port 0, serves its same pipeline. `SendChunkedAsync` sends a chunked body on a raw socket, because `HttpClient` can't reliably read an answer that arrives while it's still sending.

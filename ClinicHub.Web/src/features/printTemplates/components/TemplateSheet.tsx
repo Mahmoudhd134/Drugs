@@ -2,13 +2,30 @@ import type {CSSProperties, MouseEvent, PointerEvent, Ref} from "react";
 import {useTranslation} from "react-i18next";
 import "../printFont.css";
 import "../printSheet.css";
-import {PRINT_FONT_FAMILY, PRINT_LINE_HEIGHT} from "../constants.ts";
+import {PRINT_FONT_FAMILY, PRINT_LINE_HEIGHT, TEST_PRINT_FRAME_BORDER} from "../constants.ts";
 import {isLeftToRightValue} from "../functions.ts";
+import {alignOf, toTenths} from "../layout.ts";
 import {printTextStyle} from "../printMeasure.ts";
 import type {PrintLayout, TemplateItem} from "../types.ts";
+import {TemplatePrintRulers} from "./TemplatePrintRulers.tsx";
 
-/** One printed sheet: the prescription text's chunk (clean HTML) and each short item's value by item id. */
-export type SheetPrintContent = { textHtml: string; values: Readonly<Record<string, string>> };
+/**
+ * One printed sheet: the prescription text's chunk (clean HTML) and each short item's value by item id. `test` (step 4): each box also holds, as its last child, an empty
+ * `div data-testid="test-print-frame"` (`position: absolute; inset: 0; border: TEST_PRINT_FRAME_BORDER`), and the sheet holds `TemplatePrintRulers` as its last child.
+ */
+export type SheetPrintContent = { textHtml: string; values: Readonly<Record<string, string>>; test?: boolean };
+
+/**
+ * The paper image behind the boxes (step 4 design § 3), in the designer only: `img data-testid="template-paper-image" class="template-paper-image"`, the sheet's first child, `src` the URL, `alt=""`, `aria-hidden="true"`,
+ * `draggable={false}`, inline `position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; opacity: <percent / 100>`, `onError`.
+ */
+export type SheetPaper = {
+    url: string;
+    /** 10 to 100 */
+    opacityPercent: number;
+    /** The picture won't decode (A14) */
+    onError: () => void;
+};
 
 type Props = {
     layout: PrintLayout;
@@ -25,10 +42,18 @@ type Props = {
     print?: SheetPrintContent;
     /** The designer's zoom around this sheet, in percent: what keeps a box's mark the same on screen */
     zoom?: number;
+    /** Step 4: the picture behind the boxes, designer mode only; ignored with `print`. Null or left out: none */
+    paper?: SheetPaper | null;
 };
 
-/** The designer's mm grid: a faint line every 1 mm and a stronger one every 10 mm. */
+/**
+ * The designer's mm grid: a faint line every 1 mm and a stronger one every 10 mm. Its own child, above the picture, since a child paints over its
+ * parent's background and the grid would vanish at 100% (step 4 design § 3).
+ */
 const GRID: CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
     backgroundImage: [
         "linear-gradient(to right, rgba(15, 118, 110, 0.22) 1px, transparent 1px)",
         "linear-gradient(to bottom, rgba(15, 118, 110, 0.22) 1px, transparent 1px)",
@@ -37,6 +62,19 @@ const GRID: CSSProperties = {
     ].join(", "),
     backgroundSize: "10mm 10mm, 10mm 10mm, 1mm 1mm, 1mm 1mm",
 };
+
+const PAPER_STYLE: CSSProperties = {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "fill",
+    pointerEvents: "none",
+};
+
+/** Each box's frame on a test page: a real border that prints with "Background graphics" off, on an empty child so the box's text doesn't move (TPL-639, TPL-711). */
+const TEST_FRAME_STYLE: CSSProperties = {position: "absolute", inset: 0, border: TEST_PRINT_FRAME_BORDER};
 
 /** Text standing in for a value not set yet (≈ 7:1 on white). */
 const DIMMED_COLOR = "#595959";
@@ -83,23 +121,35 @@ const VALUE_STYLE: CSSProperties = {
 /** A value that follows its language: each line of a static text takes its own direction and start (F5). */
 const AUTO_VALUE_STYLE: CSSProperties = {...VALUE_STYLE, unicodeBidi: "plaintext"};
 
-/** A printed sheet (contract § 3.4): plain boxes holding values, set as text but for the cleaned prescription text. A name never prints. */
+/**
+ * The printer's correction on a box, in whole tenths (step 4 design A4, contract § 10.23), printing only: `left` and `top` stay the designed place. A transform, since text moved through
+ * `left` and `top` lands on whole CSS px in the PDF, and a box whose top passes the sheet's bottom makes a blank page. Layout, wrapping and pagination never see a transform. None at 0, 0.
+ */
+const correctionStyle = ({xMm, yMm}: PrintLayout["calibration"]): CSSProperties => {
+    const [x, y] = [toTenths(xMm), toTenths(yMm)];
+    return x === 0 && y === 0 ? {} : {transform: `translate(${x / 10}mm, ${y / 10}mm)`};
+};
+
+/** A printed sheet (contract § 3.4): plain boxes holding values, set as text but for the cleaned prescription text. A name never prints, and neither does the picture. */
 const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintContent }) => (
     <div data-testid="print-sheet" dir="ltr" style={sheetStyle(layout)}>
         {layout.items.map(item => {
             const value = print.values[item.id];
             return (
-                <div key={item.id} data-item-id={item.id} style={boxStyle(item)}>
+                <div key={item.id} data-item-id={item.id} style={{...boxStyle(item), ...correctionStyle(layout.calibration)}}>
                     {item.kind === "prescriptionText" ? (
                         <div className="print-text" style={printTextStyle(item.fontSizePt)} dangerouslySetInnerHTML={{__html: print.textHtml}}/>
                     ) : !value ? null : item.kind === "function" && isLeftToRightValue(item.function) ? (
-                        <span dir="ltr" style={VALUE_STYLE}>{value}</span>
+                        <span dir="ltr" style={{...VALUE_STYLE, textAlign: alignOf(item)}}>{value}</span>
                     ) : (
-                        <span dir="auto" style={AUTO_VALUE_STYLE}>{value}</span>
+                        <span dir="auto" style={{...AUTO_VALUE_STYLE, textAlign: alignOf(item)}}>{value}</span>
                     )}
+                    {/* Last, so `firstElementChild` stays the value */}
+                    {print.test && <div data-testid="test-print-frame" style={TEST_FRAME_STYLE}/>}
                 </div>
             );
         })}
+        {print.test && <TemplatePrintRulers page={layout.page} calibration={layout.calibration}/>}
     </div>
 );
 
@@ -109,7 +159,7 @@ const PrintedSheet = ({layout, print}: { layout: PrintLayout; print: SheetPrintC
  * style cache flips `left` and `right` in `sx`). The designer's zoom is a transform around it, never in it (step 3 contract
  * § 3.3), so print can't see it.
  */
-export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRef, sampleText, print, zoom = 100}: Props) => {
+export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRef, sampleText, print, zoom = 100, paper}: Props) => {
     const {t} = useTranslation();
     const designing = !!onSelect;
 
@@ -136,8 +186,21 @@ export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRe
             ref={sheetRef}
             data-testid="template-sheet"
             dir="ltr"
-            style={{...sheetStyle(layout), ...(designing ? GRID : undefined)}}
+            style={sheetStyle(layout)}
         >
+            {paper && (
+                <img
+                    data-testid="template-paper-image"
+                    className="template-paper-image"
+                    src={paper.url}
+                    alt=""
+                    aria-hidden="true"
+                    draggable={false}
+                    onError={paper.onError}
+                    style={{...PAPER_STYLE, opacity: paper.opacityPercent / 100}}
+                />
+            )}
+            {designing && <div data-testid="template-sheet-grid" aria-hidden="true" style={GRID}/>}
             {layout.items.map(item => {
                 const {text, dimmed} = contentOf(item);
                 const selected = item.id === selectedId;
@@ -170,7 +233,8 @@ export const TemplateSheet = ({layout, selectedId, onSelect, onBoxPress, sheetRe
                         {/* Out of the button's flow: a button centers its content, this starts at the box's top */}
                         <span
                             dir="auto"
-                            style={{...AUTO_VALUE_STYLE, color: dimmed ? DIMMED_COLOR : undefined}}
+                            // The prescription text keeps its lines' own alignment
+                            style={{...AUTO_VALUE_STYLE, color: dimmed ? DIMMED_COLOR : undefined, ...(item.kind === "prescriptionText" ? undefined : {textAlign: alignOf(item)})}}
                         >
                             {text}
                         </span>

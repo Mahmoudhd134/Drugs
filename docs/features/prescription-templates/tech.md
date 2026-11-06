@@ -1,12 +1,12 @@
 # Prescription print templates: technical
 
 ## Summary
-Steps 1 to 3 of the [design](../../design/prescription-templates.md) (§ 7; decisions D1–D16): each clinic has at most one print layout, stored as JSON, the super admin designs it with the mouse, the keyboard or number fields on the clinic page's **Print template** tab, and staff print from the [prescription page](../prescription/tech.md) through the browser. **Built:** the table, the admin API with its validation, the designer with its unsaved-changes guard, the data router, the sheet's self-hosted font (step 1); the clinic read route, Print buttons, pop-up, function values, cleaning, pagination, the print root (step 2); drag, resize, snap, guides, keyboard, undo and redo, zoom, auto-scroll ([Drag](#drag), step 3). **Not built:** the guide image and calibration (step 4). No server PDF (D1). It touches the platform admin ([tab and routes](../platform-admin/tech.md)), the app's router (every page), the app bar's logout and the prescription page.
+Steps 1 to 4 of the [design](../../design/prescription-templates.md) (§ 7; decisions D1–D16; [step 4's](../../design/prescription-templates.step4.md) A1–A14, P1–P8): each clinic has at most one print layout, stored as JSON, the super admin designs it with the mouse, the keyboard or number fields on the clinic page's **Print template** tab, and staff print from the [prescription page](../prescription/tech.md) through the browser. **Built:** the table, the admin API with its validation, the designer with its unsaved-changes guard, the data router, the sheet's self-hosted font (step 1); the clinic read route, Print buttons, pop-up, function values, cleaning, pagination, the print root (step 2); drag, resize, snap, guides, keyboard, undo and redo, zoom, auto-scroll ([Drag](#drag), step 3); the paper's picture through [attachments](../attachments/tech.md), the printer's correction, test print ([Paper alignment](#paper-alignment), step 4); the settings' [collapsible sections](#settings-panel) and each short item's [alignment](#item-alignment) (step 4's walkthrough). No server PDF (D1). It touches the platform admin ([tab and routes](../platform-admin/tech.md)), the app's router (every page), the app bar's logout and the prescription page.
 
-**Not verified:** alignment on real paper and the real print dialog: no printer is available for now. TPL-190, TPL-191 and TPL-347 stay manual cases for the [dress rehearsal](../../testing/dress-rehearsal.md), not a gate for merging; TPL-334 (a page larger than the paper) only records what the browser does. **What CI proves:** the PDF's page size, each item's position in it, and every drug present once across the pages.
+**Not verified:** alignment on real paper and the real print dialog: no printer is available for now. TPL-190, TPL-191, TPL-347, TPL-687 and TPL-688 stay manual cases for the [dress rehearsal](../../testing/dress-rehearsal.md), not a gate for merging; TPL-334 (a page larger than the paper) only records what the browser does. **What CI proves:** the PDF's page size, each item's position in it after the correction, and every drug present once across the pages. That the paper itself lines up, it can't.
 
 ## Data model
-Migration **`AddPrescriptionTemplates`** (a new empty table; no data step). Tested up → down → up.
+Migration **`AddPrescriptionTemplates`** (a new empty table; no data step). Tested up → down → up. Step 4 adds no migration: the paper's picture is an `Attachments` row and file (owner `AttachmentOwner(AttachmentModules.ClinicPaper, "current")`: one per clinic, the clinic filter separates clinics; `Attachments:Modules:clinicPaper:MaxFileSizeMb` 10, `AllowedTypes` `png,jpeg`), and the correction and each item's alignment are in the layout's JSON.
 
 **PrescriptionTemplates** (`ClinicHub.Domain/Prescriptions/PrescriptionTemplate`, `IClinicOwned`, `IHasTimestamps`)
 
@@ -17,7 +17,7 @@ Migration **`AddPrescriptionTemplates`** (a new empty table; no data step). Test
 | Layout | text | The layout below, written only by `PrescriptionLayoutRules.Serialize` from the normalized DTO (D2: no PostgreSQL-only piece) |
 | CreatedAt, UpdatedAt | timestamptz | |
 
-Limits (`PrescriptionTemplateLimits`, mirrored by `constants.ts`): 50 items; name 60; static text 1000; font 6–36, default 11; width ≥ 5; height ≥ 4; prescription text height ≥ 20; custom page 50–420 × 50–600; A5 148 × 210; A4 210 × 297; schema version 1; item id ≤ 40.
+Limits (`PrescriptionTemplateLimits`, mirrored by `constants.ts`): 50 items; name 60; static text 1000; font 6–36, default 11; width ≥ 5; height ≥ 4; prescription text height ≥ 20; custom page 50–420 × 50–600; A5 148 × 210; A4 210 × 297; schema version 1; item id ≤ 40; correction −20 to 20 (`MaxCalibrationMm`); `align` `right`, `center` or `left`, case-sensitive (`PrescriptionTemplateCodes.Aligns`, `ITEM_ALIGNS`), reading as right when missing or null (`DEFAULT_ITEM_ALIGN`).
 
 ```jsonc
 {
@@ -25,14 +25,15 @@ Limits (`PrescriptionTemplateLimits`, mirrored by `constants.ts`): 50 items; nam
   "page": { "size": "A5", "widthMm": 148, "heightMm": 210 },
   "items": [
     { "id": "i1", "kind": "prescriptionText", "xMm": 14, "yMm": 80, "wMm": 120, "hMm": 90, "fontSizePt": 11 },
-    { "id": "i2", "kind": "manualInput", "name": "الاسم", "xMm": 58, "yMm": 46, "wMm": 72, "hMm": 8, "fontSizePt": 11 },
+    { "id": "i2", "kind": "manualInput", "name": "الاسم", "xMm": 58, "yMm": 46, "wMm": 72, "hMm": 8, "fontSizePt": 11, "align": "center" },
     { "id": "i3", "kind": "function", "function": "fullDate", "name": "التاريخ", "xMm": 14, "yMm": 46, "wMm": 30, "hMm": 8, "fontSizePt": 11 },
-    { "id": "i4", "kind": "staticText", "text": "يُصرف مرة واحدة\nسطر ثان", "xMm": 14, "yMm": 175, "wMm": 60, "hMm": 8, "fontSizePt": 10 }
-  ]
+    { "id": "i4", "kind": "staticText", "text": "يُصرف مرة واحدة\nسطر ثان", "xMm": 14, "yMm": 175, "wMm": 60, "hMm": 8, "fontSizePt": 10, "align": "left" }
+  ],
+  "calibration": { "xMm": 2, "yMm": -1.5 }
 }
 ```
 
-Millimetres from the sheet's top-left corner, whatever the language; one decimal. `function`, `name` and `text` are left out when null, in the column and in answers. A new clinic starts with none: provisioning is untouched (D6).
+Millimetres from the sheet's top-left corner, whatever the language; one decimal. `function`, `name`, `text` and `align` are left out when null, in the column and in answers. A new clinic starts with none: provisioning is untouched (D6). `schemaVersion` stays 1: `calibration` and `align` are additions. A row with no `calibration` (every row saved before step 4) reads as 0, 0 in `Deserialize`, so answers always hold it and old rows need no data step. An item with no `align`, here the prescription text and `i3`, is never given one by the server: the screen and print read it as right (`alignOf`), so old rows need no data step either.
 
 ## API
 Under `/api/v1`, `Api/Features/Platform/AdminPrescriptionTemplateController`, `PlatformAdmin` + `[AdminClinic]`.
@@ -49,7 +50,20 @@ The clinic's own read, `Api/Features/Prescriptions/PrescriptionTemplateControlle
 |---|---|---|---|---|
 | GET | `/prescription-template` | `prescriptions.create` | 200 `PrescriptionTemplateDto`, or 204 when the clinic has none | 401; 403 `forbidden` (no permission, a no-context or platform token), `noAccess` (deactivated or removed staff, a deleted clinic), `clinicSuspended` |
 
-It sends step 1's `GetPrescriptionTemplateQuery`, which takes no clinic id, and neither does the route: the clinic query filter decides. The super admin in the template clinic's context gets 204: the template clinic can never hold one.
+The paper's picture, `Api/Features/Platform/AdminPaperImageController`, `PlatformAdmin` + `[AdminClinic]`, under `/admin/clinics/{clinicId}/prescription-template/paper-image`. No clinic route: staff have no way to reach it.
+
+| Method | Route | Request | Response | Errors (codes) |
+|---|---|---|---|---|
+| GET | `/rules` | | 200 `AttachmentRulesDto` | 401, 403 `forbidden`, 404 |
+| GET | (none) | | 200 `AttachmentDto[]`, newest first, normally one row | 401, 403, 404 |
+| POST | (none) | `[AttachmentUpload(ClinicPaper)]`, one file | 200 `AttachmentDto`: lists first, then replaces the newest or adds, so a stale screen keeps "one per clinic" | 400 `attachmentEmpty`, `attachmentTooLarge`, `attachmentTypeNotAllowed`, `nameInvalid`, `nameTooLong`, `invalidRequest` (not multipart, two files); 401, 403, 404 |
+| PUT | `/{id:guid}` | The same upload | 200 `AttachmentDto`: replaces that picture | The same, and 404 when it's gone |
+| GET | `/{id:guid}` | | 200 the file, `ToFile()` | 401, 403, 404 |
+| DELETE | `/{id:guid}` | | 204; the row is marked, the file stays | 401, 403, 404 |
+
+Two uploads in one instant can leave two live rows, accepted as in attachments: the screen shows the newest, and removing it brings the older back. Deleting the template keeps the picture (P1); a new clinic has none.
+
+The clinic read sends step 1's `GetPrescriptionTemplateQuery`, which takes no clinic id, and neither does the route: the clinic query filter decides. The super admin in the template clinic's context gets 204: the template clinic can never hold one.
 
 `PrescriptionTemplateDto` is `{ layout, updatedAt }`. On the admin routes: no token → 401 `unauthorized`; any token but a current super admin's platform token → 403 `forbidden`, checked first; a missing, deleted or template clinic → 404 `notFound`, before the body is read (a malformed body still answers 404); a suspended clinic is managed. A 400 is `ProblemDetails` listing every failure, each with `code`, `description` and `field`; `code` is the first.
 
@@ -58,27 +72,31 @@ The PUT binds `PrescriptionLayoutDto` directly (no request record). JSON numbers
 | Body | Answer |
 |---|---|
 | Malformed JSON, empty body, `null` | 400 `invalidRequest` (binding) |
-| A wrong type (`fontSizePt: "big"`, `items: "x"`, `schemaVersion: 1.5`, `kind: 5`, a number out of `decimal`'s range) | 400 `invalidRequest`, `field` = the JSON path without `$.`. The rest of the body isn't validated |
+| A wrong type (`fontSizePt: "big"`, `items: "x"`, `schemaVersion: 1.5`, `kind: 5`, `align: 5`, a number out of `decimal`'s range) | 400 `invalidRequest`, `field` = the JSON path without `$.`. The rest of the body isn't validated |
 | A number as a string that parses (`"12"`) | Accepted (ASP.NET Core's web defaults) |
 | A missing or `null` number | 400 `invalidRequest` naming it, never 0 |
 | Missing `schemaVersion` | `templateLayoutInvalid` |
 | Missing `page` | `invalidRequest` (`page`) |
 | Missing `page.size`, `kind`, `id`, or `function` on a function | The rule of each below |
 | Missing `items`, `[]` | `templateTextCount` (`items`) |
-| An unknown property, another kind's field | Ignored and not stored: binding drops the first, `Normalize` the second |
+| An unknown property, another kind's field (`align` on the prescription text, whatever its value) | Ignored and not stored: binding drops the first, `Normalize` the second |
+| Missing or `null` `align` on a short item | Saved with none, read as right |
+| Missing or `null` `calibration` | Saved as 0, 0: a tab opened before step 4 resets it, last write wins, accepted |
+| `calibration` with a missing or `null` number | 400 `invalidRequest` naming it (rule 9) |
 
 ## Backend
 `ClinicHub.Application/Features/Prescriptions/Templates/`; nothing in the folder takes a clinic id (D5).
 
 | Piece | Role |
 |---|---|
-| `PrescriptionLayoutRules` (internal) | `Round` (one decimal, `MidpointRounding.AwayFromZero`; null stays null), `Normalize` (numbers rounded; `Name` trimmed, kept on manual inputs and functions; `Text` as typed, kept on static text; `Function` kept on functions), `Fits(start, length, sheet)` (`start >= 0`, then with `length = max(length ?? 0, 0)`: `length <= sheet && start <= sheet - length`), `NameKey` (`Trim().ToLowerInvariant()`), `Serialize` / `Deserialize` (`JsonSerializerDefaults.Web`) |
+| `PrescriptionLayoutRules` (internal) | `Round` (one decimal, `MidpointRounding.AwayFromZero`; null stays null), `Normalize` (numbers rounded; `Name` trimmed, kept on manual inputs and functions; `Text` as typed, kept on static text; `Function` kept on functions; `Align` as sent, kept on manual inputs, functions and static text; a missing or `null` `Calibration` becomes 0, 0, both numbers through `Round`, `-0` becomes 0, a null number stays null for the rules), `Fits(start, length, sheet)` (`start >= 0`, then with `length = max(length ?? 0, 0)`: `length <= sheet && start <= sheet - length`), `NameKey` (`Trim().ToLowerInvariant()`), `Serialize` / `Deserialize` (`JsonSerializerDefaults.Web`; a missing or `null` `calibration` reads as 0, 0) |
 | `SavePrescriptionTemplateCommand.From(layout)` | Normalizes, so **validation sees rounded values** |
 | `SavePrescriptionTemplateCommandValidator` | The rules below |
 | `Queries/GetPrescriptionTemplate` | The clinic's row (query filter); none: `Result<PrescriptionTemplateDto>.Success(null)`, which MVC answers with 204 |
 | `Commands/SavePrescriptionTemplate` | Adds or replaces. An existing row: `db.Touch(row)`, so `UpdatedAt` moves even when the JSON is the same; `Id` and `CreatedAt` stay. Answers the layout saved and `row.UpdatedAt` |
 | `Commands/DeletePrescriptionTemplate` | Removes when found; success either way |
-| `PrescriptionTemplateErrors` | The 10 `template*` codes |
+| `PaperImages/` | `PaperImageOwner.Current` and six use cases, one per route, `Commands/{UploadPaperImage,ReplacePaperImage,DeletePaperImage}`, `Queries/{GetPaperImageRules,ListPaperImages,OpenPaperImage}`, each a call on `IAttachmentService`; no new service, no clinic id |
+| `PrescriptionTemplateErrors` | The 11 `template*` codes |
 
 **Validation**, every failure returned, in this order; all 400. `layout.ts` `validateLayout` holds the same list, and `tests/fixtures/print-layout-cases.json` holds it as data for both sides.
 
@@ -89,11 +107,11 @@ The PUT binds `PrescriptionLayoutDto` directly (no request record). JSON numbers
 | 3 | page present | `Size` is `A5`, `A4` or `custom` (case-sensitive); else only this page error | `templatePageInvalid` | `page.size` |
 | 4 | known size | `WidthMm` not null, `HeightMm` not null | `invalidRequest` | `page.widthMm`, `page.heightMm` |
 | 5 | known size, number present | A5: 148 × 210; A4: 210 × 297; custom: 50–420 × 50–600 (width first, then height) | `templatePageInvalid` | `page.widthMm`, `page.heightMm` |
-| 6 | always | At most 50 items. Over: only this error for `items`; rules 7–8 are skipped | `templateTooManyItems` | `items` |
+| 6 | always | At most 50 items. Over: only this error for `items`; rules 7–8 are skipped, 9–10 aren't | `templateTooManyItems` | `items` |
 | 7 | ≤ 50 | Exactly one item with kind `prescriptionText` (null items → none) | `templateTextCount` | `items` |
-| 8 | ≤ 50 | Each item in order, 8a–8j. A null element: `templateLayoutInvalid` on `items[i]`, nothing else for it | | |
+| 8 | ≤ 50 | Each item in order, 8a–8k. A null element: `templateLayoutInvalid` on `items[i]`, nothing else for it | | |
 | 8a | | `Id` matches `^[A-Za-z0-9_-]{1,40}$` and no earlier item has it (ordinal; the later one is refused) | `templateLayoutInvalid` | `items[i].id` |
-| 8b | | `Kind` is known (`internalData`, `expression` are unknown). Unknown: 8c–8j are skipped for this item | `templateLayoutInvalid` | `items[i].kind` |
+| 8b | | `Kind` is known (`internalData`, `expression` are unknown). Unknown: 8c–8k are skipped for this item | `templateLayoutInvalid` | `items[i].kind` |
 | 8c | function | `Function` is one of the six | `templateLayoutInvalid` | `items[i].function` |
 | 8d | manual input, function | `ValidName(60)`: `nameRequired`, `nameInvalid`, `nameTooLong` | those | `items[i].name` |
 | 8e | manual input, function; name not blank | `NameKey` differs from every earlier manual input's and function's (static text isn't a name) | `templateItemNameTaken` | `items[i].name` |
@@ -102,57 +120,66 @@ The PUT binds `PrescriptionLayoutDto` directly (no request record). JSON numbers
 | 8h | static text | At most 1000 characters **as typed** (no trim; `\r\n` counts 2) | `templateStaticTextTooLong` | `items[i].text` |
 | 8i | | X, then Y: not null (`invalidRequest`); when the page passed rules 2–5, `Fits(x, w, page width)` / `Fits(y, h, page height)` | `templateItemOutsidePage` | `items[i].xMm`, `items[i].yMm` |
 | 8j | | Width, height, font, in that order: not null (`invalidRequest`); `wMm >= 5`; `hMm >= 4` (prescription text `>= 20`); `fontSizePt` in 6–36 | `templateItemSizeInvalid`, `templateItemSizeInvalid`, `templateFontSizeInvalid` | `items[i].wMm`, `items[i].hMm`, `items[i].fontSizePt` |
+| 8k | manual input, function, static text (`Normalize` took it off the prescription text) | `Align` is null, `right`, `center` or `left` (case-sensitive: `Center` is refused) | `templateLayoutInvalid` | `items[i].align` |
+| 9 | always | `Calibration` present (`Normalize` made it so); X, then Y, not null | `invalidRequest` | `calibration.xMm`, `calibration.yMm` |
+| 10 | number present | X, then Y, after rounding, within −20 to 20. All of rule 9 comes first, as rules 4–5: X out of range with Y null names Y first | `templateCalibrationInvalid` | `calibration.xMm`, `calibration.yMm` |
 
-Items may overlap: the topmost (the later in the list) takes the mouse press, and a covered item is reached with Tab then Enter. "Outside" names X or Y, also for an item too big for the sheet; a negative length counts as a size error only.
+Items may overlap: the topmost (the later in the list) takes the mouse press, and a covered item is reached with Tab then Enter. "Outside" names X or Y, also for an item too big for the sheet; a negative length counts as a size error only. The correction doesn't excuse a box: it must fit the sheet without it, and item rules never look at it.
 
 ## Frontend
-**Route:** `/admin/clinics/:id/print-template`, `ClinicPrintTemplateTab` (lazy, a `CLINIC_TABS` row after Staff), which passes `adminPrintTemplateApi(id)` to the reusable `TemplateDesigner` (D5).
+**Route:** `/admin/clinics/:id/print-template`, `ClinicPrintTemplateTab` (lazy, a `CLINIC_TABS` row after Staff), which passes `adminPrintTemplateApi(id)` and `adminPaperImageApi(id)`, memoized, to the reusable `TemplateDesigner` (D5), with `key={id}`, so a new clinic mounts everything anew, part 2's selection and queue included.
 
 | Piece (`features/printTemplates/`) | Role |
 |---|---|
 | `types.ts`, `constants.ts` | The API's JSON; the limits mirroring the server, default boxes, `PRINT_FONT_FAMILY` |
 | `api.ts` | `readTemplate` (`data \|\| null`: axios gives `""` for a 204), `usePrintTemplate(adapter)` (key `adapter.scope`, `staleTime: 0`, through `loadInScope`), `useSavePrintTemplate` (`setQueryData` on success; `refreshScope` after a stale-data refusal), `useDeletePrintTemplate` (cancels reads in flight, `setQueryData(scope, null)`) |
-| `layout.ts` | The pure rules, StrykerJS-mutated: `roundTenth`, `toTenths`, `parseMmInput`, `formatMm`, `normalizeLayout`, `validateLayout`, `itemIndexOfField`, `newLayout`, `canAddItem`, `addItem`, `removeItem`, `updateItem`, `pageOfSize`, `applyPageSize`, `sameLayout` |
+| `layout.ts` | The pure rules, StrykerJS-mutated: `roundTenth`, `toTenths`, `parseMmInput`, `formatMm`, `alignOf`, `normalizeLayout`, `validateLayout`, `itemIndexOfField`, `newLayout`, `canAddItem`, `addItem`, `removeItem`, `updateItem`, `pageOfSize`, `applyPageSize`, `sameLayout`, `calibrationCutsItems`, `sharedNameErrors` |
 | `unsavedGuard.ts` | `registerLeaveCheck`, `confirmLeave`, `blocksExit`. Its own small file: the app bar's chunk imports it |
 | `useUnsavedGuard.ts` | `useUnsavedGuard(dirty): {dialog}`, below |
 | `dragGeometry.ts` | Step 3's geometry, pure, StrykerJS-mutated: `pointToMm`, `pastDragThreshold`, `dropCounts`, `moveBox`, `resizeBox`, `minimumOf`, `nudgeBox`, `handlesFor`, `handlePositionPx`, `fitZoom`, `zoomIn`, `zoomOut`, `canZoomIn`, `canZoomOut`, `autoScrollDirection` |
-| `layoutHistory.ts` | The undo stack, pure, StrykerJS-mutated: `recordStep`, `recordNudge`, `endRun`, `canUndo`, `canRedo`, `undoStep`, `redoStep`, `isDirty` |
+| `layoutHistory.ts` | The undo stack, pure, StrykerJS-mutated: `recordStep`, `recordNudge`, `endRun`, `canUndo`, `canRedo`, `undoStep`, `redoStep`, `isDirty`; `LayoutChange` includes `{kind: "calibration"}` |
 | `useDesignerDraft.ts` | The draft and every change to it, what's a step and what isn't. Above the desktop switch |
 | `useDesignerDrag.ts` | The pointer: presses, the running drag and its preview, the swallowed click. Every listener lives in one drag |
 | `useDesignerKeys.ts` | The keyboard, on `window`, the focus table below |
 | `useLatest.ts` | The latest render's value, for listeners that outlive a render |
-| `components/TemplateSheet.tsx` | One renderer for the designer and for printing: `dir="ltr"`, 1 mm = 1 CSS mm (the designer's zoom is a transform around it), its own font, line height `PRINT_LINE_HEIGHT` (1.4) on every item, cut at the sheet's edge. **Position always inline, never `sx`** (the RTL style cache flips `left` and `right`). In the designer (`data-testid="template-sheet"`) each item is a native `<button aria-pressed data-item-id>`; the content is a `<span dir="auto">` out of the button's flow, since a button centers its content: it starts at the box's top, wraps, and shows past the box, unclipped. A box's mark is an inset `boxShadow`, never a border, so it stays exactly its size, its spread divided by the optional `zoom` prop's scale, so it stays 1 px on screen (2 px selected) at any zoom, and no inline `outline`, so the browser's focus ring shows. The mm grid shows only with `onSelect`. With `print`: see Printing below |
-| `components/TemplateDesigner.tsx` | The states, Save and Delete, the messages, above the desktop switch |
-| `components/TemplateWorkspace.tsx` | What shows at ≥ 900 px with a draft: the sheet's area, frame and zoom, the toolbar, the panel, the settings. Mounted only then, so the keys listen only then, a drag ends with it, and the zoom starts at Fit however the sheet first appears |
+| `components/TemplateSheet.tsx` | One renderer for the designer and for printing: `dir="ltr"`, 1 mm = 1 CSS mm (the designer's zoom is a transform around it), its own font, line height `PRINT_LINE_HEIGHT` (1.4) on every item, cut at the sheet's edge. **Position always inline, never `sx`** (the RTL style cache flips `left` and `right`). In the designer (`data-testid="template-sheet"`) each item is a native `<button aria-pressed data-item-id>`; the content is a `<span dir="auto">` out of the button's flow, since a button centers its content: it starts at the box's top, wraps, and shows past the box, unclipped, a short item's across the box's full width at its [alignment](#item-alignment). A box's mark is an inset `boxShadow`, never a border, so it stays exactly its size, its spread divided by the optional `zoom` prop's scale, so it stays 1 px on screen (2 px selected) at any zoom, and no inline `outline`, so the browser's focus ring shows. The mm grid shows only with `onSelect`, as its own `template-sheet-grid` child, `pointer-events: none`, since a child paints over its parent's background and a picture at 100% would hide it. `paper` (designer mode only): the picture, the first child. With `print`: see Printing below |
+| `components/TemplateDesigner.tsx` | The states, Save, Test print and Delete, the messages, above the desktop switch; it renders `useTestPrint`'s element once |
+| `components/TemplateWorkspace.tsx` | What shows at ≥ 900 px with a draft, and stays through a print: the sheet's area, frame and zoom, the toolbar, Test print, the panel and the settings in `template-side-column`, the settings' open section. It mounts `PaperImageScope` only with a paper adapter. Mounted only then, so the keys listen only then, a drag ends with it, and the zoom starts at Fit however the sheet first appears |
 | `components/TemplateToolbar.tsx` | Undo, redo, minus, the percentage, plus, Fit, in the row of Save and Delete, so it adds no height above the area; each with a tooltip, also when off. A plain row, no `role="toolbar"` |
 | `components/TemplateOverlay.tsx` | Handles and guide lines, in screen px above the scaled sheet: outside the button and the sheet's clip |
 | `components/TemplateDragGhost.tsx` | What follows the pointer in a panel drag: `position: fixed`, its top-left at the pointer, the default size × zoom, its text `DEFAULT_FONT_SIZE_PT` × zoom / 100 in `pt`, in the sheet's look (`PRINT_FONT_FAMILY`, `PRINT_LINE_HEIGHT`, `pre-wrap`, `overflowWrap: anywhere`) from its own start (`dir="auto"`, `textAlign: start`), so a long entry wraps as the item will |
-| `components/TemplateSidePanel.tsx` | What can be placed: manual input, the six functions, static text; internal data and JavaScript expression dimmed and disabled, with hints. A click whose `event.detail > 1` is ignored; Enter and Space add (`detail` 0); a drag past 4 px adds at the drop. A new item's box is scrolled into view (`block` and `inline` `nearest`), the focus stays on the entry. Full at 50: entries disabled, with a message |
-| `components/TemplateSettings.tsx` | The sheet's size and measures, then the selected item's fields. An item's type is text, not a control |
-| `components/MmField.tsx` | A number field: `type="text"`, `inputMode: "decimal"`, `dir="ltr"` in both languages, never `type="number"` (Arabic digits). It shows what is typed while typing, `formatMm(value)` on blur |
+| `components/TemplateSidePanel.tsx` | What can be placed: manual input, the six functions, static text; internal data and JavaScript expression dimmed and disabled, with hints. A click whose `event.detail > 1` is ignored; Enter and Space add (`detail` 0); a drag past 4 px adds at the drop. A new item's box is scrolled into view (`block` and `inline` `nearest`), the focus stays on the entry. Full at 50: entries disabled, with a message. It scrolls by [Screen by width](#paper-alignment) |
+| `components/TemplateSettings.tsx` | The [settings panel](#settings-panel), four collapsible sections: the sheet's size and measures, the printer's correction, the selected item's fields, then the picture's. An item's type is text, not a control |
+| `components/TemplatePaperImage.tsx` | `PaperImageScope`: one `useAttachments`, `usePaperImageUrl` and the screen-only show and opacity; `TemplatePaperImage`: the section. Below |
+| `components/TemplatePrintRulers.tsx` | The test page's rulers, an inline SVG |
+| `usePaperImageUrl.ts` | The picture's bytes as an object URL. Below |
+| `testPrintSample.ts` | `testPrintValues`, `testPrintChunk`, `rulerTicks`, pure, StrykerJS-mutated |
+| `components/MmField.tsx` | A number field: `type="text"`, `inputMode: "decimal"`, `dir="ltr"` in both languages, never `type="number"` (Arabic digits). It shows what is typed while typing, `formatMm(value)` on blur. `paired`: half the panel wide, its label above the input and wrapping, since it wouldn't fit on the border, and its label, input and message on the pair's three rows (`subgrid`), so the two inputs stay level |
 | `printFont.css`, `public/fonts/print/` | Family `ClinicHub Print`: IBM Plex Sans Arabic 5.3.0 from `@fontsource`, Arabic and Latin subsets, regular and bold, woff2, with its SIL OFL `LICENSE`. No new dependency |
-| `printSheet.css` | The `.print-text` rules, the same on the sheet and in the hidden box, none from the app or the editor's CSS, so the page count doesn't depend on what was opened before. Headings at the template's size, bold, no margins. The marker's room is on the `li`, on its own side (Quill puts `dir` on the `li`, not on its list), so a number stays in the box |
+| `printSheet.css` | The `.print-text` rules, the same on the sheet and in the hidden box, none from the app or the editor's CSS, so the page count doesn't depend on what was opened before. Headings at the template's size, bold, no margins. The marker's room is on the `li`, on its own side (Quill puts `dir` on the `li`, not on its list), so a number stays in the box. Under `@media print`, `.template-paper-image` is `display: none !important`, so the picture never prints, with no job too (Ctrl+P) |
 | `clinicTemplate.ts` | `useClinicPrintTemplate(clinicId)` (`staleTime` 0, read when the page opens), `readTemplateAtPrint` |
 | `functions.ts` | `functionValue`, `itemValue`, `isLeftToRightValue`, StrykerJS-mutated |
 | `printHtml.ts` | `cleanPrintHtml`, `hasPrintableText`, `singleLine`, StrykerJS-mutated |
 | `pagination.ts` | `paginate(cleanHtml, fits)`, StrykerJS-mutated |
 | `printMeasure.ts` | `createTextMeasurer`, `printTextStyle`, `loadPrintFont` (e2e only: jsdom has no layout, so `fits` there is always true) |
-| `usePrintPrescription.tsx` | `{available, print(html), element}`, below |
+| `usePrintJob.tsx` | `usePrintJob()`: `{start(job), element}`, the job, `afterprint` and the root; `measureChunks(html, layout)`. No `useClinic()`, so it works in a platform context |
+| `usePrintPrescription.tsx` | `{available, print(html), element}`, below, on `usePrintJob` |
+| `useTestPrint.tsx` | `{print(layout), element}`, on `usePrintJob` |
 | `components/PrintDialog.tsx`, `components/PrintRoot.tsx` | The pop-up; the element under `body` and its rules |
 
-**States, first that applies:** below 900 px the `desktopOnly` message, whatever is loaded (the GET still runs); a draft: the designer; a failed read: `common.loadFailed` + Retry, no «إنشاء قالب»; no answer since mount: progress; else the empty state. A 404 on the read goes to the clinic page through `container`: "Clinic not found".
+**States, first that applies:** below 900 px on screen the `desktopOnly` message, whatever is loaded (the GET still runs); a draft: the designer; a failed read: `common.loadFailed` + Retry, no «إنشاء قالب»; no answer since mount: progress; else the empty state. A 404 on the read goes to the clinic page through `container`: "Clinic not found".
 
-**Numbers.** `roundTenth(v) = Math.sign(v) * Math.round(Number((Math.abs(v) * 10).toPrecision(12))) / 10`, so 12.35 rounds as on the server; `toTenths(v) = Math.round(roundTenth(v) * 10)`: every comparison and sum is on whole numbers. `parseMmInput` reads `12.5`, `12,5`, `١٢٫٥`, Persian digits, one leading `-`; `null` for anything else. `formatMm` writes plain digits for huge values, never an exponent.
+**Numbers.** `roundTenth(v) = Math.sign(v) * Math.round(Number((Math.abs(v) * 10).toPrecision(12))) / 10`, so 12.35 rounds as on the server; `toTenths(v) = Math.round(roundTenth(v) * 10)`: every comparison and sum is on whole numbers. `parseMmInput` reads `12.5`, `12,5`, `١٢٫٥`, Persian digits, one leading `-`, `+` or `−` (U+2212), in every field; `null` for anything else (`+`, `−`, `+-2`, `- 2`, `2+`). `formatMm` writes plain digits for huge values, never an exponent.
 
 **Editing.** Item numbers: `parseMmInput` on every change; a number → `updateItem` at once, never corrected (a negative or off-sheet value is applied, then refused by the rules); null → the layout keeps its last number, the text stays in `rawInputs`, with `numberRequired`. Page width and height commit on blur or Enter, never per keystroke: within the rules → `applyPageSize`; else nothing moves, the text stays in `rawInputs`, with `numberRequired` or `errors.templatePageInvalid`. Until the commit, a text that differs from the committed number is held in `typedPage`: no message, nothing moves, but the screen counts as unsaved; typed back to the committed number, it and that measure's `rawInputs` go, so the screen is clean again. The size select commits at once. `applyPageSize`, per axis in tenths: `length = max(min(length, sheet), min(length, minimum))`, `start = clamp(start, 0, sheet - length)`; items inside are unchanged, going back doesn't restore. `addItem`: first free id `i<n>`, `xMm = (5 + 6n) % (floor(page.widthMm - wMm) + 1)`, `yMm` likewise, a distinct name in the UI language at that moment («التاريخ الكامل 2»); static text starts empty.
 
-**Messages.** `validateLayout` runs on every render of the draft. A field shows its first error once it has been changed since the load; typing a width or a height also marks X or Y, where the rules put that size's "outside" error; Save pressed marks the fields with a problem, so a new static text doesn't start red. `rawInputs` keys: `<itemId>.<field>`, `page.widthMm`, `page.heightMm`.
+**Messages.** `validateLayout` runs on every render of the draft. A field shows its first error once it has been changed since the load; typing a width or a height also marks X or Y, where the rules put that size's "outside" error; Save pressed marks the fields with a problem, so a new static text doesn't start red. `rawInputs` keys: `<itemId>.<field>`, `page.widthMm`, `page.heightMm`, `calibration.xMm`, `calibration.yMm`. **A shared name:** `sharedNameErrors` marks every manual input and function with that name, joining the rules' errors for what shows and for the first problem, so the upper item is the one selected; `validateLayout` stays out of it, since the shared fixture fixes its answer (the later item only), and the server's answer doesn't change.
 
 **Remove item.** At once, no confirm; the selection clears and the focus goes to the sheet's region, since the pressed button leaves with the item.
 
-**Save** (`useSingleFlight`; disabled when not dirty or while saving): a measure still in `typedPage` commits first, so one press sends one PUT with the new size (the field's blur on mouse-down or Tab has usually done it; Save does it when no blur came, the window narrowed and widened while typing). Then any `rawInputs` or `validateLayout` error: nothing is sent, the messages show, the first problem's item becomes selected, an error no field shows (`items`, `schemaVersion`, `items[i].id`, `items[i].kind`, `items[i].function`) is toasted. Else `sent = normalizeLayout(draft)`, PUT; success: `baseline = sent`, the draft isn't replaced, so an edit made while the request is in flight stays and keeps the screen dirty. Failure: a toast, `getFieldErrors` on the named fields until the next edit, the named item selected, edits kept. A 404 reloads the clinic through `affects`.
+**Save** (`useSingleFlight`; disabled when not dirty or while saving): a measure still in `typedPage` commits first, so one press sends one PUT with the new size (the field's blur on mouse-down or Tab has usually done it; Save does it when no blur came, the window narrowed and widened while typing). Then any `rawInputs` or `validateLayout` error: nothing is sent, the messages show, the first problem's item becomes selected, an error no field shows (`items`, `schemaVersion`, `items[i].id`, `items[i].kind`, `items[i].function`, `items[i].align`) is toasted, and the [section](#settings-panel) of the settings' first `aria-invalid` input opens and that input's whole field (`.MuiFormControl-root`) is scrolled into view (`block: "nearest"`), so its message shows too; once rendered, after a press only, never when the workspace mounts. Else `sent = normalizeLayout(draft)`, PUT; success: `baseline = sent`, the draft isn't replaced, so an edit made while the request is in flight stays and keeps the screen dirty. Failure: a toast, `getFieldErrors` on the named fields until the next edit, the named item selected, edits kept. A 404 reloads the clinic through `affects`.
 
-**Draft** (`useDesignerDraft`'s state, above the desktop switch, so narrowing the window keeps it): `{layout, baseline, rawInputs, typedPage, selectedId, revealId, touched, serverErrors, history, openField, fitRequests}`. Seeded once, from the first answer since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, later answers are ignored while a draft exists. **Dirty** = `isDirty(layout, baseline, {...rawInputs, ...typedPage})`: `baseline === null || !sameLayout(layout, baseline) || raw or typed text not empty`. `ClinicPage` keys its `PageBoundary` by the clinic, so nothing of A's draft shows under B.
+**Draft** (`useDesignerDraft`'s state, above the desktop switch, so narrowing the window keeps it): `{layout, baseline, rawInputs, typedPage, selectedId, revealId, touched, serverErrors, history, openField, fitRequests}`. Seeded once, from the first answer since mount (`isFetchedAfterMount && isSuccess`, as `ProtocolEditorPage`): a cached copy is never shown, later answers are ignored while a draft exists. Layout and baseline both go through `normalizeLayout`, so a template saved before step 4 isn't dirty when it opens. **Dirty** = `isDirty(layout, baseline, {...rawInputs, ...typedPage})`: `baseline === null || !sameLayout(layout, baseline) || raw or typed text not empty`; for `sameLayout`, a missing, null and `right` `align` are one alignment. `ClinicPage` keys its `PageBoundary` by the clinic, so nothing of A's draft shows under B.
 
 **Unsaved changes (D16).** `useUnsavedGuard` is called once, above the desktop switch.
 
@@ -167,7 +194,7 @@ One question at a time: `useConfirm`'s second call would overwrite the first, so
 
 **The router** (`app/App.tsx`): `createBrowserRouter([{path: "*", element: <AppProviders><AppRoutes/></AppProviders>}])`, created once inside `App` with `useState`, so each `startApp` reads its own URL. `AppRoutes` is the existing `<Routes>`, unchanged, so they are descendants of a splat route; links are absolute. `useBlocker` throws under `MemoryRouter`: component tests use `renderWithProviders(ui, {dataRouter: true})`.
 
-**i18n:** `printTemplates.*` (`printTemplates.toolbar.*`: step 3's five labels), `admin.clinic.tabs.printTemplate`, the 10 `errors.template*`, `prescription.print`, `rxText.printValues.*` (Arabic in both locale files). Reused: `common.save`, `delete`, `cancel`, `copy`, `close`, `loading`, `loadFailed`, `retry`.
+**i18n:** `printTemplates.*` (`printTemplates.toolbar.*`: step 3's five labels; `printTemplates.config.itemSection`, `.sectionError`, `.align`, `.alignRight`, `.alignCenter`, `.alignLeft`: the walkthrough's), `admin.clinic.tabs.printTemplate`, `printTemplates.calibration.*`, `.testPrint.*`, `.paper.*`, the 11 `errors.template*`, `prescription.print`, `rxText.printValues.*` (Arabic in both locale files). Reused: `common.save`, `delete`, `cancel`, `copy`, `close`, `loading`, `loadFailed`, `retry`.
 
 ## Drag
 Step 3 ([design](../../design/prescription-templates.step3.md), [contract](../../design/prescription-templates.step3.contract.md)): frontend only, no route, table, migration or library.
@@ -188,7 +215,7 @@ Step 3 ([design](../../design/prescription-templates.step3.md), [contract](../..
 | Zoom buttons | The next multiple of 25, in 50–200 (61.5 → 75 or 50; 30 → 50, minus off) |
 | Auto-scroll | `autoScrollDirection(point, areaRect, pastEdge)`: within 24 px of an edge inside the area (exactly 24 counts), 8 px a frame, each axis on its own; both edges in reach: the nearer, a tie to the start. A move or a resize (`pastEdge`) also goes on scrolling with the pointer past an edge, on that axis. A panel drag only with the pointer inside the area, so crossing the panel never scrolls the sheet |
 
-**The screen.** The transform stays around the sheet, never in it, so print can't see it:
+**The screen.** The zoom's transform stays around the sheet, never in it, so print can't see it:
 
 ```
 Box role="region" (the area: dir="ltr", tabIndex 0, overflow auto, padding 16 px, a height in px from the window)
@@ -235,8 +262,9 @@ Arrows move 1 mm, with Shift 5, with Alt 0.1 (Alt wins), and scroll the box into
 | `remove` | The item | Nothing |
 | `item` | The item | The item |
 | `page` | What's selected, if it exists in that layout; else nothing; re-fits | The same |
+| `calibration` | What's selected: it stays; no re-fit | The same |
 
-Typing still updates the layout at once; the first change sets `openField`, and a commit records it, a no-op with no real change: X, Y, width, height, font and Name on blur or Enter, static text on blur only (Enter is a new line). A page size, width or height records `{kind: "page"}` at its own commit, and an invalid measure or the same size records nothing and doesn't re-fit. A run of nudges of one item with less than 1000 ms between them is one step, net zero leaves none; selecting and Save end it. Anything that records a step, and undo and redo, first commits an open field. Undo and redo clear `rawInputs`, `serverErrors` and `openField`; `baseline` never changes there. Undo is on with an open field holding a real change, so it can be pressed while typing: the press blurs the field, and its commit is what's undone. A drag or a nudge also clears raw text left in that item's X, Y, width and height, since the number now exists.
+Typing still updates the layout at once; the first change sets `openField` (`{change: LayoutChange, before}`: an item's, or the correction's), and a commit records that step, a no-op with no real change: X, Y, width, height, font and Name on blur or Enter, static text on blur only (Enter is a new line). A page size, width or height records `{kind: "page"}` at its own commit, and an invalid measure or the same size records nothing and doesn't re-fit. An alignment press records its own `{kind: "item"}` step at once. A run of nudges of one item with less than 1000 ms between them is one step, net zero leaves none; selecting and Save end it. Anything that records a step, and undo and redo, first commits an open field. Undo and redo clear `rawInputs`, `serverErrors` and `openField`; `baseline` never changes there. Undo is on with an open field holding a real change, so it can be pressed while typing: the press blurs the field, and its commit is what's undone. A drag or a nudge also clears raw text left in that item's X, Y, width and height, since the number now exists.
 
 **Focus:**
 
@@ -253,19 +281,72 @@ Typing still updates the layout at once; the first change sets `openField`, and 
 
 **The selected box stays in view:** after a zoom press, Fit, undo or redo has rendered (`flushSync`, which also runs a step's re-fit), the selected box is scrolled into view (`nearest`). Nothing selected: the scroll stays. Opening, a window resize, a page-size change that isn't an undo or redo, selecting and a drag's cancel don't scroll it.
 
+## Paper alignment
+Step 4's [design](../../design/prescription-templates.step4.md). Nothing here changes box sizes, pagination, the `@page` size or the measuring, so the page count doesn't depend on the correction.
+
+**The printer's correction.** `Printer correction` section in the settings, two `MmField`s, keys `calibration.xMm`, `calibration.yMm`. `ops.changeCalibration(field, text)` works as an item's number: applied per keystroke, raw text keeps the last number with `numberRequired`, one undo step per commit (`{kind: "calibration"}`), the selection untouched. It marks the key touched at once, so out of range shows at once; `SHOWN_FIELD` holds it, so a refusal doesn't also toast it. `calibrationCutsItems(layout)`: any box, moved by X and Y, off any side, in whole tenths, exactly at the edge doesn't count: the `template-cut-warning` alert, a warning only, outside the section's collapsing part, so it shows with the section closed. Printing moves each box with an inline `transform: translate(<X>mm, <Y>mm)`, none at 0, 0, in whole tenths, on real and test prints, and `left` and `top` stay the designed place; the designer never does. A transform because text moved through `left` and `top` lands on whole CSS px in the PDF (−1.5 mm printed as −1.3229 mm), and a box whose top passes the sheet's bottom makes a blank page; layout, wrapping and pagination don't see a transform. The sheet's `overflow: hidden` cuts what leaves the paper, so it can't make a page. Staff's prints have it too: the clinic read answers the layout. Both flows' layouts go through `normalizeLayout`, so a copy with no calibration can't print `NaNmm`.
+
+**Test print.** Button between Save and Delete, never off, its tooltip the 100% hint (`describeChild`, so its name stays its text). `onClick` ignores `event.detail > 1`. The press: `withTypedPageCommitted`, then the rules plus `sharedNameErrors`. A problem or raw text: as a refused Save (messages, the first problem selected, what isn't shown inline toasted, its section opened and scrolled to), nothing prints. Else `setDraft(committed)` and `testPrint.print(committed.layout)`: no API request, no toast, no zoom or selection change, no `endRun`; beyond a typed measure's own page step, no undo step. `useTestPrint`, inside one `useSingleFlight`: `loadPrintFont`, then a job with `chunks: [testPrintChunk(fits)]`, `manualValues: {}` and `test: {values: testPrintValues(layout, now)}`, since `PrintRoot` computes values with `pages = chunks.length` and a one-sheet page number is `""`. One page always: only the sample's first chunk.
+
+| On the test page | What it is |
+|---|---|
+| Each box | Its last child, `div data-testid="test-print-frame"`, empty, `position: absolute; inset: 0; border: 0.2mm solid #000`: a real border, which prints with "Background graphics" off, and on a child so the box's text doesn't move; last, so `firstElementChild` stays the value |
+| Short items | `testPrintValues`: a manual input its name; a function its real value now, the page number `2/3`; a static text as typed |
+| Prescription text | `TEST_PRINT_SAMPLE_LINES`, six fixed lines, not translated, each a `<p dir="rtl">` as a real prescription's lines, through `cleanPrintHtml` and `paginate`: they start at the same side of the box as a real print, and a line with no right-to-left letter becomes `dir="ltr"` with `text-align: right` by the same rule |
+| Rulers | `TemplatePrintRulers`, the sheet's last child, an inline SVG: `ruler-line-top` and `ruler-line-left`, 6 mm in, never moving (P4: a ruler moved across its own axis could leave the paper); `rulerTicks(width, X)` and `rulerTicks(height, Y)`: every whole mm whose place lands on the sheet, by tenths, longer every 5, a Latin number every 10, none on 0 |
+| The picture | Never: `PrintedSheet` doesn't render it, and `printSheet.css` hides it under print media |
+
+**The picture.** `TemplateDesigner({adapter, paperAdapter?})`: no adapter, no section and no request. `PaperImageScope` sits in the workspace, so below 900 px on screen it's unmounted (an upload aborts) and widening is a new opening: 50%, shown. A print isn't an opening: the workspace stays mounted through it ([Screen by width](#paper-alignment)), so show, opacity, the zoom, the open section and a picked file stay and the picture isn't fetched again. It owns `useAttachments({adapter, multiple: false, canReplace: true})` (not `AttachmentManager`, which keeps the hook inside, and the sheet needs the stored file) and gives its child `{sheetPaper, section}`.
+
+- **The section,** whose title is its accordion's in the [settings](#settings-panel), part 2's pieces in order: `AttachmentPicker canUpload canReplace`, the rules line (`template-paper-rules`, always once rules answered), the load failure, `AttachmentList canDelete renderEmpty={() => null}` (no `canReplace`: no Replace icon, P6; `multiple={false}`: no Download all, P8), and with a stored file a switch and a slider (10–100, step 10, `aria-valuetext` `50%`), then `AttachmentPreview` once. Types: `rules.extensions` in order, upper case with no dot, `.jpg` as `JPEG`, repeats gone, ` / ` between. Size: part 2's `formatFileSize`. In this mode Upload is off while the list is loading, reloading or failed (attachments contract § 2).
+- **`usePaperImageUrl(adapter, file)`:** part 2 gives an object URL only to its preview dialog, so this reads `adapter.download(files[0].id, signal)` itself, a plain call, never the query cache: once per opening and after an upload (a new id). On a new id, no file or an unmount it aborts and revokes. A failed read or an `img` `error` event: `printTemplates.paper.loadFailed` toasted once per failure, an aborted read being none, since the section can sit below the window while the blank sheet shows; and `template-paper-load-failed` with Retry, which reads the bytes again and reloads the list, so a picture removed elsewhere leaves instead of failing again; the blank sheet works, printing is unaffected.
+- **On the sheet:** `img data-testid="template-paper-image" class="template-paper-image"`, the first child, `left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none`, `draggable={false}`, empty `alt`, `aria-hidden`, its opacity inline. A new sheet size re-stretches it. Show and opacity never reach the draft, the history or the guard; nor does an upload, a replace or a removal, which apply at once.
+
+**Screen by width.** The switch is `useMediaQuery` on `(min-width:900px), print`: printing lays the page out at paper width, below 900 px, and without `print` that would unmount the workspace. Nothing else reads the window during a print: Chromium's `page.pdf()` fires no `resize`, so the area's height and Fit stay. Below 900 px on screen: the `desktopOnly` message. 900–1199 px: columns `260px minmax(0, 1fr)`; `template-side-column` is a flex column holding the panel then the settings, `overflow-y: auto`, the area's measured height, so numbers and sheet show together; Fit comes from the area's new width. From 1200 px: `200px minmax(0, 1fr) 280px` as before; the column is `display: contents`, so one element tree holds at both widths and both stay mounted across the breakpoint; `order` puts the panel first and the settings last. The column's height means nothing with no box of its own, so `TemplateWorkspace`'s measure also sets it as `--template-area-height`, which the panel and the settings each read from 1200 px as `max-height`, with `overflow-y: auto` (`overflow-x: hidden`): neither grows the page, and the sheet stays in view.
+
+## Settings panel
+Step 4 [contract](../../design/prescription-templates.step4.contract.md) § 4.3.1 and § 10.28, the user's choice at the walkthrough: selecting an item pushed four stacked parts down, so the sheet left the screen. `TemplateSettings` is four MUI `Accordion`s (`disableGutters`), `openSection` their state, in `TemplateWorkspace`.
+
+| Rule | Detail |
+|---|---|
+| Sections | In order, `page.title`, `calibration.title`, `config.itemSection`, `paper.title` (no paper adapter: no such section), each `data-settings-section` `page`, `calibration`, `item`, `paper`. Each header's `AccordionSummary` is a button named by its title alone, in an `h2` |
+| One at a time | At most one open. Pressing the open one closes it, leaving all closed |
+| At each opening | The sheet's section is open. It resets as the picture's opacity does: never saved; widening from below 900 px is an opening, a print isn't |
+| Selecting opens the item's section | A press on a box or a handle, a click, Enter or Space on a box, an item added by a click or a drop, **also when that item was already selected and another section is open**. Selecting nothing, undo, redo, typing in a field and a nudge leave the open section as it is. Once its opening animation ends, it's scrolled into view in its column (`block: "nearest"`), only when selecting opened it |
+| Nothing unmounts | Closed content stays mounted (MUI's default; never `unmountOnExit`): a picked file, a running upload and typed text survive closing, since part 2 aborts on unmount. `AccordionDetails` is `position: relative`, so the closed part also clips the picker's visually hidden input, which would give the panel a scrollbar for nothing |
+| Cut warning | `template-cut-warning` is right after the correction's accordion, not in it, since moving a box can raise it |
+| A refused Save or Test print | `refusals` goes up, and the first `aria-invalid` input of the settings names its section through `data-settings-section`, so the order is sheet, correction, item. An open one scrolls its field at once; a closed one opens and scrolls it when the animation ends, since it has no height before; pressing a section by hand drops that scroll. An error no field shows opens nothing. `refusals` outlives the workspace, so widening the window answers nothing |
+| The mark | A closed section holding a message a field shows (`messageOf` on the sheet's, the correction's or the selected item's keys; the picture has none) has an error-colored `ErrorOutlineIcon` in its header, `titleAccess` `config.sectionError`, describing the button, and `data-has-error="true"` on the summary. It goes with the error |
+| Numbers side by side | `MmField paired`, in `minmax(0, 1fr)` pairs: the sheet's width and height, the item's X and Y, its width and height. Name, text and font stay full width; the correction's X and Y stay one per row, since their labels are longer |
+| Scroll | [Screen by width](#paper-alignment): from 900 to 1199 px the shared column scrolls, from 1200 px the settings and the add panel each scroll inside themselves |
+
+## Item alignment
+Step 4 [contract](../../design/prescription-templates.step4.contract.md) § 4.3.2 and § 10.29, the user's choice at the walkthrough. No route, table or migration; `schemaVersion` stays 1.
+
+| Rule | Detail |
+|---|---|
+| Applies to | Manual inputs, functions, static text. Not the prescription text: no control, and its lines keep their own alignment, so printed text stays equal to Copy |
+| Data | Optional `align` on the item: `right`, `center`, `left`, case-sensitive. Missing or null reads as right (`alignOf`), so old templates need no data step and opening one isn't dirty. `Normalize` and `normalizeLayout` keep it only on those three kinds |
+| Default | Right for every short kind (§ 10.29): Latin values that used to start at the left, such as the ISO date and the page number, now sit at the right unless changed, also on templates saved before this |
+| Rule | Rule 8k, on both sides and in `tests/fixtures/print-layout-cases.json`. No field shows it (`SHOWN_FIELD` leaves it out), so a refusal is toasted; only a body from outside the screen can hold it |
+| Control | `AlignField`, a `ToggleButtonGroup`, exclusive, in the item's section above Remove item, named `config.align`; buttons named `config.alignLeft`, `alignCenter`, `alignRight`, each with a tooltip. **Each button sits on the side it aligns to,** left, center, right from the screen's left in both languages: an RTL page lays buttons out from the right, so there they're listed in reverse. One is always on: the pressed one answers null, ignored |
+| Editing | `ops.changeItemAlign`: commits an open field, then one `{kind: "item"}` undo step per press. It counts as unsaved; back to right on an item that held none is clean again |
+| Render | `TemplateSheet`'s one renderer, so designer, real print and Test print match: the value's `span` keeps `width: 100%` of the box and takes a physical `text-align` from `alignOf`. `dir` stays as it is: the ISO value and the page number stay `dir="ltr"`, aligned by this setting; a static text's lines each keep their own direction (`unicode-bidi: plaintext`) at the chosen side. The box's position and a value's wrapping don't change. In the designer the prescription text's `span` stays at `start` |
+| Vertical alignment | None (user asked; moving the box or changing its height does the same) |
+
 ## Printing
 Browser print, on the front end (D1). The buttons are on the prescription page ([tech](../prescription/tech.md)): `printer.available` decides whether they exist.
 
 **Data.** `clinicTemplateKeys.current(clinicId)` is the page's read; `.atPrint(clinicId)` is the read at a click: `fetchQuery` (`staleTime` 0, `gcTime` 0, `retry: false`), then `setQueryData` of its answer on `current`. Through the query cache, so a 403 toasts once and reloads `/me`; on its own key, so a failed click doesn't put the page's query in error. **Print shows when `query.isSuccess && query.data`:** hidden after a failed read when the page opened, kept after a failed click, gone after a click answering 204. The page's read happens when the page opens and only then (`refetchOnReconnect: false`; the app already turns off the window-focus one): a failed read after a reconnect would otherwise hide Print on an open page. A 204 reaches axios as `""`: `readTemplate` makes it null.
 
-**The flow** (`usePrintPrescription`, inside one `useSingleFlight`: a click while any of it runs does nothing, and the button is never stuck):
+**The flow** (`usePrintPrescription`, on `usePrintJob`, inside one `useSingleFlight`: a click while any of it runs does nothing, and the button is never stuck):
 
 1. `readTemplateAtPrint`. Failure: a 403 says nothing here (the cache toasted it); anything else `toast.error(getErrorMessage(error))`; nothing prints. A refused token goes through the client's refresh and replay as any request.
 2. `null`: `toast.error(t("printTemplates.print.gone"))`, nothing prints; `setQueryData` already hid Print everywhere; the editor stays open.
 3. Manual inputs in the template's order: the pop-up, awaited; Cancel or Esc stops here. None: no pop-up.
 4. `now = new Date()`, here, at the confirm: every sheet shows this value.
 5. `loadPrintFont()`; `createTextMeasurer(textItem)`; `chunks = paginate(cleanPrintHtml(htmlForPaste(html)), measurer.fits)`; `dispose()`, also on an exception.
-6. `setJob({layout, chunks, manualValues, now})`, replacing any earlier job, so there's one root and one `@page` rule.
+6. `printJob.start({layout, chunks, manualValues, now})`, the layout through `normalizeLayout`, replacing any earlier job, so there's one root and one `@page` rule.
 7. A `useLayoutEffect` on the job adds the `afterprint` listener, then calls `window.print()` once per job: a desktop browser fires `afterprint` inside `window.print`, so the listener has to be there first. `afterprint` clears the job. Nothing removes it otherwise but the next print and the page's unmount, since `window.print` may return at once on a phone.
 
 A ref says the page is gone; after every `await`, a flow on an unmounted page stops: no pop-up, no job, no `window.print`. An open pop-up unmounts with the page and answers null. Nothing is written to storage or sent but the read. No success toast: the browser's dialog is the feedback.
@@ -310,7 +391,7 @@ A ref says the page is gone; after every `await`, a flow on an unmounted page st
 
 **Measuring.** `createTextMeasurer(item)`: a `div` under `body` with `position: fixed; left: -100000px; top: 0; visibility: hidden; dir="ltr"; aria-hidden`, width `item.wMm` mm (fixed, so it makes no scroll in RTL); inside it a `div.print-text` with `printTextStyle(fontSizePt)`, the helper the sheet uses too. `fits(html)` sets its `innerHTML` and compares its height with `item.hMm` in px (a second hidden element of that height, so the mm-to-px conversion is the browser's), allowing 0.01 px. `loadPrintFont()`: `document.fonts.load` for `400` and `700` at `16px "ClinicHub Print"`, with a sample holding an Arabic and a Latin letter, so `unicode-range` loads all four files (`document.fonts.ready` doesn't load an unused font); `Promise.allSettled`, raced with `FONT_LOAD_TIMEOUT_MS` (10 s). It never rejects: on a failure printing carries on with the fallback font. No `document.fonts` (jsdom): resolves at once. Each sheet renders its own chunk unclipped, so if print wraps a line differently the text overflows visibly rather than disappearing.
 
-**The print root** (`PrintRoot`): `createPortal` to `document.body` of `<div id="clinichub-print-root" style="display: none">`, holding a `<style>` and one `<div class="print-page">` + `TemplateSheet` per chunk, with `print.values` from `itemValue` for `page` = index + 1, `pages` = the chunks' count. Not focusable, nothing on screen, no scroll. The `<style>`, so it lives and dies with the root and Ctrl+P elsewhere prints the app as it does today:
+**The print root** (`PrintRoot`): `createPortal` to `document.body` of `<div id="clinichub-print-root" style="display: none">`, holding a `<style>` and one `<div class="print-page">` + `TemplateSheet` per chunk, with `print.values` from `itemValue` for `page` = index + 1, `pages` = the chunks' count, or from `job.test.values` on a test page. Not focusable, nothing on screen, no scroll. The `<style>`, so it lives and dies with the root and Ctrl+P elsewhere prints the app as it does today:
 
 ```css
 @media print {
@@ -325,7 +406,7 @@ A ref says the page is gone; after every `await`, a flow on an unmounted page st
 
 `!important` beats the inline scroll lock MUI puts on `body` while the editor is open.
 
-**`TemplateSheet`'s print mode:** root `data-testid="print-sheet"`, no grid. Each item a plain `<div data-item-id>` at the same inline geometry, no `aria-pressed`, no handler, no shadow. Prescription text: `<div class="print-text" dangerouslySetInnerHTML>` with `printTextStyle(fontSizePt)` (`lineHeight` 1.4, `whiteSpace: "pre-wrap"`, `overflowWrap: "anywhere"`, `textAlign: "start"`), always `paginate`'s output of `cleanPrintHtml`. Short items: the same inner `span`, set as **text**, `dir="auto"`, `dir="ltr"` for the ISO value and the page number. An empty value: nothing inside. A name never prints. The root's `overflow: hidden` cuts at the sheet's edge, so a value can't make a page.
+**`TemplateSheet`'s print mode:** root `data-testid="print-sheet"`, no grid. Each item a plain `<div data-item-id>` at the same inline geometry, moved by the correction's inline `transform` ([Paper alignment](#paper-alignment)), no `aria-pressed`, no handler, no shadow. Prescription text: `<div class="print-text" dangerouslySetInnerHTML>` with `printTextStyle(fontSizePt)` (`lineHeight` 1.4, `whiteSpace: "pre-wrap"`, `overflowWrap: "anywhere"`, `textAlign: "start"`), always `paginate`'s output of `cleanPrintHtml`. Short items: the same inner `span`, set as **text**, `dir="auto"`, `dir="ltr"` for the ISO value and the page number, at the item's [alignment](#item-alignment). An empty value: nothing inside. A name never prints. The root's `overflow: hidden` cuts at the sheet's edge, so a value can't make a page. A one-page number is empty on a real print; a test page prints `2/3`. With `print.test`: the frames and rulers of [Paper alignment](#paper-alignment).
 
 ## Edge cases & limitations
 - Last write wins: two windows may overwrite each other, accepted (one super admin). Two first saves in one instant hit the unique index: one 500, accepted.
@@ -348,16 +429,21 @@ A ref says the page is gone; after every `await`, a flow on an unmounted page st
 - **Undo:** after more than 50 steps the saved layout may be out of reach: Save stays on and leaving asks.
 - **Undo:** history ends with the page: leaving, a reload or another clinic starts empty. Zoom starts at Fit on each opening and is never saved.
 - Alt + left or right is the browser's Back and Forward when nothing is selected or the focus is in a field, and D16 asks if needed.
+- **Paper:** two uploads in one instant can leave two live rows; the screen shows the newest (accepted). A Save from a tab opened before step 4 resets the correction to 0, 0 (accepted, one super admin).
+- **Paper:** from 1200 px the Tab order is panel, settings, sheet, though the sheet stands between them on screen: the price of one element tree at both widths.
+- **Paper:** Ctrl+P in the designer with no print job prints the designer's page with the picture hidden, not the `desktopOnly` message. From a window below 900 px too: the workspace mounts for the print, as a new opening (it reads the rules and the list), and leaves after it.
+- **Paper:** `.template-paper-image` hides only the sheet's picture under Ctrl+P: with no print job, part 2's preview dialog and a selected file's thumbnail still print if the super admin presses Ctrl+P with them open.
+- **Paper:** `calibrationCutsItems` is the bare geometry, so a box already off the sheet, which Save refuses anyway, also shows the warning at 0, 0.
 
 ## Testing notes
-Catalog area TPL ([test catalog](../../testing/test-catalog.md)), step 1: TPL-001…058, TPL-200…253; step 2: TPL-100…153, TPL-190, TPL-191, TPL-300…348; step 3: TPL-400…482, TPL-500…590 (and the changed TPL-054, TPL-227, TPL-228, which measure at 100%). Shared rule rows: `tests/fixtures/print-layout-cases.json`, run by both sides.
+Catalog area TPL ([test catalog](../../testing/test-catalog.md)), step 1: TPL-001…058, TPL-200…253; step 2: TPL-100…153, TPL-190, TPL-191, TPL-300…348; step 3: TPL-400…482, TPL-500…590 (and the changed TPL-054, TPL-227, TPL-228, which measure at 100%); step 4: TPL-600…728, and from its walkthrough TPL-729…736 (settings sections), TPL-737…742 (alignment). Shared rule rows: `tests/fixtures/print-layout-cases.json`, run by both sides.
 
 | Level | Tests |
 |---|---|
-| unit | `tests/ClinicHub.UnitTests/Prescriptions/Templates/`; Vitest `src/features/printTemplates/layout.test.ts`, `layout.parity.test.ts`, `functions.test.ts`, `printHtml.test.ts`, `pagination.test.ts`, `dragGeometry.test.ts`, `layoutHistory.test.ts` |
-| api | `tests/ClinicHub.IntegrationTests/Admin/PrescriptionTemplates/` (includes the migration up → down → up and the clinic read) |
-| ui | `src/features/printTemplates/**/*.test.tsx` (the print flow: `PrintFlow*.test.tsx`; step 3: `TemplateDesigner.{keys,undo,zoom}.test.tsx`; jsdom has no layout, so where a drag lands is e2e), `src/features/prescription/**/*.test.tsx`, `src/features/admin/components/ClinicPrintTemplateTab*.test.tsx`, `src/features/auth/components/UserMenu.test.tsx`, `src/app/App.*.test.tsx` |
-| e2e | `e2e/admin/print-template.spec.ts` and friends (step 3: real `page.mouse`; `placeOf` is in true mm only at 100%, so the measuring specs call `zoomTo(designer, 100)`); `e2e/prescription/print*.spec.ts` (`print-proof.spec.ts`: a real template and 40 drugs through the real API, the PDF read with `pdfjs-dist`); `e2e/support/ux.ts`'s cut-text check leaves out the sheet |
-| manual | TPL-190, TPL-191, TPL-347 in the dress rehearsal, TPL-334: a real printer, a real phone, real Chrome's dialog. Windows Alt not focusing the browser's menu, and a drag across a real second monitor: CI has neither, and the `defaultPrevented` checks and the off-viewport move are the automated proof. Not a gate for merging; never reported as passed |
+| unit | `tests/ClinicHub.UnitTests/Prescriptions/Templates/`; Vitest `src/features/printTemplates/layout.test.ts`, `layout.parity.test.ts`, `functions.test.ts`, `printHtml.test.ts`, `pagination.test.ts`, `dragGeometry.test.ts`, `layoutHistory.test.ts`, `testPrintSample.test.ts`; `align` on each kind through both sides' rules (TPL-738) |
+| api | `tests/ClinicHub.IntegrationTests/Admin/PrescriptionTemplates/` (includes the migration up → down → up, the clinic read and `align` through the route, TPL-739) |
+| ui | `src/features/printTemplates/**/*.test.tsx` (the print flow: `PrintFlow*.test.tsx`; step 3: `TemplateDesigner.{keys,undo,zoom}.test.tsx`; the settings sections: TPL-729…733, TPL-736; the alignment control: TPL-737, TPL-741, TPL-742; jsdom has no layout, so where a drag lands is e2e), `src/features/prescription/**/*.test.tsx`, `src/features/admin/components/ClinicPrintTemplateTab*.test.tsx`, `src/features/auth/components/UserMenu.test.tsx`, `src/app/App.*.test.tsx` |
+| e2e | `e2e/admin/print-template.spec.ts` and friends (step 3: real `page.mouse`; `placeOf` is in true mm only at 100%, so the measuring specs call `zoomTo(designer, 100)`; the settings in view and the paired fields, TPL-734, TPL-735; each alignment in the real print's and Test print's PDF, TPL-740); `e2e/prescription/print*.spec.ts` (`print-proof.spec.ts`: a real template and 40 drugs through the real API, the PDF read with `pdfjs-dist`); `e2e/support/ux.ts`'s cut-text check leaves out the sheet |
+| manual | TPL-190, TPL-191, TPL-347, TPL-687, TPL-688 in the dress rehearsal, TPL-334: a real printer, a real phone, real Chrome's dialog. Windows Alt not focusing the browser's menu, and a drag across a real second monitor: CI has neither, and the `defaultPrevented` checks and the off-viewport move are the automated proof. Not a gate for merging; never reported as passed |
 
-Mutation: `layout.ts`, `unsavedGuard.ts`, `functions.ts`, `printHtml.ts`, `pagination.ts`, `dragGeometry.ts`, `layoutHistory.ts` (StrykerJS); `PrescriptionLayoutRules.cs`, the validator and the three handlers (Stryker.NET).
+Mutation: `layout.ts`, `unsavedGuard.ts`, `functions.ts`, `printHtml.ts`, `pagination.ts`, `dragGeometry.ts`, `layoutHistory.ts`, `testPrintSample.ts` (StrykerJS); `PrescriptionLayoutRules.cs`, the validator, the three handlers and `UploadPaperImageCommandHandler.cs` (Stryker.NET).

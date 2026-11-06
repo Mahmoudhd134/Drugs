@@ -31,6 +31,9 @@ public static class PrescriptionTemplateLimits
     public const decimal A5HeightMm = 210;
     public const decimal A4WidthMm = 210;
     public const decimal A4HeightMm = 297;
+
+    /// <summary>The printer's correction, X and Y, from minus this to this (step 4 design A5).</summary>
+    public const decimal MaxCalibrationMm = 20;
 }
 
 /// <summary>The codes a layout holds (design prescription-templates § 3, § 5), kept as strings in its JSON.</summary>
@@ -43,6 +46,9 @@ public static class PrescriptionTemplateCodes
     public static readonly string[] Kinds = [PrescriptionText, ManualInput, Function, StaticText];
 
     public static readonly string[] Functions = ["fullDate", "time", "dayOfWeek", "dayOfMonth", "isoDateTime", "pageNumber"];
+
+    /// <summary>An item's horizontal alignment on the sheet, physical whatever the language; none held reads as right.</summary>
+    public static readonly string[] Aligns = ["right", "center", "left"];
 
     public const string A5 = "A5";
     public const string A4 = "A4";

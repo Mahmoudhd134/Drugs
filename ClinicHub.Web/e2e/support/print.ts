@@ -64,6 +64,9 @@ export const finishPrint = (page: Page) => page.evaluate(() => { window.dispatch
 
 export const printRoot = (page: Page) => page.locator(PRINT_ROOT);
 
+/** A sheet in the print root. */
+export const printSheet = (page: Page, index = 0) => page.locator(PRINT_SHEET).nth(index);
+
 /**
  * Runs `read` under print media, then back to the screen by ending the emulation: `media: "screen"` would stay in force and make
  * `page.pdf` print the screen's layout.
@@ -429,4 +432,58 @@ export const attachScreenshot = async (page: Page, testInfo: TestInfo, name: str
 /** Attaches the printed PDF for the ready report. */
 export const attachPdf = async (pdf: PrintedPdf, testInfo: TestInfo, name: string) => {
     await testInfo.attach(`${testInfo.project.name}: ${name}.pdf`, {body: pdf.bytes, contentType: "application/pdf"});
+};
+
+/** What a PDF page draws, by pdf.js's operators (step 4 contract § 8.4): `images` (image operators of any kind), `paths` (the paths that paint: what lines and frames become; a clip's `W n` paints nothing, so it doesn't count), `strokes` (those of `paths` that stroke). */
+export type PdfDrawing = { images: number; paths: number; strokes: number };
+
+/**
+ * Per page, what `getOperatorList` holds. TPL-636, TPL-666: `images` is 0. TPL-639: `paths` and `strokes` above 0 with `page.pdf({printBackground: false})`, so print a test page with
+ * `pdfWithoutBackground` when a spec asks it. Never assert the exact thickness of a line (design TPL-639).
+ */
+export const pdfDrawing = async (bytes: Buffer): Promise<PdfDrawing[]> => {
+    const {getDocument, OPS} = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const images = new Set<number>([
+        OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject, OPS.paintImageXObjectRepeat,
+        OPS.paintImageMaskXObjectRepeat, OPS.paintInlineImageXObjectGroup, OPS.paintImageMaskXObjectGroup, OPS.paintSolidColorImageMask,
+    ]);
+    const strokes = new Set<number>([OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+    const loading = getDocument({data: new Uint8Array(bytes), verbosity: 0});
+    try {
+        const document = await loading.promise;
+        const pages: PdfDrawing[] = [];
+        for (let number = 1; number <= document.numPages; number++) {
+            const {fnArray, argsArray} = await (await document.getPage(number)).getOperatorList();
+            // pdf.js folds every paint into `constructPath`: the paint is its first argument, and `stroke` never shows in `fnArray`
+            const paints = fnArray.flatMap((fn, index) => fn === OPS.constructPath ? [argsArray[index][0] as number] : []);
+            pages.push({
+                images: fnArray.filter(fn => images.has(fn)).length,
+                paths: paints.filter(paint => paint !== OPS.endPath).length,
+                strokes: paints.filter(paint => strokes.has(paint)).length,
+            });
+        }
+        return pages;
+    } finally {
+        await loading.destroy();
+    }
+};
+
+/** The page as a PDF with background graphics off, as the browser's dialog does by default: only real borders and strokes print (TPL-639). It ends the print job, as `printedPdf` does. */
+export const pdfWithoutBackground = (page: Page) => page.pdf({preferCSSPageSize: true, printBackground: false});
+
+/** `pdfRun` as a place in mm from the page's corner: the run's start and its baseline. */
+export const runMm = (run: PdfText) => ({x: run.xPt / MM_PT, y: run.yPt / MM_PT});
+
+/** The run moved by exactly this many mm from where it was, within 0.1 mm (design TPL-600). */
+export const expectRunShift = (before: PdfText, after: PdfText, xMm: number, yMm: number, what: string) => {
+    const [from, to] = [runMm(before), runMm(after)];
+    expect(Math.abs(to.x - from.x - xMm), `${what}: moved ${to.x - from.x} mm right, expected ${xMm} mm`).toBeLessThanOrEqual(0.1);
+    expect(Math.abs(to.y - from.y - yMm), `${what}: moved ${to.y - from.y} mm down, expected ${yMm} mm`).toBeLessThanOrEqual(0.1);
+};
+
+/** A ruler's printed number on a test page (Latin digits come out as whole runs: contract § 8.4), told from the other ruler's same number by where it lies. */
+export const rulerNumber = (page: PdfPage, ruler: "top" | "left", number: string) => {
+    const runs = page.items.filter(item => item.text === number && (ruler === "top" ? item.yPt : item.xPt) < mmToPt(20));
+    expect(runs.length, `the ${ruler} ruler's ${number} once on the page`).toBe(1);
+    return runs[0];
 };

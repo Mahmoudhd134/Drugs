@@ -11,6 +11,11 @@ export type PrintJob = {
     chunks: string[];
     manualValues: Readonly<Record<string, string>>;
     now: Date;
+    /**
+     * A test print (step 4 design § 5): the sheet's values come from here, because this root computes them with `pages = chunks.length`, and a one-sheet page number is `""`.
+     * The sheet gets `print.test`.
+     */
+    test?: { values: Readonly<Record<string, string>> };
 };
 
 /**
@@ -28,16 +33,16 @@ const printRules = ({widthMm, heightMm}: PrintLayout["page"]) => `@media print {
 
 /** The element directly under `body` and the rules that exist only with it (contract § 3.4). On screen it never shows. */
 export const PrintRoot = ({job}: { job: PrintJob }) => {
-    const {layout, chunks, manualValues, now} = job;
+    const {layout, chunks, manualValues, now, test} = job;
     return createPortal(
         <div id={PRINT_ROOT_ID} style={{display: "none"}}>
             <style>{printRules(layout.page)}</style>
             {chunks.map((chunk, index) => {
                 const context = {manualValues, now, page: index + 1, pages: chunks.length};
-                const values = Object.fromEntries(layout.items.map(item => [item.id, itemValue(item, context)]));
+                const values = test?.values ?? Object.fromEntries(layout.items.map(item => [item.id, itemValue(item, context)]));
                 return (
                     <div key={index} className="print-page">
-                        <TemplateSheet layout={layout} sampleText="" print={{textHtml: chunk, values}}/>
+                        <TemplateSheet layout={layout} sampleText="" print={{textHtml: chunk, values, test: !!test}}/>
                     </div>
                 );
             })}

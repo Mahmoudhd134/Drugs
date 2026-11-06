@@ -12,7 +12,9 @@ export type LayoutChange =
     | { kind: "add"; itemId: string }
     | { kind: "remove"; itemId: string }
     | { kind: "item"; itemId: string }
-    | { kind: "page" };
+    | { kind: "page" }
+    /** X or Y of the printer's correction (step 4 design § 5): the selection stays, nothing re-fits */
+    | { kind: "calibration" };
 
 export type HistoryStep = { before: PrintLayout; after: PrintLayout; change: LayoutChange };
 
@@ -77,7 +79,8 @@ export const undoStep = (history: LayoutHistory, selectedId: string | null): Tim
     if (!step) return null;
     const {change, before: layout} = step;
     let selected: string | null;
-    if (change.kind === "page") selected = keptSelection(layout, selectedId);
+    if (change.kind === "calibration") selected = selectedId;
+    else if (change.kind === "page") selected = keptSelection(layout, selectedId);
     else selected = change.kind === "add" ? null : change.itemId;
     return {
         history: {past: history.past.slice(0, -1), future: [step, ...history.future], run: null},
@@ -96,7 +99,8 @@ export const redoStep = (history: LayoutHistory, selectedId: string | null): Tim
     if (!step) return null;
     const {change, after: layout} = step;
     let selected: string | null;
-    if (change.kind === "page") selected = keptSelection(layout, selectedId);
+    if (change.kind === "calibration") selected = selectedId;
+    else if (change.kind === "page") selected = keptSelection(layout, selectedId);
     else selected = change.kind === "remove" ? null : change.itemId;
     return {
         history: {past: [...history.past, step], future: history.future.slice(1), run: null},

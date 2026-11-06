@@ -87,7 +87,8 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
                                CreateSubCategory, RenameSubCategory, DeleteSubCategory), Queries/GetAdminCategories (M1.7b)
   Features/Prescriptions/Templates/  PrescriptionLayoutDto (+ page, item), PrescriptionTemplateDto, PrescriptionTemplateErrors,
                                PrescriptionLayoutRules (rounding, normalizing, the column's JSON); Commands/
-                               (SavePrescriptionTemplate, DeletePrescriptionTemplate), Queries/GetPrescriptionTemplate; no
+                               (SavePrescriptionTemplate, DeletePrescriptionTemplate), Queries/GetPrescriptionTemplate;
+                               PaperImages/ (the paper's picture: six use cases on IAttachmentService); no
                                clinic id anywhere: the current clinic's template
   Features/Attachments/        AttachmentErrors; Files/ (IAttachmentService/AttachmentService, IAttachmentFileProvider, AttachmentRecords,
                                AttachmentModules, AttachmentFileName, AttachmentSettingsValidation), FileTypes/ (AttachmentType, AttachmentTypes, AttachmentContentCheck);
@@ -123,7 +124,8 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
                                from the claims), IdentitySetup (JWT bearer, AuthPolicies, clinic middleware)
   Features/Platform/           AdminClinicsController (api/v1/admin/clinics, PlatformAdmin policy),
                                AdminRolesController + AdminStaffController (…/clinics/{clinicId}/roles, /staff) and
-                               AdminPrescriptionTemplateController (…/clinics/{clinicId}/prescription-template) with
+                               AdminPrescriptionTemplateController (…/clinics/{clinicId}/prescription-template) and
+                               AdminPaperImageController (…/prescription-template/paper-image) with
                                the admin clinic filter ([AdminClinic], AdminClinicFilter: the route's clinic)
   Features/Access/             [HasPermission] + PermissionHandler + ClinicAccessHandler, PlatformAdminHandler, the 403 answers
                                (AccessDenied.cs: AccessFailureReason, AccessAuthorizationResultHandler),
@@ -386,7 +388,7 @@ StaffRoles             StaffId, RoleId, ClinicId (clinic-owned); PK (StaffId, Ro
                        (StaffId, ClinicId) -> Staff and (RoleId, ClinicId) -> Roles (cascade)
 PrescriptionTemplates (Prescriptions)
                        ClinicId (clinic-owned, restrict; unique: one per clinic), Layout (text: the layout's JSON
-                       { schemaVersion, page, items }, written only by PrescriptionLayoutRules.Serialize from the
+                       { schemaVersion, page, items, calibration }, written only by PrescriptionLayoutRules.Serialize from the
                        validated DTO; nothing queries inside it)
 Attachments (Attachments)
                        Id (uuid, from the service), ClinicId (null = a platform file; restrict), Module (<=50), RefId (<=64; no
@@ -477,8 +479,14 @@ Drugs                       Protocols
 | PUT | `/admin/clinics/{clinicId}/staff/{staffId}` | `{ fullName, isActive, roleIds[] }` → `StaffMember` (phone can't change; `lastOwner`) |
 | DELETE | `/admin/clinics/{clinicId}/staff/{staffId}` | Remove (real delete) → 204 (`lastOwner`) |
 | GET | `/admin/clinics/{clinicId}/prescription-template` | `{ layout, updatedAt }`, or 204 when the clinic has none |
-| PUT | `/admin/clinics/{clinicId}/prescription-template` | The layout itself `{ schemaVersion, page, items }` → `{ layout, updatedAt }`: creates or replaces, last write wins; numbers rounded to one decimal and names trimmed before the rules; an item's error names its field (`items[2].name`) |
+| PUT | `/admin/clinics/{clinicId}/prescription-template` | The layout itself `{ schemaVersion, page, items, calibration }` → `{ layout, updatedAt }`: creates or replaces, last write wins; numbers rounded to one decimal and names trimmed before the rules; a missing `calibration` is 0, 0; an item's error names its field (`items[2].name`) |
 | DELETE | `/admin/clinics/{clinicId}/prescription-template` | → 204, also when there is none |
+| GET | `/admin/clinics/{clinicId}/prescription-template/paper-image/rules` | The paper picture's limit and types (`AttachmentRulesDto`) |
+| GET | `/admin/clinics/{clinicId}/prescription-template/paper-image` | `AttachmentDto[]`, newest first, normally one row |
+| POST | `/admin/clinics/{clinicId}/prescription-template/paper-image` | One file (PNG or JPEG, up to 10 MB) → `AttachmentDto`: replaces the current picture, or adds the first; applies at once, no Save |
+| PUT | `/admin/clinics/{clinicId}/prescription-template/paper-image/{id}` | The same upload → `AttachmentDto`: replaces that picture |
+| GET | `/admin/clinics/{clinicId}/prescription-template/paper-image/{id}` | The file |
+| DELETE | `/admin/clinics/{clinicId}/prescription-template/paper-image/{id}` | → 204: the row is marked, the file stays |
 | GET | `/admin/drugs?search=&status=&categoryId=&subCategoryId=&page=&pageSize=` | Paged shared drugs (`status` = `active` (default) / `withdrawn` / `all`), the clinic list's search and order (M1.7b) |
 | GET | `/admin/drugs/{id}` | One shared drug (`AdminDrugDto`); own or unknown → 404 |
 | POST | `/admin/drugs`, PUT `/admin/drugs/{id}` | Create / update `{ name, activeIngredients, description, categoryId, subCategoryId }` (no dosing) |
@@ -496,7 +504,7 @@ current super admin (else 403 `forbidden`); a missing, deleted or template clini
 roles and staff routes (a suspended clinic is managed); a role or staff id of another clinic → 404 `notFound`. Role
 and staff errors: `roleNameTaken` (also a role named like the Owner role's label, "Owner" / «المالك»), `roleLocked`, `roleInUse`, `staffExists`, `lastOwner` (409); `unknownPermission`,
 `rolesRequired`, `roleNotFound`, `invalidPhone` and the name codes (400)
-([platform admin](../features/platform-admin/tech.md#api)). Print template errors, all 400: the ten `template*` codes,
+([platform admin](../features/platform-admin/tech.md#api)). Print template errors, all 400: the eleven `template*` codes,
 the name codes, `invalidText`, and `invalidRequest` for a missing number or page; every failure listed, in the rules' order
 ([print templates tech](../features/prescription-templates/tech.md)).
 
@@ -581,7 +589,7 @@ Swagger UI is available in Development at `/swagger`.
 | `/select-clinic` | `SelectClinicPage` (logged in) |
 | `/admin` | `ClinicsPage` (platform context: search, status filter, paging, kept in the URL query) |
 | `/admin/clinics/new` | `CreateClinicPage` (clinic name + owner phone and name) |
-| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer with drag, handles, guides, keyboard, undo and zoom, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
+| `/admin/clinics/:id` | `ClinicPage`: name, status, tabs from `CLINIC_TABS` as child routes (index = Overview: rename, disable / enable, delete with the name typed; `roles` and `staff`: the reusable role and staff components with the admin adapters; `print-template`: the template designer with drag, handles, guides, keyboard, undo and zoom, collapsible settings sections and each short item's horizontal alignment, computer only); an id that isn't a positive int without leading zeros, or unknown/deleted/template → "not found" |
 | `/admin/*` | redirects to `/admin` |
 | `/platform` | redirects to `/admin` (the placeholder page before the admin area) |
 | `/` | `PrescriptionPage` (`prescriptions.create`; without it → the first allowed page) |
@@ -720,7 +728,7 @@ Permission pieces (`features/access`, [details](../features/access/tech.md#front
 
 ### Printing and the print root
 
-The prescription prints through the browser, on the front end ([print templates](../features/prescription-templates/tech.md#printing)): `usePrintPrescription` renders `PrintRoot`, one
+The prescription prints through the browser, on the front end ([print templates](../features/prescription-templates/tech.md#printing)): `usePrintJob`, under `usePrintPrescription` and the designer's `useTestPrint`, renders `PrintRoot`, one
 element directly under `body` (`#clinichub-print-root`, `display: none` on screen) holding the sheets and a `<style>` with the `@page` rule and the rules that hide its siblings under `@media print`.
 Those rules exist only with the root, so Ctrl+P elsewhere prints the app as it does today. It goes on `afterprint`, at the next print or with the page; `window.print` may return at once on a phone, so nothing else removes it.
 
@@ -849,7 +857,7 @@ Commits go directly to `main`. Production build and IIS deployment: see `DEPLOY.
 - Prescription lines store a drug snapshot in the browser; later edits to a drug are not
   reflected in an already-built prescription, and deleted drugs stay in it until removed.
 - Dosing code lists are fixed in code (`DosingCodes` / `features/dosing/types.ts`), not admin-managed.
-- Printing: alignment on real paper and the real print dialog are not verified, since no printer is available for now; TPL-190, TPL-191 and TPL-347 stay manual cases for the dress rehearsal, not a gate for merging. CI proves the PDF's page size, item positions and every drug present once across the pages ([print templates](../features/prescription-templates/tech.md)).
+- Printing: alignment on real paper and the real print dialog are not verified, since no printer is available for now; TPL-190, TPL-191, TPL-347, TPL-687 and TPL-688 stay manual cases for the dress rehearsal, not a gate for merging. CI proves the PDF's page size, item positions after the correction and every drug present once across the pages ([print templates](../features/prescription-templates/tech.md)).
 - Tests run on GitHub Actions (`ci.ps1`, `.github/workflows/ci.yml`; every pull request runs `full`, into `main` `release`). Bugs found by the tests (none open): [known bugs](../testing/known-bugs.md).
 
 ## Adding a feature: checklist

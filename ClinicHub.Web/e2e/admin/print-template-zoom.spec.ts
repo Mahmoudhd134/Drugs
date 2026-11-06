@@ -26,6 +26,7 @@ import {
     MM,
     ONE_LANGUAGE,
     openDesigner,
+    openSection,
     outlineOnEdges,
     plainLayout,
     pressBox,
@@ -147,6 +148,7 @@ test.describe("Print template: zoom and Fit @area:admin", () => {
             await expectFit(designer, "A5");
             const a5 = await trueZoom(designer);
 
+            await openSection(designer, "page");
             await designer.paperSize.click();
             await page.getByRole("option", {name: pt.sizeA4, exact: true}).click();
             await expect(designer.sheet).toHaveAttribute("style", /width: 210mm/);

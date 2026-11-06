@@ -44,11 +44,12 @@ test.describe("Printing: the proof @area:prescription", () => {
             const staticToken = `Zstatic${u}`;
             const patient = `Zpatient${u}`;
             const text = textItem();
-            const name = manualItem();
+            // Left aligned, so a Latin run's start is the box's own left edge (the default is right: step 4 contract § 10.29); the Arabic date stays at the default
+            const name = manualItem({align: "left"});
             const date = functionItem("fullDate", {id: "date", name: "التاريخ", xMm: 14, yMm: 46, wMm: 40, hMm: 8});
-            const iso = functionItem("isoDateTime", {id: "iso", name: "الوقت", xMm: 14, yMm: 20, wMm: 60, hMm: 8});
-            const number = functionItem("pageNumber", {id: "pg", name: "الصفحة", xMm: 120, yMm: 190, wMm: 20, hMm: 8});
-            const fixed = staticItem({text: staticToken, wMm: 80, fontSizePt: 11});
+            const iso = functionItem("isoDateTime", {id: "iso", name: "الوقت", xMm: 14, yMm: 20, wMm: 60, hMm: 8, align: "left"});
+            const number = functionItem("pageNumber", {id: "pg", name: "الصفحة", xMm: 120, yMm: 190, wMm: 20, hMm: 8, align: "left"});
+            const fixed = staticItem({text: staticToken, wMm: 80, fontSizePt: 11, align: "left"});
             const layout: Layout = {schemaVersion: 1, page: A5, items: [text, name, date, iso, number, fixed]};
             const names = Array.from({length: 40}, (_, i) => `Zdrug${String(i + 1).padStart(2, "0")}${u}`);
 

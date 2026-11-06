@@ -43,4 +43,8 @@ public static class PrescriptionTemplateErrors
 
     public static readonly Error TooManyItems =
         new("templateTooManyItems", "The template has too many items.", ErrorType.Validation);
+
+    /// <summary>A calibration number, after rounding, outside -20 to 20 (step 4 design § 4, rule 10).</summary>
+    public static readonly Error CalibrationInvalid =
+        new("templateCalibrationInvalid", "The printer correction is outside the allowed range.", ErrorType.Validation);
 }
