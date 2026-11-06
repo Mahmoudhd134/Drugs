@@ -1,4 +1,4 @@
-import {useMemo} from "react";
+import {useMemo, useState} from "react";
 import {Alert, Box, Button, CircularProgress, useMediaQuery, useTheme} from "@mui/material";
 import PrintIcon from "@mui/icons-material/Print";
 import toast from "react-hot-toast";
@@ -8,11 +8,12 @@ import {useConfirm} from "../../../components/common/useConfirm.tsx";
 import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {getErrorMessage, getFieldErrors} from "../../../api/errors.ts";
 import {useDeletePrintTemplate, usePrintTemplate, useSavePrintTemplate} from "../api.ts";
-import {itemIndexOfField, newLayout, normalizeLayout, parseMmInput, validateLayout} from "../layout.ts";
-import {endRun, isDirty} from "../layoutHistory.ts";
+import {itemIndexOfField, newLayout, normalizeLayout, parseMmInput, sharedNameErrors, validateLayout} from "../layout.ts";
+import {endRun, isDirty, type LayoutHistory} from "../layoutHistory.ts";
 import type {AttachmentsAdapter} from "../../attachments/types.ts";
-import type {LayoutError, PrintTemplateAdapter, TemplateItem} from "../types.ts";
+import type {LayoutError, PrintLayout, PrintTemplateAdapter, TemplateItem} from "../types.ts";
 import {type Draft, startDraft, useDesignerDraft, withTypedPageCommitted} from "../useDesignerDraft.ts";
+import {useTestPrint} from "../useTestPrint.tsx";
 import {useUnsavedGuard} from "../useUnsavedGuard.ts";
 import {TemplateWorkspace} from "./TemplateWorkspace.tsx";
 
@@ -25,7 +26,10 @@ const keyOfField = (field: string, items: TemplateItem[]) => {
 };
 
 /** The fields the settings show a message on; any other error is toasted (contract § 3.3, Save). */
-const SHOWN_FIELD = /^(page\.(size|widthMm|heightMm)|items\[\d+]\.(name|text|xMm|yMm|wMm|hMm|fontSizePt))$/;
+const SHOWN_FIELD = /^(page\.(size|widthMm|heightMm)|calibration\.(xMm|yMm)|items\[\d+]\.(name|text|xMm|yMm|wMm|hMm|fontSizePt))$/;
+
+/** What the designer shows and what a press checks: the rules' answer, and both items of a shared name, which that answer doesn't name (step 4 design § 6). */
+const layoutProblems = (layout: PrintLayout) => [...validateLayout(layout), ...sharedNameErrors(layout)];
 
 /** The first problem's item: the lowest index among the rules' errors and the raw inputs. */
 const firstProblemItem = (errors: LayoutError[], draft: Draft) => {
@@ -40,9 +44,9 @@ const firstProblemItem = (errors: LayoutError[], draft: Draft) => {
 /**
  * The print template designer (contract § 3): the data and the draft live here, above the desktop-only switch, so narrowing
  * the window keeps the edits (TPL-229). Mounted per clinic: `ClinicPage` keys its `PageBoundary` by the clinic (TPL-245).
- * Reusable (design D5): all its data comes through the adapter. `paperAdapter` (step 4 design § 5; T1: frontend): no adapter, no picture section and no request for it (TPL-644).
+ * Reusable (design D5): all its data comes through the adapter. `paperAdapter` (step 4 design § 5): no adapter, no picture section and no request for it (TPL-644).
  */
-export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter; paperAdapter?: AttachmentsAdapter }) => {
+export const TemplateDesigner = ({adapter, paperAdapter}: { adapter: PrintTemplateAdapter; paperAdapter?: AttachmentsAdapter }) => {
     const {t} = useTranslation();
     const desktop = useMediaQuery(useTheme().breakpoints.up("md"), {noSsr: true});
     const template = usePrintTemplate(adapter);
@@ -51,6 +55,9 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter; pap
     const once = useSingleFlight();
     const {confirm, dialog: confirmDialog} = useConfirm();
     const {draft, setDraft, ops, canUndoNow, canRedoNow} = useDesignerDraft();
+    const testPrint = useTestPrint();
+    /** Goes up with each refused press, so the workspace scrolls to the message, once rendered (TPL-701) */
+    const [refusals, setRefusals] = useState(0);
 
     // Seeded once, from an answer made since the mount (a cached copy is never shown): a later refetch never overwrites a
     // draft. Without a draft (no template, or just deleted) the screen follows the query
@@ -61,28 +68,45 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter; pap
     const {dialog: guardDialog} = useUnsavedGuard(dirty);
 
     const layout = draft?.layout;
-    const errors = useMemo(() => (layout ? validateLayout(layout) : []), [layout]);
+    const errors = useMemo(() => (layout ? layoutProblems(layout) : []), [layout]);
+
+    /**
+     * What Save and Test print check before they act (step 4 contract § 4.2). A problem or any raw text: its messages, the first problem selected, what isn't
+     * shown inline toasted, and true. `history`: what the draft's history becomes then, since only Save ends a run of nudges.
+     */
+    const refused = (committed: Draft, history: LayoutHistory) => {
+        const problems = layoutProblems(committed.layout);
+        if (problems.length === 0 && Object.keys(committed.rawInputs).length === 0) return false;
+        const hidden = new Set(problems.filter(problem => !SHOWN_FIELD.test(problem.field)).map(problem => problem.code));
+        hidden.forEach(code => toast.error(t(`errors.${code}`)));
+        setDraft({
+            ...committed,
+            history,
+            selectedId: firstProblemItem(problems, committed) ?? committed.selectedId,
+            touched: new Set([
+                ...committed.touched,
+                ...problems.map(problem => keyOfField(problem.field, committed.layout.items)).filter(key => key !== null),
+            ]),
+        });
+        setRefusals(count => count + 1);
+        return true;
+    };
+
+    /** One page of what's on screen (step 4 design § 3): nothing is sent, and beyond a typed measure's own page step nothing else changes. */
+    const handleTestPrint = () => {
+        if (!draft) return;
+        const committed = withTypedPageCommitted(draft);
+        if (refused(committed, committed.history)) return;
+        setDraft(committed);
+        void testPrint.print(committed.layout);
+    };
 
     const handleSave = () => once(async () => {
         if (!draft) return;
         // The field's blur usually did this already; not when no blur came (the window narrowed and widened while typing)
         const committed = withTypedPageCommitted(draft);
-        const problems = validateLayout(committed.layout);
-        if (problems.length > 0 || Object.keys(committed.rawInputs).length > 0) {
-            const hidden = new Set(problems.filter(problem => !SHOWN_FIELD.test(problem.field)).map(problem => problem.code));
-            hidden.forEach(code => toast.error(t(`errors.${code}`)));
-            setDraft({
-                ...committed,
-                // Save ends a run of nudges, whatever comes of it (TPL-558)
-                history: endRun(committed.history),
-                selectedId: firstProblemItem(problems, committed) ?? committed.selectedId,
-                touched: new Set([
-                    ...committed.touched,
-                    ...problems.map(problem => keyOfField(problem.field, committed.layout.items)).filter(key => key !== null),
-                ]),
-            });
-            return;
-        }
+        // Save ends a run of nudges, whatever comes of it (TPL-558)
+        if (refused(committed, endRun(committed.history))) return;
 
         setDraft({...committed, history: endRun(committed.history)});
         const sent = normalizeLayout(committed.layout);
@@ -142,8 +166,11 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter; pap
                     dirty={dirty}
                     saving={save.isPending}
                     onSave={() => void handleSave()}
+                    onTestPrint={handleTestPrint}
                     onDelete={() => void handleDelete()}
                     messageOf={messageOf(draft)}
+                    paperAdapter={paperAdapter}
+                    refusals={refusals}
                 />
             );
         }
@@ -177,6 +204,7 @@ export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter; pap
             {content()}
             {confirmDialog}
             {guardDialog}
+            {testPrint.element}
         </>
     );
 };

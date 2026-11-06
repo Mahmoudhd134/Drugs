@@ -5,6 +5,7 @@ import {
     DEFAULT_ITEM_SIZES,
     DEFAULT_TEXT_BOX,
     ITEM_ID_MAX_LENGTH,
+    MAX_CALIBRATION_MM,
     MAX_CUSTOM_HEIGHT_MM,
     MAX_CUSTOM_WIDTH_MM,
     MAX_FONT_SIZE_PT,
@@ -22,7 +23,7 @@ import {
     TEMPLATE_FUNCTIONS,
     TEMPLATE_KINDS,
 } from "./constants.ts";
-import type {AddableItem, LayoutError, PageSize, PrintLayout, TemplateFunction, TemplateItem, TemplateItemKind, TemplatePage} from "./types.ts";
+import type {AddableItem, LayoutError, PageSize, PrintLayout, TemplateCalibration, TemplateFunction, TemplateItem, TemplateItemKind, TemplatePage} from "./types.ts";
 
 /*
  * The designer's pure rules (contract § 2.2), mirroring the server's validator and `PrescriptionLayoutRules`. StrykerJS
@@ -41,7 +42,7 @@ export const roundTenth = (value: number) =>
 export const toTenths = (value: number) => Math.round(roundTenth(value) * 10);
 
 const AROUND_NUMBER = /^[\s‎‏؜]+|[\s‎‏؜]+$/g;
-const NUMBER_TEXT = /^-?(\d+([.,٫]\d*)?|[.,٫]\d+)$/;
+const NUMBER_TEXT = /^[-+\u2212]?(\d+([.,٫]\d*)?|[.,٫]\d+)$/;
 
 /** An Arabic-Indic (٠–٩) or Persian (۰–۹) digit as its Latin one. */
 const latinDigit = (digit: string) => {
@@ -52,16 +53,14 @@ const latinDigit = (digit: string) => {
 /**
  * What a typed number field holds: `12.5`, `12,5` and `١٢٫٥` are all 12.5, rounded by {@link roundTenth}; spaces around it
  * and the invisible marks U+200E, U+200F, U+061C are ignored; Arabic-Indic (٠–٩) and Persian (۰–۹) digits are read; a
- * leading `-` is kept (the rules then refuse it, it is never corrected silently). null: empty or anything else
- * (`abc`, `1.2.3`, `1e3`, `٫`, `-`).
- *
- * **Step 4 (T1: frontend; design § 3, TPL-700):** one leading `+` or `−` (U+2212, as the helper line prints it) is also read as a sign, once
- * the spaces and marks around it are gone: `+2` is 2, `−2` is -2, `+1` is 1 in every field. Still null: `+`, `−`, `+-2`, `−−2`, `- 2`, `2+`, `2−`.
+ * leading `-` is kept (the rules then refuse it, it is never corrected silently). One leading `+` or `−` (U+2212, as the
+ * helper line prints it) is a sign too, once the spaces and marks around it are gone: `+2` is 2, `−2` is -2, `+1` is 1 in every
+ * field (step 4 design § 3, TPL-700). null: empty or anything else (`abc`, `1.2.3`, `1e3`, `٫`, `-`, `+`, `−`, `+-2`, `−−2`, `- 2`, `2+`, `2−`).
  */
 export const parseMmInput = (text: string) => {
     const latin = text.replace(AROUND_NUMBER, "").replace(/[٠-٩۰-۹]/g, latinDigit);
     if (!NUMBER_TEXT.test(latin)) return null;
-    return roundTenth(Number(latin.replace(/[,٫]/, ".")));
+    return roundTenth(Number(latin.replace(/[,٫]/, ".").replace("\u2212", "-")));
 };
 
 /**
@@ -75,6 +74,9 @@ export const formatMm = (value: number) => {
 };
 
 const roundIfNumber = (value: number) => (typeof value === "number" ? roundTenth(value) : value);
+
+/** A correction's number: rounded, and -0 is exactly 0 (TPL-721); a null or missing one stays, for the rules. */
+const roundCalibration = (value: number) => (typeof value === "number" ? roundTenth(value) + 0 : value);
 
 const normalizeItem = (item: TemplateItem): TemplateItem => {
     if (!item) return item;
@@ -91,7 +93,8 @@ const normalizeItem = (item: TemplateItem): TemplateItem => {
 
 /**
  * What is validated, compared and sent (the server's `Normalize`): every number rounded, a name trimmed; a static text as
- * typed. The order of the items is kept. Takes what the API could hold: a missing page, list or number stays missing.
+ * typed. The order of the items is kept. Takes what the API could hold: a missing page, list or number stays missing, but a
+ * missing or null `calibration` is 0, 0 (step 4 design § 4).
  */
 export const normalizeLayout = (layout: PrintLayout): PrintLayout => ({
     ...layout,
@@ -101,7 +104,9 @@ export const normalizeLayout = (layout: PrintLayout): PrintLayout => ({
         heightMm: roundIfNumber(layout.page.heightMm),
     },
     items: layout.items && layout.items.map(normalizeItem),
-    // Step 4 (T1: frontend; design § 4, § 5): a missing or null `calibration` is 0, 0; both numbers rounded, and -0 is exactly 0 (TPL-721); a null number stays, for the rules
+    calibration: layout.calibration
+        ? {xMm: roundCalibration(layout.calibration.xMm), yMm: roundCalibration(layout.calibration.yMm)}
+        : {xMm: 0, yMm: 0},
 });
 
 const BLANK_TEXT = /^[\s\u0085\p{Cf}]*$/u;
@@ -198,17 +203,27 @@ const validateBox = (item: ItemToCheck, prefix: string, page: TemplatePage, page
     else if (!inRange(item.fontSizePt, MIN_FONT_SIZE_PT, MAX_FONT_SIZE_PT)) errors.push({field: `${prefix}.fontSizePt`, code: "templateFontSizeInvalid"});
 };
 
+/** Rules 9 and 10 (step 4 design § 4), in that order as rules 4 and 5: every missing number first, then every number out of range. */
+const validateCalibration = ({xMm, yMm}: TemplateCalibration, errors: LayoutError[]) => {
+    const numbers = [{field: "calibration.xMm", value: xMm}, {field: "calibration.yMm", value: yMm}];
+    numbers.filter(({value}) => isMissing(value))
+        .forEach(({field}) => errors.push({field, code: "invalidRequest"}));
+    numbers.filter(({value}) => !isMissing(value) && !inRange(value, -MAX_CALIBRATION_MM, MAX_CALIBRATION_MM))
+        .forEach(({field}) => errors.push({field, code: "templateCalibrationInvalid"}));
+};
+
 /**
  * Every broken rule of `normalizeLayout(layout)`, in the server's order with the server's fields and codes (contract § 1.4;
  * the shared cases: tests/fixtures/print-layout-cases.json). Empty: valid. Takes what the API could hold, so unknown kinds
  * and functions are checked at run time too.
  *
- * **Step 4 (T1: frontend; design § 4):** rules 9 and 10 after every item's, whatever the item count, so also on the early exit over 50 items.
- * Rule 9: `calibration` present, X then Y not null: `invalidRequest` on `calibration.xMm`, `calibration.yMm`. Rule 10: each number, in whole tenths,
- * within `MAX_CALIBRATION_MM` either way: `templateCalibrationInvalid` on the same field. `calibrationCutsItems` isn't a rule: a box moved off the sheet saves.
+ * Step 4 (design § 4): rules 9 and 10 after every item's, whatever the item count, so also on the early exit over 50 items. Rule 9: X then Y not
+ * null: `invalidRequest` on `calibration.xMm`, `calibration.yMm`. Rule 10: each number, in whole tenths, within `MAX_CALIBRATION_MM` either way:
+ * `templateCalibrationInvalid` on the same field. All of rule 9 comes first: X out of range with Y null names Y first. `calibrationCutsItems` isn't
+ * a rule: a box moved off the sheet saves.
  */
 export const validateLayout = (layout: PrintLayout): LayoutError[] => {
-    const {schemaVersion, page, items} = normalizeLayout(layout);
+    const {schemaVersion, page, items, calibration} = normalizeLayout(layout);
     const errors: LayoutError[] = [];
 
     if (schemaVersion !== SCHEMA_VERSION) errors.push({field: "schemaVersion", code: "templateLayoutInvalid"});
@@ -220,6 +235,7 @@ export const validateLayout = (layout: PrintLayout): LayoutError[] => {
     const list = (items ?? []) as (ItemToCheck | null)[];
     if (list.length > MAX_ITEMS) {
         errors.push({field: "items", code: "templateTooManyItems"});
+        validateCalibration(calibration, errors);
         return errors;
     }
     if (list.filter(item => item?.kind === "prescriptionText").length !== 1) {
@@ -258,23 +274,50 @@ export const validateLayout = (layout: PrintLayout): LayoutError[] => {
         if (item.kind === "staticText") validateStaticText(item.text, `${prefix}.text`, errors);
         validateBox(item, prefix, page, pageOk, errors);
     });
+    validateCalibration(calibration, errors);
     return errors;
 };
 
 /**
- * **Stub (T1: frontend; StrykerJS-mutated).** True while any box, moved by the layout's X and Y, leaves the sheet on any side (step 4 design § 3, A6),
+ * True while any box, moved by the layout's X and Y, leaves the sheet on any side (step 4 design § 3, A6),
  * in whole tenths ({@link toTenths}), so a sum like 210.1 doesn't misfire. Exactly at the edge doesn't count: `x + X < 0`, `y + Y < 0`,
  * `x + X + w > page width` or `y + Y + h > page height`. The prescription text counts like any box. A warning only: Save and printing still work.
  * TPL-617.
  */
-export const calibrationCutsItems: (layout: PrintLayout) => boolean = () => false;
+export const calibrationCutsItems = (layout: PrintLayout): boolean => {
+    const {page, items, calibration} = normalizeLayout(layout);
+    const moveX = toTenths(calibration.xMm);
+    const moveY = toTenths(calibration.yMm);
+    return items.some(item => {
+        const left = toTenths(item.xMm) + moveX;
+        const top = toTenths(item.yMm) + moveY;
+        return left < 0
+            || top < 0
+            || left + toTenths(item.wMm) > toTenths(page.widthMm)
+            || top + toTenths(item.hMm) > toTenths(page.heightMm);
+    });
+};
 
 /**
- * **Stub (T1: frontend; StrykerJS-mutated).** Every manual input and function whose name another one shares (trimmed, ignoring case: `nameKey`), as
+ * Every manual input and function whose name another one shares (trimmed, ignoring case: `nameKey`), as
  * `{field: "items[i].name", code: "templateItemNameTaken"}`, in the layout's order (step 4 design § 6). Outside {@link validateLayout}, whose answer the
  * parity fixture fixes: that still names only the later item. The designer adds these to what it shows and to what selects the first problem. TPL-683, TPL-722.
  */
-export const sharedNameErrors: (layout: PrintLayout) => LayoutError[] = () => [];
+export const sharedNameErrors = ({items}: PrintLayout): LayoutError[] => {
+    const keyOf = (item: TemplateItem) => (
+        (item.kind === "manualInput" || item.kind === "function") && !isBlank(item.name) ? nameKey(item.name) : null
+    );
+    const counts = new Map<string, number>();
+    items.map(keyOf).forEach(key => {
+        if (key !== null) counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return items.flatMap((item, index) => {
+        const key = keyOf(item);
+        return key !== null && counts.get(key)! > 1
+            ? [{field: `items[${index}].name`, code: "templateItemNameTaken"}]
+            : [];
+    });
+};
 
 /** The item index a field names: `items[2].name` → 2; `page.widthMm`, `items` → null. */
 export const itemIndexOfField = (field: string) => {
@@ -390,12 +433,14 @@ const sameItem = (a: TemplateItem, b: TemplateItem) => {
     return ITEM_FIELDS.every(field => left[field] === right[field]);
 };
 
-/** Same normalized layout: the same page and the same items, fields and order (TPL-233). Step 4 (T1: frontend): and the same calibration (design § 5). */
+/** Same normalized layout: the same page, the same items, fields and order (TPL-233), and the same calibration (step 4 design § 5). */
 export const sameLayout = (a: PrintLayout, b: PrintLayout) => {
     const left = normalizeLayout(a);
     const right = normalizeLayout(b);
     return left.schemaVersion === right.schemaVersion
         && PAGE_FIELDS.every(field => left.page[field] === right.page[field])
         && left.items.length === right.items.length
-        && left.items.every((item, index) => sameItem(item, right.items[index]));
+        && left.items.every((item, index) => sameItem(item, right.items[index]))
+        && left.calibration.xMm === right.calibration.xMm
+        && left.calibration.yMm === right.calibration.yMm;
 };

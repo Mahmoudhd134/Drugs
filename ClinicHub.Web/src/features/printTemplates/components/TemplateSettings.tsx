@@ -1,8 +1,9 @@
-import {Box, Button, MenuItem, Paper, TextField, Typography} from "@mui/material";
+import {type ReactNode, type Ref, useId} from "react";
+import {Alert, Box, Button, MenuItem, Paper, TextField, Typography} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {PAGE_SIZE_OPTIONS} from "../constants.ts";
-import type {PageSize, TemplateItem, TemplatePage} from "../types.ts";
-import type {BoxField} from "../useDesignerDraft.ts";
+import type {PageSize, TemplateCalibration, TemplateItem, TemplatePage} from "../types.ts";
+import type {BoxField, CalibrationField} from "../useDesignerDraft.ts";
 import {MmField} from "./MmField.tsx";
 
 const BOX_FIELDS: { field: BoxField; labelKey: string }[] = [
@@ -16,12 +17,21 @@ const BOX_FIELDS: { field: BoxField; labelKey: string }[] = [
 /** The sheet's measures, which commit at blur or Enter. */
 export type PageMeasure = "widthMm" | "heightMm";
 
-/** One column in the side column, as many as fit when the settings sit below the sheet. */
+/** One column in the side column, whatever its width (260 or 280 px). */
 const fieldGrid = {display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 1.5} as const;
 
 type Props = {
     page: TemplatePage;
     item: TemplateItem | null;
+    /** The printer's correction (step 4 contract § 4.3) */
+    calibration: TemplateCalibration;
+    /** The correction pushes a box off the sheet: a warning only */
+    cutsItems: boolean;
+    onCalibration: (field: CalibrationField, text: string) => void;
+    /** The "Paper image" section, last; null with no paper adapter */
+    paperSection?: ReactNode;
+    /** The panel, where a refused press finds its first message */
+    panelRef?: Ref<HTMLElement>;
     rawInputs: Record<string, string>;
     /** Text typed in a sheet measure and not committed yet */
     typedPage: Partial<Record<PageMeasure, string>>;
@@ -37,9 +47,10 @@ type Props = {
     onRemove: (item: TemplateItem) => void;
 };
 
-/** The settings panel (contract § 3.3): the sheet's, then the selected item's. */
-export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onItemCommit, onRemove}: Props) => {
+/** The settings panel (step 4 contract § 4.3): the sheet's, the printer's correction, the selected item's, then the picture. */
+export const TemplateSettings = ({page, item, calibration, cutsItems, onCalibration, paperSection, panelRef, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onItemCommit, onRemove}: Props) => {
     const {t} = useTranslation();
+    const calibrationTitleId = useId();
 
     const typeLabel = (selected: TemplateItem) =>
         selected.kind === "function"
@@ -47,8 +58,7 @@ export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, o
             : t(`printTemplates.kinds.${selected.kind}`);
 
     return (
-        <Paper component="section" variant="outlined" aria-label={t("printTemplates.config.label")}
-               sx={{p: 2, minWidth: 0, gridColumn: {md: "1 / -1", lg: "auto"}}}>
+        <Paper ref={panelRef} component="section" variant="outlined" aria-label={t("printTemplates.config.label")} sx={{p: 2, minWidth: 0}}>
             <Typography component="h2" variant="subtitle1" sx={{fontWeight: 700, mb: 1.5}}>{t("printTemplates.page.title")}</Typography>
             <Box sx={fieldGrid}>
                 <TextField
@@ -81,6 +91,33 @@ export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, o
                     onType={(text) => onPageMeasureType("heightMm", text)}
                     onCommit={(text) => onPageMeasure("heightMm", text)}
                 />
+            </Box>
+
+            <Box component="section" aria-labelledby={calibrationTitleId} sx={{mt: 2.5}}>
+                <Typography id={calibrationTitleId} component="h3" variant="subtitle2" sx={{fontWeight: 700, mb: 1.5}}>{t("printTemplates.calibration.title")}</Typography>
+                <Box sx={fieldGrid}>
+                    <MmField
+                        label={t("printTemplates.calibration.x")}
+                        value={calibration.xMm}
+                        rawInput={rawInputs["calibration.xMm"]}
+                        error={messageOf("calibration.xMm")}
+                        onType={(text) => onCalibration("xMm", text)}
+                        onCommit={onItemCommit}
+                    />
+                    <MmField
+                        label={t("printTemplates.calibration.y")}
+                        value={calibration.yMm}
+                        rawInput={rawInputs["calibration.yMm"]}
+                        error={messageOf("calibration.yMm")}
+                        onType={(text) => onCalibration("yMm", text)}
+                        onCommit={onItemCommit}
+                    />
+                </Box>
+                {cutsItems && <Alert severity="warning" data-testid="template-cut-warning" sx={{mt: 1.5}}>{t("printTemplates.calibration.cutWarning")}</Alert>}
+                <Typography component="div" variant="caption" color="text.secondary" sx={{mt: 1}}>
+                    <div>{t("printTemplates.calibration.helper")}</div>
+                    <div>{t("printTemplates.testPrint.hint")}</div>
+                </Typography>
             </Box>
 
             <Box sx={{mt: 2.5}}>
@@ -145,6 +182,8 @@ export const TemplateSettings = ({page, item, rawInputs, typedPage, messageOf, o
                     </>
                 )}
             </Box>
+
+            {paperSection}
         </Paper>
     );
 };

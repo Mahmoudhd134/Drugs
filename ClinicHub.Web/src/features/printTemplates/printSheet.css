@@ -24,6 +24,15 @@
 }
 
 /*
+ * The picture of the clinic's paper never prints (step 4 design A13): here and not in the print root's rules, so it holds under Ctrl+P with no job (TPL-710).
+ */
+@media print {
+    .template-paper-image {
+        display: none !important;
+    }
+}
+
+/*
  * The marker's room is on the item, on the item's own side: Quill puts `dir` on the `li`, not on its list, so room on the list would be
  * on the wrong side, and the marker would stand outside the box, where the sheet's edge can cut it.
  */
