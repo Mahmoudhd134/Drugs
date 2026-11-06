@@ -269,6 +269,7 @@ jobs:
       - name: Build the SPA and the Release API
         run: |
           npm run build
+          npm run build:harness
           dotnet build ../ClinicHub.Api/ClinicHub.Api.csproj -c Release -nologo -v q -nodeReuse:false -p:UseSharedCompilation=false
       # Global setup reuses that build, starts the API on its own database (e2e/global-setup.ts)
       - name: Playwright (${{ matrix.part }})

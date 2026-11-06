@@ -49,6 +49,23 @@ Element.prototype.setPointerCapture = () => undefined;
 Element.prototype.releasePointerCapture = () => undefined;
 Element.prototype.hasPointerCapture = () => false;
 
+// jsdom 26's Blob, the global one here, has only `slice`: the app reads blobs with the browser's `text()` and
+// `arrayBuffer()`, so a `File` and a downloaded blob get them too, through jsdom's `FileReader`
+const readBlob = <T>(start: (reader: FileReader) => void, result: (reader: FileReader) => T) =>
+    new Promise<T>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(result(reader));
+        reader.onerror = () => reject(reader.error);
+        start(reader);
+    });
+Blob.prototype.text ??= function (this: Blob) {
+    return readBlob(reader => reader.readAsText(this), reader => reader.result as string);
+};
+// Copied into this realm's ArrayBuffer: jsdom's reader answers with one of its own window
+Blob.prototype.arrayBuffer ??= function (this: Blob) {
+    return readBlob(reader => reader.readAsArrayBuffer(this), reader => new Uint8Array(reader.result as ArrayBuffer).slice().buffer);
+};
+
 installMatchMedia();
 setViewportWidth();
 

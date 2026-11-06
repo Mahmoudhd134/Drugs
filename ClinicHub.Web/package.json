@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:harness": "vite build --config e2e/harness/attachments/vite.config.ts",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

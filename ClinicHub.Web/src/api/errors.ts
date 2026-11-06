@@ -84,8 +84,13 @@ const translateCode = (code: string | null, clinicNames: string[] = [], drugCoun
     return i18n.exists(`errors.${code}`) ? i18n.t(`errors.${code}`) : null;
 };
 
+/** A request stopped by its AbortSignal, by axios (`CanceledError`) or by the platform (`AbortError`). */
+export const isRequestCancelled = (error: unknown) => axios.isCancel(error) || (error instanceof Error && error.name === "AbortError");
+
 /** Translated, user-facing message for an API error (uses the "code" the API returns when present). */
 export const getErrorMessage = (error: unknown): string => {
+    // Stopped on purpose: never a network error. The components don't show it: this is the safe answer for anyone who asks
+    if (isRequestCancelled(error)) return i18n.t("errors.generic");
     if (axios.isAxiosError(error) && !error.response) return i18n.t("errors.network");
     const apiError = toApiError(error);
     const message = translateCode(apiError?.code ?? null, apiError?.clinicNames, apiError?.drugCount);

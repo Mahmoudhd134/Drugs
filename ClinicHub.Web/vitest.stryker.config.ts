@@ -15,6 +15,7 @@ const pureLogicTests = [
     'src/features/drugs/components/drugTreeModel.test.ts',
     'src/features/drugs/pages/drugListParams.test.ts',
     'src/features/printTemplates/{layout,unsavedGuard,functions,printHtml,pagination,dragGeometry,layoutHistory}.test.ts',
+    'src/features/attachments/functions.test.ts',
 ]
 
 // The Vitest run of StrykerJS: the app's test set-up, without the tests that read files outside ClinicHub.Web (Stryker

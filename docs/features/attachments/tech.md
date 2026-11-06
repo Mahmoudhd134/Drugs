@@ -6,8 +6,8 @@ A generic module that stores files for any feature: metadata in the `Attachments
 too. Accepted types and the size limit per file come from config per module, and the content must prove the type its extension picked. No file
 is ever removed by a delete or a replace.
 
-This is **part 1, the backend**. It adds **no route and no screen**: each feature exposes its own routes with its own permission
-(`[AttachmentUpload(module)]`, `ToFile()`). Part 2 (reusable components) and the reasons behind each decision:
+It has two parts: the backend and reusable React components ([Frontend](#frontend)). It adds **no route and no screen**: each feature exposes its own routes with its own permission
+(`[AttachmentUpload(module)]`, `ToFile()`) and mounts the components with an adapter over them. The reasons behind each decision:
 [the design](../../design/attachments.md).
 
 ## Data model
@@ -124,7 +124,7 @@ empty segment), because CI runs on Linux, where `..\` and `C:` are ordinary char
    error goes on too. More than one file part answers `invalidRequest`.
 
 The service still checks the file's real size. After the over-limit answer Kestrel closes the connection (`Connection: close`), so a client still writing a big body, chunked or refused on its `Content-Length`, may see the
-reset before it reads the answer; the browser's check in part 2 covers the common case.
+reset before it reads the answer; the browser's check ([Frontend](#frontend)) covers the common case.
 
 **Config** (`AttachmentSettings`, section `Attachments`; validated last in `AppSettings.Validate`, so other startup failures keep their own reason). The check is the extension method
 `AttachmentSettingsValidation.Validate` in `Features/Attachments/Files/`, not on the settings class, because it needs `AttachmentModules` and `AttachmentTypes` and `Common` never references `Features`:
@@ -139,7 +139,72 @@ reset before it reads the answer; the browser's check in part 2 covers the commo
 Any other value stops the app at startup, and the message names it. Env var: `Attachments__Physical__RootPath` ([DEPLOY.md](../../../DEPLOY.md)).
 
 ## Frontend
-Nothing mounted yet. Only the error texts, in `en.ts` and `ar.ts`: `errors.attachmentTypeNotAllowed`, `errors.attachmentTooLarge`, `errors.attachmentEmpty`. The components come in part 2.
+In `ClinicHub.Web/src/features/attachments/`, with no barrel file (a feature imports each piece by its path). Nothing mounts it yet: the first feature to use it brings the route and the screen. It holds no URL and no permission key: a feature passes an **adapter** over its own routes, and `canUpload`, `canReplace`, `canDelete` from its own permissions, all false by default.
+
+| Piece | Does |
+|---|---|
+| `types.ts` | The adapter (`AttachmentsAdapter`, a `DataScope` plus `rules`, `list`, `upload`, `replace?`, `delete?`, `download`), the hook's result, every component's props |
+| `useAttachments({adapter, multiple, maxFiles, canReplace})` | **The headless hook**: the list, the selection, progress, errors and every action. No markup |
+| `components/AttachmentPicker` | Button or drop, the selection with local thumbnails, Upload with progress per file. `FileRowParts` holds the named icon button and the file name |
+| `components/AttachmentList` | The stored files: name, type, size, date; preview, download one or all, replace, delete with `useConfirm` |
+| `components/AttachmentPreview` | The dialog for one file, stored or selected. One per hook, rendered once by whoever composes the pieces |
+| `components/AttachmentManager` | Picker, list and preview on one hook: the common case |
+| `attachmentRequests(base)` | `list`, `upload`, `replace`, `delete`, `download` on a feature's routes, so no feature repeats the multipart and blob details. The feature adds `rules`, `scope`, `affects`, `container` |
+| `functions.ts` | Pure helpers: `fileKey`, `extensionOf`, `acceptOf`, `checkFile`, `previewKind`, `formatFileSize`, `typeLabel`, `displayName`, `decodeText`, `readTextPreview`, `asPdf`, `downloadBlob`, `splitDropped` |
+
+**Customizing, three levels:** the manager as it is; a slot (`renderTrigger`, `renderSelectedItem`, `renderItem`, `renderEmpty`, `renderPreview`), which replaces one part and receives its actions; or the hook alone with markup of your own. `renderPreview` replaces the dialog's content only, so its focus trap and name stay, and `actions.delete` includes the confirmation. Custom UI means React elements: no raw HTML string anywhere, because a file name is user data.
+
+**Data:** query keys are `[...scope, "list"]` and `[...scope, "rules"]`, wrapped in `loadInScope`; a change reloads with `refreshScope`. Every request runs through one `useMutation`, so a 403 still reloads `/me` (`AppProviders`). Its function saves or stores a blob itself and returns nothing, and it's dropped a second after it ends: no cache holds a `File` or a `Blob`. It runs offline too (`networkMode: "always"`), failing instead of pausing the queue.
+
+**Selecting and uploading:**
+- Status flow: waiting → queued → uploading → gone, failed or cancelled. Failed → queued by Retry; cancelled → queued by Upload. A file that succeeded leaves the selection.
+- Upload sends the waiting and cancelled files, one request at a time. Failed files go only by Retry, which joins the run or starts one. Files picked during a run wait for the next Upload. The button is disabled during a run or with nothing to send; `useSingleFlight` stops a double click.
+- While the list is loading or failed, Upload is disabled in single-replace mode (`multiple={false}`, `canReplace` and `adapter.replace`) and with `maxFiles`: until the list answers, no one knows which file Upload would replace or how many are stored. A reload counts as loading, so after a send the next Upload waits for the list's new answer, and a reload that fails counts as failed until Retry succeeds. When that reload had rows, they stay and their actions still work, with `listFailed` and its Retry above them; a first load that fails shows the alert alone. Files can still be picked, and the hook's `upload` sends nothing then (`canSend` tells a feature with its own markup). Other uploads aren't affected: the list's failure doesn't stop them.
+- A file picked while the list is loading, when the list then fills `maxFiles`: Upload stays off while stored + selected exceeds it, `tooMany` shows for the excess (the last picked) and nothing is sent. The excess stays selected until it's removed, which takes its line away and turns Upload back on. A row's Retry obeys the same hold: its button is off and `retry` sends nothing, on any row, until the excess is removed. A replacing pick takes the stored file's place, so it isn't an excess.
+- The picker alone (`showListState`, default true): when the list failed and Upload is held, it shows `listFailed` and Retry, because a feature using it with no list would otherwise have Upload off with no reason. `AttachmentManager` passes false, because its list shows them; so does whoever composes both pieces.
+- Remove works in every state but uploading. Cancel shows on uploading and queued: an uploading file's request is aborted, a queued file goes back to waiting. The second click of a double click does nothing on either (`event.detail > 1`), because the next row moves under the pointer or Remove takes Cancel's place; a key press has a `detail` of 0, so it always acts.
+- The same file (name, size, last modified) is added once; a removed file can be picked again. `maxFiles` counts stored + selected files. The rules' check runs in the server's order: empty, size, extension.
+- A client refusal never enters the selection, but for a file already selected when the list fills `maxFiles` (above): an inline `role="alert"` lists each one, and the next pick, Upload or Remove clears it (an excess stays listed for as long as it's selected). A dropped folder is refused. If the rules fail to load, picking is off and the list still works. A user whose only control that needs the rules is a row's Replace gets the same alert and Retry, with no trigger and no Upload; with no such control, nothing shows.
+- `multiple={false}`: a new pick replaces every selected file that isn't uploading; of several dropped, the first is kept and the rest are refused. A refused pick leaves the selection as it was.
+- The drop hint is hidden on touch devices (`@media (pointer: coarse)`), where dropping doesn't exist: the button stays.
+- A selected image's object URL is created only when its row enters the view (`IntersectionObserver`; at once where there's none), and revoked with its row. Any other file has a file icon in the thumbnail's place, and so does an image the browser can't decode (`<img onError>`).
+- No success toast for an upload: the file moves to the list, and `announcement` goes to an `aria-live` region. Upload and Retry clear it first, so a Retry failing with the same reason, or a same-named file uploaded again, is heard again. It isn't cleared per file: the next file of a run starts in the same tick as the last result, which would never render. So two same-named files with the same result, one after the other in one run, are heard once.
+- **Unmounting aborts every request and stops the queue, with no state change, toast or reload.** A clinic switch unmounts the page, and a surviving queue would send the next file with the new clinic's token, storing it in the wrong clinic. For the same reason a screen that shows another record mounts a new component (`key`), so a selection never moves between records.
+- While mounted, the hook prevents window `dragover` and `drop`, so a file dropped outside the area doesn't navigate the tab.
+
+**Replacing:**
+- A row's Replace picks one file, checks the rules and sends it at once, with progress and Cancel on the row. Success toasts `replaced`; a refused pick or a failure is a toast, with no Retry. One runs at a time: every row's Replace is disabled, and its own row's Delete. Replace is also disabled with no rules.
+- With `multiple={false}`, `canReplace` and a stored file, a pick is only selected; Upload sends it through `adapter.replace` on the newest stored file (the list's first). A refusal stays selected with its reason and Retry, and the old file stays. Such a pick doesn't count for `maxFiles`.
+- `canReplace` alone shows the trigger and Upload in that mode.
+- **A control shows only with the permission and the adapter's call:** `canDelete` needs `adapter.delete`, `canReplace` needs `adapter.replace`, for the row's button and for `renderItem`'s action alike. In single-file mode with no replace call, Upload isn't a replace: `canReplace` alone shows no picker, and with `canUpload` Upload adds the file, which counts toward `maxFiles`.
+- Upload-replace racing the same file's row Replace or Delete isn't locked: one user would need two clicks in the same moment, and it ends in a 404 at worst.
+
+**Actions on a stored file:** a failure is a toast through `getErrorMessage`, and the same message toasts once, however many rows fail with it, as a row Replace's repeated refusal does (the toast's `id` is its text); a 404 also reloads the list (`showsStaleData`). A file already downloading isn't started again, by a second click on its Download or by Download all. A cancel is silent, detected by the controller's `signal.aborted` whatever error the adapter throws, and the list reloads, since the server may have saved the file. The hook's `delete` has no confirmation; the list's button and `actions.delete` add it. Focus: a closed preview returns it to the button that opened it; after a delete it moves to the next row's first button, with no next row to the list (`tabIndex={-1}`, so the list stays in the page when it's empty); after a row's Replace finishes, to the new row's Replace button, once the list has reloaded; after one is cancelled or fails, the old row stays and focus returns to its Replace button. As for a delete, only when the focus went with the row or the Cancel: the user may have moved on meanwhile. After Remove on a selected row it moves to the next row's first button, with no next row to the Choose files button; after Cancel, whose row stays, to that row's first button. If any other action leaves focus on the body, or on a button it disabled (`useFocusFallback`), in the picker it moves to the Choose files button (Upload, Retry, a focused row finishing) and in the list to the list (a stale row's Preview or Download); a preview closed after the selected row that opened it has finished also moves it to Choose files. A Retry on a failed first load unmounts its alert and button (`useRetryFocus`): for the rules, focus goes to Choose files once it's enabled; for the list, to the list when it appears; if the Retry fails again, to the alert's new Retry; focus the user moved elsewhere stays. With a custom `renderTrigger`, the feature owns the focus that would go to Choose files. Moving focus by code never scrolls the page (`preventScroll`). A selected row keeps its shape once sent too, because a row shrinking at the page's end would pull the page up: a line stays for its reason or progress, at the height a reason that wrapped took, and on a phone its buttons are always on a line of their own.
+
+**Preview:**
+
+| Type | Preview | Note |
+|---|---|---|
+| PNG, JPEG, WebP, GIF, BMP, AVIF | `<img>` from a blob | An image that fails to decode shows name, size, `cantShow` and Download |
+| PDF | The browser's viewer, in an `<iframe>` with a `title`, only when `navigator.pdfViewerEnabled`; else name, size, Download with no fetch | No `sandbox`: it blocks Chrome's viewer. The blob is always re-wrapped with a hard-coded `application/pdf` (`asPdf`), because HTML sniffed in that same-origin frame could call the API with the user's login |
+| TXT, CSV | Text in a `<pre dir="auto">`, set as text, first 1 MB | A byte-order mark decides first, then UTF-8, else Windows-1256; a cut inside a character doesn't count as invalid |
+| TIFF, HEIC, Office | Name, size, Download | |
+
+- The kind comes from the file's `typeKey` or extension, never from a response's or a `File`'s type.
+- A stored file is fetched only when its preview opens (one request, whatever the clicks); a selected file previews from the `File`, with no request. The list has no server thumbnails. A failed fetch toasts and closes the dialog. Closing while it loads aborts it, and a late answer is ignored.
+- Every object URL is revoked on close or unmount; a download's a second after the click. Download always shows; a stored file already fetched isn't fetched again.
+- The exit has no fade: the URL goes as the dialog closes, so there's nothing to fade.
+- The second click of the double click that opened a preview lands on the backdrop and doesn't close it (`event.detail > 1`); a single click there still does. Delete's confirmation stays as it is: closing it is the safe side.
+- A double click that closes a preview doesn't reach what's beneath it: with the dialog already gone, a window listener stops the second click (`event.detail > 1`), whenever it comes. Any other click clears that, so a preview reopens at once.
+- With no viewer, the name follows the UI's start, as the size and the note do, with `dir="auto"` on an inner span.
+
+**Download all** saves each file in turn, with no ZIP on the server; a browser may ask once to allow several downloads. A failure toasts and the next file goes on. The list's button shows only when `multiple` is true, and is disabled while it runs; the hook's `downloadAll` stays.
+
+**Outside the feature:** `api/client.ts` has a response interceptor, registered before the refresh interceptor, that parses a Blob error body whose type contains `json` back into an object, so `toApiError` sees its code and a 403 `noAccess` on a download follows the clinic-lost flow; if parsing fails, the original error goes on. `getErrorMessage` answers `errors.generic` on a cancel (`isRequestCancelled`), never `errors.network`. Uploads send `FormData` with `Content-Type: multipart/form-data`, which axios strips so the browser adds the boundary; a refreshed token's replay re-sends the same `FormData`.
+
+**Texts:** `attachments.*` and the error codes `errors.attachmentTypeNotAllowed`, `errors.attachmentTooLarge`, `errors.attachmentEmpty`, in `en.ts` and `ar.ts`. File names use `dir="auto"` and the bidi isolates in messages; long names wrap, with the full name in a tooltip. Sizes use Latin digits, like dates. Every icon button has a tooltip and a name holding the file's name; row buttons are 36 px on a phone too, with a small gap between them. **A displayed name has its bidi control characters removed** (`displayName`: U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C), in every place it's shown and in messages, because an override can show a false extension. The download name and what's sent stay the original, and the isolates a message puts around the name stay. `renderItem` and `renderSelectedItem` receive the original, so a slot shows it through `displayName`.
+
+**The harness page** (`ClinicHub.Web/e2e/harness/attachments/`, `npm run build:harness`) only wires these components, for Playwright and the walkthrough: `/__harness/attachments/index.html` on an e2e run's own API, `/e2e/harness/attachments/index.html` on the main Vite, always with `index.html`, because the API's SPA fallback answers the folder URL first. It's never in `ClinicHub.Api/wwwroot`.
 
 ## Edge cases & limitations
 - **No file is ever removed** by a delete or a replace, and there's no purge job, so disk use only grows. A full disk answers 500 `unexpected` and writes no row.
@@ -155,6 +220,6 @@ Nothing mounted yet. Only the error texts, in `en.ts` and `ar.ts`: `errors.attac
 - A soft-deleted clinic keeps its rows and files. Attachments aren't copied from the template clinic to a new one.
 
 ## Testing notes
-Catalog area **ATT**, cases ATT-001 to ATT-186 ([test catalog](../../testing/test-catalog.md)); trait `attachments`. Unit tests: `tests/ClinicHub.UnitTests/Attachments/`. API tests:
+Catalog area **ATT**, cases ATT-001 to ATT-186 for the backend and ATT-200 to ATT-284 for the components ([test catalog](../../testing/test-catalog.md)); trait `attachments`. The components are tested with Vitest next to the code on a fake adapter (`src/test/pages/attachments.tsx`), and in a real browser on the harness page (`e2e/attachments/`); StrykerJS covers `functions.ts`. Backend unit tests: `tests/ClinicHub.UnitTests/Attachments/`. API tests:
 `tests/ClinicHub.IntegrationTests/Attachments/`, through test-only controllers on the real pipeline (real Kestrel for the over-limit paths, since TestServer enforces no body limit). ATT-098 (the real IIS
 limit) is a `manual` case for the dress rehearsal. Mutation by `-Mutate`: `AttachmentService`, the type checks, `AttachmentSettings`, `AttachmentSettingsValidation`, the provider and the upload filter.

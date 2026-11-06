@@ -1,6 +1,6 @@
 # Attachments: design
 
-Status: **approved** (user, T0, 2026-11-06). Part 1 (the backend) is built ([tech](../features/attachments/tech.md)); part 2 (§ 12) isn't.
+Status: **approved** (user, T0, 2026-11-06). Part 1 (the backend) and part 2 (§ 12, the components) are built ([tech](../features/attachments/tech.md)); no feature mounts the components yet.
 Companion files: [business (Arabic)](../features/attachments/business.md) and [test cases](attachments.test-cases.md). When all is built, this
 moves into `docs/features/attachments/`, the overviews and the [test catalog](../testing/test-catalog.md).
 
@@ -333,7 +333,7 @@ added to the traceability script, the runner's area mapping and the testing READ
 | Levels | `unit`, `api` | `unit`, `ui`, `e2e` on the harness page |
 | T5 acceptance agent | An **adversarial API agent**: from this doc and the business file only, it tries to reach another clinic's file through the test controller | On the harness page, in Arabic, English and at phone width |
 | T6 walkthrough, gallery | The ready report only: numbers, and the isolation and "file still on disk" results | The user opens the harness page; screenshots from it |
-| `full`, `release`, coverage, Stryker | Unchanged | Unchanged (Stryker for backend logic only, as today) |
+| `full`, `release`, coverage, Stryker | Unchanged | Unchanged (StrykerJS on the new pure logic, `functions.ts`, as the [testing guide](../testing/README.md#mutation-testing) says) |
 
 ## 9. The split
 
@@ -428,10 +428,10 @@ raw HTML string built with one could run a script with the staff member's login.
   selected file previews from the `File` itself, with no request, lazily. Blobs are never kept in the query cache.
 - Every object URL is revoked when closed or unmounted (a download's, shortly after the click).
 
-**Download all** saves each file in turn, with no ZIP on the server; a browser may ask once to allow several downloads.
+**Download all** saves each file in turn, with no ZIP on the server, and shows only when `multiple` is true; a browser may ask once to allow several downloads.
 
-**Replace:** `canReplace` shows a Replace action on a row, which picks one file. With `multiple={false}`, `canReplace` and a stored file, a new pick
-replaces it through `adapter.replace`; a refusal keeps the old one.
+**Replace:** `canReplace` shows a Replace action on a row, which picks one file and sends it at once, with progress and Cancel on the row. With `multiple={false}`, `canReplace` and a stored file, a new pick,
+once Upload is pressed, replaces it through `adapter.replace`; a refusal keeps the old one.
 
 **Rules on the client:** `rules()` gives the `accept` attribute and an instant message for a wrong type or a big file, with no hard-coded
 limits. **The server still decides**: a client check is only a convenience.
@@ -464,7 +464,7 @@ works by keyboard and on a phone, where dropping doesn't exist.
 
 **Real browser proof:** jsdom can't prove a dropped file, an image showing, a real download or real multipart, and no real page mounts the components.
 **Proposed:** a **harness page**, `ClinicHub.Web/e2e/harness/attachments/`, with its own small Vite config and providers, outside the production build:
-- `global-setup.ts` copies its build into the run's `wwwroot` copy, so the run's own API serves it at `/__harness/attachments`, same origin, with no
+- `global-setup.ts` copies its build into the run's `wwwroot` copy, so the run's own API serves it at `/__harness/attachments/index.html`, same origin, with no
   extra server. CI's and the no-build branch's build steps build it too. Two tsconfig entries cover it.
 - Two modes: an in-memory adapter, and the real `api` client with Playwright's `page.route`, which proves the multipart body and file bytes, the 401
   replay and the blob error.

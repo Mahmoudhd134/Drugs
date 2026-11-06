@@ -11,8 +11,9 @@ import {loadCatalog} from "./support/catalogLoad.ts";
 /**
  * The e2e environment of one run (design M1.6 § 6, D3): a database `drags_e2e_<run>` on the compose PostgreSQL
  * (created and migrated by the API's own startup), the SPA built into ClinicHub.Api/wwwroot, the Release API
- * (environment Testing) on a free port from 5080 serving it, and the template's catalog. The returned function is the
- * teardown: it stops the API and drops the database.
+ * (environment Testing) on a free port from 5080 serving it, and the template's catalog. The attachments harness page
+ * (e2e/harness/attachments) is built apart, and only the run's copy of the web root holds it, so the same API serves
+ * it at /__harness/attachments/index.html. The returned function is the teardown: it stops the API and drops the database.
  *
  * Settings on top of appsettings.Testing.json (environment variables):
  * - `Platform:SuperAdminPhones`: a pool of super admin phones, one claimed per test, so the OTP limits of one phone
@@ -21,7 +22,7 @@ import {loadCatalog} from "./support/catalogLoad.ts";
  *   60 s rule itself is proven by the api tests (AUTH-020…). The hourly limit (5) and the 5 tries stay as intended;
  * - `Attachments:Physical:RootPath`: a folder of this run, because outside Development an empty one stops the API.
  *
- * `CLINICHUB_E2E_NO_BUILD=1` reuses the last SPA and API builds (faster local iterations).
+ * `CLINICHUB_E2E_NO_BUILD=1` reuses the last SPA, harness and API builds (faster local iterations).
  */
 const POSTGRES = "drags-postgres";
 
@@ -236,6 +237,7 @@ export default async function globalSetup() {
 
     if (process.env.CLINICHUB_E2E_NO_BUILD !== "1") {
         run("npm", ["run", "build"], webRoot);
+        run("npm", ["run", "build:harness"], webRoot);
         run("dotnet", ["build", path.join(apiProject, "ClinicHub.Api.csproj"), "-c", "Release", "-nologo", "-v", "q"], repoRoot);
     }
 
@@ -245,12 +247,15 @@ export default async function globalSetup() {
     const bin = path.join(apiProject, "bin", "Release", "net9.0");
     if (!fs.existsSync(path.join(bin, "ClinicHub.Api.dll"))) throw new Error(`${bin} has no API build: dotnet build -c Release, or drop CLINICHUB_E2E_NO_BUILD`);
     if (!fs.existsSync(path.join(apiProject, "wwwroot", "index.html"))) throw new Error("ClinicHub.Api/wwwroot has no SPA: npm run build, or drop CLINICHUB_E2E_NO_BUILD");
+    const harnessBuild = path.join(webRoot, "dist-harness", "attachments");
+    if (!fs.existsSync(path.join(harnessBuild, "index.html"))) throw new Error(`${harnessBuild} has no harness build: npm run build:harness, or drop CLINICHUB_E2E_NO_BUILD`);
     const apiCopy = path.join(runDir, "api");
     const webCopy = path.join(runDir, "wwwroot");
     // Outside the content root and the web root, as the API's startup requires; gone with the run
     const attachmentsRoot = path.join(runDir, "attachments");
     fs.cpSync(bin, apiCopy, {recursive: true});
     fs.cpSync(path.join(apiProject, "wwwroot"), webCopy, {recursive: true});
+    fs.cpSync(harnessBuild, path.join(webCopy, "__harness", "attachments"), {recursive: true});
     const log = path.join(runDir, "api.log");
     const pidFile = path.join(runDir, "api.pid");
 

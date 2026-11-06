@@ -148,13 +148,16 @@ ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwro
   src/features/printTemplates/ the template designer and printing: layout.ts, dragGeometry.ts, layoutHistory.ts, functions.ts,
                                printHtml.ts, pagination.ts, printMeasure.ts, useDesignerDraft, useDesignerDrag, useDesignerKeys,
                                usePrintPrescription, TemplateSheet, TemplateDesigner, TemplateWorkspace, PrintDialog, PrintRoot
+  src/features/attachments/    reusable file components, no route and no URLs: useAttachments, AttachmentManager, AttachmentPicker,
+                               AttachmentList, AttachmentPreview, attachmentRequests, functions.ts
   src/hooks/                   useLanguage, useDebouncedValue, useFormatDate, useSingleFlight, useDialogSave, useOpeningKey
   src/i18n/                    languages.ts, locales/en.ts, locales/ar.ts
   src/utils/                   clipboard
   src/**/*.test.ts(x)          Vitest unit + component tests, next to the code; src/test/: their helpers (providers,
                                MSW handlers, builders, page harnesses)
   e2e/                         Playwright end-to-end specs per area (auth/, catalog/, prescription/, …); support/:
-                               fixtures, API data builders, expected texts, page checks; global-setup.ts (own API + DB)
+                               fixtures, API data builders, expected texts, page checks; global-setup.ts (own API + DB);
+                               harness/attachments/: a page outside the production build that only wires the attachment components
 tests/                         automated tests (docs/testing/README.md)
   ClinicHub.UnitTests/         xUnit: Domain + Application pure rules and validators, per module (Access/, Catalog/, …)
   ClinicHub.IntegrationTests/  xUnit + WebApplicationFactory on PostgreSQL, per area (Auth/, Access/, Isolation/,
@@ -605,7 +608,8 @@ Swagger UI is available in Development at `/swagger`.
 - Reusable data components (M1.5 design D9): a component that may be mounted by several areas (e.g. `RoleList`,
   `StaffList`) takes an **adapter** (`list`/`create`/`update`/`delete` + a `DataScope`: its query-key `scope` and what a
   change `affects`, `api/dataScope.ts`) instead of calling the API itself; the area builds the adapter (e.g.
-  `adminRolesApi(clinicId)`) ([platform admin](../features/platform-admin/tech.md#roles-and-staff-screens-m155)).
+  `adminRolesApi(clinicId)`) ([platform admin](../features/platform-admin/tech.md#roles-and-staff-screens-m155)). The attachment
+  components work the same way, and `attachmentRequests(base)` builds most of their adapter ([attachments](../features/attachments/tech.md#frontend)).
 
 ### Internationalization (UI text only)
 
@@ -641,7 +645,8 @@ Swagger UI is available in Development at `/swagger`.
   `Authorization: Bearer <access token>` and, on a 401 (or a 403 `noAccess`/`clinicSuspended` in a clinic), refresh
   once (shared promise) and retry once (not if the refresh moved to another clinic); a 401 from the refresh logs out
   (→ `/login`), a network error doesn't. The access token lives only in memory
-  (`features/auth/session.ts`), never in storage.
+  (`features/auth/session.ts`), never in storage. With `responseType: "blob"` an error's body arrives as a Blob: an interceptor registered before the
+  refresh one parses a JSON one back into an object, so `toApiError` sees its code and a 403 `noAccess` on a download follows the clinic-lost flow.
 - A context switch or logout cancels in-flight queries and clears the whole query cache.
 - Each feature has `api.ts` with a query-key factory (`drugKeys`, `protocolKeys`) and hooks:
   `useX` (one page, `keepPreviousData`), `useXPicker` (`useInfiniteQuery`, "load more", 30/page),
@@ -656,7 +661,7 @@ Swagger UI is available in Development at `/swagger`.
 - `api/errors.ts` is the one place that reads error responses (the refresh interceptor uses it too): `toApiError(error)` parses the API's
   ProblemDetails into a typed `ApiError { status, code, errors, traceId }` (null without an HTTP response);
   `getErrorMessage(error)` maps `code` to `errors.<code>`, else 404 to `errors.notFound`, no response to
-  `errors.network`, else `errors.generic`; `getFieldErrors(error)` maps each request field (`name`, `owner.phone`…) to
+  `errors.network`, else (a cancel, `isRequestCancelled`, too) `errors.generic`; `getFieldErrors(error)` maps each request field (`name`, `owner.phone`…) to
   the translated message of its first error, for forms that show errors on their inputs; `getOtherErrors(error,
   inputFields)` gives the messages of the errors no input shows (to toast next to them). Status checks (403 → reload `/me`, retries, the refresh's 401/409) use
   `toApiError(error)?.status`.
