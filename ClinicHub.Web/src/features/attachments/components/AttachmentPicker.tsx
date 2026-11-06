@@ -1,4 +1,4 @@
-import {type ChangeEvent, type DragEvent, type MouseEvent, useEffect, useRef, useState} from "react";
+import {type ChangeEvent, type DragEvent, type MouseEvent, type RefObject, useEffect, useRef, useState} from "react";
 import {Alert, Box, Button, LinearProgress, List, ListItem, Stack, Typography} from "@mui/material";
 import CancelIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
@@ -10,7 +10,7 @@ import {useTranslation} from "react-i18next";
 import {displayName, formatFileSize, previewKind} from "../functions.ts";
 import type {AttachmentPickerProps, AttachmentTriggerProps, SelectedFile, SelectedFileActions, UseAttachments} from "../types.ts";
 import {FileIconButton, FileName} from "./FileRowParts.tsx";
-import {useFocusFallback} from "./useFocusFallback.ts";
+import {useFocusFallback, usePreviewOpener} from "./useFocusFallback.ts";
 
 const VISUALLY_HIDDEN = {
     position: "absolute", width: "1px", height: "1px", m: "-1px", p: 0, border: 0,
@@ -72,17 +72,23 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
             <Box sx={{flex: "1 1 12rem", minWidth: 0}}>
                 <FileName name={name}/>
                 <Typography variant="body2" color="text.secondary">{formatFileSize(item.file.size)}</Typography>
-                {item.status === "failed" && <Typography variant="body2" color="error" sx={{overflowWrap: "anywhere"}}>{item.error}</Typography>}
-                {item.status === "uploading" && (
-                    <LinearProgress
-                        variant="determinate"
-                        value={item.percent}
-                        aria-label={t("attachments.uploadingFile", {name})}
-                        sx={{mt: 0.5}}
-                    />
+                {/* A line kept once it's sent: a Retry's row doesn't shrink and pull a page scrolled to its end */}
+                {item.status !== "waiting" && (
+                    <Box sx={{display: "flow-root", minHeight: "1.25rem"}}>
+                        {item.status === "failed" && <Typography variant="body2" color="error" sx={{overflowWrap: "anywhere"}}>{item.error}</Typography>}
+                        {item.status === "uploading" && (
+                            <LinearProgress
+                                variant="determinate"
+                                value={item.percent}
+                                aria-label={t("attachments.uploadingFile", {name})}
+                                sx={{mt: 0.5}}
+                            />
+                        )}
+                    </Box>
                 )}
             </Box>
-            <Stack direction="row" sx={{flexShrink: 0, gap: 0.5, marginInlineStart: "auto"}}>
+            {/* On a phone always on a line of their own: two buttons would fit beside the name and three wouldn't, so a row would change shape */}
+            <Stack direction="row" sx={{flexShrink: 0, flexBasis: {xs: "100%", sm: "auto"}, justifyContent: "flex-end", gap: 0.5, marginInlineStart: "auto"}}>
                 <FileIconButton label={t("attachments.previewFile", {name})} onClick={actions.preview}>
                     <PreviewIcon fontSize="small"/>
                 </FileIconButton>
@@ -107,7 +113,13 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
 };
 
 /** Remove and Cancel, when they do something, place the focus first, as their row or button goes. */
-const actionsOf = (files: UseAttachments, item: SelectedFile, focusAfterRemove: () => void, focusAfterCancel: () => void): SelectedFileActions => ({
+const actionsOf = (
+    files: UseAttachments,
+    item: SelectedFile,
+    focusAfterRemove: () => void,
+    focusAfterCancel: () => void,
+    previewOpener: RefObject<string | null>,
+): SelectedFileActions => ({
     remove: () => {
         if (item.status === "uploading") return;
         focusAfterRemove();
@@ -119,7 +131,10 @@ const actionsOf = (files: UseAttachments, item: SelectedFile, focusAfterRemove: 
         files.cancel(item.key);
     },
     retry: () => files.retry(item.key),
-    preview: () => files.openPreview(item),
+    preview: () => {
+        previewOpener.current = item.key;
+        files.openPreview(item);
+    },
 });
 
 /**
@@ -137,6 +152,7 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     const rows = useRef(new Map<string, HTMLLIElement>());
     // Upload disabling itself, Retry leaving, a focused row finishing. A custom trigger's focus is the feature's
     useFocusFallback(root, pickButton);
+    const previewOpener = usePreviewOpener(!!files.preview, rows, pickButton);
 
     const replaces = canReplace && files.hasReplace;
     const replacesStored = replaces && !files.multiple && files.files.length > 0;
@@ -155,7 +171,7 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     /** To the next row's first button, or with no next row to Choose files. A custom trigger's focus is the feature's. */
     const focusPast = (item: SelectedFile) => () => {
         const next = files.selected[files.selected.findIndex(row => row.key === item.key) + 1];
-        (firstButtonOf(next) ?? pickButton.current)?.focus();
+        (firstButtonOf(next) ?? pickButton.current)?.focus({preventScroll: true});
     };
 
     const onPicked = (event: ChangeEvent<HTMLInputElement>) => {
@@ -243,7 +259,7 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
             {files.selected.length > 0 && (
                 <List aria-label={t("attachments.selectedLabel")} disablePadding>
                     {files.selected.map(item => {
-                        const actions = actionsOf(files, item, focusPast(item), () => firstButtonOf(item)?.focus());
+                        const actions = actionsOf(files, item, focusPast(item), () => firstButtonOf(item)?.focus({preventScroll: true}), previewOpener);
                         return (
                             <ListItem
                                 key={item.key}

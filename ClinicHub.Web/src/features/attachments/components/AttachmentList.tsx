@@ -12,7 +12,7 @@ import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {displayName, formatFileSize, typeLabel} from "../functions.ts";
 import type {Attachment, AttachmentItemActions, AttachmentListProps} from "../types.ts";
 import {FileIconButton, FileName} from "./FileRowParts.tsx";
-import {useFocusFallback} from "./useFocusFallback.ts";
+import {useFocusFallback, usePreviewOpener} from "./useFocusFallback.ts";
 
 const MetaText = ({children}: { children: string }) => (
     <Typography component="span" variant="body2" color="text.secondary">{children}</Typography>
@@ -99,7 +99,7 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
         focusAfterDelete.current = null;
         if (document.activeElement && document.activeElement !== document.body) return;
         const nextRow = pending.nextId === null ? undefined : rows.current.get(pending.nextId);
-        (nextRow?.querySelector("button") ?? list.current)?.focus();
+        (nextRow?.querySelector("button") ?? list.current)?.focus({preventScroll: true});
     }, [files.files]);
 
     const handleDelete = (file: Attachment) => onceDelete(async () => {
@@ -125,19 +125,11 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
         const button = id === null ? null : rows.current.get(id)?.querySelector<HTMLButtonElement>('button[data-action="replace"]');
         if (!button || button.disabled) return;
         focusAfterReplace.current = null;
-        if (!document.activeElement || document.activeElement === document.body) button.focus();
+        if (!document.activeElement || document.activeElement === document.body) button.focus({preventScroll: true});
     };
     useEffect(moveFocusAfterReplace);
 
-    // The row a preview opened from. If it went by the time the preview closes, the dialog has no button to return the focus to
-    const previewOpener = useRef<string | null>(null);
-    useEffect(() => {
-        const opener = previewOpener.current;
-        if (opener === null || files.preview) return;
-        previewOpener.current = null;
-        if (!rows.current.has(opener)) list.current?.focus();
-    });
-
+    const previewOpener = usePreviewOpener(!!files.preview, rows, list);
     // A stale row's Preview or Download. A running Replace places the focus itself when it ends
     useFocusFallback(root, list, !!files.replacing);
 

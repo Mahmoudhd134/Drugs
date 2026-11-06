@@ -90,6 +90,9 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         return {signal: controller.signal, release: () => controllers.current.delete(id)};
     };
 
+    /** By its text, so the same message doesn't stack: several rows failing alike, a refusal repeated. */
+    const toastError = (message: string) => toast.error(message, {id: message});
+
     /** A failure on a stored file: a toast, a 404 also reloads the list; a cancel is silent and reloads; gone: nothing. */
     const reportFailure = (error: unknown, signal?: AbortSignal) => {
         if (!alive.current) return;
@@ -97,9 +100,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
             refresh();
             return;
         }
-        // By its text: several rows failing alike toast once
-        const message = getErrorMessage(error);
-        toast.error(message, {id: message});
+        toastError(getErrorMessage(error));
         if (showsStaleData(error)) refresh();
     };
 
@@ -306,7 +307,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         if (replaceRunning.current || !currentRules || !current.replace) return null;
         const code = checkFile(newFile, currentRules);
         if (code) {
-            toast.error(translate("attachments.refused", {name: displayName(newFile.name), reason: translate(`errors.${code}`)}));
+            toastError(translate("attachments.refused", {name: displayName(newFile.name), reason: translate(`errors.${code}`)}));
             return null;
         }
         replaceRunning.current = true;

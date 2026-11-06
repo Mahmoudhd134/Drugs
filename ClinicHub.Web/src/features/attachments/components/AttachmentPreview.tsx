@@ -1,4 +1,4 @@
-import {useId} from "react";
+import {useEffect, useId, useRef} from "react";
 import {
     Box,
     Button,
@@ -77,14 +77,35 @@ export const AttachmentPreview = ({files: {preview, closePreview}, renderPreview
     const {t} = useTranslation();
     const fullScreen = useMediaQuery(useTheme().breakpoints.down("sm"));
     const titleId = useId();
+
+    // The second click of a double click that closed it would land on the page beneath: it's stopped here, whenever it
+    // comes. Only that one: any other click clears this, so a preview opens again at once
+    const closedByClick = useRef(false);
+    useEffect(() => {
+        const stopSecondClick = (event: MouseEvent) => {
+            if (closedByClick.current && event.detail > 1) {
+                event.stopPropagation();
+                event.preventDefault();
+            } else {
+                closedByClick.current = false;
+            }
+        };
+        window.addEventListener("click", stopSecondClick, true);
+        return () => window.removeEventListener("click", stopSecondClick, true);
+    }, []);
+    const closeByClick = () => {
+        closedByClick.current = true;
+        closePreview();
+    };
+
     return (
         // No exit fade: the object URL goes as it closes, so the content has nothing left to show
         <Dialog
             open={!!preview}
             onClose={(event, reason) => {
                 // The second click of the double click that opened it lands on the backdrop
-                if (reason === "backdropClick" && (event as MouseEvent).detail > 1) return;
-                closePreview();
+                if (reason !== "backdropClick") closePreview();
+                else if ((event as MouseEvent).detail <= 1) closeByClick();
             }}
             fullWidth
             maxWidth="md"
@@ -100,7 +121,7 @@ export const AttachmentPreview = ({files: {preview, closePreview}, renderPreview
                         {renderPreview ? renderPreview(preview) : <PreviewBody preview={preview}/>}
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={closePreview}>{t("common.close")}</Button>
+                        <Button onClick={closeByClick}>{t("common.close")}</Button>
                         <Button variant="contained" onClick={preview.download}>{t("attachments.download")}</Button>
                     </DialogActions>
                 </>
