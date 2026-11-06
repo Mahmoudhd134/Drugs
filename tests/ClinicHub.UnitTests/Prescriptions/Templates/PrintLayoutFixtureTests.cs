@@ -73,7 +73,7 @@ public partial class PrintLayoutFixtureTests
     {
         var rows = PrintLayoutFixture.Cases;
 
-        rows.Count.ShouldBeGreaterThanOrEqualTo(96);
+        rows.Count.ShouldBeGreaterThanOrEqualTo(121);
         rows.Select(r => r.Name).ShouldBeUnique();
         foreach (var row in rows)
         {

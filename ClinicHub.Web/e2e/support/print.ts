@@ -434,7 +434,7 @@ export const attachPdf = async (pdf: PrintedPdf, testInfo: TestInfo, name: strin
     await testInfo.attach(`${testInfo.project.name}: ${name}.pdf`, {body: pdf.bytes, contentType: "application/pdf"});
 };
 
-/** What a PDF page draws, by pdf.js's operators (step 4 contract § 8.4): `images` (image operators of any kind), `paths` (`constructPath`, what lines and frames become), `strokes`. */
+/** What a PDF page draws, by pdf.js's operators (step 4 contract § 8.4): `images` (image operators of any kind), `paths` (the paths that paint: what lines and frames become; a clip's `W n` paints nothing, so it doesn't count), `strokes` (those of `paths` that stroke). */
 export type PdfDrawing = { images: number; paths: number; strokes: number };
 
 /**
@@ -453,11 +453,13 @@ export const pdfDrawing = async (bytes: Buffer): Promise<PdfDrawing[]> => {
         const document = await loading.promise;
         const pages: PdfDrawing[] = [];
         for (let number = 1; number <= document.numPages; number++) {
-            const {fnArray} = await (await document.getPage(number)).getOperatorList();
+            const {fnArray, argsArray} = await (await document.getPage(number)).getOperatorList();
+            // pdf.js folds every paint into `constructPath`: the paint is its first argument, and `stroke` never shows in `fnArray`
+            const paints = fnArray.flatMap((fn, index) => fn === OPS.constructPath ? [argsArray[index][0] as number] : []);
             pages.push({
                 images: fnArray.filter(fn => images.has(fn)).length,
-                paths: fnArray.filter(fn => fn === OPS.constructPath).length,
-                strokes: fnArray.filter(fn => strokes.has(fn)).length,
+                paths: paints.filter(paint => paint !== OPS.endPath).length,
+                strokes: paints.filter(paint => strokes.has(paint)).length,
             });
         }
         return pages;

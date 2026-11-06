@@ -1380,6 +1380,10 @@ describe("sharedNameErrors: both items are marked @area:admin", () => {
         expect(sharedNameErrors(layout)).toEqual(taken(1, 2, 3, 4));
     });
 
+    test("blank names share nothing: name rules report those, not this @TPL-722", () => {
+        expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: ""}), manual({id: "b", name: "  "})))).toEqual([]);
+    });
+
     test("different names, and static text, share nothing @TPL-722", () => {
         expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: "A"}), fn({id: "b", name: "B"})))).toEqual([]);
         expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: "A"}), stat({id: "b", text: "A"}), stat({id: "c", text: "A"})))).toEqual([]);

@@ -163,7 +163,7 @@ describe("print template zoom: only the view changes @area:admin", () => {
         const writes = recorded.writes();
         expect(writes).toHaveLength(1);
         const body = writes[0].body as PrintLayout & Record<string, unknown>;
-        expect(Object.keys(body).sort()).toEqual(["items", "page", "schemaVersion"]);
+        expect(Object.keys(body).sort()).toEqual(["calibration", "items", "page", "schemaVersion"]);
         expect(Object.keys(body.page).sort()).toEqual(["heightMm", "size", "widthMm"]);
         expect(body.items[1]).toMatchObject({xMm: 12.3, yMm: 33, wMm: 40, hMm: 8});
         expect(JSON.stringify(body)).not.toMatch(/zoom/i);

@@ -77,9 +77,9 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 87 | 263 | 77 | 427 | 85 | 40 | 169 | 168 | 6 |
+| [TPL](#tpl--prescription-print-templates) | 87 | 263 | 77 | 427 | 85 | 40 | 170 | 168 | 6 |
 | [ATT](#att--attachments) | 83 | 104 | 27 | 214 | 67 | 82 | 60 | 16 | 2 |
-| **All** | **605** | **1015** | **508** | **2128** | **362** | **803** | **601** | **489** | **18** |
+| **All** | **605** | **1015** | **508** | **2128** | **362** | **803** | **602** | **489** | **18** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2646,7 +2646,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-589 | Given a panel drag entering the 24 px band from the panel's side (the left in English, the right in Arabic) on a scrollable sheet, then the drop counts the scroll at the drop | P2 | e2e | step3.md:70 |
 | TPL-590 | Given 1280 × 720 and the page not scrolled, when a drag reaches the area's bottom, then the band can be reached in the window and it scrolls (not measured: `maxHeight` assumes 200 px above the area, and the zoom toolbar adds height) | P2 | e2e | `TemplateDesigner.tsx:252` |
 | TPL-591 | Given A4 at Fit on a 1280 × 720 window (about 33%) and a sheet at 25%, with nothing selected, then every box's outline stays visible all round: about 1 px on screen at 25%, 33%, 50%, 100% and 200%, whatever the box's pixel position; selected, about 2 px. The outline is inset: the box's measured size stays exact | P1 | e2e | acceptance #1 |
-| TPL-592 | Given a window tall enough for everything (1920 × 970, nothing selected), then the page has no vertical scrollbar and the area's bottom is inside the window; at 1280 × 720 too the area's bottom is inside the window with the page not scrolled | P2 | e2e | acceptance #8 |
+| TPL-592 | Given a window tall enough for everything (1920 wide and 970 high, or what the settings need if more, at most 1200 high; nothing selected), then the page has no vertical scrollbar and the area's bottom is inside the window; at 1280 × 720 too the area's bottom is inside the window with the page not scrolled | P2 | e2e | acceptance #8 |
 | TPL-593 | Given a panel drag at 50% and at 200%, then the ghost's text is the item's font × the zoom (11 pt × zoom / 100), and its font and wrapping match the item: for the longest entry («التاريخ والوقت بصيغة ISO», "ISO date and time") the computed `font-family` starts with the print font's family, `line-height` over `font-size` is 1.4 within 0.01, and the text is wrapped, not cut or running out sideways (`scrollWidth` ≤ `clientWidth`) | P2 | e2e | acceptance #11, acceptance round 2 |
 | TPL-594 | Given a move or a resize with the pointer past the area's edge, then the area keeps scrolling on that axis and the item follows; given a panel drag with the pointer over the side panel on a scrolled sheet, then the area doesn't scroll | P1 | unit+e2e | User, T5 (acceptance #3) |
 | TPL-595 | Given a selected item out of view after a zoom press, Fit, undo or redo, then the area scrolls so its box shows; with nothing selected the scroll stays | P1 | ui+e2e | User, T5 (acceptance #2) |
@@ -2686,7 +2686,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-634 | Given a double click, then one print | P1 | ui | § 5 |
 | TPL-635 | Given calibration, then the test page's boxes shift by X and Y, the top ruler's ticks by X and the left's by Y, in the PDF, also when designed at 200% zoom | P0 | e2e | A9, P4 |
 | TPL-636 | Given a picture shown, then the print root holds no `img` and the test PDF has no image operations (`getOperatorList`) | P0 | e2e | A9 |
-| TPL-637 | Given 50 boxes and a 20 mm prescription box at 36 pt, then the test PDF is exactly one page | P0 | e2e | A7 |
+| TPL-637 | Given 50 boxes and a 20 mm prescription box at 36 pt, or Y moving a box past the sheet's bottom, then the test PDF is exactly one page | P0 | e2e | A7 |
 | TPL-638 | Given each kind, then the sample is its name, the real value now, `2/3` for the page number, the text as typed, and the fixed lines | P1 | unit | P3 |
 | TPL-639 | Given the test page with `printBackground: false`, then frames and ruler lines are drawn: a computed border and path operations in the PDF, without asserting exactly 0.2 mm | P0 | e2e | § 3 |
 | TPL-640 | Given the rulers on A4 and a custom 50 × 50, then ticks run to the sheet's end, numbered every 10 from the corner, in Latin digits in Arabic too | P1 | ui | P4 |
@@ -2743,7 +2743,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | TPL-700 | Given `+2` or `−2` (U+2212), then read as numbers | P0 | unit+ui | § 3 |
-| TPL-701 | Given 1280 × 800, when Save refuses an item, then its message is in view; X and Y are reachable | P1 | e2e | § 3 |
+| TPL-701 | Given 1280 × 800, when Save refuses an item, then its message is in view; X and Y are reachable; narrowing below 900 px and widening afterwards scrolls nothing | P1 | ui+e2e | § 3 |
 | TPL-702 | Given A selected, when X is typed over several keys, then one step; undo and redo keep A, no re-fit | P1 | unit+ui | § 5 |
 | TPL-703 | Given X open, when a box is dragged, an item field typed, or Undo clicked, then a `calibration` step, not `item`; `abc` is cleared by undo | P1 | ui | § 3, P5 |
 | TPL-704 | Given both languages, then the helper line, range, cut warning and load failure read exactly as § 9 | P1 | ui | § 9 |
@@ -2790,7 +2790,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 10
 | ATT-009 | Given no token, when any test route is called, then 401 | P0 | api | A5 |
 | ATT-010 | Given a clinic route with `[HasPermission]` and a role without it, when called, then 403 `forbidden`; a filter unit test with a throwing body proves the body isn't read | P0 | api+unit | A5 |
 | ATT-011 | Given a suspended or deleted clinic, when its staff call a route, then 403 `clinicSuspended` or `noAccess` | P1 | api | access |
-| ATT-012 | Given the real host with no test part added, when its endpoints are listed, then none carries `[AttachmentUpload]`: production has no attachment route | P0 | api | A2 |
+| ATT-012 | Given the real host with no test part added, when its endpoints are listed, then the only ones carrying `[AttachmentUpload]` are `AdminPaperImageController.Upload` and `.Replace` (print templates step 4), so any other real route with the filter fails | P0 | api | A2 |
 | ATT-013 | Given a request carrying a `clinicId` in the body or query on a clinic route, then it's ignored: the row belongs to the token's clinic | P0 | api | § 4, clinic scoping |
 | ATT-014 | Given A's file, when A replaces (also with a refused file) or deletes with a wrong ref ID or module, then 404 and it's unchanged | P0 | api | § 4 |
 

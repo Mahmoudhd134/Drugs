@@ -40,6 +40,7 @@ import {
     ONE_LANGUAGE,
     openDesigner,
     openDesignerWithPaper,
+    putTemplate,
     rulersOn,
     staticItem,
     tabPath,
@@ -177,30 +178,61 @@ test.describe("Test print @area:admin", () => {
             expectPageSize(pdf.pages[0], A4.widthMm, A4.heightMm);
         });
 
-    test("with background graphics off: frames and ruler lines are real: a computed border and path operations @TPL-639",
+    test("Y pushing a box past the sheet's bottom: exactly one page, and the sheet clips it @TPL-637",
+        async ({page, data, lang}) => {
+            await stubPrint(page);
+            const layout: Layout = {schemaVersion: 1, page: A5, items: [textItem(), staticItem({yMm: 195, wMm: 60, hMm: 8})], calibration: {xMm: 0, yMm: 20}};
+            const {designer} = await openDesigner(page, data, lang, layout);
+
+            await pressedOnce(page, designer);
+
+            const sheets = await printSheets(page);
+            expect(sheets, "one sheet").toHaveLength(1);
+            expect(sheets[0].overflow, "the sheet clips what leaves it").toBe("hidden");
+            expect(sheets[0].items.s.yMm, "the box's top is past the sheet's bottom").toBeGreaterThan(A5.heightMm);
+            const pdf = await printedPdf(page);
+            expect(pdf.pages, "one PDF page").toHaveLength(1);
+            expectPageSize(pdf.pages[0], A5.widthMm, A5.heightMm);
+        });
+
+    test("with background graphics off: frames and ruler lines are real: a computed border and painted paths, and more boxes paint more @TPL-639",
         async ({page, data, lang}) => {
             test.skip(lang !== "ar", ONE_LANGUAGE);
             await stubPrint(page);
-            const {designer} = await openDesigner(page, data, lang, layoutL());
+            const {clinic, designer} = await openDesigner(page, data, lang, layoutL());
 
             await pressedOnce(page, designer);
 
             const computed = await inPrintMedia(page, () => frames(printRoot(page)).evaluateAll(all => all.map(frame => {
                 const style = getComputedStyle(frame);
-                return {style: style.borderTopStyle, width: parseFloat(style.borderTopWidth), position: style.position, isLast: frame.parentElement?.lastElementChild === frame};
+                return {
+                    display: style.display, style: style.borderTopStyle, width: parseFloat(style.borderTopWidth), color: style.borderTopColor,
+                    position: style.position, isLast: frame.parentElement?.lastElementChild === frame,
+                };
             })));
             expect(computed).toHaveLength(layoutL().items.length);
             for (const frame of computed) {
+                expect(frame.display, "the frame prints").not.toBe("none");
                 expect(frame.style).toBe("solid");
                 expect(frame.width).toBeGreaterThan(0);
+                expect(frame.color, "#000 (design § 3)").toBe("rgb(0, 0, 0)");
                 expect(frame.position).toBe("absolute");
                 expect(frame.isLast, "the frame is the box's last child").toBe(true);
             }
 
-            const bytes = await pdfWithoutBackground(page);
-            const [drawing] = await pdfDrawing(bytes);
-            expect(drawing.paths, "path operations").toBeGreaterThan(0);
+            const [drawing] = await pdfDrawing(await pdfWithoutBackground(page));
+            expect(drawing.paths, "painted paths").toBeGreaterThan(0);
             expect(drawing.strokes, "strokes").toBeGreaterThan(0);
+
+            // The same sheet with more boxes: the rulers stay the same, so what's added is frames. Text paints no path, and clips aren't counted
+            const added = [1, 2, 3, 4].map(n => staticItem({id: `extra${n}`, text: `Z${n}`, xMm: 80, yMm: 60 + n * 10, wMm: 40, hMm: 8}));
+            await putTemplate(data, clinic, layoutL({items: [...layoutL().items, ...added]}));
+            await page.reload();
+            await designerShown(designer);
+            await pressedOnce(page, designer);
+            await expect(frames(printRoot(page))).toHaveCount(layoutL().items.length + added.length);
+            const [withMore] = await pdfDrawing(await pdfWithoutBackground(page));
+            expect(withMore.paths - drawing.paths, "each box added paints at least one more path").toBeGreaterThanOrEqual(added.length);
         });
 
     test("the print root shows `2/3` for the page number and the manual input's name, neither empty @TPL-707",

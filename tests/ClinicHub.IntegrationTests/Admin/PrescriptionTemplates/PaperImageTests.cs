@@ -337,8 +337,7 @@ public class PaperImageTests(AppFixture app) : IntegrationTest(app)
         await nothingChanged();
         await ShouldBeOpenAsync(admin, clinic.Id, file.Id, bytes);
 
-        var again = await admin.SaveTemplateAsync(clinic.Id, L());
-        again.Layout.Calibration.ShouldBe(new PrescriptionCalibrationDto(0, 0), "the correction went with the template (P1)");
+        await admin.SaveTemplateAsync(clinic.Id, L());
         await nothingChanged();
     }
 
@@ -389,17 +388,39 @@ public class PaperImageTests(AppFixture app) : IntegrationTest(app)
     public async Task Two_live_rows_are_answered_newest_first_and_removing_the_newest_brings_the_older_back()
     {
         var (admin, clinic) = await ClinicAsync();
-        var older = await admin.UploadPaperAsync(clinic.Id, "older.png");
-        Clock.Advance(TimeSpan.FromSeconds(1));
-        var newer = await admin.UploadPaperAsync(clinic.Id, "newer.png");
-        // What two uploads in one instant leave: the replace saw no picture, so the first row was never marked
-        await App.OutsideTheApp.ExecuteAsync("""UPDATE "Attachments" SET "DeletedAt" = NULL, "DeletedByUserId" = NULL WHERE "Id" = @p0""", older.Id);
+        var (older, newer) = await TwoLiveRowsAsync(admin, clinic.Id);
 
         (await admin.PaperImagesAsync(clinic.Id)).Select(f => f.Id).ShouldBe([newer.Id, older.Id]);
 
         await (await admin.DeleteAsync(PaperImageApi.Item(clinic.Id, newer.Id))).ShouldBeAsync(HttpStatusCode.NoContent);
 
         (await admin.PaperImagesAsync(clinic.Id)).ShouldHaveSingleItem().Id.ShouldBe(older.Id);
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-676")]
+    public async Task A_POST_with_two_live_rows_replaces_the_newest_and_the_older_stays_live()
+    {
+        var (admin, clinic) = await ClinicAsync();
+        var (older, newer) = await TwoLiveRowsAsync(admin, clinic.Id);
+        Clock.Advance(TimeSpan.FromSeconds(1));
+
+        var fresh = await admin.UploadPaperAsync(clinic.Id, "fresh.png");
+
+        (await admin.PaperImagesAsync(clinic.Id)).Select(f => f.Id).ShouldBe([fresh.Id, older.Id]);
+        var rows = await App.PaperRowsAsync(clinic.Id);
+        rows.Single(r => r.Id == newer.Id).DeletedAt.ShouldNotBeNull("the newest was the one replaced");
+        rows.Single(r => r.Id == older.Id).DeletedAt.ShouldBeNull();
+    }
+
+    /// <summary>What two uploads in one instant leave: the replace saw no picture, so the first row was never marked.</summary>
+    private async Task<(AttachmentDto Older, AttachmentDto Newer)> TwoLiveRowsAsync(ApiClient admin, int clinicId)
+    {
+        var older = await admin.UploadPaperAsync(clinicId, "older.png");
+        Clock.Advance(TimeSpan.FromSeconds(1));
+        var newer = await admin.UploadPaperAsync(clinicId, "newer.png");
+        await App.OutsideTheApp.ExecuteAsync("""UPDATE "Attachments" SET "DeletedAt" = NULL, "DeletedByUserId" = NULL WHERE "Id" = @p0""", older.Id);
+        return (older, newer);
     }
 
     // ---- TPL-716: the real routes' rules, bytes and refusals ----

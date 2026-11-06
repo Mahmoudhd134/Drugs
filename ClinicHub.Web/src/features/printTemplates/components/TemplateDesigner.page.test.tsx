@@ -219,6 +219,7 @@ describe("print template: an item bigger than the new page @area:admin", () => {
                 schemaVersion: 1,
                 page: {size: "A5", widthMm: 148, heightMm: 210},
                 items: [{id: "t", kind: "prescriptionText", xMm: 0, yMm: 40, wMm: 148, hMm: 50, fontSizePt: 11}],
+                calibration: {xMm: 0, yMm: 0},
             },
         })]);
     });

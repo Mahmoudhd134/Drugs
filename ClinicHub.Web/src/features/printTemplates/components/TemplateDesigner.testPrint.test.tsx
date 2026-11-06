@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {describe, expect, onTestFinished, test} from "vitest";
 import {fireEvent, screen, waitFor} from "@testing-library/react";
 import {aPrintLayout, aTemplateItem, choose, hoverTooltip, recordRequests, toastTexts} from "../../../test";
 import {pageRules, settled} from "../../../test/pages/printFlow.tsx";
@@ -141,6 +141,32 @@ describe("Test print pressed more than once @area:admin", () => {
         expect(printing.printRoots()).toHaveLength(1);
     });
 
+    test("two keyboard presses, `detail` 0, while the font still loads: the second starts nothing, one print @TPL-634", async () => {
+        const printing = installPrint();
+        await renderDesigner(layoutL());
+        // jsdom has no `document.fonts`: here each load waits for the test, so a second flow would end after the first, on a print of its own
+        const fontLoads: (() => void)[] = [];
+        Object.defineProperty(document, "fonts", {
+            configurable: true,
+            value: {load: () => new Promise<void>(resolve => fontLoads.push(resolve))},
+        });
+        onTestFinished(() => {
+            delete (document as {fonts?: unknown}).fonts;
+        });
+
+        fireEvent.click(testPrintButton(), {detail: 0});
+        const oneFlow = fontLoads.length;
+        expect(oneFlow, "the print font's weights").toBeGreaterThan(0);
+        fireEvent.click(testPrintButton(), {detail: 0});
+        expect(fontLoads, "the second press started no flow").toHaveLength(oneFlow);
+
+        fontLoads.forEach(load => load());
+        await waitFor(() => expect(printing.print).toHaveBeenCalledTimes(1));
+        await settled();
+        expect(printing.print).toHaveBeenCalledTimes(1);
+        expect(printing.printRoots()).toHaveLength(1);
+    });
+
     test("the double click's second click, `detail` 2, after the first flow ended: still one print; a keyboard's, `detail` 0, prints @TPL-708", async () => {
         const printing = installPrint();
         await renderDesigner(layoutL());
@@ -184,6 +210,7 @@ describe("Test print pressed more than once @area:admin", () => {
         await user.tab();
         expect(printing.itemOn(printing.sheets()[0], "m")?.textContent).toBe("الاسم");
         expect(printing.itemOn(printing.sheets()[0], "m")?.style.left).toBe("58mm");
+        expect(printing.itemOn(printing.sheets()[0], "m")?.style.transform).toBe("");
 
         await user.click(overviewTab());
         await answerQuestion(user, "leave");

@@ -13,8 +13,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicHub.IntegrationTests.Attachments.TestHost;
 
-// The test-only routes (docs/design/attachments.md § 8): one controller per context, on the real pipeline. Production has no
-// attachment route (ATT-012): AttachmentTestHost adds these to a test app only. [AttachmentUpload] takes a constant, so a
+// The test-only routes (docs/design/attachments.md § 8): one controller per context, on the real pipeline. Production's only
+// upload routes are the paper image's (ATT-012): AttachmentTestHost adds these to a test app only. [AttachmentUpload] takes a constant, so a
 // write has one action per module: M = clinicPaper (with its override), G = general (no config entry).
 
 /// <summary>A clinic's staff, with a permission on every route. Writes need <c>drugs.create</c>, reads <c>drugs.list</c>.</summary>

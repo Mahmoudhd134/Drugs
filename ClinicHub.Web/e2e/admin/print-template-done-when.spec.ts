@@ -286,6 +286,7 @@ test.describe("Paper alignment: the whole journey @area:admin", () => {
             await expect(designer.calibrationY).toHaveValue("-1.5");
             for (const item of layout.items) {
                 expect(await boxMm(designer.box(item.id)), `the box ${item.id}`).toEqual({x: item.xMm, y: item.yMm, w: item.wMm, h: item.hMm});
+                expect(await inlineStyle(designer.box(item.id), "transform"), `the box ${item.id} isn't moved on the designer`).toBe("");
                 await designer.box(item.id).click();
                 await expect(designer.field(pt.x)).toHaveValue(String(item.xMm));
                 await expect(designer.field(pt.y)).toHaveValue(String(item.yMm));

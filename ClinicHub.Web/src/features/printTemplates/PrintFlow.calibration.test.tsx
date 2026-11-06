@@ -24,6 +24,7 @@ describe("a print and the correction @area:prescription", () => {
         expect(sheet.outerHTML).not.toContain("NaN");
         expect(page.itemOn(sheet, "s1")?.style.left).toBe("14.1mm");
         expect(page.itemOn(sheet, "s1")?.style.top).toBe("175.2mm");
+        expect(page.itemOn(sheet, "s1")?.style.transform, "no transform at 0, 0").toBe("");
     });
 
     test("a correction pushing a box off the sheet: the print still runs, with the box where the correction puts it @TPL-618", async () => {
@@ -32,7 +33,9 @@ describe("a print and the correction @area:prescription", () => {
         await page.pressPrint();
         await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
 
-        expect(page.itemOn(page.sheets()[0], "s1")?.style.left).toBe("120mm");
+        const box = page.itemOn(page.sheets()[0], "s1");
+        expect(box?.style.transform).toBe("translate(20mm, 0mm)");
+        expect(box?.style.left, "the designed place").toBe("100mm");
     });
 
     test("a correction saved elsewhere: the next print uses it, with no reload, in whole tenths @TPL-723", async () => {
@@ -42,6 +45,7 @@ describe("a print and the correction @area:prescription", () => {
         await waitFor(() => expect(page.print).toHaveBeenCalledTimes(1));
         expect(page.itemOn(page.sheets()[0], "s1")?.style.left).toBe("14.1mm");
         expect(page.itemOn(page.sheets()[0], "s1")?.style.top).toBe("175.2mm");
+        expect(page.itemOn(page.sheets()[0], "s1")?.style.transform, "no transform at 0, 0").toBe("");
         page.finishPrint();
         await waitFor(() => expect(page.printRoot()).toBeNull());
 
@@ -50,10 +54,12 @@ describe("a print and the correction @area:prescription", () => {
         await waitFor(() => expect(page.print).toHaveBeenCalledTimes(2));
 
         const [sheet] = page.sheets();
-        expect(page.itemOn(sheet, "s1")?.style.left).toBe("14.3mm");
-        expect(page.itemOn(sheet, "s1")?.style.top).toBe("173.7mm");
-        expect(page.itemOn(sheet, TEXT_ID)?.style.left).toBe("14.2mm");
-        expect(page.itemOn(sheet, TEXT_ID)?.style.top).toBe("78.5mm");
+        for (const [id, left, top] of [["s1", "14.1mm", "175.2mm"], [TEXT_ID, "14mm", "80mm"]]) {
+            const box = page.itemOn(sheet, id);
+            expect(box?.style.transform, `${id}: moved`).toBe("translate(0.2mm, -1.5mm)");
+            expect(box?.style.left, `${id}: the designed place`).toBe(left);
+            expect(box?.style.top, `${id}: the designed place`).toBe(top);
+        }
         expect(sheet.style.width).toBe("148mm");
     });
 });

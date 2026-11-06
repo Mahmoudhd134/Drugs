@@ -8,11 +8,13 @@ import {
     expectMm,
     layoutL,
     openDesigner,
+    openDesignerWithPaper,
     pressEntry,
     trueZoom,
     zoomTo,
 } from "../support/print-template.ts";
-import {noHorizontalScroll} from "../support/ux.ts";
+import {paperPng} from "../support/paper-files.ts";
+import {expectNoCutOrOverlap, noHorizontalScroll} from "../support/ux.ts";
 
 /** The designer's columns at each width, in both languages: step 4 design § 6, contract § 4.6. */
 
@@ -80,6 +82,23 @@ test.describe("The designer's columns @area:admin", () => {
             await healthy();
         });
 
+    test("a stored picture and an item selected, at 1000 and 1280 px: no cut text and no overlapping button in the settings' column @TPL-680 @TPL-681",
+        async ({page, data, lang, healthy}) => {
+            const {designer} = await openDesignerWithPaper(page, data, lang, layoutL(), paperPng());
+            await designer.box("m").click();
+            await expect(designer.box("m")).toHaveAttribute("aria-pressed", "true");
+
+            for (const width of [1000, 1280]) {
+                await test.step(`at ${width} px`, async () => {
+                    await page.setViewportSize({width, height: 800});
+                    await expect(designer.paperRow("paper.png")).toBeAttached();
+                    await expectNoCutOrOverlap(page.locator("main"), `the designer with a picture at ${width} px`);
+                    await noHorizontalScroll(page, `at ${width} px`);
+                    await healthy();
+                });
+            }
+        });
+
     test("from 1200 px: three columns as today, flipped with the language @TPL-681",
         async ({page, data, lang, healthy}) => {
             const {designer} = await openDesigner(page, data, lang, layoutL());
@@ -136,8 +155,11 @@ test.describe("The designer's columns @area:admin", () => {
             const {designer, pt} = await openDesigner(page, data, lang, layoutL());
             await expect(designer.boxes).toHaveCount(3);
 
-            // The column scrolled so the entry and the settings' top are both in it
-            await designer.entry(pt.isoDateTime).evaluate(entry => entry.scrollIntoView({block: "center"}));
+            // Only the column scrolled, so the entry and the settings' top are both in it: the entry at its top, the settings below. The element's own `scrollIntoView` would move the page too, the entry under the app bar
+            const [entryAt, columnAt] = [(await designer.entry(pt.isoDateTime).boundingBox())!, (await designer.sideColumn.boundingBox())!];
+            await designer.sideColumn.evaluate((column, by) => {
+                column.scrollTop += by;
+            }, entryAt.y - columnAt.y - 8);
             await expect.poll(() => designer.sideColumn.evaluate(column => column.scrollTop), {message: "the column scrolled"}).toBeGreaterThan(0);
             await expect(designer.entry(pt.isoDateTime)).toBeInViewport();
 

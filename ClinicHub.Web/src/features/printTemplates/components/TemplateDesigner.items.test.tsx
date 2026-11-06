@@ -35,10 +35,10 @@ const layoutL = () => aPrintLayout({
 const namesOf = (scope: HTMLElement, role: string) =>
     within(scope).getAllByRole(role).map(element => element.getAttribute("aria-label") ?? element.textContent ?? "");
 
-/** The labels of the text fields of the settings panel, in order, after the sheet's two. */
+/** The labels of the text fields of the settings panel, in order, after the sheet's two and the correction's two. */
 const itemFieldLabels = () => within(settingsPanel()).getAllByRole("textbox")
     .map(field => settingsPanel().querySelector(`label[for="${field.id}"]`)?.textContent?.replace(/\s*\*$/, "") ?? "")
-    .slice(2);
+    .slice(4);
 
 const ADDABLE: [entry: string, typeShown: string][] = [
     ["Manual input", "Manual input"],

@@ -286,7 +286,7 @@ export const typeInto = async (field: Locator, text: string) => {
 };
 
 /** The box's inline value, e.g. `left` → "12.5mm" (true mm, never flipped by the RTL style cache). */
-export const inlineStyle = (box: Locator, property: "left" | "top" | "width" | "height" | "fontSize") =>
+export const inlineStyle = (box: Locator, property: "left" | "top" | "width" | "height" | "fontSize" | "transform") =>
     box.evaluate((element, name) => (element as HTMLElement).style[name], property);
 
 /*

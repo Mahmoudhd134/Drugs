@@ -238,7 +238,7 @@ public class AttachmentIsolationTests(AttachmentsAppFixture app) : AttachmentTes
     [Fact]
     [Trait("Case", "ATT-012")]
     [Trait("Tier", "Smoke")]
-    public async Task The_real_host_has_no_endpoint_with_the_upload_filter()
+    public async Task The_real_hosts_only_endpoints_with_the_upload_filter_are_the_paper_images_upload_and_replace()
     {
         await using var realHost = App.CreateVariant();
         realHost.Start();
@@ -246,7 +246,13 @@ public class AttachmentIsolationTests(AttachmentsAppFixture app) : AttachmentTes
         var endpoints = realHost.Services.GetRequiredService<EndpointDataSource>().Endpoints;
 
         endpoints.ShouldNotBeEmpty();
-        endpoints.Where(e => e.Metadata.GetMetadata<AttachmentUploadAttribute>() is not null).Select(e => e.DisplayName).ShouldBeEmpty();
+        // Print templates step 4 is the one feature that brought routes: any other real route with the filter fails here
+        endpoints.Where(e => e.Metadata.GetMetadata<AttachmentUploadAttribute>() is not null).Select(e => e.DisplayName).ShouldBe(
+            [
+                "ClinicHub.Api.Features.Platform.AdminPaperImageController.Upload (ClinicHub.Api)",
+                "ClinicHub.Api.Features.Platform.AdminPaperImageController.Replace (ClinicHub.Api)",
+            ],
+            ignoreOrder: true);
         // The check can see the filter: the test host, with its test part, has such endpoints
         Host.Factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .ShouldContain(e => e.Metadata.GetMetadata<AttachmentUploadAttribute>() != null);

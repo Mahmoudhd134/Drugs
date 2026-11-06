@@ -14,6 +14,7 @@ import {
     choose,
     expectToasts,
     PLATFORM_CONTEXT,
+    paperImageHandlers,
     printTemplateHandlers,
     problem,
     recordRequests,
@@ -965,7 +966,7 @@ describe("print template undo: until the page is left @area:admin", () => {
         const clinicA = aClinicDetails({name: "Clinic A"});
         const layoutB = aPrintLayout({items: [aTemplateItem("prescriptionText", {id: "tB"}), aTemplateItem("manualInput", {id: "mB", name: "من ب", xMm: 33})]});
         const {user, router, location} = await renderDesigner(layoutB, {clinic: clinicB});
-        server.use(...adminClinicsHandlers([clinicA, clinicB]), ...printTemplateHandlers(clinicA.id, {template: aPrintTemplate({layout: layoutL()})}));
+        server.use(...adminClinicsHandlers([clinicA, clinicB]), ...printTemplateHandlers(clinicA.id, {template: aPrintTemplate({layout: layoutL()})}), ...paperImageHandlers(clinicA.id));
 
         await act(() => router!.navigate(tabPath(clinicA.id)));
         await screen.findByRole("heading", {name: "Clinic A"});

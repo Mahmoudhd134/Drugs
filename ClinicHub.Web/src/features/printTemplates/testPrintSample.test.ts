@@ -76,11 +76,11 @@ describe("testPrintChunk: the fixed lines, first sheet only @area:admin", () => 
         Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("p")).map(p => p.textContent);
     const countOf = (html: string) => (html.match(/<\/p>/g) ?? []).length;
 
-    test("the sheet holds them all: every fixed line, one paragraph each, in order @TPL-637", () => {
+    test("the sheet holds them all: every fixed line, one paragraph each, in order @TPL-637 @TPL-638", () => {
         expect(paragraphs(testPrintChunk(() => true))).toEqual([...TEST_PRINT_SAMPLE_LINES]);
     });
 
-    test("the fixed lines are few, and hold both directions @TPL-637", () => {
+    test("the fixed lines are few, and hold both directions @TPL-637 @TPL-638", () => {
         expect(TEST_PRINT_SAMPLE_LINES.length).toBeGreaterThan(1);
         expect(TEST_PRINT_SAMPLE_LINES.some(line => /[A-Za-z]/.test(line))).toBe(true);
         expect(TEST_PRINT_SAMPLE_LINES.some(line => /[؀-ۿ]/.test(line))).toBe(true);
