@@ -89,11 +89,39 @@ describe("the stored files @area:attachments", () => {
 
         expect(await screen.findByText("Couldn't load the files.")).toBeInTheDocument();
         expect(screen.queryByText("No files yet.")).not.toBeInTheDocument();
+        expect(screen.queryByRole("list", {name: "Stored files"})).not.toBeInTheDocument();
 
         broken = false;
         await press(user, "Retry");
 
         await expectStored("scan.png");
+        expect(screen.queryByText("Couldn't load the files.")).not.toBeInTheDocument();
+    });
+
+    test("a reload that fails: the rows stay, the error and Retry show above them, row actions still work, and Retry brings the list back @ATT-270", async () => {
+        const browser = stubDownloads();
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: "keep.pdf"}), aStoredFile({originalFileName: "gone.pdf"})]});
+        const {user} = await renderManager({canDelete: true, adapter});
+        await expectStored("keep.pdf", "gone.pdf");
+
+        adapter.list.mockRejectedValue(apiRefusal(500, "unexpected"));
+        await deleteConfirmed(user, "gone.pdf");
+
+        const alert = (await screen.findByText("Couldn't load the files.")).closest<HTMLElement>('[role="alert"]');
+        expect(alert).not.toBeNull();
+        await expectStored("keep.pdf", "gone.pdf");
+        const list = screen.getByRole("list", {name: "Stored files"});
+        expect(alert!.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        await press(user, named.download("keep.pdf"));
+        await browser.saved(1);
+        expect(browser.saves[0].name).toBe("keep.pdf");
+        expect(screen.getByText("Couldn't load the files.")).toBeInTheDocument();
+
+        adapter.list.mockImplementation(async () => [...adapter.files]);
+        await user.click(within(alert!).getByRole("button", {name: "Retry"}));
+
+        await expectStored("keep.pdf");
         expect(screen.queryByText("Couldn't load the files.")).not.toBeInTheDocument();
     });
 
@@ -358,6 +386,27 @@ describe("what the feature allows @area:attachments", () => {
     });
 
     const scan = () => [aStoredFile({originalFileName: "scan.png"})];
+
+    test.each([
+        ["one stored file", () => scan(), ["scan.png"]],
+        ["two stored files", () => [...scan(), aStoredFile({originalFileName: "old.pdf"})], ["scan.png", "old.pdf"]],
+    ])("multiple={false} with %s: no Download all, and each row's Download stays @ATT-269", async (_what, stored, names) => {
+        await renderManager({multiple: false, adapter: fakeAdapter({files: stored()})});
+        await expectStored(...names);
+
+        expect(screen.queryByRole("button", {name: "Download all"})).not.toBeInTheDocument();
+        for (const name of names) expect(screen.getByRole("button", {name: named.download(name)})).toBeInTheDocument();
+    });
+
+    test.each([
+        ["left out", {}],
+        ["true", {multiple: true}],
+    ])("multiple %s: Download all shows, with one stored file too @ATT-269", async (_what, props) => {
+        await renderManager({...props, adapter: fakeAdapter({files: scan()})});
+        await expectStored("scan.png");
+
+        expect(screen.getByRole("button", {name: "Download all"})).toBeInTheDocument();
+    });
 
     test("canDelete with no delete call: no Delete button @ATT-264", async () => {
         await renderManager({canDelete: true, adapter: fakeAdapter({files: scan(), delete: undefined})});

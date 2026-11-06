@@ -8,4 +8,4 @@ Two parts (§ 9). **Part 1, backend:** levels `unit` and `api`; `api` cases run 
 module string, with no entry (global list, 20 MB); owner O = (M, "1"). "Nothing written" means a clinic's own folder is unchanged: Respawn doesn't
 reset the disk.
 
-**All the rows moved** to the [test catalog](../testing/test-catalog.md#att--attachments), section ATT, with the feature: part 1's (ATT-001 to ATT-186), and part 2's (ATT-200 to ATT-268) under its "Components" headings.
+**All the rows moved** to the [test catalog](../testing/test-catalog.md#att--attachments), section ATT, with the feature: part 1's (ATT-001 to ATT-186), and part 2's (ATT-200 to ATT-270) under its "Components" headings.
