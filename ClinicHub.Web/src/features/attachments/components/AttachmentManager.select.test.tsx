@@ -121,27 +121,40 @@ describe("the files selected @area:attachments", () => {
         expect(adapter.download).not.toHaveBeenCalled();
     });
 
-    test("a name with a bidi override is isolated and doesn't reorder its row @ATT-244", async () => {
-        const name = "report‮fdp.png";
+    test("a name with a bidi override shows without it, in its own direction, and doesn't reorder its row @ATT-244", async () => {
+        const shown = "reportfdp.png";
         await renderManager({canUpload: true});
 
-        await pickFiles(aFile(name, 1024));
+        await pickFiles(aFile("report\u202Efdp.png", 1024));
 
-        await expectSelected(name);
-        const row = selectedRow(name);
+        await expectSelected(shown);
+        const row = selectedRow(shown);
         // On its own element with its own direction, the size and the buttons outside it
-        expectOwnDirection(row, name);
-        expect(within(row).getByText(name)).not.toHaveTextContent("1 KB");
+        expectOwnDirection(row, shown);
+        expect(within(row).getByText(shown)).not.toHaveTextContent("1 KB");
         expect(row).toHaveTextContent("1 KB");
         // In the buttons' names it sits inside the isolates
-        expect(within(row).getByRole("button", {name: `Remove “⁨${name}⁩”`})).toBeInTheDocument();
+        expect(within(row).getByRole("button", {name: named.remove(shown)})).toBeInTheDocument();
     });
 
-    test("a refused name with a bidi override is isolated in its message @ATT-244", async () => {
-        const name = "report‮exe.gnp";
+    test("a refused name with a bidi override shows without it, isolated in its message @ATT-244", async () => {
         await renderManager({canUpload: true});
-        await pickFiles(aFile(name, 10));
-        await findRefusal(`“⁨${name}⁩”: ${REASON.typeNotAllowed}`);
+        await pickFiles(aFile("report\u202Eexe.gnp", 10));
+        await findRefusal(refusedLine("reportexe.gnp", REASON.typeNotAllowed));
+    });
+
+    test("a selected file with no thumbnail: a file icon holds its place, before the name @ATT-277", async () => {
+        stubObjectUrls();
+        await renderManager({canUpload: true});
+
+        await pickFiles(aFile("notes.txt", 1), aFile("scan.png", 1, "image/png"));
+        await expectSelected("notes.txt", "scan.png");
+
+        const place = (name: string) => selectedRow(name).firstElementChild!;
+        expect(place("notes.txt").querySelector("svg")).not.toBeNull();
+        expect(place("notes.txt")).not.toHaveTextContent("notes.txt");
+        await waitFor(() => expect(place("scan.png").querySelector("img")).not.toBeNull());
+        expect(place("scan.png").querySelector("svg")).toBeNull();
     });
 });
 
@@ -203,6 +216,32 @@ describe("a file the client refuses @area:attachments", () => {
         await renderManager({canUpload: true}, {lang: "ar"});
         await pickFiles(aFile("empty.txt", 0));
         await findRefusal(`«${isolate("empty.txt")}»: هذا الملف فارغ.`);
+    });
+});
+
+describe("a refusal showing @area:attachments", () => {
+    const refused = refusedLine("virus.exe", REASON.typeNotAllowed);
+
+    test("Upload clears it @ATT-275", async () => {
+        const {user} = await renderManager({canUpload: true, adapter: fakeAdapter({rules: onlyPng})});
+        await pickFiles(aFile("good.png", 1), aFile("virus.exe", 1));
+        await findRefusal(refused);
+
+        await press(user, "Upload");
+
+        await expectStored("good.png");
+        await waitFor(() => expect(screen.queryByText(refused)).not.toBeInTheDocument());
+    });
+
+    test("Remove clears it @ATT-275", async () => {
+        const {user} = await renderManager({canUpload: true, adapter: fakeAdapter({rules: onlyPng})});
+        await pickFiles(aFile("good.png", 1), aFile("virus.exe", 1));
+        await findRefusal(refused);
+
+        await press(user, named.remove("good.png"));
+
+        await expectSelected();
+        await waitFor(() => expect(screen.queryByText(refused)).not.toBeInTheDocument());
     });
 });
 

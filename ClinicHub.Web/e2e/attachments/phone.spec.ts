@@ -54,6 +54,29 @@ test.describe("Attachments: by touch on a phone @area:attachments", () => {
             await healthy();
         });
 
+    test("a row's icon buttons stay 36 px with a small gap between them, in the selection and the list @ATT-278",
+        async ({page, lang, isMobile}) => {
+            test.skip(!isMobile, "the phone project");
+            const ui = await openHarness(page, lang);
+            await ui.input.setInputFiles(pngFile("صورة.png"));
+            await expect(ui.selectedName("صورة.png"), "selected").toBeVisible();
+
+            for (const [what, row] of [["a selected row", ui.selectedRow("صورة.png")], ["a stored row", ui.storedRow("report.pdf")]] as const) {
+                const boxes = await row.getByRole("button").evaluateAll(buttons => buttons
+                    .map(button => button.getBoundingClientRect())
+                    .map(({left, right, width, height}) => ({left, right, width, height}))
+                    .sort((one, other) => one.left - other.left));
+                expect(boxes.length, `${what} has at least two buttons`).toBeGreaterThanOrEqual(2);
+                for (const box of boxes) {
+                    expect(Math.round(box.width), `${what}: 36 px wide`).toBe(36);
+                    expect(Math.round(box.height), `${what}: 36 px tall`).toBe(36);
+                }
+                for (let index = 1; index < boxes.length; index++) {
+                    expect(boxes[index].left - boxes[index - 1].right, `${what}: a gap between buttons ${index} and ${index + 1}`).toBeGreaterThanOrEqual(2);
+                }
+            }
+        });
+
     test("the drop hint is hidden on a touch device, where dropping doesn't exist, and the button stays; on a desktop it shows @ATT-263",
         async ({page, lang, isMobile, healthy}) => {
             const ui = await openHarness(page, lang);

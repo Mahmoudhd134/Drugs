@@ -1004,7 +1004,7 @@ describe("focus after Remove or Cancel on a selected row @area:attachments", () 
         await waitFor(() => expect(screen.getByRole("button", {name: "اختيار ملفات"})).toHaveFocus());
     });
 
-    test("Cancel on the uploading row: to the next row's first button; the row stays, cancelled @ATT-262", async () => {
+    test("Cancel on the uploading row: its row stays, cancelled, so to that row's first button, not the next row's @ATT-262", async () => {
         const adapter = fakeAdapter();
         const gate = adapter.holdUploads();
         const {user} = await renderManager({canUpload: true, adapter});
@@ -1017,10 +1017,10 @@ describe("focus after Remove or Cancel on a selected row @area:attachments", () 
 
         await gate.held("b.png");
         await expectSelected("a.png", "b.png");
-        await waitFor(() => expect(firstButtonOf("b.png")).toHaveFocus());
+        await waitFor(() => expect(firstButtonOf("a.png")).toHaveFocus());
     });
 
-    test("Cancel on the only row: to the Choose files button; the row stays @ATT-262", async () => {
+    test("Cancel on the only row: its row stays, so to that row's first button, not Choose files @ATT-262", async () => {
         const adapter = fakeAdapter();
         const gate = adapter.holdUploads();
         const {user} = await renderManager({canUpload: true, adapter});
@@ -1033,10 +1033,10 @@ describe("focus after Remove or Cancel on a selected row @area:attachments", () 
 
         await waitFor(() => expect(canRemove("a.png")).toBe(true));
         await expectSelected("a.png");
-        await waitFor(() => expect(pick()).toHaveFocus());
+        await waitFor(() => expect(firstButtonOf("a.png")).toHaveFocus());
     });
 
-    test("Cancel on a queued row: to the next row's first button @ATT-262", async () => {
+    test("Cancel on a queued row: to that row's first button, not the next row's @ATT-262", async () => {
         const adapter = fakeAdapter();
         const gate = adapter.holdUploads();
         const {user} = await renderManager({canUpload: true, adapter});
@@ -1048,10 +1048,10 @@ describe("focus after Remove or Cancel on a selected row @area:attachments", () 
         await press(user, named.cancel("b.png"));
 
         await waitFor(() => expect(canRemove("b.png")).toBe(true));
-        await waitFor(() => expect(firstButtonOf("c.png")).toHaveFocus());
+        await waitFor(() => expect(firstButtonOf("b.png")).toHaveFocus());
     });
 
-    test("Cancel on a queued last row: to the Choose files button @ATT-262", async () => {
+    test("Cancel on a queued last row: to that row's first button, not Choose files @ATT-262", async () => {
         const adapter = fakeAdapter();
         const gate = adapter.holdUploads();
         const {user} = await renderManager({canUpload: true, adapter});
@@ -1063,6 +1063,140 @@ describe("focus after Remove or Cancel on a selected row @area:attachments", () 
         await press(user, named.cancel("b.png"));
 
         await waitFor(() => expect(canRemove("b.png")).toBe(true));
+        await waitFor(() => expect(firstButtonOf("b.png")).toHaveFocus());
+    });
+});
+
+describe("the second click of a double click @area:attachments", () => {
+    const remove = (name: string) => screen.getByRole("button", {name: named.remove(name)});
+
+    test("on Remove: the next row moved under the pointer, and it stays @ATT-271", async () => {
+        const {user} = await renderManager({canUpload: true});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+
+        await press(user, named.remove("a.png"));
+        await expectSelected("b.png");
+        fireEvent.click(remove("b.png"), {detail: 2});
+        await pastPendingWork();
+
+        await expectSelected("b.png");
+    });
+
+    test("on Cancel: the upload goes on @ATT-271", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        const held = await gate.held("a.png");
+
+        fireEvent.click(screen.getByRole("button", {name: named.cancel("a.png")}), {detail: 2});
+        await pastPendingWork();
+
+        expect(held.signal?.aborted).toBe(false);
+        expect(gate.running()).toEqual(["a.png"]);
+    });
+
+    test("on the Remove that took Cancel's place: the cancelled file stays @ATT-271", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        await gate.held("a.png");
+
+        await press(user, named.cancel("a.png"));
+        await waitFor(() => expect(canRemove("a.png")).toBe(true));
+        fireEvent.click(remove("a.png"), {detail: 2});
+        await pastPendingWork();
+
+        await expectSelected("a.png");
+    });
+
+    test("a key press has no click count: Remove and Cancel act on it @ATT-271", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+        fireEvent.click(remove("b.png"), {detail: 0});
+        await expectSelected("a.png");
+
+        await user.click(upload());
+        const held = await gate.held("a.png");
+        fireEvent.click(screen.getByRole("button", {name: named.cancel("a.png")}), {detail: 0});
+
+        expect(held.signal?.aborted).toBe(true);
+    });
+});
+
+describe("focus an action leaves on the body @area:attachments", () => {
+    const pick = () => screen.getByRole("button", {name: "Choose files"});
+
+    test("Upload disables itself: to the Choose files button @ATT-274", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+
+        upload().focus();
+        await user.keyboard("{Enter}");
+        await gate.held("a.png");
+
         await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test("Retry leaves with its row's failure: to the Choose files button @ATT-274", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        await (await gate.held("a.png")).fail(refused());
+
+        await press(user, named.retry("a.png"));
+        await gate.held("a.png");
+
+        await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test("a row finishing with the focus on its Cancel: to the Choose files button @ATT-274", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        const held = await gate.held("a.png");
+        act(() => screen.getByRole("button", {name: named.cancel("a.png")}).focus());
+
+        await held.finish();
+
+        await expectStored("a.png");
+        await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test("focus the user moved elsewhere stays when a row finishes @ATT-274", async () => {
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: "stored.pdf"})]});
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await expectStored("stored.pdf");
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        const held = await gate.held("a.png");
+        const elsewhere = screen.getByRole("button", {name: named.download("stored.pdf")});
+        act(() => elsewhere.focus());
+
+        await held.finish();
+
+        await expectStored("a.png", "stored.pdf");
+        await pastPendingWork();
+        expect(elsewhere).toHaveFocus();
     });
 });

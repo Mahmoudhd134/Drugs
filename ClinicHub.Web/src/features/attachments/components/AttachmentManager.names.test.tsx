@@ -2,9 +2,9 @@ import {screen, waitFor, within} from "@testing-library/react";
 import {describe, expect, test} from "vitest";
 import {expectToasts, findToast, hoverTooltip, isolate, leaveTooltip} from "../../../test";
 import {
-    aFile, announcements, apiRefusal, aStoredFile, deleteConfirmed, expectAnnounced, expectSelected, expectStored, fakeAdapter, findRefusal, named,
-    openPreview, pastPendingWork, pickFiles, press, REASON, refusedLine, refuseUploadOf, renderManager, replaceWith, selectedRow, storedRow,
-    watchAnnouncements,
+    aDataTransfer, aFile, announcements, apiRefusal, aStoredFile, closePreview, deleteConfirmed, dropFiles, expectAnnounced, expectSelected, expectStored,
+    fakeAdapter, filesCanBePicked, findRefusal, named, openPreview, pastPendingWork, pickFiles, press, REASON, refusedLine, refuseUploadOf, renderManager,
+    replaceWith, selectedRow, setPdfViewer, storedRow, stubDownloads, stubObjectUrls, watchAnnouncements,
 } from "../../../test/pages/attachments.tsx";
 
 // A file name is user data (design § 12), and every control says which file it acts on (design § 12 "Text and layout",
@@ -72,6 +72,165 @@ describe("a file name holding HTML @area:attachments", () => {
 
         expect(await findToast()).toContain(REASON.typeNotAllowed);
         nothingRendered();
+    });
+});
+
+describe("a name holding bidi control characters @area:attachments", () => {
+    // U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C, each of which can reorder or disguise a name
+    const CONTROLS = "‪‫‬‭‮⁦⁧⁨⁩‎‏؜";
+    const RAW = `a${CONTROLS}b.png`;
+    const SHOWN = "ab.png";
+
+    test("a selected row shows it without them: its name, tooltip and every control's name @ATT-273", async () => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile(RAW, 1));
+
+        await expectSelected(SHOWN);
+        const row = within(selectedRow(SHOWN));
+        expect(row.getByText(SHOWN)).toBeInTheDocument();
+        expect(row.getByRole("button", {name: named.preview(SHOWN)})).toBeInTheDocument();
+        expect(row.getByRole("button", {name: named.remove(SHOWN)})).toBeInTheDocument();
+        await expect(hoverTooltip(row.getByText(SHOWN))).resolves.toBe(SHOWN);
+        await leaveTooltip(row.getByText(SHOWN));
+
+        await press(user, "Upload");
+        const held = await gate.held(RAW);
+        expect(within(selectedRow(SHOWN)).getByRole("progressbar", {name: named.uploading(SHOWN)})).toBeInTheDocument();
+        expect(within(selectedRow(SHOWN)).getByRole("button", {name: named.cancel(SHOWN)})).toBeInTheDocument();
+
+        await held.fail(apiRefusal(400, "attachmentTypeNotAllowed"));
+        expect(await within(selectedRow(SHOWN)).findByRole("button", {name: named.retry(SHOWN)})).toBeInTheDocument();
+        await expectAnnounced(`“${isolate(SHOWN)}” wasn't uploaded: ${REASON.typeNotAllowed}`);
+    });
+
+    test("what's sent keeps the original name, and the finish is announced without them @ATT-273", async () => {
+        const adapter = fakeAdapter();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile(RAW, 1));
+        await expectSelected(SHOWN);
+
+        await press(user, "Upload");
+
+        await expectAnnounced(`“${isolate(SHOWN)}” was uploaded.`);
+        expect(adapter.upload.mock.calls[0][0].name).toBe(RAW);
+    });
+
+    test("every refusal's message shows it without them @ATT-273", async () => {
+        const raw = `z${CONTROLS}.exe`;
+        await renderManager({canUpload: true});
+        await pickFiles(aFile(raw, 1));
+        await findRefusal(refusedLine("z.exe", REASON.typeNotAllowed));
+    });
+
+    test("a refusal in Arabic shows it without them @ATT-273", async () => {
+        await renderManager({canUpload: true}, {lang: "ar"});
+        await pickFiles(aFile(`z${CONTROLS}.exe`, 1));
+        await findRefusal(`«${isolate("z.exe")}»: نوع هذا الملف غير مسموح به.`);
+    });
+
+    test("too many, and only one, show it without them @ATT-273", async () => {
+        const many = await renderManager({canUpload: true, maxFiles: 1});
+        await pickFiles(aFile("first.png", 1), aFile(RAW, 1));
+        await findRefusal(`“${isolate(SHOWN)}” wasn't added. Most files allowed: 1.`);
+        many.unmount();
+
+        await renderManager({canUpload: true, multiple: false});
+        await filesCanBePicked();
+        dropFiles(aDataTransfer({files: [aFile("first.png", 1), aFile(RAW, 1)]}));
+        await findRefusal(`“${isolate(SHOWN)}”: only one file can be chosen.`);
+    });
+
+    test("a dropped folder's name shows without them @ATT-273", async () => {
+        await renderManager({canUpload: true});
+        await filesCanBePicked();
+        dropFiles(aDataTransfer({folders: [`sc${CONTROLS}ans`]}));
+        await findRefusal(`“${isolate("scans")}”: a folder can't be uploaded.`);
+    });
+
+    test("a stored row shows it without them: its name, tooltip, controls and confirmation @ATT-273", async () => {
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: RAW, typeKey: "png"})]});
+        const {user} = await renderManager({canReplace: true, canDelete: true, adapter});
+
+        await expectStored(SHOWN);
+        const row = within(storedRow(SHOWN));
+        await expect(hoverTooltip(row.getByText(SHOWN))).resolves.toBe(SHOWN);
+        await leaveTooltip(row.getByText(SHOWN));
+        for (const name of [named.preview(SHOWN), named.download(SHOWN), named.replace(SHOWN), named.delete(SHOWN)])
+            expect(row.getByRole("button", {name})).toBeInTheDocument();
+
+        await press(user, named.delete(SHOWN));
+        expect(await screen.findByRole("dialog")).toHaveTextContent(`Delete “${isolate(SHOWN)}”?`);
+    });
+
+    test("a row's Replace: a refusal's toast shows the new file's name without them, and what's sent keeps it @ATT-273", async () => {
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: "a.pdf"})]});
+        const {user} = await renderManager({canReplace: true, adapter});
+        await expectStored("a.pdf");
+
+        await replaceWith(user, "a.pdf", aFile(`z${CONTROLS}.exe`, 1));
+        expect(await findToast()).toBe(refusedLine("z.exe", REASON.typeNotAllowed));
+
+        await replaceWith(user, "a.pdf", aFile(RAW, 1));
+        await expectStored(SHOWN);
+        expect(adapter.replace.mock.calls[0][1].name).toBe(RAW);
+    });
+
+    test("a stored file's preview shows it without them, and its Download keeps the original name @ATT-273", async () => {
+        const browser = stubDownloads();
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: RAW, typeKey: "png"})]});
+        const {user} = await renderManager({adapter});
+
+        const dialog = await openPreview(user, SHOWN);
+        expect(await within(dialog).findByRole("img", {name: named.previewOf(SHOWN)})).toBeInTheDocument();
+
+        await user.click(within(dialog).getByRole("button", {name: "Download"}));
+        await browser.saved(1);
+        expect(browser.saves[0].name).toBe(RAW);
+    });
+
+    test("no viewer: the name shows without them, and a PDF's iframe title too @ATT-273", async () => {
+        setPdfViewer(true);
+        stubObjectUrls();
+        const raw = `a${CONTROLS}b`;
+        const adapter = fakeAdapter({files: [
+            aStoredFile({originalFileName: `${raw}.docx`, typeKey: "docx"}),
+            aStoredFile({originalFileName: `${raw}.pdf`, typeKey: "pdf"}),
+        ]});
+        const {user} = await renderManager({adapter});
+
+        const noViewer = await openPreview(user, "ab.docx");
+        expect(within(noViewer).getByText("ab.docx")).toBeInTheDocument();
+        await closePreview(user, noViewer);
+
+        const pdf = await openPreview(user, "ab.pdf");
+        await waitFor(() => expect(pdf.querySelector("iframe")).toHaveAttribute("title", named.previewOf("ab.pdf")));
+    });
+
+    test("a row's Download, and Download all, keep the original name @ATT-273", async () => {
+        const browser = stubDownloads();
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: RAW, typeKey: "png"})]});
+        const {user} = await renderManager({adapter});
+
+        await press(user, named.download(SHOWN));
+        await browser.saved(1);
+        await press(user, "Download all");
+        await browser.saved(2);
+
+        expect(browser.saves.map(save => save.name)).toEqual([RAW, RAW]);
+    });
+
+    test("a selected file's preview shows it without them, and its Download keeps the original name @ATT-273", async () => {
+        const browser = stubDownloads();
+        const {user} = await renderManager({canUpload: true});
+        await pickFiles(aFile(RAW, 1, "image/png"));
+
+        const dialog = await openPreview(user, SHOWN);
+        await user.click(within(dialog).getByRole("button", {name: "Download"}));
+
+        await waitFor(() => expect(browser.saves).toHaveLength(1));
+        expect(browser.saves[0].name).toBe(RAW);
     });
 });
 
