@@ -98,6 +98,48 @@ describe("the stored files @area:attachments", () => {
         expect(screen.queryByText("Couldn't load the files.")).not.toBeInTheDocument();
     });
 
+    test("a first load's Retry: the alert and its button leave, so focus goes to the list when it appears @ATT-274", async () => {
+        const stored = aStoredFile({originalFileName: "scan.png"});
+        const adapter = fakeAdapter({list: () => Promise.reject(apiRefusal(500, "unexpected"))});
+        const {user} = await renderManager({adapter});
+        await screen.findByText("Couldn't load the files.");
+
+        const answer = deferred<Attachment[]>();
+        adapter.list.mockImplementation(() => answer.promise);
+        await press(user, "Retry");
+        // The alert leaves while it loads, with no list yet to take the focus
+        await pastPendingWork();
+        await act(async () => answer.resolve([stored]));
+
+        await expectStored("scan.png");
+        await waitFor(() => expect(screen.getByRole("list", {name: "Stored files"})).toHaveFocus());
+    });
+
+    test("a first load's Retry failing again: the alert comes back, and its Retry takes the focus @ATT-274", async () => {
+        const adapter = fakeAdapter({list: () => Promise.reject(apiRefusal(500, "unexpected"))});
+        const {user} = await renderManager({adapter});
+        await screen.findByText("Couldn't load the files.");
+        const calls = adapter.list.mock.calls.length;
+
+        await press(user, "Retry");
+        await waitFor(() => expect(adapter.list.mock.calls.length).toBeGreaterThan(calls));
+
+        await screen.findByText("Couldn't load the files.");
+        await waitFor(() => expect(screen.getByRole("button", {name: "Retry"})).toHaveFocus());
+    });
+
+    test("a first load's Retry that finds no files: focus goes to the empty list all the same @ATT-274", async () => {
+        const adapter = fakeAdapter({list: () => Promise.reject(apiRefusal(500, "unexpected"))});
+        const {user} = await renderManager({adapter});
+        await screen.findByText("Couldn't load the files.");
+
+        adapter.list.mockImplementation(async () => []);
+        await press(user, "Retry");
+
+        await screen.findByText("No files yet.");
+        await waitFor(() => expect(screen.getByRole("list", {name: "Stored files"})).toHaveFocus());
+    });
+
     test("a reload that fails: the rows stay, the error and Retry show above them, row actions still work, and Retry brings the list back @ATT-270", async () => {
         const browser = stubDownloads();
         const adapter = fakeAdapter({files: [aStoredFile({originalFileName: "keep.pdf"}), aStoredFile({originalFileName: "gone.pdf"})]});

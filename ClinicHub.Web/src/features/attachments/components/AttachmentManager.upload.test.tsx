@@ -797,6 +797,36 @@ describe("Upload before the list has answered @area:attachments", () => {
         expect(adapter.upload.mock.calls.map(([file]) => file.name)).toEqual(["a.png"]);
     });
 
+    test("a file over maxFiles with its Retry: Retry sends nothing, on any row, until the excess is removed @ATT-260", async () => {
+        const adapter = fakeAdapter();
+        adapter.upload.mockRejectedValueOnce(apiRefusal(404, "notFound"));
+        adapter.upload.mockRejectedValueOnce(apiRefusal(404, "notFound"));
+        const {user} = await renderManager({canUpload: true, maxFiles: 2, adapter});
+        await screen.findByText("No files yet.");
+        await pickFiles(aFile("a.png", 1), aFile("b.png", 1));
+        await expectSelected("a.png", "b.png");
+        // Stored meanwhile, in another tab: the 404s reload the list, which now fills maxFiles
+        adapter.files.unshift(aStoredFile({originalFileName: "other.pdf"}));
+
+        await user.click(upload());
+        await findRefusal(`“${isolate("b.png")}” wasn't added. Most files allowed: 2.`);
+        await expectStored("other.pdf");
+        const sent = adapter.upload.mock.calls.length;
+
+        // A click on a disabled button does nothing, so this doesn't say how the hold is shown
+        fireEvent.click(screen.getByRole("button", {name: named.retry("b.png")}));
+        fireEvent.click(screen.getByRole("button", {name: named.retry("a.png")}));
+        await pastPendingWork();
+        expect(adapter.upload.mock.calls.length).toBe(sent);
+
+        await press(user, named.remove("b.png"));
+        await expectSelected("a.png");
+        await press(user, named.retry("a.png"));
+
+        await expectStored("a.png", "other.pdf");
+        expect(adapter.upload.mock.calls.length).toBe(sent + 1);
+    });
+
     test("the list loading, multiple={false} with maxFiles 1 and it answers full: the same, the one file is the excess @ATT-260", async () => {
         const {adapter, ready, answer} = whileLoading(stored().slice(0, 1));
         await renderManager({canUpload: true, multiple: false, maxFiles: 1, adapter});

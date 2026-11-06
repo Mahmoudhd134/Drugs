@@ -112,6 +112,24 @@ describe("useAttachments alone, Upload before the list has answered @area:attach
         await waitFor(() => expect(storedNames()).toEqual(["keep.png"]));
     });
 
+    test("a failed file over maxFiles: retry sends nothing and it stays failed, until the excess is removed @ATT-260", async () => {
+        const adapter = fakeAdapter();
+        adapter.upload.mockRejectedValueOnce(apiRefusal(404, "notFound"));
+        await start(adapter, {maxFiles: 1});
+        await run(() => hook.pick([aFile("new.png", 1)]));
+        adapter.files.unshift(stored("other.png"));
+
+        await run(() => hook.upload());
+        await waitFor(() => expect(storedNames()).toEqual(["other.png"]));
+        expect(stateOf("new.png")?.status).toBe("failed");
+
+        await run(() => hook.retry(stateOf("new.png")!.key));
+        await pastPendingWork();
+
+        expect(adapter.upload).toHaveBeenCalledTimes(1);
+        expect(stateOf("new.png")?.status).toBe("failed");
+    });
+
     test("the list failed, several files with no maxFiles: upload sends @ATT-260", async () => {
         const adapter = fakeAdapter({list: () => Promise.reject(apiRefusal(500, "unexpected"))});
         await start(adapter);

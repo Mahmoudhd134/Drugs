@@ -3,7 +3,7 @@ import {describe, expect, test, vi} from "vitest";
 import {expectOwnDirection, isolate} from "../../../test";
 import {installIntersectionObserver} from "../../../test/intersection.ts";
 import {
-    aDataTransfer, aFile, ALL_RULES, apiRefusal, aStoredFile, dropFiles, expectSelected, expectStored, fakeAdapter,
+    aDataTransfer, aFile, ALL_RULES, apiRefusal, aStoredFile, deferred, dropFiles, expectSelected, expectStored, fakeAdapter,
     filesCanBePicked, findRefusal, named, pastPendingWork, pickFiles, press, REASON, refusedLine, renderManager, selectedRow,
     selectedRows, stubObjectUrls,
 } from "../../../test/pages/attachments.tsx";
@@ -141,6 +141,23 @@ describe("the files selected @area:attachments", () => {
         await renderManager({canUpload: true});
         await pickFiles(aFile("report\u202Eexe.gnp", 10));
         await findRefusal(refusedLine("reportexe.gnp", REASON.typeNotAllowed));
+    });
+
+    test("a selected image the browser can't decode: the file icon takes the broken image's place, in that row only @ATT-283", async () => {
+        stubObjectUrls();
+        await renderManager({canUpload: true});
+        await pickFiles(aFile("fake.png", 1), aFile("real.png", 1, "image/png"));
+        await expectSelected("fake.png", "real.png");
+        const place = (name: string) => selectedRow(name).firstElementChild!;
+        await waitFor(() => expect(place("fake.png").querySelector("img")).not.toBeNull());
+
+        fireEvent.error(place("fake.png").querySelector("img")!);
+
+        await waitFor(() => expect(place("fake.png").querySelector("img")).toBeNull());
+        expect(place("fake.png").querySelector("svg")).not.toBeNull();
+        expect(selectedRow("fake.png")).toHaveTextContent("fake.png");
+        expect(place("real.png").querySelector("img")).not.toBeNull();
+        expect(place("real.png").querySelector("svg")).toBeNull();
     });
 
     test("a selected file with no thumbnail: a file icon holds its place, before the name @ATT-277", async () => {
@@ -412,6 +429,37 @@ describe("rules that fail to load @area:attachments", () => {
         expect(screen.queryByText("Couldn't load what can be uploaded.")).not.toBeInTheDocument();
         await pickFiles(aFile("a.png", 1));
         await expectSelected("a.png");
+    });
+
+    test("Retry answers late: focus goes to the Choose files button once it's enabled, since the alert and its button leave @ATT-274", async () => {
+        const adapter = fakeAdapter();
+        adapter.rules.mockRejectedValue(apiRefusal(500, "unexpected"));
+        const {user} = await renderManager({canUpload: true, adapter});
+        await screen.findByText("Couldn't load what can be uploaded.");
+
+        const answer = deferred<typeof ALL_RULES>();
+        adapter.rules.mockImplementation(() => answer.promise);
+        await press(user, "Retry");
+        // The alert leaves while it loads, and the button can't take the focus yet
+        await pastPendingWork();
+        await act(async () => answer.resolve(ALL_RULES));
+
+        await waitFor(() => expect(screen.getByRole("button", {name: "Choose files"})).toBeEnabled());
+        await waitFor(() => expect(screen.getByRole("button", {name: "Choose files"})).toHaveFocus());
+    });
+
+    test("Retry failing again: the alert comes back, and its Retry takes the focus @ATT-274", async () => {
+        const adapter = fakeAdapter();
+        adapter.rules.mockRejectedValue(apiRefusal(500, "unexpected"));
+        const {user} = await renderManager({canUpload: true, adapter});
+        await screen.findByText("Couldn't load what can be uploaded.");
+        const calls = adapter.rules.mock.calls.length;
+
+        await press(user, "Retry");
+        await waitFor(() => expect(adapter.rules.mock.calls.length).toBeGreaterThan(calls));
+
+        await screen.findByText("Couldn't load what can be uploaded.");
+        await waitFor(() => expect(screen.getByRole("button", {name: "Retry"})).toHaveFocus());
     });
 
     test("a user with only a row's Replace: the error and Retry show with no trigger, and Retry turns Replace on @ATT-216", async () => {
