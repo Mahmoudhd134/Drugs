@@ -98,6 +98,18 @@ const emotionCaches = {
     rtl: createCache({key: "muirtl", stylisPlugins: [prefixer, rtlPlugin]}),
 };
 
+/**
+ * Empties the emotion caches, between tests. Their rules otherwise pile up over a file, and jsdom's `getComputedStyle` matches
+ * an element against every rule, through a selector cache of 1000 entries (nwsapi): past that, each lookup recompiles.
+ */
+export const resetEmotionCaches = () => {
+    for (const cache of Object.values(emotionCaches)) {
+        cache.sheet.flush();
+        cache.inserted = {};
+        cache.registered = {};
+    }
+};
+
 const resolveContext = (context: TestUser["context"]): Context | null =>
     context === undefined ? aClinicContext() : context === "platform" ? PLATFORM_CONTEXT : context;
 

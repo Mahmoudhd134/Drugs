@@ -159,9 +159,16 @@ const expectHeadersAndSheetInViewWhileMoving = async (page: Page, designer: Desi
     expect(await designer.sheet.boundingBox(), "the sheet stays where it was").toEqual(before);
     await expect(designer.sheet).toBeInViewport();
 
-    const track = await designer.settings.locator(".MuiSlider-root").boundingBox();
-    if (!track) throw new Error("the slider isn't on screen");
-    await page.mouse.click(track.x + track.width * 0.9, track.y + track.height / 2);
+    // The track by the panel's own scroll: at 1280 x 800 it can sit below the panel's fold, where a press would land outside the panel
+    const slider = designer.settings.locator(".MuiSlider-root");
+    await slider.scrollIntoViewIfNeeded();
+    await expect(slider, "the track is in the window").toBeInViewport();
+    const [track, panel] = [await slider.boundingBox(), await designer.settings.boundingBox()];
+    if (!track || !panel) throw new Error("the slider isn't on screen");
+    const press = {x: track.x + track.width * 0.9, y: track.y + track.height / 2};
+    expect(press.y, "the press lands inside the panel").toBeGreaterThanOrEqual(panel.y);
+    expect(press.y, "the press lands inside the panel").toBeLessThanOrEqual(panel.y + panel.height);
+    await page.mouse.click(press.x, press.y);
     await expect.poll(async () => designer.paperOpacity.getAttribute("aria-valuetext"), {message: "a press near the track's far end"}).not.toBe("60%");
     expect(await designer.sheet.boundingBox(), "the sheet stays where it was").toEqual(before);
     await expect(designer.sheet).toBeInViewport();
