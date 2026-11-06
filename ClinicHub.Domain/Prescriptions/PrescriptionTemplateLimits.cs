@@ -47,6 +47,9 @@ public static class PrescriptionTemplateCodes
 
     public static readonly string[] Functions = ["fullDate", "time", "dayOfWeek", "dayOfMonth", "isoDateTime", "pageNumber"];
 
+    /// <summary>An item's horizontal alignment on the sheet, physical whatever the language; none held reads as right.</summary>
+    public static readonly string[] Aligns = ["right", "center", "left"];
+
     public const string A5 = "A5";
     public const string A4 = "A4";
     public const string Custom = "custom";

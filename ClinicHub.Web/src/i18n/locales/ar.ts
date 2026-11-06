@@ -662,6 +662,10 @@ const ar: Translations = {
             width: "العرض (مم)",
             height: "الارتفاع (مم)",
             fontSize: "حجم الخط (نقطة)",
+            align: "المحاذاة",
+            alignRight: "يمين",
+            alignCenter: "وسط",
+            alignLeft: "يسار",
             remove: "حذف العنصر",
         },
         toolbar: {

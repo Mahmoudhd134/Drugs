@@ -1,4 +1,4 @@
-import type {PageSize, TemplateFunction, TemplateItemKind} from "./types.ts";
+import type {ItemAlign, PageSize, TemplateFunction, TemplateItemKind} from "./types.ts";
 
 /** The limits of a template, mirroring the server's `PrescriptionTemplateLimits` (design § 3). */
 export const SCHEMA_VERSION = 1;
@@ -35,6 +35,10 @@ export const PAGE_SIZE_OPTIONS: PageSize[] = ["A5", "A4", "custom"];
 export const TEMPLATE_FUNCTIONS: TemplateFunction[] = ["fullDate", "time", "dayOfWeek", "dayOfMonth", "isoDateTime", "pageNumber"];
 
 export const TEMPLATE_KINDS: TemplateItemKind[] = ["prescriptionText", "manualInput", "function", "staticText"];
+
+/** An item's alignments, mirroring the server's `PrescriptionTemplateCodes.Aligns`, and what an item holding none reads as. */
+export const ITEM_ALIGNS: ItemAlign[] = ["right", "center", "left"];
+export const DEFAULT_ITEM_ALIGN: ItemAlign = "right";
 
 /**
  * A new item's size and, for the prescription text, its place (contract § 3.5). Every size fits the smallest custom

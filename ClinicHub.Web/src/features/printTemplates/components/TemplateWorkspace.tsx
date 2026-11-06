@@ -301,6 +301,7 @@ export const TemplateWorkspace = ({draft, ops, canUndo, canRedo, dirty, saving, 
                         onPageMeasure={ops.commitPageMeasure}
                         onItemNumber={ops.changeItemNumber}
                         onItemText={ops.changeItemText}
+                        onItemAlign={ops.changeItemAlign}
                         onItemCommit={ops.commitField}
                         onRemove={removeItem}
                     />

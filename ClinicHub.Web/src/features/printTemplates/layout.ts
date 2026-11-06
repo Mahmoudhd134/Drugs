@@ -2,8 +2,10 @@ import {
     CASCADE_START_MM,
     CASCADE_STEP_MM,
     DEFAULT_FONT_SIZE_PT,
+    DEFAULT_ITEM_ALIGN,
     DEFAULT_ITEM_SIZES,
     DEFAULT_TEXT_BOX,
+    ITEM_ALIGNS,
     ITEM_ID_MAX_LENGTH,
     MAX_CALIBRATION_MM,
     MAX_CUSTOM_HEIGHT_MM,
@@ -23,7 +25,7 @@ import {
     TEMPLATE_FUNCTIONS,
     TEMPLATE_KINDS,
 } from "./constants.ts";
-import type {AddableItem, LayoutError, PageSize, PrintLayout, TemplateCalibration, TemplateFunction, TemplateItem, TemplateItemKind, TemplatePage} from "./types.ts";
+import type {AddableItem, ItemAlign, LayoutError, PageSize, PrintLayout, TemplateCalibration, TemplateFunction, TemplateItem, TemplateItemKind, TemplatePage} from "./types.ts";
 
 /*
  * The designer's pure rules (contract § 2.2), mirroring the server's validator and `PrescriptionLayoutRules`. StrykerJS
@@ -78,6 +80,11 @@ const roundIfNumber = (value: number) => (typeof value === "number" ? roundTenth
 /** A correction's number: rounded, and -0 is exactly 0 (TPL-721); a null or missing one stays, for the rules. */
 const roundCalibration = (value: number) => (typeof value === "number" ? roundTenth(value) + 0 : value);
 
+const KINDS_WITH_ALIGN = new Set<string>(["manualInput", "function", "staticText"]);
+
+/** How an item's value lines up: its alignment, or right when it holds none, as a template saved before the setting. */
+export const alignOf = (item: TemplateItem): ItemAlign => ("align" in item && item.align) || DEFAULT_ITEM_ALIGN;
+
 const normalizeItem = (item: TemplateItem): TemplateItem => {
     if (!item) return item;
     const rounded = {
@@ -88,12 +95,13 @@ const normalizeItem = (item: TemplateItem): TemplateItem => {
         hMm: roundIfNumber(item.hMm),
         fontSizePt: roundIfNumber(item.fontSizePt),
     };
+    if ("align" in rounded && !KINDS_WITH_ALIGN.has(rounded.kind)) delete rounded.align;
     return "name" in rounded && typeof rounded.name === "string" ? {...rounded, name: rounded.name.trim()} : rounded;
 };
 
 /**
  * What is validated, compared and sent (the server's `Normalize`): every number rounded, a name trimmed; a static text as
- * typed. The order of the items is kept. Takes what the API could hold: a missing page, list or number stays missing, but a
+ * typed; an alignment on a manual input, a function or a static text only. The order of the items is kept. Takes what the API could hold: a missing page, list or number stays missing, but a
  * missing or null `calibration` is 0, 0 (step 4 design § 4).
  */
 export const normalizeLayout = (layout: PrintLayout): PrintLayout => ({
@@ -166,6 +174,7 @@ type ItemToCheck = {
     wMm: number;
     hMm: number;
     fontSizePt: number;
+    align?: string | null;
 };
 
 /** Rule 8d, as the shared `ValidName(60)`: each part is checked on its own. */
@@ -273,6 +282,9 @@ export const validateLayout = (layout: PrintLayout): LayoutError[] => {
         }
         if (item.kind === "staticText") validateStaticText(item.text, `${prefix}.text`, errors);
         validateBox(item, prefix, page, pageOk, errors);
+        if (item.align !== null && item.align !== undefined && !ITEM_ALIGNS.includes(item.align as ItemAlign)) {
+            errors.push({field: `${prefix}.align`, code: "templateLayoutInvalid"});
+        }
     });
     validateCalibration(calibration, errors);
     return errors;
@@ -430,7 +442,8 @@ const ITEM_FIELDS = ["id", "kind", "function", "name", "text", "xMm", "yMm", "wM
 const sameItem = (a: TemplateItem, b: TemplateItem) => {
     const left = a as ItemToCheck;
     const right = b as ItemToCheck;
-    return ITEM_FIELDS.every(field => left[field] === right[field]);
+    // Missing, null and right are one alignment: an old template opens clean, and back to right is clean again
+    return ITEM_FIELDS.every(field => left[field] === right[field]) && alignOf(a) === alignOf(b);
 };
 
 /** Same normalized layout: the same page, the same items, fields and order (TPL-233), and the same calibration (step 4 design § 5). */

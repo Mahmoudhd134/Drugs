@@ -1,10 +1,14 @@
 import {type ReactNode, type Ref, useId} from "react";
-import {Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, MenuItem, Paper, TextField, Typography} from "@mui/material";
+import {Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, MenuItem, Paper, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useTheme} from "@mui/material";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
+import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
+import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
 import {useTranslation} from "react-i18next";
 import {PAGE_SIZE_OPTIONS} from "../constants.ts";
-import type {PageSize, TemplateCalibration, TemplateItem, TemplatePage} from "../types.ts";
+import {alignOf} from "../layout.ts";
+import type {ItemAlign, PageSize, TemplateCalibration, TemplateItem, TemplatePage} from "../types.ts";
 import type {BoxField, CalibrationField} from "../useDesignerDraft.ts";
 import {MmField} from "./MmField.tsx";
 
@@ -26,6 +30,42 @@ const pair = {display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
 const itemKeys = (item: TemplateItem) => {
     const text = item.kind === "staticText" ? ["text"] : item.kind === "prescriptionText" ? [] : ["name"];
     return [...text, ...BOX_PAIRS.flat().map(({field}) => field), "fontSizePt"].map(field => `${item.id}.${field}`);
+};
+
+const ALIGN_BUTTONS: { align: ItemAlign; labelKey: string; icon: ReactNode }[] = [
+    {align: "right", labelKey: "printTemplates.config.alignRight", icon: <FormatAlignRightIcon fontSize="small"/>},
+    {align: "center", labelKey: "printTemplates.config.alignCenter", icon: <FormatAlignCenterIcon fontSize="small"/>},
+    {align: "left", labelKey: "printTemplates.config.alignLeft", icon: <FormatAlignLeftIcon fontSize="small"/>},
+];
+
+/** A short item's alignment. Right, center, left from the screen's left in both languages: an RTL page lays buttons out from the right, so there they go in reverse. */
+const AlignField = ({value, onChange}: { value: ItemAlign; onChange: (align: ItemAlign) => void }) => {
+    const {t} = useTranslation();
+    const labelId = useId();
+    const buttons = useTheme().direction === "rtl" ? [...ALIGN_BUTTONS].reverse() : ALIGN_BUTTONS;
+
+    return (
+        <Box>
+            <Typography id={labelId} variant="caption" color="text.secondary" component="div" sx={{mb: 0.5}}>{t("printTemplates.config.align")}</Typography>
+            <ToggleButtonGroup
+                exclusive
+                fullWidth
+                size="small"
+                aria-labelledby={labelId}
+                value={value}
+                // The pressed one answers null: one is always on
+                onChange={(_event, next: ItemAlign | null) => {
+                    if (next) onChange(next);
+                }}
+            >
+                {buttons.map(({align, labelKey, icon}) => (
+                    <Tooltip key={align} title={t(labelKey)}>
+                        <ToggleButton value={align} aria-label={t(labelKey)}>{icon}</ToggleButton>
+                    </Tooltip>
+                ))}
+            </ToggleButtonGroup>
+        </Box>
+    );
 };
 
 type SectionProps = {
@@ -111,6 +151,7 @@ type Props = {
     onPageMeasure: (field: PageMeasure, text: string) => void;
     onItemNumber: (item: TemplateItem, field: BoxField, text: string) => void;
     onItemText: (item: TemplateItem, field: "name" | "text", value: string) => void;
+    onItemAlign: (item: TemplateItem, align: ItemAlign) => void;
     /** An item's field finished: one undo step however many keys were typed (step 3 contract § 3.6) */
     onItemCommit: () => void;
     onRemove: (item: TemplateItem) => void;
@@ -120,7 +161,7 @@ type Props = {
  * The settings panel (step 4 contract § 4.3, § 4.3.1): the sheet's, the printer's correction, the selected item's and the picture's sections. From 1200 px it scrolls
  * inside itself, up to the area's height (set on the side column), so it never grows the page; from 900 to 1199 px the side column scrolls instead.
  */
-export const TemplateSettings = ({page, item, calibration, cutsItems, onCalibration, paperSection, panelRef, openSection, onOpenSection, onSectionOpened, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onItemCommit, onRemove}: Props) => {
+export const TemplateSettings = ({page, item, calibration, cutsItems, onCalibration, paperSection, panelRef, openSection, onOpenSection, onSectionOpened, rawInputs, typedPage, messageOf, onPageSize, onPageMeasureType, onPageMeasure, onItemNumber, onItemText, onItemAlign, onItemCommit, onRemove}: Props) => {
     const {t} = useTranslation();
 
     const typeLabel = (selected: TemplateItem) =>
@@ -278,9 +319,12 @@ export const TemplateSettings = ({page, item, calibration, cutsItems, onCalibrat
                         ))}
                         {boxField(item, "fontSizePt", "printTemplates.config.fontSize")}
                         {item.kind !== "prescriptionText" && (
-                            <Box>
-                                <Button color="error" onClick={() => onRemove(item)}>{t("printTemplates.config.remove")}</Button>
-                            </Box>
+                            <>
+                                <AlignField value={alignOf(item)} onChange={(align) => onItemAlign(item, align)}/>
+                                <Box>
+                                    <Button color="error" onClick={() => onRemove(item)}>{t("printTemplates.config.remove")}</Button>
+                                </Box>
+                            </>
                         )}
                     </Box>
                 )}
