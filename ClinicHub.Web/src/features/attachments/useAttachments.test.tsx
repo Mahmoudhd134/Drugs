@@ -85,6 +85,33 @@ describe("useAttachments alone, Upload before the list has answered @area:attach
         expect(stateOf("new.png")?.status).toBe("waiting");
     });
 
+    test.each([
+        ["one file replaced by Upload", {multiple: false, canReplace: true}],
+        ["maxFiles", {maxFiles: 3}],
+    ])("a reload that fails, %s: listFailed with the files kept, upload sends nothing, and retryList brings the list back @ATT-270", async (_what, options) => {
+        const gone = stored("gone.png");
+        const adapter = fakeAdapter({files: [stored("keep.png"), gone]});
+        await start(adapter, options);
+        await waitFor(() => expect(storedNames()).toEqual(["keep.png", "gone.png"]));
+
+        adapter.list.mockRejectedValue(apiRefusal(500, "unexpected"));
+        await run(() => hook.delete(gone));
+        await waitFor(() => expect(hook.listFailed).toBe(true));
+        expect(storedNames()).toEqual(["keep.png", "gone.png"]);
+
+        await run(() => hook.pick([aFile("new.png", 1)]));
+        await run(() => hook.upload());
+        await pastPendingWork();
+        expect(adapter.upload).not.toHaveBeenCalled();
+        expect(adapter.replace).not.toHaveBeenCalled();
+        expect(stateOf("new.png")?.status).toBe("waiting");
+
+        adapter.list.mockImplementation(async () => [...adapter.files]);
+        await run(() => hook.retryList());
+        await waitFor(() => expect(hook.listFailed).toBe(false));
+        await waitFor(() => expect(storedNames()).toEqual(["keep.png"]));
+    });
+
     test("the list failed, several files with no maxFiles: upload sends @ATT-260", async () => {
         const adapter = fakeAdapter({list: () => Promise.reject(apiRefusal(500, "unexpected"))});
         await start(adapter);

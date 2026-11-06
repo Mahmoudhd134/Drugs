@@ -89,11 +89,39 @@ describe("the stored files @area:attachments", () => {
 
         expect(await screen.findByText("Couldn't load the files.")).toBeInTheDocument();
         expect(screen.queryByText("No files yet.")).not.toBeInTheDocument();
+        expect(screen.queryByRole("list", {name: "Stored files"})).not.toBeInTheDocument();
 
         broken = false;
         await press(user, "Retry");
 
         await expectStored("scan.png");
+        expect(screen.queryByText("Couldn't load the files.")).not.toBeInTheDocument();
+    });
+
+    test("a reload that fails: the rows stay, the error and Retry show above them, row actions still work, and Retry brings the list back @ATT-270", async () => {
+        const browser = stubDownloads();
+        const adapter = fakeAdapter({files: [aStoredFile({originalFileName: "keep.pdf"}), aStoredFile({originalFileName: "gone.pdf"})]});
+        const {user} = await renderManager({canDelete: true, adapter});
+        await expectStored("keep.pdf", "gone.pdf");
+
+        adapter.list.mockRejectedValue(apiRefusal(500, "unexpected"));
+        await deleteConfirmed(user, "gone.pdf");
+
+        const alert = (await screen.findByText("Couldn't load the files.")).closest<HTMLElement>('[role="alert"]');
+        expect(alert).not.toBeNull();
+        await expectStored("keep.pdf", "gone.pdf");
+        const list = screen.getByRole("list", {name: "Stored files"});
+        expect(alert!.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        await press(user, named.download("keep.pdf"));
+        await browser.saved(1);
+        expect(browser.saves[0].name).toBe("keep.pdf");
+        expect(screen.getByText("Couldn't load the files.")).toBeInTheDocument();
+
+        adapter.list.mockImplementation(async () => [...adapter.files]);
+        await user.click(within(alert!).getByRole("button", {name: "Retry"}));
+
+        await expectStored("keep.pdf");
         expect(screen.queryByText("Couldn't load the files.")).not.toBeInTheDocument();
     });
 

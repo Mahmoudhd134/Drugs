@@ -2,7 +2,7 @@ import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
 import {describe, expect, test} from "vitest";
 import {isolate, toastTexts} from "../../../test";
 import {
-    aFile, apiRefusal, aStoredFile, canRemove, deferred, expectAnnounced, expectSelected, expectStored, fakeAdapter, type FakeAdapter,
+    aFile, apiRefusal, aStoredFile, canRemove, deferred, deleteConfirmed, expectAnnounced, expectSelected, expectStored, fakeAdapter, type FakeAdapter,
     findRefusal, named, pastPendingWork, pickFiles, press, REASON, refuseUploadOf, renderLeavableManager, renderManager, selectedRow, storedRow,
     storedRows,
 } from "../../../test/pages/attachments.tsx";
@@ -680,14 +680,17 @@ describe("Upload before the list has answered @area:attachments", () => {
     ];
     const LIST_FAILED = "Couldn't load the files.";
 
-    /** The list held until `answer()`. */
+    /** The list held until `answer()`; from then on it answers the files stored now, as a reload does. */
     const whileLoading = (files: Attachment[], overrides: Parameters<typeof fakeAdapter>[0] = {}) => {
         const held = deferred<Attachment[]>();
         const adapter = fakeAdapter({...overrides, files, list: () => held.promise});
         return {
             adapter,
             ready: () => Promise.resolve(),
-            answer: () => act(async () => held.resolve([...adapter.files])),
+            answer: () => act(async () => {
+                adapter.list.mockImplementation(async () => [...adapter.files]);
+                held.resolve([...adapter.files]);
+            }),
         };
     };
 
@@ -850,6 +853,53 @@ describe("Upload before the list has answered @area:attachments", () => {
             await expectSelected();
             expect(adapter.upload).toHaveBeenCalledTimes(1);
         });
+
+    test.each([
+        ["one file replaced by Upload", {multiple: false, canReplace: true}],
+        ["maxFiles", {maxFiles: 3}],
+    ])("a reload that fails, %s: the rows stay, and Upload stays off until the list's Retry succeeds @ATT-270", async (_what, props) => {
+        const files = stored();
+        const adapter = fakeAdapter({files});
+        const {user} = await renderManager({canUpload: true, canDelete: true, adapter, ...props});
+        await expectStored("newest.pdf", "older.pdf");
+
+        adapter.list.mockRejectedValue(apiRefusal(500, "unexpected"));
+        await deleteConfirmed(user, "older.pdf");
+        await screen.findByText(LIST_FAILED);
+        await expectStored("newest.pdf", "older.pdf");
+
+        await pickFiles(aFile("new.png", 1));
+        await expectSelected("new.png");
+        expect(upload()).toBeDisabled();
+        await nothingSent(adapter);
+
+        adapter.list.mockImplementation(async () => [...adapter.files]);
+        await press(user, "Retry");
+        await expectStored("newest.pdf");
+        await waitFor(() => expect(upload()).toBeEnabled());
+        await user.click(upload());
+
+        await expectSelected();
+        expect(adapter.upload.mock.calls.length + adapter.replace.mock.calls.length).toBe(1);
+    });
+
+    test("a reload that fails, several files with no maxFiles: it doesn't stop Upload @ATT-270", async () => {
+        const adapter = fakeAdapter({files: stored()});
+        const {user} = await renderManager({canUpload: true, canDelete: true, adapter});
+        await expectStored("newest.pdf", "older.pdf");
+
+        adapter.list.mockRejectedValue(apiRefusal(500, "unexpected"));
+        await deleteConfirmed(user, "older.pdf");
+        await screen.findByText(LIST_FAILED);
+        await pickFiles(aFile("new.png", 1));
+        await expectSelected("new.png");
+
+        expect(upload()).toBeEnabled();
+        await user.click(upload());
+
+        await expectSelected();
+        expect(adapter.upload).toHaveBeenCalledTimes(1);
+    });
 
     test("a reload counts: a file picked while another uploads waits for the list's new answer, then replaces the one just stored @ATT-260", async () => {
         const adapter = fakeAdapter();
