@@ -34,7 +34,7 @@ public class PrescriptionLayoutRulesTests
         var normalized = PrescriptionLayoutRules.Normalize(new(1, new("custom", 210.14m, 100.05m),
         [
             new("t1", "prescriptionText", null, null, null, 12.34m, 12.35m, 50.14m, 30.15m, 11.04m),
-        ]));
+        ], null));
 
         normalized.Page.ShouldBe(new PrescriptionPageDto("custom", 210.1m, 100.1m));
         var item = normalized.Items.ShouldHaveSingleItem();
@@ -53,7 +53,7 @@ public class PrescriptionLayoutRulesTests
             Manual(id: "z") with { Kind = "qrCode" },
             StaticItem(id: "a"),
             PrescriptionText(id: "m"),
-        ]));
+        ], null));
 
         normalized.SchemaVersion.ShouldBe(7);
         normalized.Page.Size.ShouldBe("B5");
@@ -106,7 +106,7 @@ public class PrescriptionLayoutRulesTests
     [Fact]
     public void Normalize_keeps_a_null_page_null_items_and_null_elements_and_null_fields()
     {
-        PrescriptionLayoutRules.Normalize(new(1, null, null)).ShouldSatisfyAllConditions(
+        PrescriptionLayoutRules.Normalize(new(1, null, null, null)).ShouldSatisfyAllConditions(
             l => l.Page.ShouldBeNull(),
             l => l.Items.ShouldBeNull());
         PrescriptionLayoutRules.Normalize(OnA5([null])).Items.ShouldBe([null]);
@@ -115,14 +115,14 @@ public class PrescriptionLayoutRulesTests
         item.ShouldBe(new PrescriptionItemDto(null, null, null, null, null, null, null, null, null, null));
         PrescriptionLayoutRules.Normalize(OnA5(Manual(null))).Items[0].Name.ShouldBeNull();
         PrescriptionLayoutRules.Normalize(OnA5(StaticItem(null))).Items[0].Text.ShouldBeNull();
-        PrescriptionLayoutRules.Normalize(new(1, new("A5", null, null), [])).Page.ShouldBe(new PrescriptionPageDto("A5", null, null));
+        PrescriptionLayoutRules.Normalize(new(1, new("A5", null, null), [], null)).Page.ShouldBe(new PrescriptionPageDto("A5", null, null));
     }
 
     [Fact]
     [Trait("Case", "TPL-209")]
     public void From_sends_the_normalized_layout()
     {
-        var command = SavePrescriptionTemplateCommand.From(new(1, new("custom", 100.04m, 100.05m), [Manual("  م ", xMm: 12.34m)]));
+        var command = SavePrescriptionTemplateCommand.From(new(1, new("custom", 100.04m, 100.05m), [Manual("  م ", xMm: 12.34m)], null));
 
         command.SchemaVersion.ShouldBe(1);
         command.Page.ShouldBe(new PrescriptionPageDto("custom", 100m, 100.1m));

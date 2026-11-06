@@ -36,8 +36,8 @@ const fn = (fields: Partial<FunctionItem> = {}): FunctionItem =>
 const stat = (fields: Partial<StaticTextItem> = {}): StaticTextItem =>
     ({id: "s", kind: "staticText", text: "يُصرف مرة واحدة", xMm: 14, yMm: 175, wMm: 60, hMm: 8, fontSizePt: 10, ...fields});
 
-const layoutOf = (...items: TemplateItem[]): PrintLayout => ({schemaVersion: 1, page: A5, items});
-const onPage = (page: TemplatePage, ...items: TemplateItem[]): PrintLayout => ({schemaVersion: 1, page, items});
+const layoutOf = (...items: TemplateItem[]): PrintLayout => ({schemaVersion: 1, page: A5, items, calibration: {xMm: 0, yMm: 0}});
+const onPage = (page: TemplatePage, ...items: TemplateItem[]): PrintLayout => ({schemaVersion: 1, page, items, calibration: {xMm: 0, yMm: 0}});
 /** Something the API could hold but the types don't: validation takes it at run time (contract § 1.2, § 1.4). */
 const raw = (layout: unknown) => layout as PrintLayout;
 /** `count` valid items: the prescription text and manual inputs of distinct names. */

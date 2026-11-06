@@ -32,7 +32,14 @@ export type TemplateItem = PrescriptionTextItem | ManualInputItem | FunctionItem
 
 export type TemplateItemKind = TemplateItem["kind"];
 
-export type PrintLayout = { schemaVersion: 1; page: TemplatePage; items: TemplateItem[] };
+/**
+ * The printer's correction in mm (step 4 design A3, A4): +X moves right and +Y moves down on the paper, whatever the language. It moves
+ * every box on a real print and a test print only; the designer's numbers stay. An API answer always holds it; `normalizeLayout` fills 0, 0
+ * for what doesn't (a stale cache, a parity row).
+ */
+export type TemplateCalibration = { xMm: number; yMm: number };
+
+export type PrintLayout = { schemaVersion: 1; page: TemplatePage; items: TemplateItem[]; calibration: TemplateCalibration };
 
 /** `GET`/`PUT …/prescription-template`. */
 export type PrintTemplate = { layout: PrintLayout; updatedAt: string };

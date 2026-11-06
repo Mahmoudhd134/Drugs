@@ -139,6 +139,7 @@ const en = {
         templateStaticTextRequired: "Enter the text.",
         templateStaticTextTooLong: "The text is longer than 1000 characters.",
         templateTooManyItems: "A template can't have more than 50 items.",
+        templateCalibrationInvalid: "The correction must be between −20 and +20 mm.",
         attachmentTypeNotAllowed: "This file type isn't allowed.",
         attachmentTooLarge: "This file is larger than allowed.",
         attachmentEmpty: "This file is empty.",
@@ -617,6 +618,27 @@ const en = {
         unsavedMessage: "You have unsaved changes. Do you want to leave?",
         leave: "Leave",
         numberRequired: "Enter a number.",
+        /** Step 4: the printer's correction */
+        calibration: {
+            title: "Printer correction",
+            x: "X: + moves right (mm)",
+            y: "Y: + moves down (mm)",
+            helper: "For example: if the print landed 2 mm too low, type Y = −2.",
+            cutWarning: "With this correction, one or more items leave the sheet and their text may be cut.",
+        },
+        /** Step 4: the test page */
+        testPrint: {
+            button: "Test print",
+            hint: "Print at 100%, without \"Fit to page\".",
+        },
+        /** Step 4: the picture of the clinic's paper */
+        paper: {
+            title: "Paper image",
+            rules: "{{types}}, up to {{size}}. One image per clinic.",
+            show: "Show the image",
+            opacity: "Image opacity",
+            loadFailed: "Couldn't show the paper image.",
+        },
         kinds: {
             prescriptionText: "Prescription text",
             manualInput: "Manual input",

@@ -2,6 +2,7 @@ import {expect, type Locator, type Page} from "@playwright/test";
 import type {ClinicHandle, Data} from "./data.ts";
 import {settled, signInSuperAdmin} from "./fixtures.ts";
 import {type Lang, TEXTS} from "./texts.ts";
+import {ATTACHMENT_TEXTS} from "./texts-attachments.ts";
 import {expectToast} from "./ui.ts";
 
 /**
@@ -51,6 +52,22 @@ const ar = {
     zoomIn: "تكبير",
     fit: "ملاءمة",
     internalData: "بيانات داخلية",
+    // Step 4 (design § 9, contract § 4.1)
+    calibrationTitle: "تصحيح الطابعة",
+    calibrationX: "X: الموجب يمين (مم)",
+    calibrationY: "Y: الموجب أسفل (مم)",
+    calibrationHelper: "مثال: إذا نزلت الطباعة 2 مم عن مكانها فاكتب Y = −2.",
+    calibrationInvalid: "يجب أن يكون التصحيح بين −20 و+20 مم.",
+    cutWarning: "بهذا التصحيح يخرج عنصر أو أكثر عن الورقة وقد يُقص نصه.",
+    testPrint: "طباعة تجريبية",
+    testPrintHint: "اطبع بمقياس 100% دون «ملاءمة للصفحة».",
+    paperTitle: "صورة الورقة",
+    paperRules: "PNG / JPEG، حتى 10 ميجابايت، صورة واحدة لكل عيادة.",
+    paperShow: "إظهار الصورة",
+    paperOpacity: "شفافية الصورة",
+    paperLoadFailed: "تعذر عرض صورة الورقة.",
+    numberRequired: "أدخل رقمًا.",
+    nameTaken: "هذا الاسم مستخدم في عنصر آخر.",
 };
 
 export type PrintTemplateTexts = typeof ar;
@@ -96,6 +113,21 @@ const en: PrintTemplateTexts = {
     zoomIn: "Zoom in",
     fit: "Fit",
     internalData: "Internal data",
+    calibrationTitle: "Printer correction",
+    calibrationX: "X: + moves right (mm)",
+    calibrationY: "Y: + moves down (mm)",
+    calibrationHelper: "For example: if the print landed 2 mm too low, type Y = −2.",
+    calibrationInvalid: "The correction must be between −20 and +20 mm.",
+    cutWarning: "With this correction, one or more items leave the sheet and their text may be cut.",
+    testPrint: "Test print",
+    testPrintHint: "Print at 100%, without \"Fit to page\".",
+    paperTitle: "Paper image",
+    paperRules: "PNG / JPEG, up to 10 MB. One image per clinic.",
+    paperShow: "Show the image",
+    paperOpacity: "Image opacity",
+    paperLoadFailed: "Couldn't show the paper image.",
+    numberRequired: "Enter a number.",
+    nameTaken: "Another item already uses this name.",
 };
 
 export const PT_TEXTS: Record<Lang, PrintTemplateTexts> = {ar, en};
@@ -111,7 +143,9 @@ export type LayoutItem = {
     id: string; kind: string; function?: string; name?: string; text?: string;
     xMm: number; yMm: number; wMm: number; hMm: number; fontSizePt: number;
 };
-export type Layout = { schemaVersion: 1; page: { size: string; widthMm: number; heightMm: number }; items: LayoutItem[] };
+export type Calibration = { xMm: number; yMm: number };
+/** `calibration` is optional here: a body that leaves it out saves 0, 0 (step 4 design § 4). An answer always holds it. */
+export type Layout = { schemaVersion: 1; page: { size: string; widthMm: number; heightMm: number }; items: LayoutItem[]; calibration?: Calibration };
 
 export const A5 = {size: "A5", widthMm: 148, heightMm: 210};
 export const A4 = {size: "A4", widthMm: 210, heightMm: 297};
@@ -135,6 +169,20 @@ export const layoutL = (fields: Partial<Layout> = {}): Layout =>
 /** Saves the clinic's template through the API (the worker's super admin). */
 export const putTemplate = (data: Data, clinic: ClinicHandle, layout: Layout) =>
     data.admin.ok<{ layout: Layout; updatedAt: string }>("PUT", apiPath(clinic), layout);
+
+/** The picture's API route (step 4 design § 4). */
+export const paperApiPath = (clinic: { id: number }) => `${apiPath(clinic)}/paper-image`;
+
+/** Stores a paper image through the API (the worker's super admin), asserting it was stored; its row. */
+export const putPaper = async (data: Data, clinic: ClinicHandle, file: { name: string; mimeType: string; buffer: Buffer }) => {
+    const response = await data.admin.upload("POST", paperApiPath(clinic), file);
+    expect(response.ok(), `the upload of ${file.name}: ${response.status()}`).toBe(true);
+    return await response.json() as { id: string; originalFileName: string };
+};
+
+/** The clinic's live paper images through the API, newest first. */
+export const getPapers = (data: Data, clinic: ClinicHandle) =>
+    data.admin.ok<{ id: string; originalFileName: string }[]>("GET", paperApiPath(clinic));
 
 /** The clinic's template through the API; undefined when none (204). */
 export const getTemplate = (data: Data, clinic: ClinicHandle) =>
@@ -174,6 +222,25 @@ export const designerOf = (page: Page, lang: Lang) => {
         ghost: page.getByTestId("template-drag-ghost"),
         toolbar: page.getByTestId("template-toolbar"),
         overlay: page.getByTestId("template-overlay"),
+        // Step 4 (contract § 4)
+        sideColumn: page.getByTestId("template-side-column"),
+        calibration: settings.getByRole("region", {name: pt.calibrationTitle, exact: true}),
+        calibrationX: settings.getByRole("textbox", {name: pt.calibrationX, exact: true}),
+        calibrationY: settings.getByRole("textbox", {name: pt.calibrationY, exact: true}),
+        cutWarning: page.getByTestId("template-cut-warning"),
+        testPrint: page.getByRole("button", {name: pt.testPrint, exact: true}),
+        paperSection: settings.getByRole("region", {name: pt.paperTitle, exact: true}),
+        paperRules: page.getByTestId("template-paper-rules"),
+        /** Part 2's hidden input: `setInputFiles` with a file of `paper-files.ts` */
+        paperInput: page.getByTestId("attachment-input"),
+        paperUpload: settings.getByRole("region", {name: pt.paperTitle, exact: true}).getByRole("button", {name: ATTACHMENT_TEXTS[lang].upload, exact: true}),
+        paperStored: settings.getByRole("list", {name: ATTACHMENT_TEXTS[lang].storedLabel, exact: true}),
+        paperRow: (name: string) => settings.getByRole("list", {name: ATTACHMENT_TEXTS[lang].storedLabel, exact: true}).getByRole("listitem").filter({hasText: name}),
+        paperImage: page.getByTestId("template-paper-image"),
+        paperLoadFailed: page.getByTestId("template-paper-load-failed"),
+        paperShow: settings.getByRole("switch", {name: pt.paperShow, exact: true}),
+        paperOpacity: settings.getByRole("slider", {name: pt.paperOpacity, exact: true}),
+        sheetGrid: page.getByTestId("template-sheet-grid"),
     };
 };
 
@@ -629,3 +696,45 @@ export const expectUntouched = async (designer: Designer) => {
     await expect(designer.save, "nothing unsaved").toBeDisabled();
     await expect(designer.undo, "no undo step").toBeDisabled();
 };
+
+/*
+ * Step 4 (contract § 8.4). A test page reads like a real print: `stubPrint` first, press `designer.testPrint`, `printSheets` and `printRoot` read the root (the DOM before the PDF), then `printedPdf`,
+ * or `pdfWithoutBackground`, with `pdfDrawing` for what it draws. Boxes and frames: `[data-testid=test-print-frame]` in each box. Rulers below.
+ */
+
+/** Whether a picture's rectangle equals the sheet's, within half a pixel at the zoom in force (TPL-662, TPL-664). */
+export const expectPaperFillsSheet = async (designer: Designer, what: string) => {
+    await expect.poll(async () => {
+        const [paper, sheet] = await Promise.all([designer.paperImage.boundingBox(), designer.sheet.boundingBox()]);
+        if (!paper || !sheet) return Number.POSITIVE_INFINITY;
+        return Math.max(Math.abs(paper.x - sheet.x), Math.abs(paper.y - sheet.y), Math.abs(paper.width - sheet.width), Math.abs(paper.height - sheet.height));
+    }, {message: `${what}: the picture fills the sheet, px off`}).toBeLessThanOrEqual(0.5);
+};
+
+/** A ruler's numbered ticks and lines on the test sheet, under print media: where each is, in mm from the sheet's corner (TPL-635, TPL-640, TPL-712). */
+export type RulerRead = {
+    /** The line's own place: 6 mm in, whatever the correction */
+    lineMm: number;
+    /** `data-mm` of every tick to where it's drawn along the ruler */
+    ticks: Record<string, number>;
+    /** The numbers as printed, in order */
+    labels: string[];
+};
+
+export const rulersOn = (sheet: Locator): Promise<{ top: RulerRead; left: RulerRead }> => sheet.evaluate((element, mm) => {
+    const origin = element.getBoundingClientRect();
+    const svg = element.querySelector("[data-testid=test-print-rulers]")!;
+    const read = (ruler: "top" | "left"): RulerRead => {
+        const line = svg.querySelector(`[data-testid=ruler-line-${ruler}]`)!.getBoundingClientRect();
+        const ticks = [...svg.querySelectorAll(`line[data-ruler=${ruler}]`)].map(tick => {
+            const rect = tick.getBoundingClientRect();
+            return [tick.getAttribute("data-mm") ?? "", (ruler === "top" ? rect.left - origin.left : rect.top - origin.top) / mm] as const;
+        });
+        return {
+            lineMm: (ruler === "top" ? line.top - origin.top : line.left - origin.left) / mm,
+            ticks: Object.fromEntries(ticks),
+            labels: [...svg.querySelectorAll(`text[data-ruler=${ruler}]`)].map(label => label.textContent ?? ""),
+        };
+    };
+    return {top: read("top"), left: read("left")};
+}, MM);

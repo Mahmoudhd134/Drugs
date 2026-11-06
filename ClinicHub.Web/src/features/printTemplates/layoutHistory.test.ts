@@ -26,6 +26,7 @@ const manual = (id: string, fields: Partial<ManualInputItem> = {}): ManualInputI
 
 const LAYOUT: PrintLayout = {
     schemaVersion: 1,
+    calibration: {xMm: 0, yMm: 0},
     page: {size: "A4", widthMm: 210, heightMm: 297},
     items: [
         {id: "t", kind: "prescriptionText", xMm: 14, yMm: 80, wMm: 120, hMm: 90, fontSizePt: 11},

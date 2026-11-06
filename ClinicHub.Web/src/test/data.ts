@@ -11,7 +11,8 @@ import type {
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory, AdminSubCategory} from "../features/admin/categories/types.ts";
 import type {PrescriptionLine} from "../features/prescription/types.ts";
-import type {PrintLayout, PrintTemplate, TemplateItem, TemplateItemKind} from "../features/printTemplates/types.ts";
+import type {Attachment, AttachmentRules} from "../features/attachments/types.ts";
+import type {PrintLayout, PrintTemplate, TemplateCalibration, TemplateItem, TemplateItemKind} from "../features/printTemplates/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
 
@@ -232,6 +233,9 @@ const TEMPLATE_ITEM_DEFAULTS: { [K in TemplateItemKind]: Omit<Extract<TemplateIt
 export const aTemplateItem = <K extends TemplateItemKind>(kind: K, fields: Partial<Extract<TemplateItem, { kind: K }>> = {}) =>
     ({id: `i${nextId()}`, ...TEMPLATE_ITEM_DEFAULTS[kind], ...fields}) as unknown as Extract<TemplateItem, { kind: K }>;
 
+/** No correction: what every layout holds unless a test says otherwise. */
+export const NO_CALIBRATION: TemplateCalibration = {xMm: 0, yMm: 0};
+
 /**
  * The catalog's layout L (design § 5): A5, one prescription text, a manual input «الاسم» and a full date. Valid as it
  * stands (`validateLayout` answers nothing); `items` or `page` replace its own.
@@ -240,8 +244,33 @@ export const aPrintLayout = (fields: Partial<PrintLayout> = {}): PrintLayout => 
     schemaVersion: 1,
     page: {size: "A5", widthMm: 148, heightMm: 210},
     items: [aTemplateItem("prescriptionText"), aTemplateItem("manualInput"), aTemplateItem("function")],
+    calibration: NO_CALIBRATION,
     ...fields,
 });
+
+/**
+ * The layout as a row saved before step 4 answers it from a stale cache or a raw fixture: no `calibration` key at all (TPL-605, TPL-612). The API itself fills 0, 0 (design § 4); the
+ * designer must also take this one. The cast is on purpose: the type says what the API answers.
+ */
+export const aLayoutBeforeStep4 = (fields: Partial<PrintLayout> = {}): PrintLayout => {
+    const {calibration: _dropped, ...rest} = aPrintLayout(fields);
+    void _dropped;
+    return rest as PrintLayout;
+};
+
+/** A stored paper image (`AttachmentDto`): a PNG of 1 KB, the id new for each; `createdAt` tells two apart, newest first in the API's answer. */
+export const aPaperImage = (fields: Partial<Attachment> = {}): Attachment => ({
+    id: `paper-${nextId()}`,
+    originalFileName: "paper.png",
+    typeKey: "png",
+    contentType: "image/png",
+    sizeBytes: 1024,
+    createdAt: "2026-11-06T10:00:00Z",
+    ...fields,
+});
+
+/** What `GET …/paper-image/rules` answers with the base config (design P2): 10 MB, PNG and JPEG. */
+export const PAPER_RULES: AttachmentRules = {maxFileSizeBytes: 10 * 1_048_576, extensions: [".png", ".jpg", ".jpeg"]};
 
 /** A clinic's template (`GET …/prescription-template`). */
 export const aPrintTemplate = (fields: Partial<PrintTemplate> = {}): PrintTemplate => ({

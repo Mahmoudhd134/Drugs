@@ -430,3 +430,38 @@ export const attachScreenshot = async (page: Page, testInfo: TestInfo, name: str
 export const attachPdf = async (pdf: PrintedPdf, testInfo: TestInfo, name: string) => {
     await testInfo.attach(`${testInfo.project.name}: ${name}.pdf`, {body: pdf.bytes, contentType: "application/pdf"});
 };
+
+/** What a PDF page draws, by pdf.js's operators (step 4 contract § 8.4): `images` (image operators of any kind), `paths` (`constructPath`, what lines and frames become), `strokes`. */
+export type PdfDrawing = { images: number; paths: number; strokes: number };
+
+/**
+ * Per page, what `getOperatorList` holds. TPL-636, TPL-666: `images` is 0. TPL-639: `paths` and `strokes` above 0 with `page.pdf({printBackground: false})`, so print a test page with
+ * `pdfWithoutBackground` when a spec asks it. Never assert the exact thickness of a line (design TPL-639).
+ */
+export const pdfDrawing = async (bytes: Buffer): Promise<PdfDrawing[]> => {
+    const {getDocument, OPS} = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const images = new Set<number>([
+        OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject, OPS.paintImageXObjectRepeat,
+        OPS.paintImageMaskXObjectRepeat, OPS.paintInlineImageXObjectGroup, OPS.paintImageMaskXObjectGroup, OPS.paintSolidColorImageMask,
+    ]);
+    const strokes = new Set<number>([OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+    const loading = getDocument({data: new Uint8Array(bytes), verbosity: 0});
+    try {
+        const document = await loading.promise;
+        const pages: PdfDrawing[] = [];
+        for (let number = 1; number <= document.numPages; number++) {
+            const {fnArray} = await (await document.getPage(number)).getOperatorList();
+            pages.push({
+                images: fnArray.filter(fn => images.has(fn)).length,
+                paths: fnArray.filter(fn => fn === OPS.constructPath).length,
+                strokes: fnArray.filter(fn => strokes.has(fn)).length,
+            });
+        }
+        return pages;
+    } finally {
+        await loading.destroy();
+    }
+};
+
+/** The page as a PDF with background graphics off, as the browser's dialog does by default: only real borders and strokes print (TPL-639). It ends the print job, as `printedPdf` does. */
+export const pdfWithoutBackground = (page: Page) => page.pdf({preferCSSPageSize: true, printBackground: false});

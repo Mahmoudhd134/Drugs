@@ -15,7 +15,7 @@ internal sealed class SavePrescriptionTemplateCommandHandler(IAppDbContext db)
 {
     public async Task<Result<PrescriptionTemplateDto>> Handle(SavePrescriptionTemplateCommand command, CancellationToken cancellationToken)
     {
-        var layout = new PrescriptionLayoutDto(command.SchemaVersion, command.Page, command.Items);
+        var layout = new PrescriptionLayoutDto(command.SchemaVersion, command.Page, command.Items, command.Calibration);
 
         var row = await db.PrescriptionTemplates.FirstOrDefaultAsync(cancellationToken);
         if (row is null)

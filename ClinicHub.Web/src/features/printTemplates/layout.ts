@@ -54,6 +54,9 @@ const latinDigit = (digit: string) => {
  * and the invisible marks U+200E, U+200F, U+061C are ignored; Arabic-Indic (٠–٩) and Persian (۰–۹) digits are read; a
  * leading `-` is kept (the rules then refuse it, it is never corrected silently). null: empty or anything else
  * (`abc`, `1.2.3`, `1e3`, `٫`, `-`).
+ *
+ * **Step 4 (T1: frontend; design § 3, TPL-700):** one leading `+` or `−` (U+2212, as the helper line prints it) is also read as a sign, once
+ * the spaces and marks around it are gone: `+2` is 2, `−2` is -2, `+1` is 1 in every field. Still null: `+`, `−`, `+-2`, `−−2`, `- 2`, `2+`, `2−`.
  */
 export const parseMmInput = (text: string) => {
     const latin = text.replace(AROUND_NUMBER, "").replace(/[٠-٩۰-۹]/g, latinDigit);
@@ -98,6 +101,7 @@ export const normalizeLayout = (layout: PrintLayout): PrintLayout => ({
         heightMm: roundIfNumber(layout.page.heightMm),
     },
     items: layout.items && layout.items.map(normalizeItem),
+    // Step 4 (T1: frontend; design § 4, § 5): a missing or null `calibration` is 0, 0; both numbers rounded, and -0 is exactly 0 (TPL-721); a null number stays, for the rules
 });
 
 const BLANK_TEXT = /^[\s\u0085\p{Cf}]*$/u;
@@ -198,6 +202,10 @@ const validateBox = (item: ItemToCheck, prefix: string, page: TemplatePage, page
  * Every broken rule of `normalizeLayout(layout)`, in the server's order with the server's fields and codes (contract § 1.4;
  * the shared cases: tests/fixtures/print-layout-cases.json). Empty: valid. Takes what the API could hold, so unknown kinds
  * and functions are checked at run time too.
+ *
+ * **Step 4 (T1: frontend; design § 4):** rules 9 and 10 after every item's, whatever the item count, so also on the early exit over 50 items.
+ * Rule 9: `calibration` present, X then Y not null: `invalidRequest` on `calibration.xMm`, `calibration.yMm`. Rule 10: each number, in whole tenths,
+ * within `MAX_CALIBRATION_MM` either way: `templateCalibrationInvalid` on the same field. `calibrationCutsItems` isn't a rule: a box moved off the sheet saves.
  */
 export const validateLayout = (layout: PrintLayout): LayoutError[] => {
     const {schemaVersion, page, items} = normalizeLayout(layout);
@@ -253,6 +261,21 @@ export const validateLayout = (layout: PrintLayout): LayoutError[] => {
     return errors;
 };
 
+/**
+ * **Stub (T1: frontend; StrykerJS-mutated).** True while any box, moved by the layout's X and Y, leaves the sheet on any side (step 4 design § 3, A6),
+ * in whole tenths ({@link toTenths}), so a sum like 210.1 doesn't misfire. Exactly at the edge doesn't count: `x + X < 0`, `y + Y < 0`,
+ * `x + X + w > page width` or `y + Y + h > page height`. The prescription text counts like any box. A warning only: Save and printing still work.
+ * TPL-617.
+ */
+export const calibrationCutsItems: (layout: PrintLayout) => boolean = () => false;
+
+/**
+ * **Stub (T1: frontend; StrykerJS-mutated).** Every manual input and function whose name another one shares (trimmed, ignoring case: `nameKey`), as
+ * `{field: "items[i].name", code: "templateItemNameTaken"}`, in the layout's order (step 4 design § 6). Outside {@link validateLayout}, whose answer the
+ * parity fixture fixes: that still names only the later item. The designer adds these to what it shows and to what selects the first problem. TPL-683, TPL-722.
+ */
+export const sharedNameErrors: (layout: PrintLayout) => LayoutError[] = () => [];
+
 /** The item index a field names: `items[2].name` → 2; `page.widthMm`, `items` → null. */
 export const itemIndexOfField = (field: string) => {
     const match = /^items\[(\d+)]/.exec(field);
@@ -264,6 +287,7 @@ export const newLayout = (): PrintLayout => ({
     schemaVersion: SCHEMA_VERSION,
     page: {size: "A5", ...PAGE_SIZES.A5},
     items: [{id: "i1", kind: "prescriptionText", ...DEFAULT_TEXT_BOX, fontSizePt: DEFAULT_FONT_SIZE_PT}],
+    calibration: {xMm: 0, yMm: 0},
 });
 
 /** True while another item fits (fewer than `MAX_ITEMS`). */
@@ -366,7 +390,7 @@ const sameItem = (a: TemplateItem, b: TemplateItem) => {
     return ITEM_FIELDS.every(field => left[field] === right[field]);
 };
 
-/** Same normalized layout: the same page and the same items, fields and order (TPL-233). */
+/** Same normalized layout: the same page and the same items, fields and order (TPL-233). Step 4 (T1: frontend): and the same calibration (design § 5). */
 export const sameLayout = (a: PrintLayout, b: PrintLayout) => {
     const left = normalizeLayout(a);
     const right = normalizeLayout(b);

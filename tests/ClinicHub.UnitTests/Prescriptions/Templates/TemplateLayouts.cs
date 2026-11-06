@@ -40,7 +40,11 @@ public static class TemplateLayouts
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
-    public static PrescriptionLayoutDto Layout(PrescriptionPageDto page, params PrescriptionItemDto[] items) => new(1, page, [.. items]);
+    public static PrescriptionLayoutDto Layout(PrescriptionPageDto page, params PrescriptionItemDto[] items) => new(1, page, [.. items], new PrescriptionCalibrationDto(0, 0));
+
+    /// <summary>The layout with this calibration (step 4); a number may be null, for the rules.</summary>
+    public static PrescriptionLayoutDto WithCalibration(PrescriptionLayoutDto layout, decimal? xMm, decimal? yMm) =>
+        layout with { Calibration = new PrescriptionCalibrationDto(xMm, yMm) };
 
     public static PrescriptionLayoutDto OnA5(params PrescriptionItemDto[] items) => Layout(A5, items);
 

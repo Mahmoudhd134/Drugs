@@ -25,7 +25,7 @@ public class TemplateRuleEdgeTests(AppFixture app) : IntegrationTest(app)
         // Rules 1–5: schema version and page
         ["a null schema version"] = (L() with { SchemaVersion = null }, Errors(("schemaVersion", "templateLayoutInvalid"))),
         ["schema version 0"] = (L() with { SchemaVersion = 0 }, Errors(("schemaVersion", "templateLayoutInvalid"))),
-        ["a null page skips outside"] = (new(1, null, [Text(xMm: 500)]), Errors(("page", "invalidRequest"))),
+        ["a null page skips outside"] = (new(1, null, [Text(xMm: 500)], null), Errors(("page", "invalidRequest"))),
         ["a lower-case size"] = (Layout(new("a5", 148, 210), Text()), Errors(("page.size", "templatePageInvalid"))),
         ["A4 in another case"] = (Layout(new("a4", 210, 297), Text()), Errors(("page.size", "templatePageInvalid"))),
         ["Custom in another case"] = (Layout(new("Custom", 100, 100), SmallText), Errors(("page.size", "templatePageInvalid"))),
@@ -51,7 +51,7 @@ public class TemplateRuleEdgeTests(AppFixture app) : IntegrationTest(app)
         ["51 items answer the schema version and page too"] = (Layout(new("A5", 150, 210), [Text(), .. ManyManual(50)]) with { SchemaVersion = 2 },
             Errors(("schemaVersion", "templateLayoutInvalid"), ("page.widthMm", "templatePageInvalid"), ("items", "templateTooManyItems"))),
         ["51 items with no text"] = (Layout(A5, ManyManual(51)), Errors(("items", "templateTooManyItems"))),
-        ["null items"] = (new(1, A5, null), Errors(("items", "templateTextCount"))),
+        ["null items"] = (new(1, A5, null, null), Errors(("items", "templateTextCount"))),
         ["a null element"] = (Layout(A5, Text(), null), Errors(("items[1]", "templateLayoutInvalid"))),
         ["only a null element"] = (Layout(A5, [null]), Errors(("items", "templateTextCount"), ("items[0]", "templateLayoutInvalid"))),
         ["a null element before others"] = (Layout(A5, null, Text(), Manual("", "m1")), Errors(("items[0]", "templateLayoutInvalid"), ("items[2].name", "nameRequired"))),

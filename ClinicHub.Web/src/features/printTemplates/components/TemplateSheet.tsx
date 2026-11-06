@@ -7,8 +7,23 @@ import {isLeftToRightValue} from "../functions.ts";
 import {printTextStyle} from "../printMeasure.ts";
 import type {PrintLayout, TemplateItem} from "../types.ts";
 
-/** One printed sheet: the prescription text's chunk (clean HTML) and each short item's value by item id. */
-export type SheetPrintContent = { textHtml: string; values: Readonly<Record<string, string>> };
+/**
+ * One printed sheet: the prescription text's chunk (clean HTML) and each short item's value by item id. `test` (step 4; T1: frontend): each box also holds, as its last child, an empty
+ * `div data-testid="test-print-frame"` (`position: absolute; inset: 0; border: TEST_PRINT_FRAME_BORDER`), and the sheet holds `TemplatePrintRulers` as its last child.
+ */
+export type SheetPrintContent = { textHtml: string; values: Readonly<Record<string, string>>; test?: boolean };
+
+/**
+ * The paper image behind the boxes (step 4 design § 3; T1: frontend), in the designer only: `img data-testid="template-paper-image" class="template-paper-image"`, the sheet's first child, `src` the URL, `alt=""`, `aria-hidden="true"`,
+ * `draggable={false}`, inline `position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; opacity: <percent / 100>`, `onError`.
+ */
+export type SheetPaper = {
+    url: string;
+    /** 10 to 100 */
+    opacityPercent: number;
+    /** The picture won't decode (A14) */
+    onError: () => void;
+};
 
 type Props = {
     layout: PrintLayout;
@@ -25,6 +40,8 @@ type Props = {
     print?: SheetPrintContent;
     /** The designer's zoom around this sheet, in percent: what keeps a box's mark the same on screen */
     zoom?: number;
+    /** Step 4: the picture behind the boxes, designer mode only; ignored with `print`. Null or left out: none */
+    paper?: SheetPaper | null;
 };
 
 /** The designer's mm grid: a faint line every 1 mm and a stronger one every 10 mm. */

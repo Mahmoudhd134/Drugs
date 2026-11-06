@@ -128,6 +128,7 @@ const ar: Translations = {
         templateStaticTextRequired: "اكتب النص.",
         templateStaticTextTooLong: "النص أطول من 1000 حرف.",
         templateTooManyItems: "لا يمكن إضافة أكثر من 50 عنصرًا.",
+        templateCalibrationInvalid: "يجب أن يكون التصحيح بين −20 و+20 مم.",
         attachmentTypeNotAllowed: "نوع هذا الملف غير مسموح به.",
         attachmentTooLarge: "حجم هذا الملف أكبر من المسموح به.",
         attachmentEmpty: "هذا الملف فارغ.",
@@ -587,6 +588,27 @@ const ar: Translations = {
         unsavedMessage: "لديك تغييرات لم تُحفظ. هل تريد الخروج؟",
         leave: "خروج",
         numberRequired: "أدخل رقمًا.",
+        /** الخطوة 4: تصحيح الطابعة */
+        calibration: {
+            title: "تصحيح الطابعة",
+            x: "X: الموجب يمين (مم)",
+            y: "Y: الموجب أسفل (مم)",
+            helper: "مثال: إذا نزلت الطباعة 2 مم عن مكانها فاكتب Y = −2.",
+            cutWarning: "بهذا التصحيح يخرج عنصر أو أكثر عن الورقة وقد يُقص نصه.",
+        },
+        /** الخطوة 4: الطباعة التجريبية */
+        testPrint: {
+            button: "طباعة تجريبية",
+            hint: "اطبع بمقياس 100% دون «ملاءمة للصفحة».",
+        },
+        /** الخطوة 4: صورة الورقة */
+        paper: {
+            title: "صورة الورقة",
+            rules: "{{types}}، حتى {{size}}، صورة واحدة لكل عيادة.",
+            show: "إظهار الصورة",
+            opacity: "شفافية الصورة",
+            loadFailed: "تعذر عرض صورة الورقة.",
+        },
         kinds: {
             prescriptionText: "نص الروشتة",
             manualInput: "حقل يدوي",

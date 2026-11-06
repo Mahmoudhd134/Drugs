@@ -18,7 +18,11 @@ public static class LayoutBuilder
     public static PrescriptionLayoutDto L() => Layout(A5, Text(), Manual("الاسم"), FullDate("التاريخ"));
 
     public static PrescriptionLayoutDto Layout(PrescriptionPageDto page, params PrescriptionItemDto[] items) =>
-        new(1, page, [.. items]);
+        new(1, page, [.. items], new PrescriptionCalibrationDto(0, 0));
+
+    /// <summary>The layout with this calibration (step 4); a number may be null, for the rules.</summary>
+    public static PrescriptionLayoutDto WithCalibration(this PrescriptionLayoutDto layout, decimal? xMm, decimal? yMm) =>
+        layout with { Calibration = new PrescriptionCalibrationDto(xMm, yMm) };
 
     public static PrescriptionItemDto Text(string id = "t1", decimal xMm = 14, decimal yMm = 80, decimal wMm = 120,
         decimal hMm = 90, decimal fontSizePt = 11) =>

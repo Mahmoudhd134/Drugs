@@ -10,6 +10,7 @@ import {getErrorMessage, getFieldErrors} from "../../../api/errors.ts";
 import {useDeletePrintTemplate, usePrintTemplate, useSavePrintTemplate} from "../api.ts";
 import {itemIndexOfField, newLayout, normalizeLayout, parseMmInput, validateLayout} from "../layout.ts";
 import {endRun, isDirty} from "../layoutHistory.ts";
+import type {AttachmentsAdapter} from "../../attachments/types.ts";
 import type {LayoutError, PrintTemplateAdapter, TemplateItem} from "../types.ts";
 import {type Draft, startDraft, useDesignerDraft, withTypedPageCommitted} from "../useDesignerDraft.ts";
 import {useUnsavedGuard} from "../useUnsavedGuard.ts";
@@ -39,9 +40,9 @@ const firstProblemItem = (errors: LayoutError[], draft: Draft) => {
 /**
  * The print template designer (contract § 3): the data and the draft live here, above the desktop-only switch, so narrowing
  * the window keeps the edits (TPL-229). Mounted per clinic: `ClinicPage` keys its `PageBoundary` by the clinic (TPL-245).
- * Reusable (design D5): all its data comes through the adapter.
+ * Reusable (design D5): all its data comes through the adapter. `paperAdapter` (step 4 design § 5; T1: frontend): no adapter, no picture section and no request for it (TPL-644).
  */
-export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter }) => {
+export const TemplateDesigner = ({adapter}: { adapter: PrintTemplateAdapter; paperAdapter?: AttachmentsAdapter }) => {
     const {t} = useTranslation();
     const desktop = useMediaQuery(useTheme().breakpoints.up("md"), {noSsr: true});
     const template = usePrintTemplate(adapter);

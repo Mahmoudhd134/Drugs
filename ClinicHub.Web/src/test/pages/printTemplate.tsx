@@ -4,12 +4,15 @@ import type {RequestHandler} from "msw";
 import {expect} from "vitest";
 import i18n from "../../i18n";
 import type {ClinicDetails} from "../../features/admin/types.ts";
+import {adminPrintTemplateApi} from "../../features/admin/adapters.ts";
+import type {Attachment, AttachmentRules} from "../../features/attachments/types.ts";
+import {TemplateDesigner} from "../../features/printTemplates/components/TemplateDesigner.tsx";
 import type {PrintLayout, PrintTemplate} from "../../features/printTemplates/types.ts";
 import {aClinicDetails, aPrintTemplate} from "../data.ts";
-import {adminClinicsHandlers, api, printTemplateHandlers, type recordRequests} from "../msw.ts";
+import {adminClinicsHandlers, api, paperImageHandlers, printTemplateHandlers, type recordRequests} from "../msw.ts";
 import {isRed} from "../mui.ts";
 import {server} from "../server.ts";
-import type {RenderWithProvidersOptions} from "../render.tsx";
+import {renderWithProviders, type RenderWithProvidersOptions} from "../render.tsx";
 import {renderAdmin} from "./admin.tsx";
 
 /*
@@ -28,14 +31,24 @@ export type RenderPrintTemplateTabOptions = Omit<RenderWithProvidersOptions, "ro
     layout?: boolean;
     /** Answers of the test's own, in front of the default ones from the first request on (e.g. a held or failing `GET`) */
     handlers?: RequestHandler[];
+    /** The clinic's stored paper images, newest first (default none); `paperImageHandlers` changes the array in place, and it comes back as `paperImages` */
+    paperImages?: Attachment[];
+    /** What `GET …/paper-image/rules` answers (default `PAPER_RULES`) */
+    paperRules?: AttachmentRules;
+    /** The row an upload stores (default `aPaperImage()`): jsdom can't read the picked file's name */
+    paperStored?: () => Attachment;
 };
 
-export const renderPrintTemplateTab = async ({clinic = aClinicDetails(), template = null, stateful = true, handlers = [], ...options}: RenderPrintTemplateTabOptions = {}) => {
-    server.use(...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template, stateful}));
+export const renderPrintTemplateTab = async ({clinic = aClinicDetails(), template = null, stateful = true, handlers = [], paperImages = [], paperRules, paperStored, ...options}: RenderPrintTemplateTabOptions = {}) => {
+    server.use(
+        ...adminClinicsHandlers([clinic]),
+        ...printTemplateHandlers(clinic.id, {template, stateful}),
+        ...paperImageHandlers(clinic.id, paperImages, {rules: paperRules, stored: paperStored}),
+    );
     // A later `server.use` goes in front; inside one call the first match wins
     server.use(...handlers);
     const rendered = await renderAdmin(`/admin/clinics/${clinic.id}/print-template`, {dataRouter: true, ...options});
-    return {...rendered, clinic};
+    return {...rendered, clinic, paperImages};
 };
 
 /** A text of the locale files in the current language (to find a part of the screen, never to assert a message). */
@@ -229,4 +242,71 @@ export const answerQuestion = async (user: UserEvent, answer: "stay" | "leave") 
 export const expectNothingSent = async (recorded: ReturnType<typeof recordRequests>) => {
     await act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
     expect(recorded.writes()).toEqual([]);
+};
+
+/*
+ * Step 4 (contract § 8.1): the printer's correction, Test print and the paper image. A test with a stored picture calls `stubObjectUrls()` of `pages/attachments.tsx` first: jsdom has no
+ * `URL.createObjectURL`. jsdom draws nothing, so `img` never fires `load` or `error` by itself: `fireEvent.error(paperImage()!)` is a picture that won't decode (TPL-665).
+ */
+
+/** The labels of the correction's fields in English, the tests' default language. */
+export const CALIBRATION_LABEL = {x: "X: + moves right (mm)", y: "Y: + moves down (mm)"} as const;
+
+/** The "Printer correction" section. */
+export const calibrationSection = () => within(settingsPanel()).getByRole("region", {name: label("printTemplates.calibration.title")});
+/** X or Y of the correction (`printTemplates.calibration.x`, `.y`), in the current language. */
+export const calibrationField = (axis: "x" | "y") => within(calibrationSection()).getByRole("textbox", {name: label(`printTemplates.calibration.${axis}`)});
+/** The cut warning, or null (a warning, never an error). */
+export const cutWarning = () => screen.queryByTestId("template-cut-warning");
+
+/** The Test print button, beside Save. */
+export const testPrintButton = () => screen.getByRole("button", {name: label("printTemplates.testPrint.button")});
+
+/** The "Paper image" section, or null with no paper adapter (TPL-644), and before `paperSectionShown`. */
+export const paperSection = () => screen.queryByRole("region", {name: label("printTemplates.paper.title")});
+/** Waits for the section and its rules: the picker works from then on. */
+export const paperSectionShown = async () => {
+    const section = await screen.findByRole("region", {name: label("printTemplates.paper.title")});
+    await screen.findByTestId("template-paper-rules");
+    return section;
+};
+/** The line naming the rules. */
+export const paperRulesLine = () => screen.queryByTestId("template-paper-rules");
+/** The picture in the sheet, or null: hidden, loading, failed or none. */
+export const paperImage = () => screen.queryByTestId("template-paper-image");
+/** The sheet's grid, now a child above the picture (design § 3). */
+export const sheetGrid = () => screen.getByTestId("template-sheet-grid");
+/** The show or hide switch, or null with no picture. */
+export const paperShowSwitch = () => screen.queryByRole("switch", {name: label("printTemplates.paper.show")});
+/** The opacity slider, or null with no picture: its value in percent, `aria-valuetext` `50%`. */
+export const paperOpacitySlider = () => screen.queryByRole("slider", {name: label("printTemplates.paper.opacity")});
+/** The load failure's alert, or null; its Retry is `within(paperLoadFailed()!).getByRole("button", {name: label("common.retry")})`. */
+export const paperLoadFailed = () => screen.queryByTestId("template-paper-load-failed");
+/** Part 2's Upload, in the section. */
+export const paperUploadButton = () => within(paperSection()!).getByRole("button", {name: label("attachments.upload")});
+/** Part 2's stored row of this file, or null. */
+export const paperRow = (name: string) => {
+    const rows = within(paperSection()!).queryByRole("list", {name: label("attachments.storedLabel")});
+    return rows ? within(rows).queryAllByRole("listitem").find(row => row.textContent?.includes(name)) ?? null : null;
+};
+/** A button of that row: `previewFile`, `downloadFile`, `deleteFile`, or null (`replaceFile` is never there: TPL-725). */
+export const paperRowButton = (name: string, action: "previewFile" | "downloadFile" | "deleteFile" | "replaceFile") => {
+    const row = paperRow(name);
+    return row ? within(row).queryByRole("button", {name: i18n.t(`attachments.${action}`, {name})}) : null;
+};
+/** A file picked in part 2's input, past the browser's own `accept` filter, as a drop would be. */
+export const pickPaper = (file: File) => fireEvent.change(screen.getByTestId("attachment-input"), {target: {files: [file]}});
+
+/** The picture's API path as `recordRequests` reports it. */
+export const paperPath = (clinicId: number) => `${templatePath(clinicId)}/paper-image`;
+/** The picture's API URL for a handler of the test's own. */
+export const paperUrl = (clinicId: number) => api(paperPath(clinicId));
+
+/** `TemplateDesigner` alone, with a template and no paper adapter, as a later clinic-side screen could mount it (TPL-644). */
+export const renderDesignerWithoutPaper = async (layout: PrintLayout, options: Omit<RenderWithProvidersOptions, "dataRouter"> = {}) => {
+    const clinic = aClinicDetails();
+    server.use(...adminClinicsHandlers([clinic]), ...printTemplateHandlers(clinic.id, {template: aPrintTemplate({layout})}));
+    const rendered = await renderWithProviders(<TemplateDesigner adapter={adminPrintTemplateApi(clinic.id)}/>, {dataRouter: true, ...options});
+    await designerShown();
+    return {...rendered, clinic};
 };
