@@ -21,6 +21,9 @@ type Props = {
 /** "None" in a select (MUI needs a string value). */
 const NONE = "";
 
+/** The chosen name wraps in the closed select, as in its list (`&&`: above MUI's own nowrap and ellipsis). */
+const wrappingValue = {"&& .MuiSelect-select": {whiteSpace: "normal", overflowWrap: "anywhere"}};
+
 /**
  * The drug dialog's category (required) and subcategory (optional, only the chosen category's, first option
  * «بدون تصنيف فرعي») selects, names in the UI language, sorted with the pinned rows last (design M1.7 D5, D9).
@@ -51,6 +54,7 @@ export const CategoryFields = (props: Props) => {
                 required
                 disabled={disabled}
                 fullWidth
+                sx={wrappingValue}
                 slotProps={{select: {MenuProps: {slotProps: {paper: {sx: {maxHeight: 360}}}}}}}
             >
                 {sorted.map(c => (
@@ -68,6 +72,7 @@ export const CategoryFields = (props: Props) => {
                 helperText={subCategoryError || undefined}
                 disabled={disabled || !category}
                 fullWidth
+                sx={wrappingValue}
                 slotProps={{
                     // The empty value shows its option's text, not a blank field
                     inputLabel: {shrink: true},

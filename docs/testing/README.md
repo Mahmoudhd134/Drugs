@@ -103,7 +103,7 @@ All at once; none stops the others (so one run reports every failure).
   `mirror.gcr.io` (`CLINICHUB_POSTGRES_IMAGE`; locally `postgres:17`), Chromium without Playwright's extra fonts (the
   app's fonts come from Google Fonts), 3 Playwright workers per job.
 - `step` on CI runs **every** integration test (they take ≈ 30 s there), not the areas `test.ps1` picks from the diff.
-- The free plan runs 20 jobs at once: a `full` run takes 11, so runs of several sessions at the same moment queue a
+- The free plan runs 20 jobs at once: a `full` run takes 12, so runs of several sessions at the same moment queue a
   few minutes; `step` (4 jobs) is the one to use while working.
 - A push to the branch of an open pull request (drafts too) also starts that pull request's run (`full`; into `main`:
   `release`): on such a branch, `./ci.ps1` with the same tier would run it twice, so wait for the pull request's run instead (`gh pr checks --watch`);
