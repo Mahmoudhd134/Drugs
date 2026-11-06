@@ -661,6 +661,21 @@ test.describe("Drugs: add, open, edit @area:catalog", () => {
   bugs still let through, so it fails on its own bug only and passes once that one is fixed ([Known bugs](#known-bugs)).
 - `npm run e2e` first type-checks and lints the specs (`tsc -p e2e`, ESLint): fix those errors first.
 
+### The attachments harness page
+
+No real page mounts the attachment components yet, so their e2e cases (`e2e/attachments/`) run on a page that only wires them: `e2e/harness/attachments/`, built by `npm run build:harness` into `dist-harness/attachments`. Only the run's copy of the web root holds it, so the run's API serves it at `/__harness/attachments/`, same origin, and it's never in `ClinicHub.Api/wwwroot` (ATT-255). For the walkthrough, it opens on the main Vite at `/e2e/harness/attachments/index.html`. Its URL parameters are in the [contract](../design/attachments.components.contract.md#3-the-harness-page).
+
+| Mode | Holds | Used for |
+|---|---|---|
+| `memory` (default) | An adapter in the page, with samples unless `seed=none`. A file named `fail-*` is refused, `slow-*` takes about 8 s | What the browser itself must prove: an image showing, cut text, axe, RTL, a phone |
+| `real` | The real `api` client on `/api/v1/test-files…`, answered by Playwright's `page.route` | What goes over the wire: multipart bytes, a refresh's replay, a blob and its type |
+
+- **Open it** with `openHarness(page, lang, {mode, seed})` (`e2e/support/attachments.ts`). It has no session: no `signIn`, no `data`. It returns the page's names (`ui`) and waits until files can be picked. The expected texts are `ui.a` (`texts-attachments.ts`), written out, never imported, and specs import nothing from the harness.
+- **Real mode's API** is `routeFilesApi(page, {files, expireFirstToken})`, called before `openHarness`. It answers the rules, the list, uploads, downloads and the refresh, and returns what the page sent. Any other `/api/v1` call answers 501, which fails the test and names the call. A 4xx the test expects still needs `allowApiErrors`.
+- **Pick a file by name, type and bytes**, `setInputFiles({name, mimeType, buffer})`, never by path: only then does `request.postDataBuffer()` hold its bytes. `readMultipart(send)` checks a body against its own header's boundary, because Chromium makes a new one on each send. Compare bytes as a `Buffer` (`expectSameBytes`).
+- **Drops** are `dropFiles` and `dropOutside` (`attachmentsDrop.ts`). A script's drop never navigates, so a drop outside is proved by the cancelled events, not by staying on the page.
+- **A PDF** needs real mode with a download served as `text/html`, because memory mode's blob is already a PDF, so a removed `asPdf` would pass there. Headless Chromium has no viewer: force `navigator.pdfViewerEnabled` in `addInitScript`, read the iframe's blob in the page, and ignore the download the frame fires. A PDF really opening in a viewer is ATT-258, in the [dress rehearsal](dress-rehearsal.md).
+
 ## Known bugs
 
 A test that fails because the app contradicts a **clear** doc is never weakened to pass. From the end of M1.6, a bug a

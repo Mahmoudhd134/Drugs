@@ -72,7 +72,7 @@ checklist. Only then is the system handed to the client.
 
 ## Checklist
 
-Every `manual` case and every P0 case of the [test catalog](test-catalog.md), grouped by journey (365 items: the 357 P0 cases, the 6 other `manual` ones (7 `manual` in all), and 2 real-phone
+Every `manual` case and every P0 case of the [test catalog](test-catalog.md), grouped by journey (372 items: the 359 P0 cases, the 11 other `manual` ones (13 `manual` in all), and 2 real-phone
 checks: UX-013, UX-038 / UX-039). The
 catalog holds each case's source; the level says how to check it here (`api`: an HTTP script; `unit`: check the visible
 result in the app, e.g. the exact sentence or the copied text).
@@ -703,3 +703,9 @@ CI runs on Linux with Kestrel: IIS's own limit answers before the app does, what
 
 - [ ] `ATT-098` (P2, manual) Given a body over IIS's 30,000,000-byte limit behind real IIS, then the documented 404.13 answers
 - [ ] `ATT-069` (P0, unit, its Windows half) Given `Attachments__Physical__RootPath` inside the site in another case (`C:\INETPUB\ClinicHub\files`), then the app won't start: Linux CI can't run Windows's case and separator rule
+
+### 12. Attachments in a real browser (1)
+
+Headless Chromium has no PDF viewer: CI proves the preview's iframe, its type and its bytes (ATT-248) and the fallback with no viewer (ATT-249, ATT-254), not a PDF on screen. No real page uses the components yet, so open the harness page on Vite (`/e2e/harness/attachments/index.html`) until one does.
+
+- [ ] `ATT-258` (P2, manual) Given a PDF actually opening in the browser's viewer on a real desktop and phone
