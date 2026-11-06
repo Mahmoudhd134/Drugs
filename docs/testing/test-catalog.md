@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 131 and part 2 added 69: the [summary](#summary) has the count now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 131 and part 2 added 70: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 82 | 96 | 22 | 200 | 66 | 82 | 50 | 11 | 2 |
-| **All** | **566** | **957** | **499** | **2022** | **350** | **788** | **550** | **452** | **16** |
+| [ATT](#att--attachments) | 82 | 97 | 22 | 201 | 66 | 82 | 51 | 11 | 2 |
+| **All** | **566** | **958** | **499** | **2023** | **350** | **788** | **551** | **452** | **16** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2909,6 +2909,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-264 | Given `canDelete` with no `adapter.delete`, or `canReplace` with no `adapter.replace`, then that control and its `renderItem` action aren't there; given `multiple={false}` with no `adapter.replace`, then `canReplace` alone shows no picker, and with `canUpload` Upload adds the file, which counts toward `maxFiles` | P1 | ui | Contract § 2 |
 | ATT-265 | Given a preview whose fetch fails, then a toast shows and the dialog closes | P1 | ui | Contract § 2 |
 | ATT-268 | Given Download all, then each file is requested in turn, the next only after the last answered | P1 | ui | A12 |
+| ATT-269 | Given `multiple={false}`, whatever is stored, then the list shows no Download all and each row's Download stays; given several files allowed, then it shows | P1 | ui | § 12 |
 
 ### Components: customizing and layout
 

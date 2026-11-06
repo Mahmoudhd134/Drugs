@@ -1,6 +1,6 @@
 # Attachments part 2: compiled contract and work split
 
-Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md) (§§ 8, 9, 12), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 2 = design § 12, cases ATT-200 to ATT-268 (69 cases).
+Written at the end of T0, before T1. The approved rules stay in [the design](attachments.md) (§§ 8, 9, 12), [the business file](../features/attachments/business.md) and [the test cases](attachments.test-cases.md); this file only adds what they leave to implementation. Part 2 = design § 12, cases ATT-200 to ATT-269 (70 cases).
 
 ## 1. What the contract commit holds
 
@@ -44,6 +44,7 @@ There is no barrel file: a feature imports each piece by its path, as for roles 
 - `canReplace` alone shows the trigger and Upload with `multiple={false}` and a stored file.
 - **A control shows only with the permission and the adapter's call:** `canDelete` needs `adapter.delete`, `canReplace` needs `adapter.replace`, for the row's button and for `renderItem`'s action alike. In single-file mode with no replace call, Upload isn't a replace: `canReplace` alone shows no picker, and with `canUpload` Upload adds the file, which counts toward `maxFiles` (ATT-264).
 - A screen showing another record mounts a new component, by `key`: a selection belongs to one record.
+- **Download all shows only when `multiple` is true:** with `multiple={false}`, `AttachmentList` doesn't show its button, whatever is stored. The hook's `downloadAll` stays (ATT-269).
 - Upload skips failed files: they go only by Retry.
 - No success toast for an upload. The file moves to the list, and `announcement` goes to an `aria-live` region.
 - A failed preview fetch toasts and closes the dialog.
@@ -101,7 +102,7 @@ Texts are `attachments.*` unless they name another block. NAME is the file's nam
 | Picker | Upload button | `upload` |
 | Picker | The `aria-live="polite"` region | `uploadedFile`, `failedFile` |
 | List | The stored files, a list | `storedLabel` |
-| List | Download all button | `downloadAll` |
+| List | Download all button, only when `multiple` is true | `downloadAll` |
 | List | The hidden `input[type=file]` of a row's Replace | `data-testid="attachment-replace-input"` |
 | List | Loading | Progress bar named `common.loading` |
 | List | Failed | `listFailed`, with a `common.retry` button |
@@ -206,11 +207,11 @@ Three tracks, each on its own worktree and branch `attachments-components/<track
 
 | Track | Level | Cases | Count |
 |---|---|---|---|
-| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 261, 262, 264, 265, 268 | 49 |
+| ui-tests | ui | ATT-200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 215, 216, 217, 218, 220, 221, 222, 225, 227, 228, 229, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 249, 250, 251, 257, 259, 260, 261, 262, 264, 265, 268, 269 | 50 |
 | ui-tests | unit | ATT-214, 230, 247, 252, 256, 266, 267 | 7 |
 | ui-tests | unit+ui | ATT-224 | 1 |
 | e2e-tests | e2e | ATT-210, 211, 219, 223, 226, 246, 248, 253, 254, 255, 263 | 11 |
 | e2e-tests | manual | ATT-258: a catalog row and a dress rehearsal line, no test | 1 |
-| | | **Total** | **69** |
+| | | **Total** | **70** |
 
-T4 added ATT-260 to ATT-268: the user's decisions on the list's state (260), focus (261, 262), the drop hint (263) and the adapter's calls (264), and four rules that had tests and no case (265 to 268). An e2e case's phone half is proved in `e2e/attachments/phone.spec.ts`.
+T4 added ATT-260 to ATT-269: the user's decisions on the list's state (260), focus (261, 262), the drop hint (263), the adapter's calls (264) and Download all with one file (269), and four rules that had tests and no case (265 to 268). An e2e case's phone half is proved in `e2e/attachments/phone.spec.ts`.

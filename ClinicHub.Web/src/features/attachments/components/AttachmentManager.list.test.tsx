@@ -359,6 +359,27 @@ describe("what the feature allows @area:attachments", () => {
 
     const scan = () => [aStoredFile({originalFileName: "scan.png"})];
 
+    test.each([
+        ["one stored file", () => scan(), ["scan.png"]],
+        ["two stored files", () => [...scan(), aStoredFile({originalFileName: "old.pdf"})], ["scan.png", "old.pdf"]],
+    ])("multiple={false} with %s: no Download all, and each row's Download stays @ATT-269", async (_what, stored, names) => {
+        await renderManager({multiple: false, adapter: fakeAdapter({files: stored()})});
+        await expectStored(...names);
+
+        expect(screen.queryByRole("button", {name: "Download all"})).not.toBeInTheDocument();
+        for (const name of names) expect(screen.getByRole("button", {name: named.download(name)})).toBeInTheDocument();
+    });
+
+    test.each([
+        ["left out", {}],
+        ["true", {multiple: true}],
+    ])("multiple %s: Download all shows, with one stored file too @ATT-269", async (_what, props) => {
+        await renderManager({...props, adapter: fakeAdapter({files: scan()})});
+        await expectStored("scan.png");
+
+        expect(screen.getByRole("button", {name: "Download all"})).toBeInTheDocument();
+    });
+
     test("canDelete with no delete call: no Delete button @ATT-264", async () => {
         await renderManager({canDelete: true, adapter: fakeAdapter({files: scan(), delete: undefined})});
         await expectStored("scan.png");

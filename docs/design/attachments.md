@@ -428,7 +428,7 @@ raw HTML string built with one could run a script with the staff member's login.
   selected file previews from the `File` itself, with no request, lazily. Blobs are never kept in the query cache.
 - Every object URL is revoked when closed or unmounted (a download's, shortly after the click).
 
-**Download all** saves each file in turn, with no ZIP on the server; a browser may ask once to allow several downloads.
+**Download all** saves each file in turn, with no ZIP on the server, and shows only when `multiple` is true; a browser may ask once to allow several downloads.
 
 **Replace:** `canReplace` shows a Replace action on a row, which picks one file and sends it at once, with progress and Cancel on the row. With `multiple={false}`, `canReplace` and a stored file, a new pick,
 once Upload is pressed, replaces it through `adapter.replace`; a refusal keeps the old one.
