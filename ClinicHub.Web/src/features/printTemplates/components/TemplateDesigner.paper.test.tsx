@@ -462,7 +462,7 @@ describe("a picture that won't load @area:admin", () => {
         await waitFor(() => expect(paperLoadFailed()).toHaveTextContent("Couldn't show the paper image."));
         expect(paperImage()).toBeNull();
         expect(urls.revoked).toContain(firstUrl);
-        expect(toastTexts()).toEqual([]);
+        await expectToasts("Couldn't show the paper image.");
         await user.click(sheetItem("الاسم"));
         expect(selectedIds()).toEqual(["m"]);
 
@@ -531,6 +531,41 @@ describe("a picture that won't load @area:admin", () => {
             read.state.broken = false;
             await user.click(retryButton());
 
+            await pictureShown();
+            expect(paperLoadFailed()).toBeNull();
+            expect(toastTexts()).toEqual([]);
+        });
+
+        test.each(["en", "ar"] as const)("in %s, an `error` event on the picture toasts the message once; the inline message and Retry stay @TPL-727", async lang => {
+            const {user} = await openWithPicture([aPaperImage()], {lang});
+
+            fireEvent.error(paperImage()!);
+
+            await expectToasts(FAILED[lang]);
+            expect(paperLoadFailed()).toHaveTextContent(FAILED[lang]);
+            expect(retryButton()).toBeInTheDocument();
+            // Working on the sheet is no new failure
+            await user.click(sheetItem("الاسم"));
+            expect(selectedIds()).toEqual(["m"]);
+            expect(toastTexts()).toEqual([FAILED[lang]]);
+        });
+
+        test("a Retry whose picture gives an `error` event again toasts again, once; a Retry whose picture loads doesn't @TPL-727", async () => {
+            const {user} = await openWithPicture();
+            fireEvent.error(paperImage()!);
+            await expectToasts(FAILED.en);
+
+            await clearToasts();
+            await user.click(retryButton());
+            await pictureShown();
+            expect(toastTexts(), "the read succeeded: no toast yet").toEqual([]);
+            fireEvent.error(paperImage()!);
+            await expectToasts(FAILED.en);
+            await waitFor(() => expect(paperLoadFailed()).toHaveTextContent(FAILED.en));
+            expect(retryButton()).toBeInTheDocument();
+
+            await clearToasts();
+            await user.click(retryButton());
             await pictureShown();
             expect(paperLoadFailed()).toBeNull();
             expect(toastTexts()).toEqual([]);
