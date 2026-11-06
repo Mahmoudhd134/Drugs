@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 131 and part 2 added 81: the [summary](#summary) has the count now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 131 and part 2 added 83: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -78,8 +78,8 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
 | [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
-| [ATT](#att--attachments) | 83 | 102 | 27 | 212 | 67 | 82 | 60 | 14 | 2 |
-| **All** | **567** | **963** | **504** | **2034** | **351** | **788** | **560** | **455** | **16** |
+| [ATT](#att--attachments) | 83 | 104 | 27 | 214 | 67 | 82 | 60 | 16 | 2 |
+| **All** | **567** | **965** | **504** | **2036** | **351** | **788** | **560** | **457** | **16** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -2872,7 +2872,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-260 | Given `multiple={false}` + `canReplace`, or `maxFiles`, and a list loading, reloading or failed, when a file is picked, then it's selected, Upload is disabled and nothing is sent; when the list answers, then Upload goes by the real list: `replace` on the newest stored file; when it fills `maxFiles`, then Upload stays off, the `tooMany` message shows for the excess and nothing is sent, until removing the excess turns Upload back on. Given several files with no `maxFiles`, `multiple={false}` with neither `canReplace` nor `maxFiles`, or no `adapter.replace`, then the list's state doesn't stop Upload | P0 | ui | Contract § 2 |
 | ATT-262 | Given Remove on a selected row, then focus moves to the next row's first button; with no next row, to the Choose files button. Given Cancel, whose row stays, then focus moves to that row's first button | P1 | ui | Contract § 2 |
 | ATT-271 | Given the second click of a double click (`detail` 2) on Remove or Cancel, then it does nothing, and the row under the pointer stays; a key press (`detail` 0) acts | P1 | ui | Contract § 2 |
-| ATT-274 | Given an action that leaves focus on the body or on a button it disabled, then in the picker it moves to the Choose files button (Upload, Retry, a focused row finishing), and in the list to the list (a stale row's Preview or Download); focus the user moved elsewhere stays | P1 | ui | Contract § 2 |
+| ATT-274 | Given an action that leaves focus on the body or on a button it disabled, then in the picker it moves to the Choose files button (Upload, Retry, a focused row finishing), and in the list to the list (a stale row's Preview or Download); a preview closed after the row that opened it has finished moves it to the Choose files button; focus the user moved elsewhere stays | P1 | ui | Contract § 2 |
 | ATT-275 | Given a refusal showing, when Upload or Remove is pressed, then it clears, as on the next pick | P1 | ui | Contract § 2 |
 | ATT-277 | Given a selected file with no thumbnail, then a file icon holds the thumbnail's place | P2 | ui | Contract § 2 |
 | ATT-266 | Given a file that breaks several rules, then the refusal says the first by the server's order: empty, size, extension | P2 | unit | Contract § 2 |
@@ -2918,7 +2918,7 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-272 | Given Download all running, then its button is disabled; given a file already downloading, when its Download is clicked again or Download all reaches it, then it isn't started again and is saved once | P1 | ui | Contract § 2 |
 | ATT-273 | Given a name with bidi control characters (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C), then every place it's shown, messages and accessible names included, shows it without them; the download name and what's sent stay the original | P0 | unit+ui | Contract § 2 |
 | ATT-276 | Given a preview with no viewer, then the name starts at the UI's start with the note, in Arabic and English, whatever the name's own direction | P2 | e2e | Contract § 2 |
-| ATT-279 | Given several rows failing with the same message, then it toasts once; a different message toasts on its own | P2 | ui | Contract § 2 |
+| ATT-279 | Given several rows failing with the same message, or a row Replace's refusal repeated, then it toasts once; a different message toasts on its own | P2 | ui | Contract § 2 |
 | ATT-280 | Given the second click of the double click that opened a preview landing on the backdrop, then the dialog stays; a single click there closes it | P2 | ui | Contract § 2 |
 
 ### Components: customizing and layout
@@ -2934,3 +2934,5 @@ Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 
 | ATT-256 | Every `attachments.*` key exists in `en.ts` and `ar.ts` | P1 | unit | § 12 |
 | ATT-263 | Given a touch device (no precise pointer, `pointer: coarse`), then the drop hint is hidden and the Choose files button stays; given a desktop, then the hint shows | P1 | e2e | Contract § 2 |
 | ATT-278 | Given a phone, then a row's icon buttons stay 36 px with a small gap between them, in the selection and the list | P2 | e2e | Contract § 2 |
+| ATT-281 | Given a double click on the preview's Close, when the second click lands on the page beneath, then no other file previews or downloads | P1 | e2e | Contract § 2 |
+| ATT-282 | Given a long list scrolled down, when Retry or Upload is pressed by pointer and focus moves to the Choose files button, then the page keeps its scroll position | P1 | e2e | Contract § 2 |

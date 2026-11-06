@@ -85,10 +85,23 @@ export const expectHealthyPage = async (page: Page, lang: Lang, testInfo?: TestI
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         {message: "no horizontal scroll"}).toBeLessThanOrEqual(0);
     // Settled: no transition or finite animation running (a tooltip or dialog fading in or out reads pale to axe's
-    // colour-contrast rule). Spinners' endless animations don't count; a page still moving after 5 s is scanned as is.
-    await page.waitForFunction(() => document.getAnimations()
-        .filter(a => a.effect?.getComputedTiming().iterations !== Infinity)
-        .every(a => a.playState !== "running"), null, {timeout: 5_000}).catch(() => { /* axe decides */ });
+    // colour-contrast rule). It must stay so for a moment: a tooltip opened by a focus moved in code starts fading only
+    // after MUI's 100 ms enter delay, which a check of one instant misses, and axe then read a frame of its fade. A
+    // settled tooltip is still scanned, so nothing is weakened. Spinners' endless animations don't count; a page still
+    // moving after 5 s is scanned as is.
+    await page.evaluate(({quietMs, limitMs}) => new Promise<void>(resolve => {
+        const start = performance.now();
+        let moved = start;
+        const check = () => {
+            const now = performance.now();
+            const moving = document.getAnimations()
+                .some(a => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity);
+            if (moving) moved = now;
+            if (now - moved >= quietMs || now - start >= limitMs) resolve();
+            else setTimeout(check, 20);
+        };
+        check();
+    }), {quietMs: 150, limitMs: 5_000}).catch(() => { /* the page went away: axe decides */ });
 
     // Toasts are left out: they fade in and out (a scan mid-animation reads a pale colour), and their colours are
     // react-hot-toast's own (dark on white). A flagged element that went away during the scan (the loading bar of a

@@ -1,9 +1,10 @@
 import {act, fireEvent, screen, waitFor, within} from "@testing-library/react";
+import type {UserEvent} from "@testing-library/user-event";
 import {describe, expect, test} from "vitest";
 import {isolate, toastTexts} from "../../../test";
 import {
     aFile, apiRefusal, aStoredFile, canRemove, deferred, deleteConfirmed, expectAnnounced, expectSelected, expectStored, fakeAdapter, type FakeAdapter,
-    findRefusal, named, pastPendingWork, pickFiles, press, REASON, refuseUploadOf, renderLeavableManager, renderManager, selectedRow, storedRow,
+    findRefusal, named, openPreview, pastPendingWork, pickFiles, press, REASON, refuseUploadOf, renderLeavableManager, renderManager, selectedRow, storedRow,
     storedRows,
 } from "../../../test/pages/attachments.tsx";
 import type {Attachment} from "../types.ts";
@@ -1178,6 +1179,27 @@ describe("focus an action leaves on the body @area:attachments", () => {
         await held.finish();
 
         await expectStored("a.png");
+        await waitFor(() => expect(pick()).toHaveFocus());
+    });
+
+    test.each([
+        ["Esc", async (user: UserEvent) => user.keyboard("{Escape}")],
+        ["its Close", async (user: UserEvent) => user.click(screen.getByRole("button", {name: "Close"}))],
+    ])("a preview closed by %s after its row has finished: the opener is gone, so to the Choose files button @ATT-274", async (_how, close) => {
+        const adapter = fakeAdapter();
+        const gate = adapter.holdUploads();
+        const {user} = await renderManager({canUpload: true, adapter});
+        await pickFiles(aFile("a.png", 1));
+        await expectSelected("a.png");
+        await user.click(upload());
+        const held = await gate.held("a.png");
+        await openPreview(user, "a.png");
+        await held.finish();
+        await expectSelected();
+
+        await close(user);
+
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
         await waitFor(() => expect(pick()).toHaveFocus());
     });
 
