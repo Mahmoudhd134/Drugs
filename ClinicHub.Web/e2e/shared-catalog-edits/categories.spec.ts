@@ -33,7 +33,10 @@ test.describe("The super admin's categories @area:admin", () => {
             await expect(deleteUsed).toBeFocused();
             await deleteUsed.hover();
             await expect(page.getByRole("tooltip")).toHaveText(st.categoryInUse(3));
+            // Its tooltip also stays while the button has the focus
+            await deleteUsed.blur();
             await page.mouse.move(1, 1);
+            await expect(page.getByRole("tooltip")).toHaveCount(0);
             const deleteSub = categoryRow(page, usedSub.nameAr, "ar").getByRole("button", {name: st.deleteRow(usedSub.nameAr)});
             await expect(deleteSub).toHaveAttribute("aria-disabled", "true");
             await deleteSub.hover();
@@ -87,7 +90,9 @@ test.describe("A category deleted while a clinic's drug dialog is open @area:cat
             const reads = recordRequests(page, "GET", /^\/api\/v1\/drug-categories$/);
             await form.getByRole("button", {name: t.save}).click();
             // On the category field itself: its form control holds the message and is red, the category field is described by it
-            const categoryControl = form.locator(".MuiFormControl-root").filter({has: categoryField});
+            // (`has` looks inside each form control, so its locator starts at the page, not at the dialog around them)
+            const categoryControl = form.locator(".MuiFormControl-root")
+                .filter({has: page.getByRole("combobox", {name: /^التصنيف(?! الفرعي)/})});
             await expect(categoryControl.getByText(st.categoryNotFound, {exact: true})).toBeVisible();
             await expect(categoryControl.locator(".MuiInputBase-root")).toHaveClass(/Mui-error/);
             await expect(categoryField).toHaveAccessibleDescription(st.categoryNotFound);
