@@ -63,13 +63,14 @@ public class ErrorCodeTextsTests
 
     [Fact]
     [Trait("Case", "ERR-030")]
-    public void The_print_template_class_declares_the_ten_template_codes()
+    public void The_print_template_class_declares_the_eleven_template_codes()
     {
-        // Contract § 1.4: names reuse the common codes, so these ten are all a template adds
+        // Contract § 1.4 and step 4's § 2.1: names reuse the common codes, so these eleven are all a template adds
         Declared.Where(d => d.Class == "PrescriptionTemplateErrors").Select(d => d.Code).ShouldBe(
         [
             "templateLayoutInvalid", "templateTextCount", "templatePageInvalid", "templateItemOutsidePage", "templateItemSizeInvalid",
             "templateFontSizeInvalid", "templateItemNameTaken", "templateStaticTextRequired", "templateStaticTextTooLong", "templateTooManyItems",
+            "templateCalibrationInvalid",
         ], ignoreOrder: true);
     }
 }

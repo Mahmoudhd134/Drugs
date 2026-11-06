@@ -23,8 +23,8 @@ public class AttachmentKestrelTests(AttachmentsAppFixture app) : AttachmentTest(
         var disk = new AttachmentDisk(host.Variant.AttachmentRoot);
         var head = MultipartBody.Utf8(MultipartBody.FilePart("too-big.png"));
 
-        // M's limit is 2 MB: well past it plus the filter's 64 KB for the framing, with no Content-Length to refuse it by
-        var response = await host.SendChunkedAsync(Url(ClinicRoute, M, NewRef()), owner.AccessToken, MultipartBody.ContentType, head, 3L * MegaByte);
+        // M's limit is 10 MB: well past it plus the filter's 64 KB for the framing, with no Content-Length to refuse it by
+        var response = await host.SendChunkedAsync(Url(ClinicRoute, M, NewRef()), owner.AccessToken, MultipartBody.ContentType, head, 12L * MegaByte);
 
         await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest, "attachmentTooLarge");
         (await RowsOfClinicAsync(clinic.Id)).ShouldBeEmpty();

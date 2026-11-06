@@ -77,8 +77,9 @@ public class TemplateStorageTests(AppFixture app) : IntegrationTest(app)
 
         body.Select(p => p.Key).ShouldBe(["layout", "updatedAt"], ignoreOrder: true);
         var layout = body["layout"].AsObject();
-        layout.Select(p => p.Key).ShouldBe(["schemaVersion", "page", "items"], ignoreOrder: true);
+        layout.Select(p => p.Key).ShouldBe(["schemaVersion", "page", "items", "calibration"], ignoreOrder: true);
         layout["page"].AsObject().Select(p => p.Key).ShouldBe(["size", "widthMm", "heightMm"], ignoreOrder: true);
+        layout["calibration"].AsObject().Select(p => p.Key).ShouldBe(["xMm", "yMm"], ignoreOrder: true);
         var item = layout["items"].AsArray().ShouldHaveSingleItem().AsObject();
         item.Select(p => p.Key).ShouldBe(["id", "kind", "xMm", "yMm", "wMm", "hMm", "fontSizePt"], ignoreOrder: true);
         ((string)body["updatedAt"]).ShouldEndWith("Z");
@@ -372,8 +373,9 @@ public class TemplateStorageTests(AppFixture app) : IntegrationTest(app)
         var answered = (await put.ReadNodeAsync())["layout"].AsObject();
         foreach (var layout in new[] { stored, read, answered })
         {
-            layout.Select(p => p.Key).ShouldBe(["schemaVersion", "page", "items"], ignoreOrder: true);
+            layout.Select(p => p.Key).ShouldBe(["schemaVersion", "page", "items", "calibration"], ignoreOrder: true);
             layout["page"].AsObject().Select(p => p.Key).ShouldBe(["size", "widthMm", "heightMm"], ignoreOrder: true);
+            layout["calibration"].AsObject().Select(p => p.Key).ShouldBe(["xMm", "yMm"], ignoreOrder: true);
             var items = layout["items"].AsArray();
             items[0].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", .. box], ignoreOrder: true);
             items[1].AsObject().Select(p => p.Key).ShouldBe(["id", "kind", "text", .. box], ignoreOrder: true);

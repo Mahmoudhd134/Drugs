@@ -2,6 +2,7 @@ import {describe, expect, test} from "vitest";
 import {
     addItem,
     applyPageSize,
+    calibrationCutsItems,
     canAddItem,
     formatMm,
     itemIndexOfField,
@@ -12,6 +13,7 @@ import {
     removeItem,
     roundTenth,
     sameLayout,
+    sharedNameErrors,
     toTenths,
     updateItem,
     validateLayout,
@@ -153,7 +155,6 @@ describe("parseMmInput: what a number field holds @area:admin", () => {
         ["-"],
         ["--1"],
         ["1-"],
-        ["+1"],
         ["-."],
     ])("%j is not a number @TPL-224 @TPL-225", input => {
         expect(parseMmInput(input)).toBeNull();
@@ -710,6 +711,7 @@ describe("newLayout @area:admin", () => {
             schemaVersion: 1,
             page: {size: "A5", widthMm: 148, heightMm: 210},
             items: [{id: "i1", kind: "prescriptionText", xMm: 14, yMm: 80, wMm: 120, hMm: 90, fontSizePt: 11}],
+            calibration: {xMm: 0, yMm: 0},
         });
     });
 
@@ -1030,5 +1032,357 @@ describe("sameLayout @area:admin", () => {
     ])("another %s isn't the same @TPL-233", (_name, other) => {
         expect(sameLayout(layout(), other)).toBe(false);
         expect(sameLayout(other, layout())).toBe(false);
+    });
+});
+
+/*
+ * Step 4: the printer's correction and the leftovers (design §§ 3, 4, 6; contract § 3.2). The rules' order: all of rule 9 (X null, then Y null), then all of
+ * rule 10 (X out of range, then Y), after every other rule, whatever the item count.
+ */
+
+const X_RANGE = {field: "calibration.xMm", code: "templateCalibrationInvalid"};
+const Y_RANGE = {field: "calibration.yMm", code: "templateCalibrationInvalid"};
+const X_NULL = {field: "calibration.xMm", code: "invalidRequest"};
+const Y_NULL = {field: "calibration.yMm", code: "invalidRequest"};
+const TOO_MANY = {field: "items", code: "templateTooManyItems"};
+
+/** A valid layout with this correction. */
+const calibrated = (xMm: number | null, yMm: number | null, ...items: TemplateItem[]) =>
+    raw({...layoutOf(...(items.length > 0 ? items : [text()])), calibration: {xMm, yMm}});
+/** `count` items with this correction. */
+const manyCalibrated = (count: number, xMm: number | null, yMm: number | null) => calibrated(xMm, yMm, ...manyItems(count));
+
+describe("parseMmInput: a leading sign @area:admin", () => {
+    test.each<[string, number]>([
+        ["+2", 2],
+        ["−2", -2],
+        ["-2", -2],
+        ["+1", 1],
+        ["+12.5", 12.5],
+        ["−12.5", -12.5],
+        ["+12,5", 12.5],
+        ["−12,5", -12.5],
+        ["+١٢٫٥", 12.5],
+        ["−١٢٫٥", -12.5],
+        ["+۱۲", 12],
+        ["+.5", 0.5],
+        ["−.5", -0.5],
+        ["  +2  ", 2],
+        ["  −2  ", -2],
+        ["‏−2‎", -2],
+        ["‎+2؜", 2],
+        ["−20.05", -20.1],
+        ["+20.04", 20],
+    ])("%j is read, its sign kept @TPL-700 @TPL-224 @TPL-225", (input, value) => {
+        expect(parseMmInput(input)).toBe(value);
+    });
+
+    test.each([
+        ["+"],
+        ["−"],
+        ["  +  "],
+        ["+-2"],
+        ["-+2"],
+        ["−-2"],
+        ["-−2"],
+        ["+−2"],
+        ["−+2"],
+        ["−−2"],
+        ["++2"],
+        ["--2"],
+        ["- 2"],
+        ["+ 2"],
+        ["− 2"],
+        ["2+"],
+        ["2−"],
+        ["2-"],
+        ["1+2"],
+        ["1−2"],
+        ["+abc"],
+        ["−abc"],
+        ["+."],
+        ["−,"],
+    ])("%j is not a number @TPL-700", input => {
+        expect(parseMmInput(input)).toBeNull();
+    });
+});
+
+describe("normalizeLayout: the correction @area:admin", () => {
+    test.each<[string, unknown]>([
+        ["missing", undefined],
+        ["null", null],
+    ])("a %s calibration is 0, 0 @TPL-605", (_name, calibration) => {
+        const {calibration: _dropped, ...rest} = layoutOf(text());
+        void _dropped;
+        const layout = raw(calibration === undefined ? rest : {...rest, calibration});
+        expect(normalizeLayout(layout).calibration).toEqual({xMm: 0, yMm: 0});
+    });
+
+    test("2.345 is 2.3; -0.04 is exactly 0, never -0 @TPL-608 @TPL-721", () => {
+        const {xMm, yMm} = normalizeLayout(calibrated(2.345, -0.04)).calibration;
+        expect(xMm).toBe(2.3);
+        expect(yMm).toBe(0);
+        const swapped = normalizeLayout(calibrated(-0.04, 2.345)).calibration;
+        expect(swapped.xMm).toBe(0);
+        expect(swapped.yMm).toBe(2.3);
+    });
+
+    test("-0 itself is exactly 0 @TPL-721", () => {
+        const {xMm, yMm} = normalizeLayout(calibrated(-0, -0)).calibration;
+        expect(xMm).toBe(0);
+        expect(yMm).toBe(0);
+    });
+
+    test.each([
+        [2.35, 2.4],
+        [-2.35, -2.4],
+        [20.04, 20],
+        [-20.04, -20],
+        [20.05, 20.1],
+        [-20.05, -20.1],
+        [-1.5, -1.5],
+        [0, 0],
+    ])("%d rounds to %d on both axes @TPL-608", (value, rounded) => {
+        expect(normalizeLayout(calibrated(value, 0)).calibration.xMm).toBe(rounded);
+        expect(normalizeLayout(calibrated(0, value)).calibration.yMm).toBe(rounded);
+    });
+
+    test("a null number stays null, for the rules, and the other is still rounded @TPL-609", () => {
+        expect(normalizeLayout(calibrated(null, 5.04)).calibration).toEqual({xMm: null, yMm: 5});
+        expect(normalizeLayout(calibrated(5.05, null)).calibration).toEqual({xMm: 5.1, yMm: null});
+    });
+
+    test("the rest of the layout is normalized as ever @TPL-209", () => {
+        const normalized = normalizeLayout(calibrated(2, -1.5, text({xMm: 14.04})));
+        expect(normalized.schemaVersion).toBe(1);
+        expect(normalized.page).toEqual(A5);
+        expect(normalized.items).toEqual([text({xMm: 14})]);
+    });
+});
+
+describe("validateLayout: the correction @area:admin", () => {
+    test.each([[-20], [20], [-20.04], [20.04], [0], [19.9], [-19.9], [2], [-1.5]])("%d is within the limits on both axes @TPL-607 @TPL-721", value => {
+        expect(validateLayout(calibrated(value, 0))).toEqual([]);
+        expect(validateLayout(calibrated(0, value))).toEqual([]);
+    });
+
+    test.each([[20.05], [-20.05], [20.1], [-20.1], [21], [-21], [1000], [-1000]])("%d answers templateCalibrationInvalid naming its field @TPL-607 @TPL-721", value => {
+        expect(validateLayout(calibrated(value, 0))).toEqual([X_RANGE]);
+        expect(validateLayout(calibrated(0, value))).toEqual([Y_RANGE]);
+    });
+
+    test("a missing or null calibration passes: it's 0, 0 @TPL-606", () => {
+        expect(validateLayout(raw({...layoutOf(text()), calibration: null}))).toEqual([]);
+        const {calibration: _dropped, ...rest} = layoutOf(text());
+        void _dropped;
+        expect(validateLayout(raw(rest))).toEqual([]);
+    });
+
+    test("both out of range: X, then Y @TPL-610", () => {
+        expect(validateLayout(calibrated(21, -21))).toEqual([X_RANGE, Y_RANGE]);
+    });
+
+    test("a null number: invalidRequest naming it, and no range error @TPL-610", () => {
+        expect(validateLayout(calibrated(null, 0))).toEqual([X_NULL]);
+        expect(validateLayout(calibrated(0, null))).toEqual([Y_NULL]);
+        expect(validateLayout(calibrated(null, null))).toEqual([X_NULL, Y_NULL]);
+    });
+
+    test("every null comes before every range @TPL-610", () => {
+        expect(validateLayout(calibrated(21, null))).toEqual([Y_NULL, X_RANGE]);
+        expect(validateLayout(calibrated(null, 21))).toEqual([X_NULL, Y_RANGE]);
+    });
+
+    test("after every item's error @TPL-610", () => {
+        expect(validateLayout(calibrated(21, null, text(), manual({wMm: 1})))).toEqual([
+            {field: "items[1].wMm", code: "templateItemSizeInvalid"},
+            Y_NULL,
+            X_RANGE,
+        ]);
+    });
+
+    test("after the schema version's and the page's, with no page too @TPL-610", () => {
+        expect(validateLayout(raw({...calibrated(21, null), schemaVersion: 2, page: {size: "A5", widthMm: 150, heightMm: 210}}))).toEqual([
+            {field: "schemaVersion", code: "templateLayoutInvalid"},
+            {field: "page.widthMm", code: "templatePageInvalid"},
+            Y_NULL,
+            X_RANGE,
+        ]);
+        expect(validateLayout(raw({...calibrated(21, 0), page: null}))).toEqual([{field: "page", code: "invalidRequest"}, X_RANGE]);
+    });
+
+    test("over 50 items and a bad calibration: both, the count first @TPL-724", () => {
+        expect(validateLayout(manyCalibrated(51, 21, -21))).toEqual([TOO_MANY, X_RANGE, Y_RANGE]);
+        expect(validateLayout(manyCalibrated(51, null, null))).toEqual([TOO_MANY, X_NULL, Y_NULL]);
+        expect(validateLayout(manyCalibrated(51, 21, null))).toEqual([TOO_MANY, Y_NULL, X_RANGE]);
+    });
+
+    test("over 50 items and a good or missing calibration: only the count @TPL-724", () => {
+        expect(validateLayout(manyCalibrated(51, 2, -1.5))).toEqual([TOO_MANY]);
+        expect(validateLayout(raw({...layoutOf(...manyItems(51)), calibration: null}))).toEqual([TOO_MANY]);
+    });
+
+    test("exactly 50 items and a bad calibration: only the calibration @TPL-724", () => {
+        expect(validateLayout(manyCalibrated(50, 21, 0))).toEqual([X_RANGE]);
+    });
+
+    test("calibration doesn't excuse a box: x 140, w 20 on A5 with X = -20 is still outside @TPL-705", () => {
+        expect(validateLayout(calibrated(-20, 0, text(), manual({xMm: 140, wMm: 20})))).toEqual([{field: "items[1].xMm", code: "templateItemOutsidePage"}]);
+        expect(validateLayout(calibrated(0, -20, text(), manual({yMm: 205, hMm: 8})))).toEqual([{field: "items[1].yMm", code: "templateItemOutsidePage"}]);
+    });
+
+    test("a box the correction would move off the sheet is no rule's business @TPL-705", () => {
+        expect(validateLayout(calibrated(20, 20, text(), manual({xMm: 76, wMm: 72, yMm: 202, hMm: 8})))).toEqual([]);
+        expect(validateLayout(calibrated(-20, -20, text(), manual({xMm: 0, yMm: 0})))).toEqual([]);
+    });
+});
+
+describe("sameLayout: the correction @area:admin", () => {
+    test("another number on either axis is another layout @TPL-613", () => {
+        expect(sameLayout(calibrated(2, 0), calibrated(2, 0))).toBe(true);
+        expect(sameLayout(calibrated(2, 0), calibrated(0, 0))).toBe(false);
+        expect(sameLayout(calibrated(0, 2), calibrated(0, 0))).toBe(false);
+        expect(sameLayout(calibrated(2, -1.5), calibrated(-1.5, 2))).toBe(false);
+    });
+
+    test("compared as saved: rounded, and -0.04 is clean against a baseline of 0 @TPL-721", () => {
+        expect(sameLayout(calibrated(-0.04, 0), calibrated(0, 0))).toBe(true);
+        expect(sameLayout(calibrated(0, -0.04), calibrated(0, 0))).toBe(true);
+        expect(sameLayout(calibrated(2.34, 0), calibrated(2.3, 0))).toBe(true);
+        expect(sameLayout(calibrated(20.04, 0), calibrated(20, 0))).toBe(true);
+    });
+
+    test("a layout saved before this step is the same as 0, 0, so opening it isn't dirty @TPL-612", () => {
+        const {calibration: _dropped, ...old} = layoutOf(text());
+        void _dropped;
+        expect(sameLayout(raw(old), layoutOf(text()))).toBe(true);
+        expect(sameLayout(layoutOf(text()), raw(old))).toBe(true);
+        expect(sameLayout(raw({...old, calibration: null}), layoutOf(text()))).toBe(true);
+        expect(sameLayout(raw(old), calibrated(1, 0))).toBe(false);
+    });
+});
+
+describe("the correction's limits as typed @area:admin", () => {
+    const typed = (input: string) => calibrated(parseMmInput(input), 0);
+
+    test("20.04 typed: no error; 20.05: the error @TPL-721", () => {
+        expect(validateLayout(typed("20.04"))).toEqual([]);
+        expect(validateLayout(typed("20.05"))).toEqual([X_RANGE]);
+        expect(validateLayout(typed("−20.04"))).toEqual([]);
+        expect(validateLayout(typed("−20.05"))).toEqual([X_RANGE]);
+    });
+
+    test("-0.04 typed: exactly 0, and clean against a baseline of 0 @TPL-721", () => {
+        for (const input of ["-0.04", "−0.04"]) {
+            expect(normalizeLayout(typed(input)).calibration.xMm).toBe(0);
+            expect(sameLayout(typed(input), calibrated(0, 0))).toBe(true);
+        }
+    });
+});
+
+describe("calibrationCutsItems: the cut warning @area:admin", () => {
+    test.each<[string, TemplateItem, number, number, boolean]>([
+        // A box 1 mm from the edge on A5 (148 × 210), moved towards it
+        ["right, 2 past 1 mm", manual({xMm: 127, wMm: 20}), 2, 0, true],
+        ["right, a tenth past", manual({xMm: 127, wMm: 20}), 1.1, 0, true],
+        ["right, exactly at the edge", manual({xMm: 127, wMm: 20}), 1, 0, false],
+        ["right, no correction", manual({xMm: 127, wMm: 20}), 0, 0, false],
+        ["left, 2 past 1 mm", manual({xMm: 1, wMm: 20}), -2, 0, true],
+        ["left, a tenth past", manual({xMm: 1, wMm: 20}), -1.1, 0, true],
+        ["left, exactly at the edge", manual({xMm: 1, wMm: 20}), -1, 0, false],
+        ["left, no correction", manual({xMm: 1, wMm: 20}), 0, 0, false],
+        ["bottom, 2 past 1 mm", manual({yMm: 201, hMm: 8}), 0, 2, true],
+        ["bottom, a tenth past", manual({yMm: 201, hMm: 8}), 0, 1.1, true],
+        ["bottom, exactly at the edge", manual({yMm: 201, hMm: 8}), 0, 1, false],
+        ["bottom, no correction", manual({yMm: 201, hMm: 8}), 0, 0, false],
+        ["top, 2 past 1 mm", manual({yMm: 1, hMm: 8}), 0, -2, true],
+        ["top, a tenth past", manual({yMm: 1, hMm: 8}), 0, -1.1, true],
+        ["top, exactly at the edge", manual({yMm: 1, hMm: 8}), 0, -1, false],
+        ["top, no correction", manual({yMm: 1, hMm: 8}), 0, 0, false],
+        // Each axis looks at its own sides
+        ["a box near the right moved down", manual({xMm: 127, wMm: 20}), 0, 2, false],
+        ["a box near the bottom moved right", manual({yMm: 201, hMm: 8}), 2, 0, false],
+        ["a box near the right moved left", manual({xMm: 127, wMm: 20}), -2, 0, false],
+        ["a box near the left moved right", manual({xMm: 1, wMm: 20}), 2, 0, false],
+        ["a box near the top moved down", manual({yMm: 1, hMm: 8}), 0, 2, false],
+        ["a box near the bottom moved up", manual({yMm: 201, hMm: 8}), 0, -2, false],
+    ])("%s @TPL-617", (_name, box, xMm, yMm, cuts) => {
+        expect(calibrationCutsItems(calibrated(xMm, yMm, text({xMm: 40, yMm: 60, wMm: 60, hMm: 60}), box))).toBe(cuts);
+    });
+
+    test("compared in whole tenths: a sum like 210.1 doesn't misfire @TPL-617", () => {
+        // 0.3 + 209.8 is 210.10000000000002 in doubles
+        const sheet = raw({
+            ...onPage(custom(210.1, 100), text({xMm: 0.3, yMm: 0, wMm: 209.8, hMm: 20})),
+            calibration: {xMm: 0, yMm: 0},
+        });
+        expect(calibrationCutsItems(sheet)).toBe(false);
+        expect(calibrationCutsItems({...sheet, calibration: {xMm: 0.1, yMm: 0}})).toBe(true);
+        expect(calibrationCutsItems({...sheet, calibration: {xMm: -0.3, yMm: 0}})).toBe(false);
+        expect(calibrationCutsItems({...sheet, calibration: {xMm: -0.4, yMm: 0}})).toBe(true);
+
+        // Moved by 0.1 + 0.2: 0.30000000000000004, so x + X + w is past the edge in doubles only
+        const moved = raw({
+            ...onPage(custom(100, 100), text({xMm: 0.1, yMm: 0.1, wMm: 99.6, hMm: 99.6})),
+            calibration: {xMm: 0.3, yMm: 0.3},
+        });
+        expect(calibrationCutsItems(moved)).toBe(false);
+    });
+
+    test("any box counts: the prescription text, the first and the last @TPL-617", () => {
+        expect(calibrationCutsItems(calibrated(14, 0, text()))).toBe(false);
+        expect(calibrationCutsItems(calibrated(14.1, 0, text()))).toBe(true);
+        expect(calibrationCutsItems(calibrated(-14.1, 0, text()))).toBe(true);
+        const safe = text({xMm: 40, yMm: 60, wMm: 60, hMm: 60});
+        expect(calibrationCutsItems(calibrated(2, 0, manual({xMm: 127, wMm: 20}), safe))).toBe(true);
+        expect(calibrationCutsItems(calibrated(2, 0, safe, fn({xMm: 60, yMm: 10, wMm: 20}), stat({xMm: 127, wMm: 20})))).toBe(true);
+        expect(calibrationCutsItems(calibrated(2, 0, safe, fn({xMm: 60, yMm: 10, wMm: 20}), stat({xMm: 60, wMm: 20})))).toBe(false);
+    });
+
+    test("a warning only: the rules still pass a layout it fires on @TPL-617", () => {
+        const layout = calibrated(2, 0, text(), manual({xMm: 127, wMm: 20}));
+        expect(calibrationCutsItems(layout)).toBe(true);
+        expect(validateLayout(layout)).toEqual([]);
+    });
+});
+
+describe("sharedNameErrors: both items are marked @area:admin", () => {
+    const taken = (...indexes: number[]) => indexes.map(index => ({field: `items[${index}].name`, code: "templateItemNameTaken"}));
+
+    test("three items sharing a name: all marked, in order @TPL-722", () => {
+        const layout = layoutOf(text(), manual({id: "a", name: "الاسم"}), manual({id: "b", name: "الاسم"}), manual({id: "c", name: "الاسم"}));
+        expect(sharedNameErrors(layout)).toEqual(taken(1, 2, 3));
+    });
+
+    test("fixing one keeps the other two; fixing two leaves none @TPL-722", () => {
+        const layout = layoutOf(text(), manual({id: "a", name: "الاسم"}), manual({id: "b", name: "الاسم"}), manual({id: "c", name: "الاسم"}));
+        const oneFixed = updateItem(layout, "b", {name: "السن"});
+        expect(sharedNameErrors(oneFixed)).toEqual(taken(1, 3));
+        expect(sharedNameErrors(updateItem(oneFixed, "c", {name: "العنوان"}))).toEqual([]);
+    });
+
+    test("validateLayout, which the parity fixture fixes, still names only the later ones @TPL-722", () => {
+        const two = layoutOf(text(), manual({id: "a", name: "الاسم"}), manual({id: "b", name: "الاسم"}));
+        expect(validateLayout(two)).toEqual(taken(2));
+        expect(sharedNameErrors(two)).toEqual(taken(1, 2));
+
+        const three = updateItem({...two, items: [...two.items, manual({id: "c", name: "x"})]}, "c", {name: "الاسم"});
+        expect(validateLayout(three)).toEqual(taken(2, 3));
+    });
+
+    test("names compare as the server's: trimmed, ignoring case; a manual input and a function share one @TPL-722", () => {
+        expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: "Age"}), manual({id: "b", name: " age "})))).toEqual(taken(1, 2));
+        expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: "التاريخ"}), fn({id: "b", name: "التاريخ"})))).toEqual(taken(1, 2));
+    });
+
+    test("two groups: each marked, in the layout's order @TPL-722", () => {
+        const layout = layoutOf(text(), manual({id: "a", name: "A"}), manual({id: "b", name: "B"}), manual({id: "c", name: "A"}), manual({id: "d", name: "B"}), manual({id: "e", name: "C"}));
+        expect(sharedNameErrors(layout)).toEqual(taken(1, 2, 3, 4));
+    });
+
+    test("different names, and static text, share nothing @TPL-722", () => {
+        expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: "A"}), fn({id: "b", name: "B"})))).toEqual([]);
+        expect(sharedNameErrors(layoutOf(text(), manual({id: "a", name: "A"}), stat({id: "b", text: "A"}), stat({id: "c", text: "A"})))).toEqual([]);
+        expect(sharedNameErrors(layoutOf(text()))).toEqual([]);
     });
 });

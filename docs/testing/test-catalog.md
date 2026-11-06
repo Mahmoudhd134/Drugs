@@ -1,7 +1,7 @@
 # Test catalog
 
 Status: **in use**: written in M1.6.1 (2026-10-15) and automated in M1.6; the M1.6 final review (2026-10-16) fixed
-rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2 and 3 more; attachments part 1 added 131 and part 2 added 71: the [summary](#summary) has the count now); every later step adds and fixes its
+rows against their sources and added TAPER-080, UX-038, UX-039 and ADM-292 (1,191 cases then, 1,194 after it; M1.7a, the rename to protocols, added 14 and later retired GRP-100: 1,207; M1.7b, the shared catalog core and admin, added 172 and retired DRUG-055: 1,378; M1.7c, the drug tree and the drugs-page filters, added 79 and retired DRUG-060: 1,456 then; prescription print templates step 1 added 94, and steps 2, 3 and 4 more; attachments part 1 added 131 and part 2 added 71: the [summary](#summary) has the count now); every later step adds and fixes its
 cases ([below](#how-tests-reference-cases)). Gates (`full` tier): 100% of the P0 and P1 cases have a test, P2 is reported.
 Running and writing the tests: [testing README](README.md). Defined by the [M1.6 test foundation design](../design/m1.6-test-foundation.md)
 ([D2](../design/m1.6-test-foundation.md#d2-test-catalog), [D3](../design/m1.6-test-foundation.md#d3-test-stack-and-layout),
@@ -77,9 +77,9 @@ Cases per area and priority, and per level (a case with two levels counts once i
 | [I18N](#i18n--languages-and-direction) | 11 | 8 | 7 | 26 | 6 | 0 | 5 | 15 | 0 |
 | [UX](#ux--cross-cutting-ui) | 6 | 22 | 18 | 46 | 4 | 0 | 20 | 22 | 3 |
 | [CAT](#cat--shared-catalog-and-categories) | 73 | 112 | 75 | 260 | 14 | 138 | 66 | 58 | 2 |
-| [TPL](#tpl--prescription-print-templates) | 49 | 213 | 73 | 335 | 74 | 25 | 128 | 136 | 4 |
+| [TPL](#tpl--prescription-print-templates) | 87 | 263 | 77 | 427 | 85 | 40 | 169 | 168 | 6 |
 | [ATT](#att--attachments) | 82 | 98 | 22 | 202 | 66 | 82 | 52 | 11 | 2 |
-| **All** | **566** | **959** | **499** | **2024** | **350** | **788** | **552** | **452** | **16** |
+| **All** | **604** | **1009** | **503** | **2116** | **361** | **803** | **593** | **484** | **18** |
 
 ## AUTH — Login, OTP, sessions, contexts
 
@@ -645,7 +645,7 @@ Sources: [tech overview § Errors](../tech/overview.md#errors-problemdetails), [
 | ERR-027 | Given errors on `name` and `owner.phone`, then `getFieldErrors` maps each field to the translated message of its first error, and `getOtherErrors(inputFields)` returns the messages no input shows | P1 | unit | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 | ERR-028 | Given an error with `clinicNames` ["A", "B"], then `getErrorMessage` uses `errors.<code>_named` with `count` 2 and the names quoted (`common.quotedName`) and joined by `Intl.ListFormat` in the UI language («A» و«B» / “A” and “B”); without `clinicNames`, `errors.<code>` («هذه العيادة موقوفة.» / "This clinic is disabled.", «تم إيقاف حسابك. تواصل مع مالك العيادة.») | P1 | unit | [auth tech § Frontend](../features/auth/tech.md#frontend) |
 | ERR-029 | Given a ProblemDetails body, then `toApiError` reads `clinicNames` (non-string entries dropped; missing → `[]`) | P2 | unit | [tech overview § Errors](../tech/overview.md#errors-problemdetails) |
-| ERR-030 | Given every API error code other than the transport codes and `noContexts` (the 10 `template*` codes included: TPL-244), then `en.ts` and `ar.ts` both have `errors.<code>` | P1 | unit | [tech overview § Conventions](../tech/overview.md#conventions) |
+| ERR-030 | Given every API error code other than the transport codes and `noContexts` (the 11 `template*` codes included: TPL-244), then `en.ts` and `ar.ts` both have `errors.<code>` | P1 | unit | [tech overview § Conventions](../tech/overview.md#conventions) |
 | ERR-031 | Given the API is unreachable, when an action is done (e.g. saving a drug or protocol), then the toast «تعذّر الاتصال بالخادم. تحقّق من الاتصال.» (en "Can't reach the server. Check your connection.") and the form keeps the typed data | P1 | ui+e2e | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 | ERR-032 | Given a query fails with a network error or 5xx, then it is retried once; with a 4xx, it is not retried | P1 | ui | [tech overview § Data fetching](../tech/overview.md#data-fetching) |
 
@@ -2250,14 +2250,14 @@ Sources: [M1.7 design](../design/m1.7-shared-catalog.md), [M1.7 business](../des
 
 ## TPL — Prescription print templates
 
-Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag; step 2, printing ([its contract](../design/prescription-templates.step2.contract.md)); and step 3, drag, resize, snap, guides, keyboard, undo and zoom ([its design](../design/prescription-templates.step3.md), S1–S5 and `step3.md:n` in the Source column; [its contract](../design/prescription-templates.step3.contract.md)); each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
+Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source column), [business file](../design/prescription-templates.business.md) («…»), [contract](../design/prescription-templates.contract.md). Step 1, the template designer with no drag; step 2, printing ([its contract](../design/prescription-templates.step2.contract.md)); and step 3, drag, resize, snap, guides, keyboard, undo and zoom ([its design](../design/prescription-templates.step3.md), S1–S5 and `step3.md:n` in the Source column; [its contract](../design/prescription-templates.step3.contract.md)); and step 4, paper alignment ([its design](../design/prescription-templates.step4.md), A1–A14, P1–P8 and § n of the step 4 sections' Source column; [its contract](../design/prescription-templates.step4.contract.md)); each later step moves its cases here from the [test cases](../design/prescription-templates.test-cases.md). Examples: clinics A and B; a valid layout L (A5, one prescription text, one manual input «الاسم», one full date). The rules both sides implement also have rows in `tests/fixtures/print-layout-cases.json`, run by xUnit and Vitest.
 
 ### Admin API
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | TPL-001 | Given clinic A with no template, when the super admin GETs its template, then 204 | P0 | api | § 5 |
-| TPL-002 | Given L, when the super admin PUTs it for A and GETs it back, then 200 with the same page and items in the same order | P0 | api | § 5 |
+| TPL-002 | Given L, when the super admin PUTs it for A and GETs it back, then 200 with the same page, the items in the same order and the calibration (0, 0 unless it was set) | P0 | api | § 5 |
 | TPL-003 | Given A has a template, when the super admin PUTs another layout, then it replaces the first and A still has one row | P0 | api | D4 |
 | TPL-004 | Given A has a template, when the super admin DELETEs it, then 204 and GET answers 204 | P0 | api | § 5 |
 | TPL-005 | Given A has no template, when the super admin DELETEs, then 204 | P2 | api | § 5 |
@@ -2280,7 +2280,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-026 | Given font size 5.9 / 6 / 36 / 36.1, then outside is 400 `templateFontSizeInvalid` and the borders pass | P1 | unit | D15 |
 | TPL-027 | Given an empty or only-spaces name on a manual input or function, then 400 `nameRequired` | P1 | unit | § 3, § 5 |
 | TPL-028 | Given a name of 60 and of 61 characters, then 61 is 400 `nameTooLong` | P2 | unit | § 3, § 5 |
-| TPL-029 | Given two items named «الاسم» and « الاسم », or "Age" and "age", then 400 `templateItemNameTaken` | P1 | unit | § 3 |
+| TPL-029 | Given two items named «الاسم» and « الاسم », or "Age" and "age", then 400 `templateItemNameTaken` on the later one; the designer's marking of both sits outside `validateLayout` (TPL-722) | P1 | unit | § 3 |
 | TPL-030 | Given static text empty or only spaces, then 400 `templateStaticTextRequired`; 1,000 characters pass and 1,001 are 400 `templateStaticTextTooLong`; line breaks are kept | P1 | unit | D9 |
 | TPL-031 | Given 50 items pass, and 51 are 400 `templateTooManyItems` | P2 | unit | § 3 |
 | TPL-032 | Given a name with a bidi override or control character, then 400 `nameInvalid`; given static text with one (a line break or tab excepted), then 400 `invalidText` | P1 | unit | § 5 |
@@ -2291,7 +2291,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
 | TPL-040 | Given a clinic page, when the super admin opens it, then the tab «قالب الطباعة» is listed after Staff and opens at its own URL | P1 | ui | § 6 |
-| TPL-041 | Given no template, when the tab opens, then the empty state with «إنشاء قالب»; pressing it shows an A5 sheet holding only the prescription text, not saved yet | P0 | ui | § 6 |
+| TPL-041 | Given no template, when the tab opens, then the empty state with «إنشاء قالب»; pressing it shows an A5 sheet holding only the prescription text, calibration 0, 0, not saved yet | P0 | ui | § 6 |
 | TPL-042 | Given the panel, then it lists manual input, the six functions and static text, and internal data and JS expression dimmed, not addable, with an explanation | P0 | ui | D8, § 3 |
 | TPL-043 | Given the panel, when an item is clicked, then it appears on the sheet, selected, with its config, and its type shown as information, not as a control | P0 | ui | D8 |
 | TPL-044 | Given a selected item, when its X, Y, width, height or font size is typed, then the sheet updates at once (the true scale: TPL-228) | P0 | ui | § 3 |
@@ -2338,8 +2338,8 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-221 | Given a custom width being typed through a valid value on its way (`50`, then `500`), when the typing ends at 500, then no item has been moved | P1 | ui | business file |
 | TPL-222 | Given an item wider or taller than the new page (a 180 mm text box on A4, going to A5), when the size changes, then the item ends fully inside, its size reduced only as far as needed and never below the minimums, and the layout saves | P1 | unit+ui | business file |
 | TPL-223 | Given A4 and an item at X 140, width 20, when A5 is chosen, then X is 128 and its width stays; items already inside don't move; going back to A4 doesn't restore the old X | P1 | unit | business file |
-| TPL-224 | Given a number field emptied, or given a negative or off-sheet value, then the field shows its message, the item isn't silently corrected, and Save sends nothing | P1 | ui | TPL-048, § 3 |
-| TPL-225 | Given the Arabic UI, when `12.5`, `12,5` and «١٢٫٥» are typed in a mm field, then each is 12.5, never 125 or 0 | P1 | e2e | § 3, `DosingFields.tsx:106` |
+| TPL-224 | Given a number field emptied, or given a negative or off-sheet value, then the field shows its message, the item isn't silently corrected, and Save sends nothing; a leading `+` or `−` is a sign, so `+1` isn't refused (TPL-700) | P1 | ui | TPL-048, § 3 |
+| TPL-225 | Given the Arabic UI, when `12.5`, `12,5`, «١٢٫٥» and `+12.5` are typed in a mm field, then each is 12.5, never 125 or 0 | P1 | e2e | § 3, `DosingFields.tsx:106` |
 | TPL-226 | Given the Arabic UI, then the mm fields are left to right, and X still means from the left edge | P2 | ui | § 3 |
 | TPL-227 | Given a custom 420 × 600 mm page at 1280 px and 100% zoom, then the sheet scrolls inside its own area, the panels stay reachable, an item at the far corner can be reached and selected, and the page has no horizontal scroll | P1 | e2e | § 3, test rules |
 | TPL-228 | Given an item of 50 × 20 mm at 100% zoom, then its box measures the same in the designer and in print layout, within 0.1 mm | P1 | e2e | § 6 |
@@ -2409,7 +2409,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-129 | Given a font size per item, then each prints at its own size | P1 | e2e | D15 |
 | TPL-130 | Given the sheet's font under its own family name, then it's loaded from the app, in regular and bold, before `window.print`, with Google Fonts blocked | P1 | e2e | D15, § 6 |
 | TPL-131 | Given a value longer than its box, then it wraps and shows past the box, cut only at the sheet's edge | P1 | e2e | § 4 |
-| TPL-132 | Given a function's name or a manual input's name, then neither prints: only values | P1 | ui | § 3 |
+| TPL-132 | Given a function's name or a manual input's name, then on a real print neither prints: only values (a test print's sample is a manual input's name: TPL-638) | P1 | ui | § 3 |
 | TPL-133 | Given HTML in a drug name, a note or the editor (a script, an image with `onerror`), then it prints as text or is removed and nothing runs | P0 | unit+e2e | § 4 |
 
 ### Printing: continuation pages
@@ -2422,7 +2422,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-143 | Given a drug that doesn't fit the rest of the box but fits a box, then it moves whole to the next page | P1 | unit+e2e | § 4 |
 | TPL-144 | Given a paragraph taller than the box (a long note), then it splits between words and nothing is lost | P1 | unit+e2e | § 4 |
 | TPL-147 | Given the editor's HTML (Quill makes each line its own paragraph), then a drug's lines between blank paragraphs still move as one when they fit a box | P1 | unit+e2e | § 4 |
-| TPL-145 | Given a one-page prescription, then the page number prints nothing; with three pages it prints 1/3, 2/3, 3/3 | P1 | unit+e2e | D14 |
+| TPL-145 | Given a one-page prescription, then on a real print the page number prints nothing; with three pages it prints 1/3, 2/3, 3/3 (a test print's is always 2/3: TPL-638) | P1 | unit+e2e | D14 |
 
 ### Printing: staying current
 
@@ -2437,7 +2437,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 
 | ID | Case | P | Level | Source |
 |---|---|---|---|---|
-| TPL-190 | Given a real printer and a pre-printed A5 sheet at 100%, then every item is within 1 mm of its place, measured with a ruler | P0 | manual | § 8 |
+| TPL-190 | Given a real printer and a pre-printed A5 sheet at 100%, after calibration, then every item is within 1 mm of its place, measured with a ruler | P0 | manual | § 8 |
 | TPL-191 | Given a real phone and a printer, then the prescription prints with text intact; record the offset | P1 | manual | D12 |
 
 ### Printing: edge cases
@@ -2528,7 +2528,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-443 | Given Delete on a manual input, then it goes and the focus is in the sheet's area; on the prescription text, nothing happens | P1 | ui | S4 |
 | TPL-444 | Given Esc on a selected item, then it's deselected and the focus stays | P2 | ui | S4 |
 | TPL-445 | Given the focus in a number or text field, then arrows, Delete, Esc and the shortcuts keep their normal behaviour | P0 | ui | S4 |
-| TPL-450 | Given an add, remove, drag, resize, committed field, or page-size change, when undone and redone, then the layout is exactly as before, one step each | P0 | unit | S3 |
+| TPL-450 | Given an add, remove, drag, resize, committed field, page-size change, or calibration change, when undone and redone, then the layout is exactly as before, one step each | P0 | unit | S3 |
 | TPL-451 | Given several nudges in a row, then one undo step; after 1 second or another action, a new one | P1 | unit | S3 |
 | TPL-452 | Given 51 changes, then 50 can be undone and the buttons turn off at the end | P2 | unit | S3 |
 | TPL-453 | Given an undo and then a new change, then redo is empty | P1 | unit | S3 |
@@ -2631,7 +2631,7 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-574 | Given history and the window narrowed below 900 px, then shortcuts and Delete change nothing behind the message; widened, history and selection are as before (TPL-229) | P2 | ui | D12 |
 | TPL-575 | Given a language change, then history stays, undo works, the sheet doesn't mirror (TPL-234) | P2 | ui | S3 |
 | TPL-576 | Given a removed item brought back, then it's at its old index (paint order) and, with nothing else changed, Save is off (`layout.ts:369` is order-sensitive) | P1 | unit | S3, D16 |
-| TPL-577 | Selection table: undo of an add → cleared; redo of an add → the item; undo of a remove → the item; redo of a remove → cleared; undo of a change to A with B selected → A; undo or redo of a page size → the selection kept if it exists | P1 | unit | step3.md:63 |
+| TPL-577 | Selection table: undo of an add → cleared; redo of an add → the item; undo of a remove → the item; redo of a remove → cleared; undo of a change to A with B selected → A; undo or redo of a page size → the selection kept if it exists; undo or redo of a calibration change → the selection unchanged | P1 | unit | step3.md:63, step 4 § 5 |
 | TPL-578 | Given more than 50 changes since the load, when all 50 are undone, then the saved layout is out of reach: Save stays on and leaving asks | P2 | unit | step3.md:62 |
 | TPL-579 | Given a page-size change that moved and shrank items, when undone, then each is exact (unlike going back by the select, TPL-223) and the sheet re-fits. The same size committed or an invalid measure: no step, no re-fit | P1 | ui | step3.md:59,67 |
 | TPL-581 | Given typed text in a focused field, when the toolbar's Undo is clicked, then blur commits first, the undo reverts that commit, and the field shows the layout's value, not the typed text (`MmField.tsx:38`) | P1 | ui | step3.md:61 |
@@ -2652,11 +2652,128 @@ Sources: [design](../design/prescription-templates.md) (§ and Dn in the Source 
 | TPL-595 | Given a selected item out of view after a zoom press, Fit, undo or redo, then the area scrolls so its box shows; with nothing selected the scroll stays | P1 | ui+e2e | User, T5 (acceptance #2) |
 | TPL-596 | Given the focus on Save, when a save makes it turn off, then the focus is in the sheet's area, not on `body`; a Save refused by the rules keeps it on and the focus stays | P2 | ui | User, T5 (acceptance #9) |
 
+### Step 4: printer correction
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-600 | Given a saved template with X = 2, Y = −1.5, when a staff member prints in Arabic and in English, then every item in the PDF sits 2 mm right and 1.5 mm up of its designed place, within 0.1 mm, the same in both languages | P0 | e2e | A4, § 3 |
+| TPL-601 | Given that template, then the designer's item numbers and boxes are unchanged | P0 | e2e | A4 |
+| TPL-602 | Given calibration, then the PDF's page size and the page count of a 40-drug prescription equal those with 0, 0 | P0 | e2e | § 3 |
+| TPL-605 | Given a raw row saved before this step (no `calibration`), when read by either route, then 0, 0 is answered; the designer and a print show no `NaNmm` | P0 | api+ui | § 4 |
+| TPL-606 | Given a PUT with no `calibration` or `null`, then it saves as 0, 0 (an older tab's Save resets it: accepted) | P1 | api | § 4 |
+| TPL-607 | Given −20, 20, −20.04 and 20.04, then they save (the last two as ∓20.0); −20.05 and 20.05 answer `templateCalibrationInvalid` naming the field | P0 | unit | A5 |
+| TPL-608 | Given 2.345, then 2.3 is stored; given −0.04, then 0 | P1 | unit | § 4 |
+| TPL-609 | Given `calibration` with a null or missing number, then `invalidRequest` names it; a string that isn't a number, `5`, `[]`, `{}` or 1e30 answers `invalidRequest`; an extra property is dropped | P1 | api | § 4 |
+| TPL-610 | Given the shared fixture's rows, then server and client agree on every calibration case | P0 | unit | § 4 |
+| TPL-612 | Given an old template opened, then Save is off and leaving asks nothing | P0 | ui | § 5 |
+| TPL-613 | Given X changed, then Save turns on, leaving asks, undo restores the value, and Save off again; saved and reloaded, the field shows it | P0 | ui | P5, § 9 |
+| TPL-614 | Given X typed with Arabic digits, a comma or a leading minus, then it's read; `abc` shows `numberRequired` and Save refuses | P1 | ui | § 3 |
+| TPL-615 | Given X = 21, then the message shows at once, Save and Test print refuse | P0 | ui | A5 |
+| TPL-616 | Given the fields in Arabic, then they're `dir="ltr"` | P1 | ui | § 3 |
+| TPL-617 | Given a box 1 mm from the right edge and X = 2, then the cut warning shows; X = 1 exactly: no warning; X = 0: none; the same on all four sides, in whole tenths (a sum like 210.1 doesn't misfire) | P0 | unit | A6 |
+| TPL-618 | Given the warning, when Save and when printing, then both still work | P0 | ui | A6 |
+| TPL-620 | Given a box pushed off the paper, when printed, then the sheet still clips (`overflow`) and the PDF has no extra page | P1 | e2e | § 3 |
+| TPL-621 | Given the template deleted and created again, then calibration is 0, 0 and the picture shows | P1 | e2e | P1 |
+
+### Step 4: test print
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-630 | Given Test print on an unsaved draft, then the print holds the draft's values, no API request is sent, Save stays on | P0 | e2e | A7 |
+| TPL-631 | Given Test print with nothing unsaved, then Save stays off | P1 | ui | A7 |
+| TPL-632 | Given a rule error or raw text, when Test print, then the messages show, the first problem is selected, nothing prints | P0 | ui | § 3 |
+| TPL-633 | Given a sheet width being typed, when Test print, then it commits first and prints the new size | P1 | ui | § 3 |
+| TPL-634 | Given a double click, then one print | P1 | ui | § 5 |
+| TPL-635 | Given calibration, then the test page's boxes shift by X and Y, the top ruler's ticks by X and the left's by Y, in the PDF, also when designed at 200% zoom | P0 | e2e | A9, P4 |
+| TPL-636 | Given a picture shown, then the print root holds no `img` and the test PDF has no image operations (`getOperatorList`) | P0 | e2e | A9 |
+| TPL-637 | Given 50 boxes and a 20 mm prescription box at 36 pt, then the test PDF is exactly one page | P0 | e2e | A7 |
+| TPL-638 | Given each kind, then the sample is its name, the real value now, `2/3` for the page number, the text as typed, and the fixed lines | P1 | unit | P3 |
+| TPL-639 | Given the test page with `printBackground: false`, then frames and ruler lines are drawn: a computed border and path operations in the PDF, without asserting exactly 0.2 mm | P0 | e2e | § 3 |
+| TPL-640 | Given the rulers on A4 and a custom 50 × 50, then ticks run to the sheet's end, numbered every 10 from the corner, in Latin digits in Arabic too | P1 | ui | P4 |
+| TPL-641 | Given Test print, then the tooltip shows the 100% hint, in both languages | P2 | ui | A9 |
+| TPL-643 | Given Test print with nothing being typed and no errors, then after it no undo step and no toast exist, and the zoom and selection are unchanged | P1 | ui | A7, § 3 |
+| TPL-644 | Given `TemplateDesigner` with no paper adapter, then no picture section and no request for it | P1 | ui | § 5 |
+
+### Step 4: the paper image
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-650 | Given a PNG, when picked and Upload is pressed, then it shows behind the boxes, filling the sheet, at 50%, with no Save; its name shows; the `img` has empty `alt` and `aria-hidden` | P0 | e2e | A10 |
+| TPL-651 | Given a JPEG, then it's accepted and listed, and the section shows it | P1 | api+ui | A10 |
+| TPL-652 | Given a PDF, a WebP or a PNG named `.jpg`, then refused; on screen the translated message shows and the old picture stays | P0 | api+ui | A10 |
+| TPL-653 | Given a file at the limit, then accepted; one byte over, `attachmentTooLarge` | P1 | api | A10 |
+| TPL-654 | Given a POST while a picture exists, or a PUT on its id, then it replaces: one row listed, the old row marked deleted, its file still on disk | P0 | api | A12 |
+| TPL-655 | Given Remove and its confirm, then the picture is gone at once, the row is marked and the file stays; a second delete is 404; Cancel keeps it | P0 | api+ui | A12 |
+| TPL-656 | Given unsaved layout changes, when uploading or removing, then the layout's changes stay, Save stays on, undo doesn't touch the picture | P0 | ui | A12 |
+| TPL-657 | Given only a picture change, then Save stays off and leaving asks nothing | P0 | ui | A12 |
+| TPL-658 | Given the switch off, then the picture is hidden with no new request; on again, it shows | P1 | ui | A11 |
+| TPL-659 | Given opacity changed and the page reopened, then 50% and shown | P1 | ui | A11 |
+| TPL-660 | Given the slider, then keyboard arrows step 10 within 10–100 and it has a name; RTL doesn't reverse the meaning of more | P2 | ui | A11 |
+| TPL-661 | Given a press where the picture shows, then the sheet's press rules hold: an item below it still takes the press, the picture can't be dragged | P0 | e2e | § 3 |
+| TPL-662 | Given the page size changed, or a picture of other proportions, then it stretches to fill the sheet exactly | P1 | e2e | A10 |
+| TPL-664 | Given zoom at 25%, 100%, 200%, then the picture matches the sheet exactly | P1 | e2e | A10 |
+| TPL-665 | Given a failed read or an `img` `error` event, then the message and Retry show, the sheet works, printing is unaffected, and Retry shows it after recovery | P0 | ui | A14 |
+| TPL-666 | Given a real print with a picture, then the PDF has no image operations, and a staff member's page makes no `paper-image` request ever | P0 | e2e | A13 |
+| TPL-667 | Given clinic A's picture ID on clinic B's route, for read, delete and content, then 404 | P0 | api | A13 |
+| TPL-668 | Given a staff token, a clinic owner's token and no token, then 403, 403 and 401 on all six routes | P0 | api | A13 |
+| TPL-669 | Given a missing, deleted or template clinic, then 404 on all six routes; a suspended clinic is managed | P1 | api | A13 |
+| TPL-670 | Given a clinic with no picture, then the list is empty and the section shows the rules, with no "No files yet" line | P1 | ui | § 3 |
+| TPL-671 | Given a draft with no saved template, then upload works and the picture stays after the draft is abandoned | P1 | e2e | § 3 |
+| TPL-672 | Given the template deleted, then the picture's row stays; the empty state shows no picture section | P1 | api+ui | P1 |
+| TPL-673 | Given a new clinic from the template clinic, then it has no picture | P2 | api | attachments § 6 |
+| TPL-674 | Given clinic A's picture open, when switching to clinic B, then A's picture never shows, its URL is revoked, as on replace and removal, and an upload in flight aborts | P0 | ui | § 3 |
+| TPL-675 | Given a picture removed in another window, then Remove here gets a 404 that reloads the list and says so; Upload here fails the same way with Retry on the file, and Retry adds a new picture | P1 | ui | § 4 |
+| TPL-676 | Given two live rows from a race, then the API answers newest first and the screen shows the newest; removing it brings the older back | P2 | api+ui | § 4 |
+| TPL-677 | Given below 900 px, then `desktopOnly` shows and an upload in flight aborts; widening keeps the draft and shows the picture again at 50% | P1 | ui | § 3 |
+
+### Step 4: the shared column, names and languages
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-680 | Given 900–1199 px, then panel and settings share a column beside the sheet, each reachable by scroll, and numbers and sheet are visible together | P1 | e2e | § 6 |
+| TPL-681 | Given 1200 px and up, then three columns as today | P1 | e2e | § 6 |
+| TPL-682 | Given Fit at 1000 px, then it's computed from the new layout and pressing it twice gives the same zoom | P1 | e2e | § 6 |
+| TPL-683 | Given two items with one name, when Save, then both show `templateItemNameTaken`, and fixing either clears both | P1 | ui | § 6 |
+| TPL-686 | Given Arabic, then all new labels, messages and hints show translated, with no cut text and no axe failure on the designer | P0 | e2e | § 9 |
+| TPL-687 | Given real paper and a real printer, when a test print is measured and corrected, then the second print lines up within 1 mm | P0 | manual | § 1 |
+| TPL-688 | Given a real browser with "Background graphics" off, then outlines and rulers print | P1 | manual | § 3 |
+
+### Step 4: edge cases of the T0 reviews
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-700 | Given `+2` or `−2` (U+2212), then read as numbers | P0 | unit+ui | § 3 |
+| TPL-701 | Given 1280 × 800, when Save refuses an item, then its message is in view; X and Y are reachable | P1 | e2e | § 3 |
+| TPL-702 | Given A selected, when X is typed over several keys, then one step; undo and redo keep A, no re-fit | P1 | unit+ui | § 5 |
+| TPL-703 | Given X open, when a box is dragged, an item field typed, or Undo clicked, then a `calibration` step, not `item`; `abc` is cleared by undo | P1 | ui | § 3, P5 |
+| TPL-704 | Given both languages, then the helper line, range, cut warning and load failure read exactly as § 9 | P1 | ui | § 9 |
+| TPL-705 | Given x 140, w 20 on A5 and X = −20, then still `templateItemOutsidePage`: calibration doesn't excuse a box | P1 | unit | § 3 |
+| TPL-706 | Given only X invalid, then the message is on the field, not toasted, selection unchanged; a server `calibration.xMm` shows there too | P0 | ui | § 3, § 4 |
+| TPL-707 | Given a test print, then the print root shows `2/3` and the manual input's name, not empty | P0 | e2e | P3 |
+| TPL-708 | Given a second click, `detail` 2, after the first flow ended, then one print | P1 | ui | § 5 |
+| TPL-709 | Given a job left (no `afterprint`), when pressed again after a size change, then one root, one `@page`, the new values; later edits don't alter the job; leaving removes it | P1 | ui | § 5 |
+| TPL-710 | Given a picture and no job, under print media (Ctrl+P), then the picture isn't printed | P0 | e2e | A13 |
+| TPL-711 | Given one template, then each value's position on the test page equals the real print's within 0.1 mm, and it wraps the same | P0 | e2e | § 3 |
+| TPL-712 | Given Y ≤ −6 or X ≤ −6, then both rulers are still on the page | P1 | e2e | P4 |
+| TPL-713 | Given 100% opacity, then the grid and box marks show above the picture | P0 | e2e | A10 |
+| TPL-714 | Given 899, 900, 1199, 1200 px, then message, two-column, two-column, three-column | P1 | e2e | § 6 |
+| TPL-715 | Given the shared column scrolled, in Arabic too, when a panel entry is dragged, then it lands under the pointer; a drop over settings adds nothing | P1 | e2e | § 6 |
+| TPL-716 | Given the real routes, then `/rules` gives the config's limit and types; `GET /{id}` returns the bytes with `attachment` and `nosniff`; empty, bad-name, non-multipart and two-file uploads are refused | P1 | api | § 4 |
+| TPL-717 | Given a landscape 210 × 148 and a custom 50 × 50 with calibration, then items shift and the page size is unchanged | P1 | e2e | § 3 |
+| TPL-718 | Given a PNG signature with a corrupt body (passes the server), then `loadFailed` and Retry | P1 | e2e | A14 |
+| TPL-719 | Given § 1's whole journey, with staff printing, then every "Done when" holds | P0 | e2e | § 1 |
+| TPL-720 | Given a staff print at 375 px with calibration, then PDF items shift, with no horizontal scroll | P1 | e2e | § 8 |
+| TPL-721 | Given 20.04 typed: no error; 20.05: error; −0.04: exactly 0 and clean against baseline 0 | P1 | unit | A5 |
+| TPL-722 | Given three items sharing a name, then all are marked; fixing one keeps the other two; `validateLayout` still names only the later ones (rule 8e): `items[2]` of two, never the first | P1 | unit+ui | § 6 |
+| TPL-723 | Given calibration saved elsewhere, then staff's next print uses it with no reload | P1 | ui | § 3 |
+| TPL-724 | Given over 50 items and a bad calibration, then server and client give the same errors | P1 | unit | § 4 |
+| TPL-725 | Given a picture stored, then its row has Preview, Download and Remove, no Replace icon and no "Download all"; a new pick shows beside it and replaces it only when Upload is pressed | P1 | ui | P6, P7, P8 |
+
 ## ATT — Attachments
 
 A generic module that stores files for any feature ([design](../design/attachments.md), [business](../features/attachments/business.md); the design's part 1, the backend, and part 2, the components). In the Source column, `§ n` and `An` are sections and decisions of the design, and «…» quotes the business file. There's no real route: `api` cases run on the test-only controllers ([testing README](README.md#attachments-test-routes-and-a-real-server)). No real page mounts the components either: `ui` cases run them on a fake adapter or, in the whole app, on `/test-files` routes answered by MSW (`src/test/pages/attachments.tsx`), and `e2e` cases on the harness page (design § 12).
 
-Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 2 MB); G = any other module string, with no entry (global list, 20 MB); owner O = (M, "1"). "Nothing written" means a clinic's own folder is unchanged: Respawn doesn't reset the disk.
+Examples: clinics A and B; M = `clinicPaper` with its override (PNG and JPEG, 10 MB); G = any other module string, with no entry (global list, 20 MB); owner O = (M, "1"). "Nothing written" means a clinic's own folder is unchanged: Respawn doesn't reset the disk.
 
 ### Isolation
 

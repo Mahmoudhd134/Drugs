@@ -299,6 +299,11 @@ const DOCS: { name: string; doc: string; entries: Entry[]; descriptions?: string
             ["بيانات القالب غير صحيحة.", () => t("errors.templateLayoutInvalid")],
             ["أدخل رقمًا.", () => t("printTemplates.numberRequired")],
             ["تم حذف القالب", () => t("printTemplates.deleted")],
+            // Step 4: paper alignment (design § 9)
+            ["يجب أن يكون التصحيح بين −20 و+20 مم.", () => t("errors.templateCalibrationInvalid")],
+            ["بهذا التصحيح يخرج عنصر أو أكثر عن الورقة وقد يُقص نصه.", () => t("printTemplates.calibration.cutWarning")],
+            ["تعذر عرض صورة الورقة.", () => t("printTemplates.paper.loadFailed")],
+            ["اطبع بمقياس 100% دون «ملاءمة للصفحة».", () => t("printTemplates.testPrint.hint")],
         ],
         // The rows that name the system's usual messages instead of quoting one
         descriptions: ["الرسالة المعتادة للاسم المطلوب في النظام", "الرسائل المعتادة للاسم في النظام"],
@@ -332,5 +337,11 @@ describe("messages of the business docs @area:i18n", () => {
             const mapped = entries.some(([docText]) => message.includes(docText)) || descriptions.includes(message);
             expect(mapped, `row not mapped: ${message}`).toBe(true);
         }
+    });
+
+    test("the correction's helper sentence, in the business file's rules, is the Arabic text the app shows @I18N-013 @TPL-704", () => {
+        const helper = t("printTemplates.calibration.helper");
+        expect(helper).toBe("مثال: إذا نزلت الطباعة 2 مم عن مكانها فاكتب Y = −2.");
+        expect(printTemplatesDoc).toContain(helper);
     });
 });

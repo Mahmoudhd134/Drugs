@@ -53,13 +53,14 @@ public static class TemplateApi
         body.ShouldBeEmpty();
     }
 
-    /// <summary>The same schema version, page and items in the same order (numbers by value: <c>148.0</c> is 148).</summary>
+    /// <summary>The same schema version, page, items in the same order and calibration (numbers by value: <c>148.0</c> is 148).</summary>
     public static void ShouldMatch(this PrescriptionLayoutDto actual, PrescriptionLayoutDto expected)
     {
         actual.ShouldNotBeNull();
         actual.SchemaVersion.ShouldBe(expected.SchemaVersion);
         actual.Page.ShouldBe(expected.Page);
         actual.Items.ShouldBe(expected.Items);
+        actual.Calibration.ShouldBe(expected.Calibration);
     }
 
     /// <summary>The clinic's rows in the table (by the database: no clinic filter).</summary>

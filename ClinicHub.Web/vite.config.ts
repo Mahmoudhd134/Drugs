@@ -29,6 +29,7 @@ const PURE_LOGIC = [
     'src/features/printTemplates/pagination.ts',
     'src/features/printTemplates/dragGeometry.ts',
     'src/features/printTemplates/layoutHistory.ts',
+    'src/features/printTemplates/testPrintSample.ts',
     'src/features/attachments/functions.ts',
 ]
 

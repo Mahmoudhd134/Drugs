@@ -201,26 +201,40 @@ public class PrescriptionLayoutRulesTests
                 { "id": "m1", "kind": "manualInput", "name": "م", "xMm": 58, "yMm": 46, "wMm": 72, "hMm": 8, "fontSizePt": 11 },
                 { "id": "f1", "kind": "function", "function": "time", "name": "د", "xMm": 14, "yMm": 46, "wMm": 30, "hMm": 8, "fontSizePt": 11 },
                 { "id": "s1", "kind": "staticText", "text": "ث", "xMm": 14, "yMm": 175, "wMm": 60, "hMm": 8, "fontSizePt": 11 }
-              ]
+              ],
+              "calibration": { "xMm": 0, "yMm": 0 }
             }
             """)).ShouldBeTrue(json.ToJsonString());
     }
 
     [Fact]
     [Trait("Case", "TPL-002")]
+    public void Serialize_writes_the_keys_in_the_records_order_calibration_last()
+    {
+        var json = JsonNode.Parse(PrescriptionLayoutRules.Serialize(WithCalibration(OnA5(PrescriptionText()), 2, -1.5m))).AsObject();
+
+        json.Select(p => p.Key).ShouldBe(["schemaVersion", "page", "items", "calibration"]);
+        json["calibration"].AsObject().Select(p => p.Key).ShouldBe(["xMm", "yMm"]);
+        ((decimal)json["calibration"]["xMm"]).ShouldBe(2m);
+        ((decimal)json["calibration"]["yMm"]).ShouldBe(-1.5m);
+    }
+
+    [Fact]
+    [Trait("Case", "TPL-002")]
     public void Deserialize_reads_what_Serialize_wrote_order_and_text_included()
     {
-        var layout = Layout(Custom(210.1m, 300),
+        var layout = WithCalibration(Layout(Custom(210.1m, 300),
             StaticItem("سطر\r\nسطر\t«آخر» \"x\"", "z", xMm: 1.5m),
             PrescriptionText("a", yMm: 0.1m),
             FunctionItem("pageNumber", "رقم", "m"),
-            Manual("الاسم", "b", fontSizePt: 36));
+            Manual("الاسم", "b", fontSizePt: 36)), 2, -1.5m);
 
         var read = PrescriptionLayoutRules.Deserialize(PrescriptionLayoutRules.Serialize(layout));
 
         read.SchemaVersion.ShouldBe(1);
         read.Page.ShouldBe(layout.Page);
         read.Items.ShouldBe(layout.Items);
+        read.Calibration.ShouldBe(new PrescriptionCalibrationDto(2, -1.5m));
     }
 
     [Fact]

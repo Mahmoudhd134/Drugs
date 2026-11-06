@@ -17,7 +17,7 @@ namespace ClinicHub.IntegrationTests.Attachments;
 public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentTest(app)
 {
     private const int MegaByte = (int)AttachmentSettings.BytesPerMb;
-    private const int LimitOfM = 2 * MegaByte;
+    private const int LimitOfM = 10 * MegaByte;
     private const int GlobalLimit = 20 * MegaByte;
 
     private async Task ShouldBeRefusedAsync(HttpStatusCode status, string code, string url, string name, byte[] bytes, string declaredType = "application/octet-stream")
@@ -180,12 +180,12 @@ public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentT
     [Fact]
     [Trait("Case", "ATT-081")]
     public async Task A_Content_Length_far_past_the_limit_is_refused() =>
-        await ShouldBeRefusedAsync("attachmentTooLarge", InM(), "far-over.png", FileSamples.Png(5 * MegaByte));
+        await ShouldBeRefusedAsync("attachmentTooLarge", InM(), "far-over.png", FileSamples.Png(15 * MegaByte));
 
     [Fact]
     [Trait("Case", "ATT-083")]
     public async Task A_file_over_the_modules_limit_is_refused_there() =>
-        await ShouldBeRefusedAsync("attachmentTooLarge", InM(), "big.png", FileSamples.Png(3 * MegaByte));
+        await ShouldBeRefusedAsync("attachmentTooLarge", InM(), "big.png", FileSamples.Png(12 * MegaByte));
 
     [Fact]
     [Trait("Case", "ATT-083")]
@@ -193,9 +193,9 @@ public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentT
     {
         var (_, owner) = await ClinicWithOwnerAsync();
 
-        var file = await owner.StoredAsync($"{ClinicRoute}/{InG()}", "big.png", FileSamples.Png(3 * MegaByte));
+        var file = await owner.StoredAsync($"{ClinicRoute}/{InG()}", "big.png", FileSamples.Png(12 * MegaByte));
 
-        file.SizeBytes.ShouldBe(3 * MegaByte);
+        file.SizeBytes.ShouldBe(12 * MegaByte);
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentT
     [Trait("Case", "ATT-085")]
     public async Task No_token_and_a_huge_body_answers_401_not_a_size_error()
     {
-        var response = await Anonymous().UploadAsync($"{ClinicRoute}/{InM()}", "huge.png", FileSamples.Png(5 * MegaByte));
+        var response = await Anonymous().UploadAsync($"{ClinicRoute}/{InM()}", "huge.png", FileSamples.Png(15 * MegaByte));
 
         await response.ShouldBeProblemAsync(HttpStatusCode.Unauthorized, "unauthorized");
     }
@@ -237,7 +237,7 @@ public class AttachmentUploadRulesTests(AttachmentsAppFixture app) : AttachmentT
         var clinic = await Data.Clinic();
         var listOnly = await Login.WithPermissionsAsync(clinic, Application.Features.Access.Permissions.Drugs.List);
 
-        var response = await listOnly.UploadAsync($"{ClinicRoute}/{InM()}", "huge.png", FileSamples.Png(5 * MegaByte));
+        var response = await listOnly.UploadAsync($"{ClinicRoute}/{InM()}", "huge.png", FileSamples.Png(15 * MegaByte));
 
         await response.ShouldBeProblemAsync(HttpStatusCode.Forbidden, "forbidden");
     }

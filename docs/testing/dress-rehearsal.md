@@ -688,13 +688,15 @@ result in the app, e.g. the exact sentence or the copied text).
 - [ ] `UX-029` (P0, e2e) Given a new version deployed while the app is open, when opening a page whose chunk no longer exists, then the app reloads itself once and the page opens
 - [ ] `UX-037` (P1, manual) Given the app served over the real HTTPS deployment, when copying a prescription, then the async Clipboard API is used and Word keeps the formatting
 
-### 10. Print templates on real paper (4)
+### 10. Print templates on real paper (6)
 
 No printer was available when printing was built: alignment on real paper and the real print dialog are unverified. CI proves the PDF's page size, the items' positions and every drug present once, not these.
 
-- [ ] `TPL-190` (P0, manual) Given a real printer and a pre-printed A5 sheet at 100%, then every item is within 1 mm of its place, measured with a ruler
+- [ ] `TPL-190` (P0, manual) Given a real printer and a pre-printed A5 sheet at 100%, after calibration, then every item is within 1 mm of its place, measured with a ruler
 - [ ] `TPL-191` (P1, manual) Given a real phone and a printer, then the prescription prints with text intact; record the offset
 - [ ] `TPL-334` (P2, manual) Given a custom page larger than the paper in a real printer, then record what the browser does (scale, cut); nothing is promised
+- [ ] `TPL-687` (P0, manual) Given real paper and a real printer, when a test print is measured and corrected, then the second print lines up within 1 mm
+- [ ] `TPL-688` (P1, manual) Given a real browser with "Background graphics" off, then outlines and rulers print
 - [ ] `TPL-347` (P1, manual) Given real Chrome on Windows, then the dialog's preview shows the template's size, no browser header or footer at margin none; Cancel returns to the app
 
 ### 11. Attachments on the Windows server (2)
