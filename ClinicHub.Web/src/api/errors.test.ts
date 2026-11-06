@@ -1,9 +1,10 @@
 import {describe, expect, test} from "vitest";
+import {AxiosError, CanceledError} from "axios";
 import {http, HttpResponse} from "msw";
 import i18n from "../i18n";
 import {api as apiUrl, isolate, networkError, problem, server} from "../test";
 import {api} from "./client.ts";
-import {getErrorMessage, getFieldErrors, getOtherErrors, splitFormErrors, toApiError} from "./errors.ts";
+import {getErrorMessage, getFieldErrors, getOtherErrors, isRequestCancelled, splitFormErrors, toApiError} from "./errors.ts";
 
 // Reading errors in the SPA: docs/tech/overview.md "Data fetching", "Errors (ProblemDetails)"; auth/tech.md "Frontend".
 
@@ -121,6 +122,55 @@ describe("getErrorMessage @area:errors", () => {
     test("clinicNames on a code without a _named text: the plain text", async () => {
         expect(getErrorMessage(await failWith(() => problem(403, "noAccess", {clinicNames: ["A"]}))))
             .toBe("This number has no access. Ask your clinic to add you.");
+    });
+});
+
+// A cancel is not a failure (attachments design § 12 "Upload", contract § 2 "Actions on a stored file")
+describe("a request stopped by its signal @area:errors", () => {
+    /** The rejection of a real request whose signal is aborted while it's on its way. */
+    const stoppedRequest = async () => {
+        const controller = new AbortController();
+        server.use(http.get(apiUrl("/test"), () => {
+            controller.abort();
+            return HttpResponse.json({});
+        }));
+        return api.get("/test", {signal: controller.signal}).then(
+            () => {
+                throw new Error("The request was not stopped");
+            },
+            (error: unknown) => error,
+        );
+    };
+
+    test("axios's cancel and the platform's AbortError are cancels", async () => {
+        expect(isRequestCancelled(await stoppedRequest())).toBe(true);
+        expect(isRequestCancelled(new CanceledError())).toBe(true);
+        expect(isRequestCancelled(Object.assign(new Error("stopped"), {name: "AbortError"}))).toBe(true);
+    });
+
+    test("anything else isn't: a refusal, no answer, another error, or something only named so", async () => {
+        expect(isRequestCancelled(await failWith(() => problem(400, "attachmentEmpty")))).toBe(false);
+        expect(isRequestCancelled(await failWith(networkError))).toBe(false);
+        expect(isRequestCancelled(new Error("boom"))).toBe(false);
+        expect(isRequestCancelled(Object.assign(new Error("stopped"), {name: "TimeoutError"}))).toBe(false);
+        expect(isRequestCancelled({name: "AbortError"})).toBe(false);
+        expect(isRequestCancelled("AbortError")).toBe(false);
+        expect(isRequestCancelled(null)).toBe(false);
+        expect(isRequestCancelled(undefined)).toBe(false);
+    });
+
+    test("getErrorMessage on a cancel answers generic, never network", async () => {
+        const generic = "Something went wrong. Please try again.";
+        expect(getErrorMessage(await stoppedRequest())).toBe(generic);
+        expect(getErrorMessage(new CanceledError())).toBe(generic);
+        expect(getErrorMessage(Object.assign(new Error("stopped"), {name: "AbortError"}))).toBe(generic);
+        await i18n.changeLanguage("ar");
+        expect(getErrorMessage(new CanceledError())).toBe("حدث خطأ ما. حاول مرة أخرى.");
+    });
+
+    test("a request with no answer that wasn't stopped is still a network error", async () => {
+        expect(getErrorMessage(new AxiosError("Network Error", AxiosError.ERR_NETWORK))).toBe("Can't reach the server. Check your connection.");
+        expect(getErrorMessage(await failWith(networkError))).toBe("Can't reach the server. Check your connection.");
     });
 });
 
