@@ -26,6 +26,7 @@ export const AttachmentManager = ({
                 files={files}
                 canUpload={canUpload}
                 canReplace={canReplace}
+                showListState={false}
                 renderTrigger={renderTrigger}
                 renderSelectedItem={renderSelectedItem}
             />

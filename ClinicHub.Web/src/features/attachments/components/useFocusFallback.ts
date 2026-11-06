@@ -16,6 +16,31 @@ export const useFocusFallback = (root: RefObject<HTMLElement | null>, fallback: 
 };
 
 /**
+ * A Retry on a failed first load unmounts its alert and button. `failed`: the alert is back, so `retryButton` takes the
+ * focus. `ready`: `target` can take it. Focus the user moved elsewhere stays. Answers the function to call on the press.
+ */
+export const useRetryFocus = (
+    failed: boolean,
+    ready: boolean,
+    retryButton: RefObject<HTMLElement | null>,
+    target: RefObject<HTMLElement | null>,
+) => {
+    // "pressed" until the alert has left: only then does `failed` mean it failed again
+    const pending = useRef<"pressed" | "left" | null>(null);
+    useEffect(() => {
+        if (!failed && pending.current === "pressed") pending.current = "left";
+        if (pending.current !== "left" || (!failed && !ready)) return;
+        pending.current = null;
+        const focused = document.activeElement;
+        if (focused && focused !== document.body && !focused.matches(":disabled")) return;
+        (failed ? retryButton : target).current?.focus({preventScroll: true});
+    });
+    return () => {
+        pending.current = "pressed";
+    };
+};
+
+/**
  * A preview closed after the row that opened it went: the dialog has no button to return the focus to, so it goes to
  * `fallback`. Answers the ref to set to the row's key on opening a preview from it.
  */

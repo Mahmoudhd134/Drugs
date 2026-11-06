@@ -10,24 +10,31 @@ import {useTranslation} from "react-i18next";
 import {displayName, formatFileSize, previewKind} from "../functions.ts";
 import type {AttachmentPickerProps, AttachmentTriggerProps, SelectedFile, SelectedFileActions, UseAttachments} from "../types.ts";
 import {FileIconButton, FileName} from "./FileRowParts.tsx";
-import {useFocusFallback, usePreviewOpener} from "./useFocusFallback.ts";
+import {useFocusFallback, usePreviewOpener, useRetryFocus} from "./useFocusFallback.ts";
 
 const VISUALLY_HIDDEN = {
     position: "absolute", width: "1px", height: "1px", m: "-1px", p: 0, border: 0,
     overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap",
 } as const;
 
-const THUMBNAIL_PLACE = {width: 48, height: 48, flexShrink: 0, borderRadius: 1, overflow: "hidden", bgcolor: "action.hover"} as const;
+const THUMBNAIL_PLACE = {
+    display: "flex", alignItems: "center", justifyContent: "center", width: 48, height: 48, flexShrink: 0,
+    borderRadius: 1, overflow: "hidden", bgcolor: "action.hover", color: "text.secondary",
+} as const;
 
 /** The second click of a double click does nothing: the next row moves under the pointer, or Remove takes Cancel's place. A key press has a `detail` of 0. */
 const firstClickOnly = (action: () => void) => (event: MouseEvent) => {
     if (event.detail <= 1) action();
 };
 
-/** A selected image's thumbnail: its object URL is created only when its row enters the view, and revoked with the row. */
+/**
+ * A selected image's thumbnail: its object URL is created only when its row enters the view, and revoked with the row.
+ * One the browser can't decode shows the file icon.
+ */
 const Thumbnail = ({file}: { file: File }) => {
     const box = useRef<HTMLDivElement>(null);
     const [url, setUrl] = useState<string | null>(null);
+    const [broken, setBroken] = useState(false);
 
     useEffect(() => {
         let created: string | null = null;
@@ -54,18 +61,26 @@ const Thumbnail = ({file}: { file: File }) => {
 
     return (
         <Box ref={box} sx={THUMBNAIL_PLACE}>
-            {url && <Box component="img" src={url} alt="" sx={{display: "block", width: "100%", height: "100%", objectFit: "cover"}}/>}
+            {broken ? <FileIcon/> : url && (
+                <Box component="img" src={url} alt="" onError={() => setBroken(true)} sx={{display: "block", width: "100%", height: "100%", objectFit: "cover"}}/>
+            )}
         </Box>
     );
 };
 
-const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFileActions }) => {
+const SelectedRow = ({item, actions, canRetry}: { item: SelectedFile; actions: SelectedFileActions; canRetry: boolean }) => {
     const {t} = useTranslation();
     const name = displayName(item.file.name);
+    // What a failed file's reason took, wrapped or not: the line keeps it through a Retry
+    const statusLine = useRef<HTMLDivElement>(null);
+    const failedHeight = useRef(0);
+    useEffect(() => {
+        if (item.status === "failed" && statusLine.current) failedHeight.current = statusLine.current.offsetHeight;
+    });
     return (
         <>
             {previewKind({name: item.file.name}) === "image" ? <Thumbnail file={item.file}/> : (
-                <Box sx={{...THUMBNAIL_PLACE, display: "flex", alignItems: "center", justifyContent: "center", color: "text.secondary"}}>
+                <Box sx={THUMBNAIL_PLACE}>
                     <FileIcon/>
                 </Box>
             )}
@@ -74,7 +89,7 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
                 <Typography variant="body2" color="text.secondary">{formatFileSize(item.file.size)}</Typography>
                 {/* A line kept once it's sent: a Retry's row doesn't shrink and pull a page scrolled to its end */}
                 {item.status !== "waiting" && (
-                    <Box sx={{display: "flow-root", minHeight: "1.25rem"}}>
+                    <Box ref={statusLine} sx={{display: "flow-root"}} style={{minHeight: item.status === "failed" || !failedHeight.current ? "1.25rem" : failedHeight.current}}>
                         {item.status === "failed" && <Typography variant="body2" color="error" sx={{overflowWrap: "anywhere"}}>{item.error}</Typography>}
                         {item.status === "uploading" && (
                             <LinearProgress
@@ -93,7 +108,7 @@ const SelectedRow = ({item, actions}: { item: SelectedFile; actions: SelectedFil
                     <PreviewIcon fontSize="small"/>
                 </FileIconButton>
                 {item.status === "failed" && (
-                    <FileIconButton label={t("attachments.retryFile", {name})} onClick={actions.retry}>
+                    <FileIconButton label={t("attachments.retryFile", {name})} onClick={actions.retry} disabled={!canRetry}>
                         <RetryIcon fontSize="small"/>
                     </FileIconButton>
                 )}
@@ -141,7 +156,7 @@ const actionsOf = (
  * Select with a button or by dropping files, see and change the selection, then Upload with progress per file. With
  * `multiple` false, `canReplace`, the adapter's call and a stored file, Upload replaces that file.
  */
-export const AttachmentPicker = ({files, canUpload = false, canReplace = false, renderTrigger, renderSelectedItem}: AttachmentPickerProps) => {
+export const AttachmentPicker = ({files, canUpload = false, canReplace = false, showListState = true, renderTrigger, renderSelectedItem}: AttachmentPickerProps) => {
     const {t} = useTranslation();
     const input = useRef<HTMLInputElement>(null);
     const [dragging, setDragging] = useState(false);
@@ -153,13 +168,27 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
     // Upload disabling itself, Retry leaving, a focused row finishing. A custom trigger's focus is the feature's
     useFocusFallback(root, pickButton);
     const previewOpener = usePreviewOpener(!!files.preview, rows, pickButton);
+    const rulesRetryButton = useRef<HTMLButtonElement>(null);
+    const rulesRetryPressed = useRetryFocus(files.rulesFailed, files.canPick, rulesRetryButton, pickButton);
 
     const replaces = canReplace && files.hasReplace;
     const replacesStored = replaces && !files.multiple && files.files.length > 0;
     const rulesAlert = files.rulesFailed && (
         <Alert
             severity="error"
-            action={<Button color="inherit" size="small" onClick={files.retryRules}>{t("common.retry")}</Button>}
+            action={(
+                <Button
+                    ref={rulesRetryButton}
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                        rulesRetryPressed();
+                        files.retryRules();
+                    }}
+                >
+                    {t("common.retry")}
+                </Button>
+            )}
         >
             {t("attachments.rulesFailed")}
         </Alert>
@@ -248,6 +277,14 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
             )}
 
             {rulesAlert}
+            {showListState && files.listFailed && files.uploadWaitsForList && (
+                <Alert
+                    severity="error"
+                    action={<Button color="inherit" size="small" onClick={files.retryList}>{t("common.retry")}</Button>}
+                >
+                    {t("attachments.listFailed")}
+                </Alert>
+            )}
             {files.refusals.length > 0 && (
                 <Alert severity="error">
                     {files.refusals.map(refusal => (
@@ -271,7 +308,7 @@ export const AttachmentPicker = ({files, canUpload = false, canReplace = false, 
                                 disableGutters
                                 sx={{flexWrap: "wrap", gap: 1}}
                             >
-                                {renderSelectedItem ? renderSelectedItem(item, actions) : <SelectedRow item={item} actions={actions}/>}
+                                {renderSelectedItem ? renderSelectedItem(item, actions) : <SelectedRow item={item} actions={actions} canRetry={files.canRetry}/>}
                             </ListItem>
                         );
                     })}

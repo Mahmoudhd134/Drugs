@@ -140,9 +140,13 @@ export type UseAttachments = {
     upload: () => Promise<void>;
     /** `upload` has something to send now */
     canSend: boolean;
+    /** Upload is held until the list answers: the count of stored files matters and it isn't known */
+    uploadWaitsForList: boolean;
+    /** False while a file is over `maxFiles`: `retry` sends nothing until the excess is removed */
+    canRetry: boolean;
     /** Aborts an uploading file (it becomes cancelled; the run goes on) or takes a queued one back to waiting */
     cancel: (key: string) => void;
-    /** A failed file again: joins the current run, or starts one. Never ignored */
+    /** A failed file again: joins the current run, or starts one. Ignored only while a file is over `maxFiles` */
     retry: (key: string) => void;
     /** A run is in progress */
     isUploading: boolean;

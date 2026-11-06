@@ -12,7 +12,7 @@ import {useSingleFlight} from "../../../hooks/useSingleFlight.ts";
 import {displayName, formatFileSize, typeLabel} from "../functions.ts";
 import type {Attachment, AttachmentItemActions, AttachmentListProps} from "../types.ts";
 import {FileIconButton, FileName} from "./FileRowParts.tsx";
-import {useFocusFallback, usePreviewOpener} from "./useFocusFallback.ts";
+import {useFocusFallback, usePreviewOpener, useRetryFocus} from "./useFocusFallback.ts";
 
 const MetaText = ({children}: { children: string }) => (
     <Typography component="span" variant="body2" color="text.secondary">{children}</Typography>
@@ -89,7 +89,7 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
 
     const root = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLUListElement>(null);
-    const rows =useRef(new Map<string, HTMLLIElement>());
+    const rows = useRef(new Map<string, HTMLLIElement>());
     const focusAfterDelete = useRef<{ deletedId: string; nextId: string | null } | null>(null);
 
     // The row is gone once the list has reloaded. Only when the focus went with it: the user may have moved on meanwhile
@@ -130,6 +130,8 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
     useEffect(moveFocusAfterReplace);
 
     const previewOpener = usePreviewOpener(!!files.preview, rows, list);
+    const retryButton = useRef<HTMLButtonElement>(null);
+    const retryPressed = useRetryFocus(files.listFailed, !files.isListLoading, retryButton, list);
     // A stale row's Preview or Download. A running Replace places the focus itself when it ends
     useFocusFallback(root, list, !!files.replacing);
 
@@ -168,7 +170,19 @@ export const AttachmentList = ({files, canReplace = false, canDelete = false, re
     const failedAlert = files.listFailed && (
         <Alert
             severity="error"
-            action={<Button color="inherit" size="small" onClick={files.retryList}>{t("common.retry")}</Button>}
+            action={(
+                <Button
+                    ref={retryButton}
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                        retryPressed();
+                        files.retryList();
+                    }}
+                >
+                    {t("common.retry")}
+                </Button>
+            )}
         >
             {t("attachments.listFailed")}
         </Alert>

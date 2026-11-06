@@ -74,8 +74,9 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
     const uploadHeld = listUnknown || excess.length > 0;
 
     // What a queue that started on an earlier render reads now
-    const latest = useRef({adapter, multiple, maxFiles, canReplace, rules, files, uploadHeld, t});
-    latest.current = {adapter, multiple, maxFiles, canReplace, rules, files, uploadHeld, t};
+    const overLimit = excess.length > 0;
+    const latest = useRef({adapter, multiple, maxFiles, canReplace, rules, files, uploadHeld, overLimit, t});
+    latest.current = {adapter, multiple, maxFiles, canReplace, rules, files, uploadHeld, overLimit, t};
 
     const alive = useRef(true);
     const controllers = useRef(new Map<string, AbortController>());
@@ -241,7 +242,7 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
     };
 
     const retry = (key: string) => {
-        if (selection.current.find(item => item.key === key)?.status !== "failed") return;
+        if (latest.current.overLimit || selection.current.find(item => item.key === key)?.status !== "failed") return;
         setAnnouncement("");
         changeItem(key, {status: "queued", error: null});
         void onceRun(sendQueued);
@@ -465,6 +466,8 @@ export const useAttachments = ({adapter, multiple = true, maxFiles, canReplace =
         removeSelected,
         upload,
         canSend: !uploadHeld && selected.some(item => item.status === "waiting" || item.status === "cancelled"),
+        uploadWaitsForList: listUnknown,
+        canRetry: !overLimit,
         cancel,
         retry,
         isUploading,
