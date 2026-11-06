@@ -87,6 +87,7 @@ describe("locale files @area:i18n", () => {
             // The print templates (contract § 3.1)
             "templateLayoutInvalid", "templateTextCount", "templatePageInvalid", "templateItemOutsidePage", "templateItemSizeInvalid",
             "templateFontSizeInvalid", "templateItemNameTaken", "templateStaticTextRequired", "templateStaticTextTooLong", "templateTooManyItems",
+            "templateCalibrationInvalid",
             // The attachments (design attachments § 5)
             "attachmentTypeNotAllowed", "attachmentTooLarge", "attachmentEmpty",
         ];
@@ -113,9 +114,30 @@ describe("print template error texts @area:admin", () => {
         ["templateStaticTextRequired", "Enter the text.", "اكتب النص."],
         ["templateStaticTextTooLong", "The text is longer than 1000 characters.", "النص أطول من 1000 حرف."],
         ["templateTooManyItems", "A template can't have more than 50 items.", "لا يمكن إضافة أكثر من 50 عنصرًا."],
+        ["templateCalibrationInvalid", "The correction must be between −20 and +20 mm.", "يجب أن يكون التصحيح بين −20 و+20 مم."],
     ])("errors.%s is in both files, with the contract's text @TPL-244", (code, en, ar) => {
         expect(enTexts[`errors.${code}`]).toBe(en);
         expect(arTexts[`errors.${code}`]).toBe(ar);
+    });
+});
+
+describe("print template step 4 texts @area:admin", () => {
+    test.each([
+        ["printTemplates.calibration.title", "Printer correction", "تصحيح الطابعة"],
+        ["printTemplates.calibration.x", "X: + moves right (mm)", "X: الموجب يمين (مم)"],
+        ["printTemplates.calibration.y", "Y: + moves down (mm)", "Y: الموجب أسفل (مم)"],
+        ["printTemplates.calibration.helper", "For example: if the print landed 2 mm too low, type Y = −2.", "مثال: إذا نزلت الطباعة 2 مم عن مكانها فاكتب Y = −2."],
+        ["printTemplates.calibration.cutWarning", "With this correction, one or more items leave the sheet and their text may be cut.", "بهذا التصحيح يخرج عنصر أو أكثر عن الورقة وقد يُقص نصه."],
+        ["printTemplates.testPrint.button", "Test print", "طباعة تجريبية"],
+        ["printTemplates.testPrint.hint", "Print at 100%, without \"Fit to page\".", "اطبع بمقياس 100% دون «ملاءمة للصفحة»."],
+        ["printTemplates.paper.title", "Paper image", "صورة الورقة"],
+        ["printTemplates.paper.rules", "{{types}}, up to {{size}}. One image per clinic.", "{{types}}، حتى {{size}}، صورة واحدة لكل عيادة."],
+        ["printTemplates.paper.show", "Show the image", "إظهار الصورة"],
+        ["printTemplates.paper.opacity", "Image opacity", "شفافية الصورة"],
+        ["printTemplates.paper.loadFailed", "Couldn't show the paper image.", "تعذر عرض صورة الورقة."],
+    ])("%s is in both files, with the contract's text @TPL-704 @TPL-686", (key, english, arabic) => {
+        expect(enTexts[key]).toBe(english);
+        expect(arTexts[key]).toBe(arabic);
     });
 });
 

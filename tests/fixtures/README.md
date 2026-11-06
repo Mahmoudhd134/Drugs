@@ -90,3 +90,5 @@ suites run every row (TPL-048), so the two can't drift:
 
 `layout` is the body as the API takes it, `errors` the API's full list for it (empty when `valid`). No row has a wrong type or a missing
 number: those are binding or API rules, proved by the integration tests. Invisible characters are written as `\uXXXX` escapes.
+
+A row's `layout` may hold `calibration` (`{ "xMm": 2, "yMm": -1.5 }`, or `null`, which reads as 0, 0; a row without it reads the same), and `errors` names `calibration.xMm`, `calibration.yMm` after the items' errors: all of rule 9 (X null, then Y null), then all of rule 10 (X out of range, then Y). A number in it may be `null`: both sides hold that rule. These rules run whatever the item count, so the rows over 50 items (TPL-724) answer `templateTooManyItems`, then calibration's.
