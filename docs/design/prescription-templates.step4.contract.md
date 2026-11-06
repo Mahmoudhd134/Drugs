@@ -132,6 +132,25 @@ Box component="section" aria-labelledby=<h3> (region, named calibration.title)
 └ Typography (two lines)     calibration.helper; testPrint.hint
 ```
 
+### 4.3.1 Collapsible sections (user, 2026-11-06, at the walkthrough)
+
+The panel had four parts stacked, and selecting an item pushed the rest down, so it took long scrolling and the sheet left the screen. It becomes four MUI `Accordion`s, `disableGutters`, same order, same content.
+
+| Rule | Detail |
+|---|---|
+| Sections | `page.title`, `calibration.title`, `config.itemSection` (new), `paper.title` (no adapter: no such section). Each header's `AccordionSummary` is a button named by its title |
+| One at a time | At most one open. Pressing the open one closes it, leaving all closed |
+| At each opening | The sheet's section is open. The state lives in `TemplateWorkspace`, so it resets as opacity does: never saved, widening from below 900 px is an opening |
+| Selecting opens the item's section | A press on a box or a handle, a click, Enter or Space on a box, an item added by a click or a drop: all open it, **also when that item was already selected and another section is open**. Selecting nothing, undo, redo, typing in a field and a nudge leave the open section as it is |
+| Nothing unmounts | Closed content stays mounted (MUI's default; never `unmountOnExit`): a picked file, a running upload and typed text survive closing, since part 2 aborts on unmount |
+| Cut warning | `template-cut-warning` moves out of the collapsing part: right after the correction's accordion, in view with it closed, since moving a box can raise it |
+| A refused Save or Test print | Opens the section of the first problem, in the order sheet, correction, item, then scrolls its field as today. An error no field shows opens nothing |
+| The mark | A closed section holding an error a field shows has an error-colored `ErrorOutlineIcon` in its header, `titleAccess` `config.sectionError` (new), and `data-has-error="true"` on the summary. It goes with the error |
+| Numbers side by side | In `minmax(0, 1fr)` pairs: the sheet's width and height, the item's X and Y, its width and height. Name, text and font stay full width; the correction's X and Y stay one per row, since their labels are longer |
+| The panel's own scroll | From 1200 px `TemplateSettings` has `max-height` of the area's measured height and `overflow-y: auto`, so it never grows the page and the sheet stays in view. From 900 to 1199 px the shared column already scrolls |
+
+New texts: `printTemplates.config.itemSection` en `Item`, ar `العنصر`; `printTemplates.config.sectionError` en `Has an error`, ar `فيه خطأ`.
+
 ### 4.4 Printing
 
 - **`print.test`** (`SheetPrintContent.test`, `PrintRoot` passes it when `job.test`, with `job.test.values` for values): each box's **last** child is `div data-testid="test-print-frame"`, empty, `position: absolute; inset: 0; border: TEST_PRINT_FRAME_BORDER`. The sheet's last child is `TemplatePrintRulers`. Last, so `firstElementChild` stays the value.
@@ -200,6 +219,7 @@ The columns flip with the language, as today; the area stays `dir="ltr"`. `Templ
 | Switch, slider | switch `paper.show`; slider `paper.opacity`, `aria-valuetext` `50%` |
 | Picture, grid | `template-paper-image` (empty `alt`, `aria-hidden`); `template-sheet-grid` |
 | Shared column | `template-side-column` |
+| Settings sections | buttons `page.title`, `calibration.title`, `config.itemSection`, `paper.title`, `aria-expanded`; mark: `data-has-error` on the summary, icon title `config.sectionError` |
 | Test sheet | `print-sheet` as today; `test-print-frame`; `test-print-rulers`, `ruler-line-top`, `ruler-line-left`, `[data-ruler][data-mm]` |
 
 ---
@@ -340,6 +360,8 @@ Coders run `dotnet build ClinicHub.sln` (0 warnings), `npx tsc -b`, `npx eslint 
 25. **A print is not an opening (T5, TPL-726).** The designer's desktop switch also holds under print media (`(min-width: 900px), print`), so laying the page out at paper width doesn't unmount the workspace: picture settings, zoom and a picked file stay. Below 900 px on screen, nothing changes. So Ctrl+P with no job prints the designer's page, the picture hidden.
 26. **A picture that fails to load also toasts (T5, TPL-727):** `printTemplates.paper.loadFailed` once per failure, since the section with its message and Retry can sit below the window while the blank sheet shows. The inline message and Retry stay. No new text.
 27. **Test print's sample goes through `cleanPrintHtml` with `dir="rtl"` on its lines, as a real prescription's lines (T5, TPL-728),** so it starts at the same side of the box as a real print, Latin lines at their own side by the same rule.
+
+28. **Collapsible sections, not tabs: the user's choice** at the walkthrough (§ 4.3.1). The sheet's section opens first, as a new layout starts there; everything else in § 4.3.1 follows from "one at a time" and from not hiding a warning or an error in a closed section.
 
 ## 11. Wording
 

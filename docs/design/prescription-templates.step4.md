@@ -270,6 +270,19 @@ IDs continue from TPL-596. Levels: unit, api, ui, e2e, manual. **Source** is thi
 
 **Not cases but the T6 checklist:** `business.md`'s page-number sentence is back; the gallery's PNGs are in CI's merged report.
 
+**Added at T5 and at the walkthrough** (contract § 10.25–10.28):
+
+| ID | Case | P | Level | Source |
+|---|---|---|---|---|
+| TPL-729 | Given the settings, then the sheet's section is open at first and at most one is open; pressing the open one closes it, leaving all closed | P1 | ui | contract § 4.3.1 |
+| TPL-730 | Given another section open, when a box is pressed, clicked, or entered, or an item is added, also when it was already selected, then the item's section opens; undo, redo, typing and a nudge leave the open section as it is | P0 | ui | contract § 4.3.1 |
+| TPL-731 | Given a picked file, a running upload or typed text, when its section closes, then they stay | P1 | ui | contract § 4.3.1 |
+| TPL-732 | Given a problem in a closed section, when Save or Test print refuses, then the first problem's section opens and its message is in view; another closed section with an error shows the mark, and fixing it clears the mark | P0 | ui | contract § 4.3.1 |
+| TPL-733 | Given the correction's section closed and a box pushed off by it, then the cut warning shows | P0 | ui | A6, contract § 4.3.1 |
+| TPL-734 | Given 1280 × 800 and an item selected, in both languages, then all section headers and the sheet are in view with no page scroll; the settings scroll inside themselves; the sheet stays in view while the opacity slider moves | P1 | e2e | contract § 4.3.1 |
+| TPL-735 | Given the paired number fields at 1000 and 1280 px, in both languages, then no cut text and no axe failure | P1 | e2e | contract § 4.3.1 |
+| TPL-736 | Given another section open, when reopened or widened from below 900 px, then the sheet's section is open | P2 | ui | contract § 4.3.1 |
+
 **Existing cases changed (none retired):**
 
 | ID | Why |
