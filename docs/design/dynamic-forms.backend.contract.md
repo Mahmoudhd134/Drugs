@@ -195,7 +195,7 @@ Draft for T1: the writers copy the rows into the catalog (source links relative 
 | FRM-153 | Given a 5 MB definition, then 400 `formDefinitionTooLarge` | P2 | V3 |
 | FRM-154 | Given a definition at the exact limit, when PUT unchanged, then 200 and the version's text and `UpdatedAt` stay | P2 | V3, S2 |
 | FRM-155 | Given a definition at the reader's deepest level (the body is 32 levels), then POST 201, GET equal and PUT unchanged writes no version; one level more, then 400 `invalidRequest` | P1 | V6 |
-| FRM-156 | Given the same value spelled otherwise (`"أ"` and `"أ"`, an escaped key, `1e2` and `100`, `0` and `-0`), when PUT, then no version row is written | P1 | S1 |
+| FRM-156 | Given the same value spelled otherwise (a letter written as its backslash-u escape and as itself, an escaped key, `1e2` and `100`, `0` and `-0`), when PUT, then no version row is written | P1 | S1 |
 | FRM-157 | Given a changed array order, swapped duplicate keys, two numbers differing at the 22nd decimal, or a key's case, when PUT, then the definition counts as changed | P1 | S1 |
 | FRM-158 | Given duplicate keys, `1e400` and a 23-digit integer, when POST and GET, then they read back with the number's text intact | P2 | V5 |
 | FRM-159 | Given a stored `\u0000` escape, when PUT unchanged, then no version write | P2 | § 3 |
