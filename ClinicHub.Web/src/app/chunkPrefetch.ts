@@ -7,6 +7,7 @@ import {PREFETCH_LIST_ID} from "./chunkList.ts";
  */
 
 const MAX_DOWNLOADS = 2;
+const MAX_IDLE_WAIT_MS = 2000;
 
 type Run = { controller: AbortController; downloading: Set<string>; cancelIdle?: () => void };
 
@@ -29,7 +30,8 @@ const whenIdle = (callback: () => void) => {
     let cancel: () => void;
     const waitForIdle = () => {
         if ("requestIdleCallback" in window) {
-            const id = requestIdleCallback(callback);
+            // The limit keeps it going where the browser never finds idle time (a background tab, a page always busy)
+            const id = requestIdleCallback(callback, {timeout: MAX_IDLE_WAIT_MS});
             cancel = () => cancelIdleCallback(id);
         } else {
             const id = setTimeout(callback, 200);
