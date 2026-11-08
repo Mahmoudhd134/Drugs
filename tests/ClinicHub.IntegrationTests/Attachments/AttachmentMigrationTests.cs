@@ -106,10 +106,11 @@ public class AttachmentMigrationTests(BareAppFixture app) : IntegrationTest(app)
     /// <summary>Every other public table as <c>name=count:checksum</c>, sorted: equal snapshots = no row changed.</summary>
     private async Task<List<string>> OtherTablesRowsAsync()
     {
+        // Forms and FormVersions come from a later migration: going down to before attachments drops them
         var tables = await App.OutsideTheApp.ScalarAsync<string>(
             """
             SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT IN ('__EFMigrationsHistory', 'Attachments')
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT IN ('__EFMigrationsHistory', 'Attachments', 'Forms', 'FormVersions')
             """);
         var rows = new List<string>();
         foreach (var table in tables.Split(','))
