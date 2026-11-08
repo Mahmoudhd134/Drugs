@@ -12,6 +12,7 @@ import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory, AdminSubCategory} from "../features/admin/categories/types.ts";
 import type {PrescriptionLine} from "../features/prescription/types.ts";
 import type {Attachment, AttachmentRules} from "../features/attachments/types.ts";
+import type {FormDefinition, FormDetails, FormSummary} from "../features/forms/types.ts";
 import type {PrintLayout, PrintTemplate, TemplateCalibration, TemplateItem, TemplateItemKind} from "../features/printTemplates/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
@@ -276,6 +277,30 @@ export const PAPER_RULES: AttachmentRules = {maxFileSizeBytes: 10 * 1_048_576, e
 export const aPrintTemplate = (fields: Partial<PrintTemplate> = {}): PrintTemplate => ({
     layout: aPrintLayout(),
     updatedAt: "2026-11-05T10:00:00Z",
+    ...fields,
+});
+
+/** An empty definition (design dynamic-forms § 5.2): version 1, right to left, no nodes. */
+export const aFormDefinition = (fields: Partial<FormDefinition> = {}): FormDefinition => ({
+    schemaVersion: 1,
+    dir: "rtl",
+    nodes: [],
+    ...fields,
+});
+
+/** A form of the list (`GET /admin/forms`): version 1 active. */
+export const aFormSummary = (fields: Partial<FormSummary> = {}): FormSummary => ({
+    id: nextId(),
+    name: "نموذج تجريبي",
+    activeVersionNumber: 1,
+    updatedAt: "2026-11-09T10:00:00Z",
+    ...fields,
+});
+
+/** A form with its definition (`GET /admin/forms/{id}`, and what `POST` and `PUT` answer). */
+export const aFormDetails = (fields: Partial<FormDetails> = {}): FormDetails => ({
+    ...aFormSummary(),
+    definition: aFormDefinition(),
     ...fields,
 });
 

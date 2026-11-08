@@ -54,6 +54,11 @@ public sealed class TestData(AppFixture app)
     /// <summary>Soft delete (final).</summary>
     public async Task DeleteClinicAsync(ClinicHandle clinic) => (await app.SendAsync(new DeleteClinicCommand(clinic.Id))).ShouldSucceed();
 
+    // ---- Forms (super admin use cases) ----
+
+    /// <summary>A form with version 1 active (default: a unique name, an empty definition).</summary>
+    public FormBuilder Form() => new(app);
+
     // ---- Staff and roles (in a clinic) ----
 
     /// <summary>A staff member (default: a new phone, a unique name, the Doctor role, active).</summary>

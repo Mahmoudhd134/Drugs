@@ -132,6 +132,8 @@ const ar: Translations = {
         attachmentTypeNotAllowed: "نوع هذا الملف غير مسموح به.",
         attachmentTooLarge: "حجم هذا الملف أكبر من المسموح به.",
         attachmentEmpty: "هذا الملف فارغ.",
+        formDefinitionInvalid: "بيانات النموذج غير صحيحة.",
+        formDefinitionTooLarge: "النموذج أكبر من الحد المسموح.",
     },
     auth: {
         loginTitle: "تسجيل الدخول",

@@ -8,10 +8,11 @@ import type {Category, Drug, DrugTreeCategory, DrugTreeData, ProtocolDrug} from 
 import type {AdminDrug} from "../features/admin/drugs/types.ts";
 import type {AdminCategory} from "../features/admin/categories/types.ts";
 import type {Attachment, AttachmentRules} from "../features/attachments/types.ts";
+import type {FormDetails, FormSummary, SaveForm} from "../features/forms/types.ts";
 import type {PrintLayout, PrintTemplate} from "../features/printTemplates/types.ts";
 import type {Role} from "../features/roles/types.ts";
 import type {StaffMember} from "../features/staff/types.ts";
-import {aCategory, aMe, aPaperImage, asDrug, NO_CALIBRATION, PAPER_RULES, PERMISSION_CATALOG} from "./data.ts";
+import {aCategory, aMe, aPaperImage, asDrug, nextId, NO_CALIBRATION, PAPER_RULES, PERMISSION_CATALOG} from "./data.ts";
 import {server} from "./server.ts";
 
 /*
@@ -327,6 +328,49 @@ export const paperImageHandlers = (clinicId: number, files: Attachment[] = [],
  */
 export const clinicPrintTemplateHandler = (template: PrintTemplate | null = null) =>
     http.get(api("/prescription-template"), () => (template ? json(template) : new HttpResponse(null, {status: 204})));
+
+/**
+ * The five routes of `/admin/forms` (design dynamic-forms § 4.3), kept in `forms` (changed in place, so a write shows in the next GET). The list answers summaries by name, names starting with the search
+ * first, as the API orders them. `POST` answers 201 with version 1 active; `PUT` answers the saved form; `DELETE` 204. A missing id answers 404 `notFound`, also on a second `DELETE`. Other errors are per test,
+ * in a later `server.use`, which wins (`http.put(api("/admin/forms/:id"), () => problem(400, "formDefinitionTooLarge", {errors: [{code: "formDefinitionTooLarge", field: "definition"}]}))`).
+ */
+export const adminFormsHandlers = (forms: FormDetails[] = []) => {
+    const url = api("/admin/forms");
+    const indexOf = (id: unknown) => forms.findIndex(form => form.id === Number(id));
+    const SAVED_AT = "2026-11-09T12:00:00Z";
+    return [
+        http.get(url, ({request}) => {
+            const term = (new URL(request.url).searchParams.get("search") ?? "").trim().toLowerCase();
+            const starts = (form: FormSummary) => Number(form.name.toLowerCase().startsWith(term));
+            const summaries: FormSummary[] = forms
+                .map(({id, name, activeVersionNumber, updatedAt}) => ({id, name, activeVersionNumber, updatedAt}))
+                .sort((a, b) => starts(b) - starts(a) || a.name.localeCompare(b.name) || a.id - b.id);
+            return json(pageOf(request, summaries));
+        }),
+        http.get(`${url}/:id`, ({params}) => {
+            const form = forms[indexOf(params.id)];
+            return form ? json(form) : problem(404, "notFound");
+        }),
+        http.post(url, async ({request}) => {
+            const body = await request.json() as SaveForm;
+            const created: FormDetails = {id: nextId(), activeVersionNumber: 1, updatedAt: SAVED_AT, ...body};
+            forms.push(created);
+            return HttpResponse.json(created, {status: 201});
+        }),
+        http.put(`${url}/:id`, async ({request, params}) => {
+            const form = forms[indexOf(params.id)];
+            if (!form) return problem(404, "notFound");
+            Object.assign(form, await request.json() as SaveForm, {updatedAt: SAVED_AT});
+            return json(form);
+        }),
+        http.delete(`${url}/:id`, ({params}) => {
+            const index = indexOf(params.id);
+            if (index < 0) return problem(404, "notFound");
+            forms.splice(index, 1);
+            return new HttpResponse(null, {status: 204});
+        }),
+    ];
+};
 
 export type RecordedRequest = { method: string; path: string; search: string; body: unknown };
 

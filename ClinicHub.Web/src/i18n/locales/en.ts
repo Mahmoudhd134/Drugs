@@ -143,6 +143,9 @@ const en = {
         attachmentTypeNotAllowed: "This file type isn't allowed.",
         attachmentTooLarge: "This file is larger than allowed.",
         attachmentEmpty: "This file is empty.",
+        // A form's definition (design dynamic-forms § 4.3)
+        formDefinitionInvalid: "The form's data isn't valid.",
+        formDefinitionTooLarge: "The form is larger than allowed.",
     },
     auth: {
         loginTitle: "Log in",
