@@ -412,6 +412,71 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.ToTable("SubCategories");
                 });
 
+            modelBuilder.Entity("ClinicHub.Domain.Forms.Form", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActiveVersionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("SearchName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasAnnotation("ClinicHub:SearchSource", "Name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Forms");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Forms.FormVersion", b =>
+                {
+                    b.Property<int>("FormId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Definition")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("FormId", "VersionNumber");
+
+                    b.ToTable("FormVersions");
+                });
+
             modelBuilder.Entity("ClinicHub.Domain.Identity.OtpCode", b =>
                 {
                     b.Property<int>("Id")
@@ -863,6 +928,15 @@ namespace ClinicHub.Infrastructure.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("ClinicHub.Domain.Forms.FormVersion", b =>
+                {
+                    b.HasOne("ClinicHub.Domain.Forms.Form", null)
+                        .WithMany("Versions")
+                        .HasForeignKey("FormId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ClinicHub.Domain.Identity.Session", b =>
                 {
                     b.HasOne("ClinicHub.Domain.Platform.Clinic", null)
@@ -911,6 +985,11 @@ namespace ClinicHub.Infrastructure.Migrations
             modelBuilder.Entity("ClinicHub.Domain.Catalog.Protocol", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ClinicHub.Domain.Forms.Form", b =>
+                {
+                    b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618
         }

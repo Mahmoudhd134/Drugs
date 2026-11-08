@@ -17,7 +17,7 @@
   (no npm script yet, no e2e) are skipped with a visible note.
 
 .PARAMETER Area
-  Integration areas for -Tier step: auth, access, isolation, errors, admin, catalog, attachments (comma separated or repeated), or
+  Integration areas for -Tier step: auth, access, isolation, errors, admin, catalog, attachments, forms (comma separated or repeated), or
   "all". Default: from the changes (git diff against the branch point + uncommitted files, see -Base).
 
 .PARAMETER Base
@@ -59,7 +59,7 @@ $artifacts = Join-Path $root 'artifacts'
 $results = Join-Path $artifacts 'test-results'
 $web = Join-Path $root 'ClinicHub.Web'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-$allAreas = @('auth', 'access', 'isolation', 'errors', 'admin', 'catalog', 'attachments')
+$allAreas = @('auth', 'access', 'isolation', 'errors', 'admin', 'catalog', 'attachments', 'forms')
 # Branches that tracks merge into; after M1.6 is merged, only main stays
 $integrationBranches = @('m1.6-test-foundation', 'main')
 $stages = New-Object System.Collections.ArrayList
@@ -201,11 +201,13 @@ $areaMap = @(
     @{ Pattern = '^tests/ClinicHub\.IntegrationTests/Admin/'; Areas = @('admin') },
     @{ Pattern = '^tests/ClinicHub\.IntegrationTests/Catalog/'; Areas = @('catalog') },
     @{ Pattern = '^tests/ClinicHub\.IntegrationTests/Attachments/'; Areas = @('attachments') },
+    @{ Pattern = '^tests/ClinicHub\.IntegrationTests/Forms/'; Areas = @('forms') },
     @{ Pattern = '^tests/ClinicHub\.IntegrationTests/SelfTests/'; Areas = @() },
     @{ Pattern = '^tests/ClinicHub\.IntegrationTests/'; Areas = @('*') },
     @{ Pattern = '^ClinicHub\.Infrastructure/Migrations/'; Areas = @('*') },
     @{ Pattern = '^ClinicHub\.Infrastructure/Database/Configurations/Catalog/'; Areas = @('catalog') },
     @{ Pattern = '^ClinicHub\.Infrastructure/Database/Configurations/Attachments/'; Areas = @('attachments') },
+    @{ Pattern = '^ClinicHub\.Infrastructure/Database/Configurations/Forms/'; Areas = @('forms') },
     @{ Pattern = '^ClinicHub\.Infrastructure/Database/Configurations/Identity/'; Areas = @('auth') },
     @{ Pattern = '^ClinicHub\.Infrastructure/Database/Configurations/Access/'; Areas = @('access', 'admin') },
     @{ Pattern = '^ClinicHub\.Infrastructure/Database/Configurations/Platform/'; Areas = @('admin', 'auth') },
@@ -221,6 +223,7 @@ $areaMap = @(
     @{ Pattern = '^ClinicHub\.(Api|Infrastructure)/(Features/)?Platform/'; Areas = @('admin') },
     @{ Pattern = '^ClinicHub\.(Api|Application|Domain)/(Features/)?(Catalog|Drugs|Protocols)/'; Areas = @('catalog') },
     @{ Pattern = '^ClinicHub\.(Api|Application|Infrastructure|Domain)/(Features/)?Attachments/'; Areas = @('attachments') },
+    @{ Pattern = '^ClinicHub\.(Api|Application|Domain)/(Features/)?Forms/'; Areas = @('forms') },
     @{ Pattern = '^ClinicHub\.Application/Common/(Paging|Search)/'; Areas = @('catalog', 'admin') },
     @{ Pattern = '^ClinicHub\.Application/Common/(Results|Behaviors|Validation|Messaging)/'; Areas = @('errors') },
     @{ Pattern = '^ClinicHub\.Application/Common/Settings/PlatformSettings'; Areas = @('admin', 'auth') },

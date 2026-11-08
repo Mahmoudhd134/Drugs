@@ -37,6 +37,7 @@ ClinicHub.Domain/              entities and pure rules; no references (no EF Cor
   Platform/                    Clinic (+ ClinicStatus)
   Prescriptions/               PrescriptionTemplate, PrescriptionTemplateLimits, PrescriptionTemplateCodes
   Attachments/                 Attachment (a stored file's metadata; IClinicOrShared)
+  Forms/                       Form, FormVersion (platform rows, no clinic)
 ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs, errors; no ASP.NET
   Common/Abstractions/         IAppDbContext, IClinicContext (+ ClinicContext), ICurrentUser, ITransactionRunner,
                                IPostCommitActions (after-commit side effects), IClinicScope (sets the current
@@ -93,6 +94,9 @@ ClinicHub.Application/         → Domain. Use cases (MediatR), validators, DTOs
   Features/Attachments/        AttachmentErrors; Files/ (IAttachmentService/AttachmentService, IAttachmentFileProvider, AttachmentRecords,
                                AttachmentModules, AttachmentFileName, AttachmentSettingsValidation), FileTypes/ (AttachmentType, AttachmentTypes, AttachmentContentCheck);
                                no use cases: features call the service from their own
+  Features/Forms/Definitions/  FormDto (FormSummary, FormDetails), FormErrors, FormLimits, FormQueries (NotDeleted), FormDefinitionJson,
+                               IFormUsage/NoFormUsage (always false until a consumer exists); Commands/ (CreateForm, SaveForm,
+                               DeleteForm), Queries/ (GetForms, GetForm)
   DependencyInjection.cs       AddApplication(configuration): MediatR (+ license), behaviors, validators,
                                the shared services; builds the permission catalog (startup validation)
 ClinicHub.Infrastructure/      → Application, Domain. EF Core + PostgreSQL
@@ -132,6 +136,7 @@ ClinicHub.Api/                 → Application, Infrastructure. ASP.NET Core API
                                PermissionsController, AccessSetup (DI)
   Features/Attachments/        [AttachmentUpload(module)] + AttachmentUploadFilter (owns an upload's form read), ToAttachmentUpload(); no routes:
                                each feature brings its own
+  Features/Forms/              AdminFormsController (api/v1/admin/forms, PlatformAdmin policy)
   Shared/                      AppSettings (root of the config + startup validation, MediatRSettings)
   Program.cs                   settings, DI, middleware, migrate-on-startup, seeding (IStartupSeeder)
 ClinicHub.Web/                 React SPA (Vite); builds into ClinicHub.Api/wwwroot. Also holds a stub
@@ -394,10 +399,15 @@ Attachments (Attachments)
                        Id (uuid, from the service), ClinicId (null = a platform file; restrict), Module (<=50), RefId (<=64; no
                        database link), OriginalFileName (<=256), TypeKey, SizeBytes, StorageKey (unique), CreatedByUserId and
                        DeletedByUserId (Users, restrict), DeletedAt (set = deleted; the file stays); index (ClinicId, Module, RefId)
+Forms (Forms)          Platform rows, no ClinicId. Name (<=256, may repeat), SearchName (filled by the app), ActiveVersionNumber (not null;
+                       deferrable FK (Id, ActiveVersionNumber) -> FormVersions, raw SQL), IsDeleted (default false), DeletedAt
+FormVersions           FormId (restrict), VersionNumber (from 1), PK (FormId, VersionNumber), Definition (text: the form's JSON as sent;
+                       nothing queries inside it)
 ```
 
 Details: [login tech](../features/auth/tech.md), [access tech](../features/access/tech.md),
-[print templates tech](../features/prescription-templates/tech.md), [attachments tech](../features/attachments/tech.md).
+[print templates tech](../features/prescription-templates/tech.md), [attachments tech](../features/attachments/tech.md),
+[dynamic forms tech](../features/dynamic-forms/tech.md).
 
 Every table except the join tables `RolePermissions` and `StaffRoles` has `CreatedAt`/`UpdatedAt`
 (`timestamptz`, UTC, set on save). `Drugs`, `Protocols`
@@ -494,6 +504,11 @@ Drugs                       Protocols
 | GET | `/admin/drug-categories` | Categories and subcategories with `drugCount`, `deletedClinicsDrugCount` (+ `noSubCategoryDrugCount`) |
 | POST | `/admin/drug-categories`, PUT `/admin/drug-categories/{id}`, DELETE `/admin/drug-categories/{id}` | Create / rename `{ nameEn, nameAr }` (`categoryNameTaken`) / delete (`categoryInUse` + `drugCount`) |
 | POST | `/admin/drug-categories/{id}/subcategories`, PUT/DELETE `/admin/drug-subcategories/{id}` | Same for subcategories (`subCategoryNameTaken`, `subCategoryInUse`) |
+| GET | `/admin/forms?search=&page=1&pageSize=20` | Paged `FormSummary { id, name, activeVersionNumber, updatedAt }`, not deleted, by name (prefix matches first when searching) |
+| GET | `/admin/forms/{id}` | `FormDetails`: the summary + `definition`, the active version's JSON |
+| POST | `/admin/forms` | Create `{ name, definition }` → 201 + `FormDetails`, version 1 active |
+| PUT | `/admin/forms/{id}` | Save `{ name, definition }` → `FormDetails`: an unchanged definition makes no version; a changed one replaces the active version, or makes a new active one when the form is used |
+| DELETE | `/admin/forms/{id}` | Soft delete → 204 (no restore) |
 
 Errors on every route: [ProblemDetails](#errors-problemdetails). Catalog routes (`/drugs`, `/protocols`) need a clinic-context access token
 (`Authorization: Bearer …`): none/expired → 401, platform or no context → 403; and each route's
@@ -506,7 +521,8 @@ and staff errors: `roleNameTaken` (also a role named like the Owner role's label
 `rolesRequired`, `roleNotFound`, `invalidPhone` and the name codes (400)
 ([platform admin](../features/platform-admin/tech.md#api)). Print template errors, all 400: the eleven `template*` codes,
 the name codes, `invalidText`, and `invalidRequest` for a missing number or page; every failure listed, in the rules' order
-([print templates tech](../features/prescription-templates/tech.md)).
+([print templates tech](../features/prescription-templates/tech.md)). Form errors, all 400: the name codes, `formDefinitionInvalid`, `formDefinitionTooLarge`; nothing inside a definition is validated
+([dynamic forms tech](../features/dynamic-forms/tech.md)).
 
 Swagger UI is available in Development at `/swagger`.
 
@@ -541,7 +557,8 @@ Swagger UI is available in Development at `/swagger`.
   and `SearchOther` added; no rows (the shared catalog is loaded by `data/drug-catalog/tools/load_catalog.py`, once);
   down restores the generated columns and fails, rolled back, while shared drugs exist) → `AddPrescriptionTemplates`
   (print templates, step 1: one new empty table, no existing row touched; down drops it) → `AddAttachments` (one new
-  empty table, no existing row touched; down drops it).
+  empty table, no existing row touched; down drops it) → `AddForms` (two new empty tables and, by raw SQL, their deferrable
+  foreign key; no existing row touched; down drops that key first, then the tables).
   To reset a dev DB: `docker compose down -v && docker compose up -d`, then
   `dotnet ef database update <ef args>`, then `python data/drug-catalog/tools/load_catalog.py --connection
   "host=localhost port=5432 dbname=drags user=drags password=drags"` before the first start (the dev seed's template

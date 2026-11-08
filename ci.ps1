@@ -23,7 +23,7 @@
   'ClinicHub.Application/Features/Access/Authorization/PermissionService.cs'. Gate: 85% on each file.
 
 .PARAMETER Area
-  With -Mutate: only these areas' integration tests score the mutants (auth, access, isolation, errors, admin, catalog, attachments).
+  With -Mutate: only these areas' integration tests score the mutants (auth, access, isolation, errors, admin, catalog, attachments, forms).
 
 .PARAMETER NoWait
   Start the run and return at once (its link is printed).

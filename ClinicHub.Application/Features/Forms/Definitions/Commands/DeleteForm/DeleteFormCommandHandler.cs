@@ -1,11 +1,20 @@
+using ClinicHub.Application.Common.Abstractions;
 using ClinicHub.Application.Common.Messaging;
 using ClinicHub.Application.Common.Results;
+using Microsoft.EntityFrameworkCore;
 
 namespace ClinicHub.Application.Features.Forms.Definitions.Commands.DeleteForm;
 
-/// <summary><b>Stub (feature 1, T1).</b></summary>
-internal sealed class DeleteFormCommandHandler : ICommandHandler<DeleteFormCommand>
+internal sealed class DeleteFormCommandHandler(IAppDbContext db, TimeProvider clock) : ICommandHandler<DeleteFormCommand>
 {
-    public Task<Result> Handle(DeleteFormCommand command, CancellationToken cancellationToken) =>
-        throw new NotImplementedException("Dynamic forms feature 1, T1");
+    public async Task<Result> Handle(DeleteFormCommand command, CancellationToken cancellationToken)
+    {
+        var form = await db.Forms.NotDeleted().FirstOrDefaultAsync(f => f.Id == command.Id, cancellationToken);
+        if (form is null)
+            return FormErrors.NotFound;
+
+        form.Delete(clock.GetUtcNow().UtcDateTime);
+        await db.SaveChangesAsync(cancellationToken);
+        return Result.Success();
+    }
 }

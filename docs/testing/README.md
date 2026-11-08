@@ -12,7 +12,7 @@ Bugs found by tests: [known bugs](known-bugs.md). Before the client's test: [dre
 | `e2e` | Playwright (Chromium) | `ClinicHub.Web/e2e/<area>/` | same |
 | `manual` | by hand | the [dress rehearsal](dress-rehearsal.md) | none |
 
-Areas (the `Area` trait, the `@area:` tag): `auth`, `access`, `isolation`, `errors`, `admin`, `catalog`, `attachments` (backend and
+Areas (the `Area` trait, the `@area:` tag): `auth`, `access`, `isolation`, `errors`, `admin`, `catalog`, `attachments`, `forms` (backend and
 frontend); `prescription`, `i18n`, `ux` (frontend only); `infra` (the integration harness's self-tests).
 
 ## When to run what
@@ -159,6 +159,7 @@ Gates only go up; lowering one needs the user's OK ([design D5](../design/m1.6-t
   | `Api\|Infrastructure/…/Platform/` | `admin` |
   | `…/Catalog/`, `Api/Features/Drugs`, `Protocols`, `Database/Configurations/Catalog/` | `catalog` |
   | `…/Attachments/` (Api, Application, Infrastructure, Domain), `Database/Configurations/Attachments/`, `Settings/Attachment*` | `attachments` |
+  | `…/Forms/` (Api, Application, Domain), `Database/Configurations/Forms/` | `forms` |
   | `Infrastructure/Database/` (other), `Application/Common/Abstractions/`, `Domain/Common/` | `isolation` |
   | `Application/Common/(Results\|Behaviors\|Validation\|Messaging)/`, `Api/(Errors\|Controllers)/` | `errors` |
   | `Application/Common/(Paging\|Search)/` | `catalog`, `admin` |
@@ -413,7 +414,7 @@ shared drugs), as production will (design M1.7 D12).
 
 ```csharp
 [Collection(AuthCollection.Name)]            // the parallel group: its database and app
-[Trait("Area", "auth")]                      // every class: its area (auth, access, isolation, errors, admin, catalog, attachments)
+[Trait("Area", "auth")]                      // every class: its area (auth, access, isolation, errors, admin, catalog, attachments, forms)
 public class OtpRequestTests(AppFixture app) : IntegrationTest(app)
 {
     [Fact]
