@@ -44,7 +44,7 @@ M1.1–M1.3 (phases 1–3), M1.4 (phase 3.5), M1.5 (phase 4) and M3.2 (phase 5).
 | FR-12 | Default drugs and groups live in a hidden **template clinic** that the super admin edits with the normal drugs/groups screens. Later template edits don't change existing clinics. |
 | FR-13 | Drugs, groups and the prescription builder work as today, **inside the selected clinic**, gated by permissions. |
 | FR-14 | The UI stays English + Arabic (RTL), including login and admin screens. |
-| FR-15 | **Dynamic forms** (M2.1): a generic module to build, version and fill forms (RJSF; [POC](#11-designed-ahead)), usable by any feature. Its first user is patient info, but it must not depend on patients. Designed when M2.1 starts. |
+| FR-15 | **Dynamic forms** (M2.1): a separate module where the super admin builds, versions and previews forms (RJSF; [design](dynamic-forms.md)), usable by any feature later. Filling them comes with the first consumer; it must not depend on patients. |
 | FR-16 | **Patients** (M2.2): staff register a patient by phone in their clinic; the patient's info is a dynamic form. One person (phone) can be a patient of several clinics, each with its own record. |
 | FR-17 | **Patient portal** (M2.3): a patient logs in with the same phone + OTP and sees the clinics they belong to. |
 
@@ -611,7 +611,7 @@ step are in the MVP and get their full design when that step starts; the others 
 
 | Feature | When | Fits by |
 |---|---|---|
-| **Dynamic forms** | M2.1 | A generic module, not coupled to patients (any feature can use it). Starting point: the RJSF form builder POC at `C:\Users\mahmoud.nasser\Projects\SideProjects\POCs\DynamicFormBuilderUsingReact` (`FieldInstance[]` → JSON Schema through a control registry; versioned definitions; server-side validation). **Not designed yet**: decided when M2.1 starts. |
+| **Dynamic forms** | M2.1 | A separate module, not coupled to patients. Starting point: the RJSF form builder POC at `C:\Users\mahmoud.nasser\Projects\SideProjects\POCs\DynamicFormBuilderUsingReact`, layouts only. Definitions are stored on the server with one active version per form; a used form's save will make a new version, and nothing uses a form yet. **No server-side validation of form content**, and expressions execute functions, both accepted ([design](dynamic-forms.md)). |
 | **Patients** | M2.2 | Sketch: `Patients(Id, UserId, ClinicId, FullName, FileNo, …)` + the patient info as a dynamic form, unique `(UserId, ClinicId)`; the phone is the only shared data. Clinic data references `Patients.Id`, never `UserId`. Staff register by phone (find/create `User`). |
 | **Patient portal** | M2.3 | A new context type `patient`; `GET /me/clinics`. Same OTP login. |
 | **OTP by SMS/WhatsApp** | M3.2 | `IOtpSender` implementation + `Otp:Mode = Sms`. |
@@ -647,8 +647,8 @@ implementation session and validated before the next (terms in the [status](#hig
 
 | Step | Scope | Done when |
 |---|---|---|
-| M2.1 | **Dynamic forms**: generic, decoupled module (FR-15); design decided when it starts | Defined when designed |
-| M2.2 | **Patients**: registration by phone, patient info through a dynamic form (FR-16) | Defined when designed |
+| M2.1 | **Dynamic forms**: separate module, super admin only (FR-15, [design](dynamic-forms.md)): backend with versioning, builder with Preview, extra controls, images through attachments | The super admin builds a form, saves it, reopens it on another computer and previews it, in Arabic and English |
+| M2.2 | **Patients**: registration by phone, patient info through a dynamic form (FR-16); needs filling and saved entries, which M2.1 doesn't build | Defined when designed |
 | M2.3 | **Patient portal**: `patient` context, same OTP login (FR-17) | Defined when designed |
 
 ### M3 Production readiness
