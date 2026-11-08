@@ -665,7 +665,7 @@ Agreed improvements, done in M3.1 (after M2):
 | Enhancement | What | Why |
 |---|---|---|
 | **Generated frontend permissions** | A script exports the backend `PermissionCatalog` (e.g. `dotnet run --project ClinicHub.Api -- export-permissions`) and generates `ClinicHub.Web/src/features/access/permissions.ts`; wired into the build so it can't go stale | One source of truth: a renamed or removed permission becomes a TypeScript compile error instead of a hand-synced list |
-| **Permission-aware prefetch** | A route table maps each page to its `import()` and `permission`; when the browser is idle (`requestIdleCallback`), the chunks of pages the user may open are preloaded (optionally on nav hover). The admin area and the Quill editor stay on demand | First navigation to each page is instant; users never download code they can't use |
+| **Chunk prefetch** ✅ | Changed by the user from permission-aware to every chunk: once signed in, when the browser is idle, all chunks are downloaded into the HTTP cache ([tech overview § App shell](../tech/overview.md#app-shell)) | First navigation to each page is instant |
 | **Vendor chunk split** | `build.rollupOptions.output.manualChunks`: React, MUI, router in their own chunks | They rarely change, so they stay cached across deploys (main chunk is ~197 kB gzipped today) |
 
 ## 13. Open questions

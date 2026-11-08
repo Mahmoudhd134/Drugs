@@ -4,6 +4,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {useTranslation} from "react-i18next";
 import {getErrorMessage} from "../../api/errors.ts";
+import {startChunkPrefetch, stopChunkPrefetch} from "../../app/chunkPrefetch.ts";
 import {
     type ClinicLoss,
     currentContextKey,
@@ -38,6 +39,11 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
         });
         startSession();
     }, [queryClient]);
+
+    useEffect(() => {
+        if (session.status === "authenticated") startChunkPrefetch();
+        else if (session.status === "anonymous") stopChunkPrefetch();
+    }, [session.status]);
 
     // The routes already follow the new session (picker, login); this says why, and opens the other clinic's home
     const contextLabel = useContextLabel();

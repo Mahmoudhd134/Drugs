@@ -1,7 +1,29 @@
 /// <reference types="vitest/config" />
-import {defineConfig} from 'vite'
+import {defineConfig, type Plugin} from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
+import {type BuiltFile, PREFETCH_LIST_ID, prefetchUrls} from './src/app/chunkList.ts'
+
+/** Writes the files to prefetch into the built index.html (app/chunkPrefetch.ts); the dev server has none, so it prefetches nothing. */
+const prefetchList = (): Plugin => {
+    let base = '/'
+    return {
+        name: 'clinichub:prefetch-list',
+        apply: 'build',
+        configResolved: config => {
+            base = config.base
+        },
+        transformIndexHtml: {
+            order: 'post',
+            handler: (_html, {bundle}) => [{
+                tag: 'script',
+                attrs: {type: 'application/json', id: PREFETCH_LIST_ID},
+                children: JSON.stringify(prefetchUrls((bundle ?? {}) as unknown as Record<string, BuiltFile>, base)),
+                injectTo: 'head',
+            }],
+        },
+    }
+}
 
 /**
  * The pure-logic files (design M1.6 D3 "Frontend rules", plus the other pure modules with rules): each must reach the
@@ -42,6 +64,7 @@ export default defineConfig({
     plugins: [
         react(),
         tailwindcss(),
+        prefetchList(),
     ],
     server: {
         // Same origin as the SPA in development, so the refresh cookie (SameSite=Strict) is sent

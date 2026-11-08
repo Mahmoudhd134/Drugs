@@ -13,7 +13,8 @@ test.describe("A new version deployed while the app is open @area:ux", () => {
             // The drugs page's chunk of the old build is gone (404) the first time; after the reload it is served again
             const missing: string[] = [];
             await page.route(/\/assets\/DrugsPage-[^/]+\.js$/, async route => {
-                if (missing.length === 0) {
+                // Only the page's own load: the app's background download (a fetch) of the same file must not use up the 404
+                if (missing.length === 0 && route.request().resourceType() === "script") {
                     missing.push(route.request().url());
                     await route.fulfill({status: 404, contentType: "text/plain", body: "Not found"});
                 } else {
