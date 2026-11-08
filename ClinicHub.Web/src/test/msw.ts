@@ -331,7 +331,7 @@ export const clinicPrintTemplateHandler = (template: PrintTemplate | null = null
 
 /**
  * The five routes of `/admin/forms` (design dynamic-forms § 4.3), kept in `forms` (changed in place, so a write shows in the next GET). The list answers summaries by name, names starting with the search
- * first, as the API orders them. `POST` answers 201 with version 1 active; `PUT` answers the saved form; `DELETE` 204. A missing id answers 404 `notFound`, also on a second `DELETE`. Other errors are per test,
+ * first, as the API orders them. `POST` answers 201 with version 1 active; `PUT` answers the saved form; both store the name trimmed; `DELETE` 204. A missing id answers 404 `notFound`, also on a second `DELETE`. Other errors are per test,
  * in a later `server.use`, which wins (`http.put(api("/admin/forms/:id"), () => problem(400, "formDefinitionTooLarge", {errors: [{code: "formDefinitionTooLarge", field: "definition"}]}))`).
  */
 export const adminFormsHandlers = (forms: FormDetails[] = []) => {
@@ -353,14 +353,15 @@ export const adminFormsHandlers = (forms: FormDetails[] = []) => {
         }),
         http.post(url, async ({request}) => {
             const body = await request.json() as SaveForm;
-            const created: FormDetails = {id: nextId(), activeVersionNumber: 1, updatedAt: SAVED_AT, ...body};
+            const created: FormDetails = {id: nextId(), activeVersionNumber: 1, updatedAt: SAVED_AT, ...body, name: body.name.trim()};
             forms.push(created);
             return HttpResponse.json(created, {status: 201});
         }),
         http.put(`${url}/:id`, async ({request, params}) => {
             const form = forms[indexOf(params.id)];
             if (!form) return problem(404, "notFound");
-            Object.assign(form, await request.json() as SaveForm, {updatedAt: SAVED_AT});
+            const body = await request.json() as SaveForm;
+            Object.assign(form, body, {name: body.name.trim(), updatedAt: SAVED_AT});
             return json(form);
         }),
         http.delete(`${url}/:id`, ({params}) => {

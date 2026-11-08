@@ -11,9 +11,9 @@ public static class FormErrors
 {
     /// <summary>A missing or deleted form, also on a second DELETE.</summary>
     public static readonly Error NotFound =
-        new("notFound", "The form does not exist.", ErrorType.NotFound);
+        new(CommonErrors.NotFound.Code, "The form does not exist.", ErrorType.NotFound);
 
-    /// <summary>The definition is missing, null or anything but a JSON object.</summary>
+    /// <summary>The definition is missing, null, anything but a JSON object, or JSON the server couldn't read back.</summary>
     public static readonly Error DefinitionInvalid =
         new("formDefinitionInvalid", "The form's definition must be a JSON object.", ErrorType.Validation);
 

@@ -23,8 +23,8 @@ export type FormSummary = {
 };
 
 export type FormDetails = FormSummary & {
-    /** The active version's definition, as saved */
-    definition: FormDefinition;
+    /** The active version's definition, as saved: any JSON object (D4), so read it before trusting its shape */
+    definition: Record<string, unknown>;
 };
 
 /** The body of `POST /admin/forms` and `PUT /admin/forms/:id`. */

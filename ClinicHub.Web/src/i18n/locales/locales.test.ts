@@ -90,6 +90,8 @@ describe("locale files @area:i18n", () => {
             "templateCalibrationInvalid",
             // The attachments (design attachments § 5)
             "attachmentTypeNotAllowed", "attachmentTooLarge", "attachmentEmpty",
+            // The dynamic forms (design dynamic-forms § 4.3)
+            "formDefinitionInvalid", "formDefinitionTooLarge",
         ];
         for (const code of codes) {
             expect(enTexts[`errors.${code}`], `en errors.${code}`).toBeTypeOf("string");

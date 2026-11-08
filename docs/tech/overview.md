@@ -269,7 +269,7 @@ deploy.ps1, DEPLOY.md          production build + IIS guide
 - **Errors**: every error response is one ProblemDetails shape (see [Errors](#errors-problemdetails)). Codes are
   API contracts: declared once in the feature's error class (`CommonErrors`, `DrugErrors`, `ProtocolErrors`,
   `CategoryErrors`, `SharedDrugErrors`, `IdentityErrors`, `AccessErrors`, `ClinicErrors`, `RoleErrors`,
-  `StaffErrors`, `PrescriptionTemplateErrors`, `AttachmentErrors`). Add new codes
+  `StaffErrors`, `PrescriptionTemplateErrors`, `AttachmentErrors`, `FormErrors`). Add new codes
   there **and** under `errors.*` in both locale files. A code that may name a clinic (`clinicSuspended`,
   `staffInactive`: the `clinicNames` field below) also has `errors.<code>_named` (plural forms, `{{clinics}}`). The transport codes (`unauthorized`, `invalidRequest`,
   `conflict`, `methodNotAllowed`, `unexpected`) have no keys on purpose: the SPA shows `errors.generic` for them;

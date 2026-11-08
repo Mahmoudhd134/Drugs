@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using ClinicHub.Application.Features.Forms.Definitions;
 using ClinicHub.Application.Features.Forms.Definitions.Commands.CreateForm;
+using ClinicHub.Application.Features.Forms.Definitions.Commands.DeleteForm;
 using ClinicHub.IntegrationTests.Harness.Assertions;
 using ClinicHub.IntegrationTests.Harness.Hosting;
 
@@ -17,16 +18,23 @@ public sealed class FormBuilder(AppFixture app)
 
     private string name = Unique.Name("Form", "نموذج");
     private string definition = EmptyDefinition;
+    private bool deleted;
 
     public FormBuilder Named(string value) { name = value; return this; }
 
     /// <param name="json">The definition's JSON text.</param>
     public FormBuilder WithDefinition(string json) { definition = json; return this; }
 
+    /// <summary>Soft deleted after creation (<c>DeleteFormCommand</c>).</summary>
+    public FormBuilder Deleted() { deleted = true; return this; }
+
     public async Task<FormDetails> CreateAsync()
     {
         using var document = JsonDocument.Parse(definition);
-        return (await app.SendAsync(new CreateFormCommand(name, document.RootElement.Clone()))).ShouldSucceed();
+        var form = (await app.SendAsync(new CreateFormCommand(name, document.RootElement.Clone()))).ShouldSucceed();
+        if (deleted)
+            (await app.SendAsync(new DeleteFormCommand(form.Id))).ShouldSucceed();
+        return form;
     }
 
     public TaskAwaiter<FormDetails> GetAwaiter() => CreateAsync().GetAwaiter();
