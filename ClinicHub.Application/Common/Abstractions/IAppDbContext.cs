@@ -2,6 +2,7 @@ using ClinicHub.Domain.Access;
 using ClinicHub.Domain.Attachments;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
+using ClinicHub.Domain.Forms;
 using ClinicHub.Domain.Identity;
 using ClinicHub.Domain.Platform;
 using ClinicHub.Domain.Prescriptions;
@@ -35,6 +36,8 @@ public interface IAppDbContext
     DbSet<PrescriptionTemplate> PrescriptionTemplates { get; }
     /// <summary>A clinic's or a platform file's metadata: only <c>IAttachmentService</c> touches it (docs/design/attachments.md).</summary>
     DbSet<Attachment> Attachments { get; }
+    DbSet<Form> Forms { get; }
+    DbSet<FormVersion> FormVersions { get; }
 
     /// <summary>
     /// Marks the row as changed so its UpdatedAt moves (e.g. a protocol whose items changed); the

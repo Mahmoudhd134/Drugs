@@ -4,6 +4,7 @@ using ClinicHub.Domain.Access;
 using ClinicHub.Domain.Attachments;
 using ClinicHub.Domain.Catalog;
 using ClinicHub.Domain.Common;
+using ClinicHub.Domain.Forms;
 using ClinicHub.Domain.Identity;
 using ClinicHub.Domain.Platform;
 using ClinicHub.Domain.Prescriptions;
@@ -37,6 +38,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IClinicContext
     public DbSet<StaffRole> StaffRoles { get; set; }
     public DbSet<PrescriptionTemplate> PrescriptionTemplates { get; set; }
     public DbSet<Attachment> Attachments { get; set; }
+    public DbSet<Form> Forms { get; set; }
+    public DbSet<FormVersion> FormVersions { get; set; }
 
     /// <inheritdoc />
     public void Touch(IHasTimestamps entity) =>
